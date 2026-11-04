@@ -67,6 +67,36 @@ Status: early development. Build and run instructions will be added as the proje
 | [`r-efi`](https://crates.io/crates/r-efi) | 6.0.0 | MIT OR Apache-2.0 OR LGPL-2.1-or-later | Dev/test only; transitive (`getrandom`), UEFI targets only; used under MIT OR Apache-2.0 |
 | [`windows-sys`](https://crates.io/crates/windows-sys) | 0.61.2 | MIT OR Apache-2.0 | Dev/test only; transitive (`errno`, `rustix`, `tempfile`), Windows only |
 | [`windows-link`](https://crates.io/crates/windows-link) | 0.2.1 | MIT OR Apache-2.0 | Dev/test only; transitive (`windows-sys`), Windows only |
+| [`wasm-bindgen`](https://crates.io/crates/wasm-bindgen) | 0.2.130 | MIT OR Apache-2.0 | Rust/JavaScript bindings in `sim-wasm` (exact pin `=0.2.130`; the CLI from `mise.toml` must match). Compiled for the host too, but only meaningful on wasm32 |
+| [`wasm-bindgen-macro`](https://crates.io/crates/wasm-bindgen-macro) | 0.2.130 | MIT OR Apache-2.0 | Transitive (`wasm-bindgen`): `#[wasm_bindgen]` proc macro, build-time only |
+| [`wasm-bindgen-macro-support`](https://crates.io/crates/wasm-bindgen-macro-support) | 0.2.130 | MIT OR Apache-2.0 | Transitive (`wasm-bindgen-macro`): macro implementation, build-time only |
+| [`wasm-bindgen-shared`](https://crates.io/crates/wasm-bindgen-shared) | 0.2.130 | MIT OR Apache-2.0 | Transitive (`wasm-bindgen`): schema shared with the CLI |
+| [`bumpalo`](https://crates.io/crates/bumpalo) | 3.20.3 | MIT OR Apache-2.0 | Transitive (`wasm-bindgen-macro-support`): arena allocator, build-time only |
+| [`rustversion`](https://crates.io/crates/rustversion) | 1.0.23 | MIT OR Apache-2.0 | Transitive (`wasm-bindgen`): rustc version cfgs, build-time only |
+| [`wasm-bindgen-test`](https://crates.io/crates/wasm-bindgen-test) | 0.3.80 | MIT OR Apache-2.0 | Dev/test only: `sim-wasm/tests/parity.rs`, run natively and in Node via `wasm-bindgen-test-runner` |
+| [`wasm-bindgen-test-macro`](https://crates.io/crates/wasm-bindgen-test-macro) | 0.3.80 | MIT OR Apache-2.0 | Dev/test only; transitive (`wasm-bindgen-test`): `#[wasm_bindgen_test]` proc macro |
+| [`wasm-bindgen-test-shared`](https://crates.io/crates/wasm-bindgen-test-shared) | 0.2.130 | MIT OR Apache-2.0 | Dev/test only; transitive (`wasm-bindgen-test`): shared with the test runner |
+| [`js-sys`](https://crates.io/crates/js-sys) | 0.3.107 | MIT OR Apache-2.0 | Dev/test only; transitive (`wasm-bindgen-test`, `wasm-bindgen-futures`): JavaScript built-in bindings (wasm32 targets) |
+| [`wasm-bindgen-futures`](https://crates.io/crates/wasm-bindgen-futures) | 0.4.80 | MIT OR Apache-2.0 | Dev/test only; transitive (`wasm-bindgen-test`): async test support (wasm32 targets) |
+| [`minicov`](https://crates.io/crates/minicov) | 0.3.8 | Apache-2.0/MIT | Dev/test only; transitive (`wasm-bindgen-test`): coverage runtime (wasm32 targets) |
+| [`nu-ansi-term`](https://crates.io/crates/nu-ansi-term) | 0.50.3 | MIT | Dev/test only; transitive (`wasm-bindgen-test`): coloured test output |
+| [`cast`](https://crates.io/crates/cast) | 0.3.0 | MIT OR Apache-2.0 | Dev/test only; transitive (`wasm-bindgen-test`): checked numeric casts |
+| [`oorandom`](https://crates.io/crates/oorandom) | 11.1.5 | MIT | Dev/test only; transitive (`wasm-bindgen-test`): test-order shuffling (not used by the simulation) |
+| [`libm`](https://crates.io/crates/libm) | 0.2.16 | MIT | Dev/test only; transitive (`wasm-bindgen-test`, `num-traits`): math routines |
+| [`walkdir`](https://crates.io/crates/walkdir) | 2.5.0 | Unlicense/MIT | Dev/test only; transitive (`minicov`): directory walking |
+| [`same-file`](https://crates.io/crates/same-file) | 1.0.6 | Unlicense/MIT | Dev/test only; transitive (`walkdir`) |
+| [`winapi-util`](https://crates.io/crates/winapi-util) | 0.1.11 | Unlicense OR MIT | Dev/test only; transitive (`same-file`): Windows helpers |
+| [`futures-util`](https://crates.io/crates/futures-util) | 0.3.34 | MIT OR Apache-2.0 | Dev/test only; transitive (`js-sys`) |
+| [`futures-core`](https://crates.io/crates/futures-core) | 0.3.34 | MIT OR Apache-2.0 | Dev/test only; transitive (`futures-util`) |
+| [`futures-task`](https://crates.io/crates/futures-task) | 0.3.34 | MIT OR Apache-2.0 | Dev/test only; transitive (`futures-util`) |
+| [`pin-project-lite`](https://crates.io/crates/pin-project-lite) | 0.2.17 | Apache-2.0 OR MIT | Dev/test only; transitive (`futures-util`, `tokio`) |
+| [`slab`](https://crates.io/crates/slab) | 0.4.12 | MIT | Dev/test only; transitive (`futures-util`) |
+| [`tokio`](https://crates.io/crates/tokio) | 1.54.1 | MIT | Dev/test only; transitive (`wasm-bindgen-futures`): appears in the dev-dependency tree; not used by the simulation |
+| [`cc`](https://crates.io/crates/cc) | 1.11.0 | MIT OR Apache-2.0 | Build-time only; transitive (`blake3`, `minicov`): C compiler driver for build scripts |
+| [`find-msvc-tools`](https://crates.io/crates/find-msvc-tools) | 0.1.15 | MIT OR Apache-2.0 | Build-time only; transitive (`cc`) |
+| [`shlex`](https://crates.io/crates/shlex) | 2.0.1 | MIT OR Apache-2.0 | Build-time only; transitive (`cc`) |
+| [`autocfg`](https://crates.io/crates/autocfg) | 1.5.1 | Apache-2.0 OR MIT | Build-time only; transitive (`num-traits`) |
+| [`libc`](https://crates.io/crates/libc) | 0.2.191 | MIT OR Apache-2.0 | Transitive (`cpufeatures`, `errno`, `getrandom`): C library bindings (native only) |
 
 More entries are added here as libraries and assets arrive.
 

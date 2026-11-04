@@ -185,6 +185,13 @@ pub struct ReplayConfig {
     pub workload: ReplayWorkload,
 }
 
+impl ReplayConfig {
+    /// Parses a bare config (the `config` object of a replay file). Never panics.
+    pub fn from_json_str(s: &str) -> Result<Self, ReplayError> {
+        serde_json::from_str(s).map_err(|e| ReplayError::Malformed(e.to_string()))
+    }
+}
+
 impl From<WorldConfig> for ReplayConfig {
     fn from(c: WorldConfig) -> Self {
         let WorldConfig {
@@ -268,6 +275,28 @@ pub struct ReplayInput {
 
 /// A replay file. Fields are public so tooling and tests can inspect and tamper with
 /// them; [`verify`] re-checks everything it relies on.
+/// One input as submitted by a live caller (e.g. the browser): a tick and a payload.
+/// There is no `seq`: the input stream assigns it. Same strict `u64` string rules as
+/// [`ReplayInput`].
+///
+/// ```json
+/// { "tick": "5", "payload": { "SetValue": { "entity": "3", "value": 500 } } }
+/// ```
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SubmitInput {
+    #[serde(with = "u64_string")]
+    pub tick: u64,
+    pub payload: ReplayPayload,
+}
+
+impl SubmitInput {
+    /// Parses one submitted input. Never panics.
+    pub fn from_json_str(s: &str) -> Result<Self, ReplayError> {
+        serde_json::from_str(s).map_err(|e| ReplayError::Malformed(e.to_string()))
+    }
+}
+
 #[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReplayFile {

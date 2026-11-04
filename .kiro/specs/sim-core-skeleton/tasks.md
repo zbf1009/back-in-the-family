@@ -58,14 +58,14 @@ Execution notes for the orchestrator:
   - `tests/properties.rs`: P1–P7 as specified in the design.
   - _Requirements: R9.1–R9.7, R5.4_
 
-- [-] 8. sim-cli and parity fixtures
+- [x] 8. sim-cli and parity fixtures
   - `record`, `replay`, `check-size` subcommands with hand-parsed arguments and the documented exit codes.
   - Generate `fixtures/parity/` (two seeds × `days_per_tick` 1 and 7, `Pairwise`, 2,000 ticks, random inputs including invalid ones).
   - `sim-core/tests/replay.rs` also verifies every fixture.
   - Manual check: `sim-cli replay` on a hand-edited fixture exits 1 and names the tick.
   - _Requirements: R6.1, R6.2, R6.3_
 
-- [~] 9. sim-wasm bindings and native-vs-WASM parity
+- [-] 9. sim-wasm bindings and native-vs-WASM parity
   - Add `wasm-bindgen` `=0.2.130` and `wasm-bindgen-test` (check version; list both in `README.md`).
   - `WasmSim` and `verify_replay` as in the design.
   - `tests/parity.rs`: verify every fixture under `wasm-bindgen-test` in Node.
