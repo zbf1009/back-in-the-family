@@ -30,14 +30,14 @@ Execution notes for the orchestrator:
   - Unit tests: pinned outputs for a few fixed inputs; `in_range` stays inside bounds at the extremes; changing any one of the five `draw` inputs changes the output for sample values.
   - _Requirements: R2.4, R3.1, R3.2, R3.3_
 
-- [-] 4. Canonical encoding and checksum
+- [x] 4. Canonical encoding and checksum
   - Add `blake3` 1.8.7 (`default-features = false`, `pure`); verify license on crates.io; list it in `README.md`.
   - `canon.rs`: `Canon`, `CanonWriter`, impls for integers, `bool`, `Option`, `Vec`, `BTreeMap`; `u32` lengths via checked conversion; `CANON_VERSION`.
   - `checksum.rs`: `Checksum(u64)` from the first 8 bytes of BLAKE3, hex display and parse.
   - Unit tests: encoded bytes for sample values match hand-written expectations; BLAKE3 matches an official test vector (empty input).
   - _Requirements: R5.1, R5.2, R1.4_
 
-- [~] 5. World, input stream and tick loop
+- [-] 5. World, input stream and tick loop
   - `world.rs`: `WorldConfig` (validated), `Workload`, `Entity`, `World`, `Rejections`, `RejectReason`, `check_invariants`; `Canon` impls with exhaustive destructuring.
   - `input.rs`: `TickInput`, `InputPayload`, `InputStream::submit` (rejects past ticks, assigns `seq`), `for_tick`.
   - `tick.rs`: the five steps in fixed order, documented as the module doc.

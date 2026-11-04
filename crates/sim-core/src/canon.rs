@@ -18,7 +18,7 @@
 
 use std::collections::BTreeMap;
 
-use crate::ids::{EntityId, InputSeq, Tick};
+use crate::ids::{EntityId, IdCounter, InputSeq, Tick};
 
 /// Version of the canonical layout. Bump it whenever any encoding rule or any encoded
 /// field changes, so old and new checksums can never be confused for each other.
@@ -150,6 +150,13 @@ impl Canon for InputSeq {
     fn encode<W: CanonWriter>(&self, w: &mut W) {
         let Self(v) = self;
         v.encode(w);
+    }
+}
+
+impl Canon for IdCounter {
+    /// Encodes the value the counter would issue next ([`IdCounter::peek`]).
+    fn encode<W: CanonWriter>(&self, w: &mut W) {
+        self.peek().encode(w);
     }
 }
 
