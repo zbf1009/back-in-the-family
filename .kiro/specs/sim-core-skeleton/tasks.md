@@ -92,7 +92,7 @@ Execution notes for the orchestrator:
   - **Stop for the author's choice**, then record it in `tech.md` (steering change, logged).
   - _Requirements: R10.1, R10.2, R10.3_
 
-- [-] 12. Apply the tick granularity decision (daily ticks)
+- [x] 12. Apply the tick granularity decision (daily ticks)
   - Context: the author chose 1 day per tick (`docs/tick-granularity.md` section 5, `tech.md`). The weekly option is removed from the code. `docs/tick-granularity.md` stays as the record of the measurement and is only annotated, not rewritten.
   - sim-core: remove `days_per_tick` from `WorldConfig` (field, validation, `ConfigError::InvalidDaysPerTick`, `Default`, `try_new`, `Canon` encoding). Drift becomes a plain +-10 per tick. Remove `Mutation::ConfigDaysPerTick` from the test API; update unit tests and the property generators (they no longer choose a granularity).
   - Replay format: drop `days_per_tick` from `ReplayConfig` and bump `REPLAY_VERSION` to 2, since the format changes; version 1 files must be rejected by the existing unsupported-version error. Update the format docs in `replay.rs`, tests, and the JSON examples and help text in sim-cli and sim-wasm.
@@ -102,7 +102,7 @@ Execution notes for the orchestrator:
   - Do not change the canonical encoding rules, the hash, or anything not listed. All gates pass. Record in `docs/kiro-log.md` what the `replay-on-save` hook did while sim-core files were being edited, and where (if anywhere) its output appeared.
   - _Requirements: R2.1, R6.2, R7.2, R10.3_
 
-- [~] 13. Final check
+- [-] 13. Final check
   - Run `scripts/gates.sh` from a clean `target/`.
   - Sync the spec documents with what was built, without rewriting history: `design.md` (the checksum builds the canonical encoding into a buffer and then hashes it, not a stream into the hasher (D4); P4 became P4a and P4b; `bench_checksum` returns a hex string and uses a wrapping sum as its sink; the input and config JSON shapes; the sim-cli flags; replay format version 2 without `days_per_tick`; the observed hook behavior) and `requirements.md` (R2 and R10 mention two granularities: record the decision and keep R10 as the measurement that led to it).
   - Correct `docs/tick-granularity.md` section 3: the 36,879-byte state is 3,540 affinity entries x 10 bytes (8-byte id + 2-byte value) = 35,400, plus 60 entities x 24 bytes = 1,440, plus 39 bytes of header and rejections; the sentence that says "60 entities x 59 affinities x 2 bytes" is wrong.

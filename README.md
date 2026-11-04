@@ -6,7 +6,52 @@ A reincarnation life-sim set in a small American town where, after a Halloween c
 
 Built for Kiroween 2026 (Frankenstein category). Development is done with Kiro CLI; the `.kiro/` directory (steering, specs, hooks, agents) is part of this repository.
 
-Status: early development. Build and run instructions will be added as the project takes shape.
+Status: the deterministic simulation skeleton (`sim-core`, with the native runner `sim-cli` and the browser bindings `sim-wasm`) is built and checked; there is no playable game or web page yet. The next spec is `web-shell`.
+
+## Build and test
+
+Prerequisites (Linux; commands below were run on Arch Linux):
+
+- [`rustup`](https://rustup.rs). It reads `rust-toolchain.toml`, which pins Rust 1.99.1 with `rustfmt`, `clippy` and the `wasm32-unknown-unknown` target; if that toolchain is not installed yet, `rustup toolchain install` (run in the repository) installs it.
+- [`mise`](https://mise.jdx.dev) with the project's `mise.toml`: `mise install` provides `wasm-bindgen-cli` 0.2.130 (it must equal the `wasm-bindgen` crate version in `Cargo.lock`; `scripts/check-wasm-bindgen.sh` checks this) and Node 26.7.0. Only the WASM steps need them.
+
+Everything, in one command (about 2.5 minutes from a clean `target/`, about 2 minutes with a warm one):
+
+```sh
+scripts/gates.sh
+```
+
+It runs `cargo fmt --check`, a check that `sim-core`'s normal dependency tree has no `rand` or `getrandom`, `cargo clippy --workspace --all-targets -- -D warnings` (plus wasm32 clippy), `cargo test --workspace`, the `bench`-feature test, `cargo test -p sim-wasm --target wasm32-unknown-unknown` (the fixtures replayed in Node), and `scripts/wasm-build.sh` (release build, `wasm-bindgen --target web` into `target/wasm-pkg`, and a check that every output file is under 25 MiB).
+
+Tests only: `cargo test --workspace` (the property tests take about 30 seconds in a debug build).
+
+### Command-line runner
+
+```sh
+cargo run -p sim-cli -- --help
+cargo run -p sim-cli -- record --seed 1 --ticks 2000 --random-inputs 120 --out /tmp/run.replay.json
+cargo run -p sim-cli -- replay /tmp/run.replay.json      # exit 0 and "ok", or exit 1 and the first divergent tick
+cargo run -p sim-cli -- batch --seeds 1..=20 --ticks 2000 # invariants after every tick, in-memory record and verify
+cargo run -p sim-cli -- check-size target/wasm-pkg --max-bytes 26214400
+cargo run --release -p sim-cli -- measure                 # native timing of one 80-year lifetime (29,200 daily ticks)
+```
+
+`scripts/measure-wasm.sh` builds the WASM module with the `bench` feature and runs the same measurement in Node. One tick is one day.
+
+### Fixtures
+
+`fixtures/parity/*.replay.json` are golden replay files (three seeds, 2,000 ticks each). The native test (`cargo test -p sim-core --test replay`) and the WASM test replay them and must produce the recorded checksum at every tick. Regenerate them only after an intentional change to tick logic, random streams, the canonical encoding or the replay format: `scripts/regen-fixtures.sh`, then read the diff. Details are in `fixtures/parity/README.md`.
+
+### Kiro hooks
+
+Two hooks live in `.kiro/hooks/`:
+
+- `replay-on-save` runs `scripts/hook-replay.sh` (the sim-core replay tests, about 4 seconds) after the agent saves a Rust file under `crates/sim-core/`.
+- `seed-batch-after-task` runs `scripts/hook-seed-batch.sh` (`sim-cli batch` over seeds 1 to 20) after a spec task finishes.
+
+Both scripts can be run by hand. What was and was not observed about how the hooks report to the agent is recorded in `docs/kiro-log.md` and `docs/sim-core-skeleton-audit.md`.
+
+Other documents: `docs/tick-granularity.md` (measurement behind the 1-day tick), `docs/sim-core-skeleton-audit.md` (requirement-by-requirement check of the first spec), `docs/kiro-log.md` (how Kiro was used).
 
 ## Prior work disclosure
 
@@ -99,6 +144,8 @@ Status: early development. Build and run instructions will be added as the proje
 | [`libc`](https://crates.io/crates/libc) | 0.2.191 | MIT OR Apache-2.0 | Transitive (`cpufeatures`, `errno`, `getrandom`): C library bindings (native only) |
 
 More entries are added here as libraries and assets arrive.
+
+Development tools (not linked into any build output): `wasm-bindgen-cli` 0.2.130 (MIT OR Apache-2.0) and Node.js 26.7.0 (MIT), both pinned in `mise.toml`.
 
 ## License
 

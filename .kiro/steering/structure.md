@@ -16,10 +16,14 @@ back-in-the-family/
     sim-cli/      # native headless runner: seed batches, replay check, metrics for hooks
   web/            # TypeScript frontend: town view, scenes, chronicle, settings, LLM runtime adapter
   eval/           # LLM probe: imported locked cards, prompt templates, runner, results
-  fixtures/       # golden replay files shared by native and WASM parity tests
-  scripts/        # gates.sh and other repeatable commands used by hooks and CI-style checks
+  fixtures/
+    parity/       # golden replay files shared by native and WASM parity tests (seed1/seed2/seedbig-pairwise)
+    configs/      # world config JSON used to record them
+  scripts/        # gates.sh, wasm-build.sh, measure-wasm.*, regen-fixtures.sh, hook-*.sh, check-wasm-bindgen.sh
   docs/
     kiro-log.md   # evidence log of Kiro usage
+    tick-granularity.md          # measurement and design comparison behind the 1-day tick
+    sim-core-skeleton-audit.md   # requirement-by-requirement audit of spec 1
   .cargo/         # config.toml: wasm32 test runner
   Cargo.toml      # workspace manifest
   rust-toolchain.toml  # pinned Rust version, components and wasm32 target
@@ -59,8 +63,9 @@ eval runner ──> sim-core (context rendering + validation) and the LLM adapte
 3. `llm-probe`: runner for the locked evaluation cards (closed-set decision and fact synthesis), latency, size and cold-start measurements for the candidate runtimes.
 4. Vertical slice: `life-sim`, `underworld`, `soul-identity`, `narrator`, `slow-think`, `scenes`, each thin at first.
 
-## Next steps (as of 2026-11-04)
+## Next steps (as of 2026-11-04, after spec 1)
 
-- Start spec 1. Its requirements and design phases need a high-capability model.
-- Set up hooks once there is code to guard: replay checksum on simulation file save; seed-batch metrics after task execution.
-- Evaluation cards are being authored and locked outside the repository. Import the locked set only when it arrives, and log its manifest hash in `docs/kiro-log.md` before any model run.
+- Spec 1 (`sim-core-skeleton`) is done: gates pass from a clean build, and the audit is in `docs/sim-core-skeleton-audit.md`. Known open items from it: the two hooks fire, but whether a failing hook's output ever reaches the agent was not observed (R11), and the weekly half of the tick measurement can only be re-run at commit `bac46e3`.
+- Next is spec 2, `web-shell`: load `sim-wasm` in a page, show tick and checksum, choose the deploy target. Ask before any deploy.
+- Hooks are set up (`.kiro/hooks/`): `replay-on-save` and `seed-batch-after-task`. When a later spec changes tick logic, regenerate the fixtures on purpose (`scripts/regen-fixtures.sh`) and say so in the commit.
+- Evaluation cards are still being authored and locked outside the repository. Import the locked set only when it arrives, and log its manifest hash in `docs/kiro-log.md` before any model run (spec 3, `llm-probe`).

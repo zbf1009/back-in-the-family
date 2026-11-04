@@ -38,6 +38,8 @@ The world in this spec holds placeholder content only (anonymous entities with i
 5. ANY iteration that can change state SHALL go over `BTreeMap`/`BTreeSet` or a list sorted by ID.
 6. THE placeholder tick steps SHALL change state every tick using the PRNG, so that the checksum sequence is non-trivial.
 
+*Decision recorded 2026-11-04 (task 13): the author chose 1 day per tick (`tech.md`, `docs/tick-granularity.md` section 5). The world config therefore has no granularity field, so R2.1's config holds the entity count and the workload only. The 1-day-vs-1-week measurement behind the choice is R10. No criterion above was weakened.*
+
 ### R3. Seeded random streams
 
 **User story:** As the developer, I want each random stream derived from `(world_seed, entity_id, stream_tag)`, so that adding or removing one entity never shifts another entity's random numbers.
@@ -110,6 +112,8 @@ THE test suite SHALL include `proptest` properties for at least:
 1. THE runner SHALL measure, for both granularities, with 60 placeholder entities and a placeholder per-entity workload: ticks per second natively and in WASM, wall time to simulate one full lifetime of 80 years, and the share of tick time spent on the checksum.
 2. THE results SHALL be written to a document in the repository together with a short comparison on design needs (resolution of "due within N days" stakes, events per tick, narrator node pacing for a 5–10 minute life).
 3. THE choice SHALL be made by the author; after the choice, `tech.md` SHALL be updated to record it.
+
+*Decision recorded 2026-11-04 (task 13): R10 is kept as the measurement that led to the decision. Both granularities were measured at commit `bac46e3`; the author then chose 1 day per tick, and task 12 removed the weekly option from the code, so the weekly half of R10.1 can no longer be re-run on `main` (see `docs/sim-core-skeleton-audit.md`, R10.1).*
 
 ### R11. Kiro hooks
 

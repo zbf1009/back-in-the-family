@@ -90,7 +90,11 @@ Lifetime times repeat within about 0.2% (native) and 0.2% (WASM); best and media
 
 - Ticks per second does not depend on `days_per_tick`: 23.3k/s native and 10.9k/s WASM at both settings. The granularity only changes how many ticks a life needs (7.0x fewer weekly), so a weekly lifetime is 7.0x cheaper (178 ms vs 1252 ms native; 380 ms vs 2676 ms WASM). This is by construction, not a finding.
 - One tick costs about 43 us natively and 91 us in WASM (WASM is 2.1x slower; its checksum is 1.7x slower).
-- The checksum is most of the tick: 79% native, 63% WASM. The placeholder state encodes to 36,879 bytes (60 entities x 59 affinities x 2 bytes, plus values), so per-tick hashing is about 1.09 GB/s native and 0.64 GB/s WASM (36,879 B / 33.8 us, 36,879 B / 57.8 us).
+- The checksum is most of the tick: 79% native, 63% WASM. The placeholder state encodes to 36,879 bytes, so per-tick hashing is about 1.09 GB/s native and 0.64 GB/s WASM (36,879 B / 33.8 us, 36,879 B / 57.8 us). The 36,879 bytes break down as follows (checked against the `Canon` impls in `world.rs`; the earlier text "60 entities x 59 affinities x 2 bytes, plus values" was wrong because each affinity entry also encodes its 8-byte id key):
+  - affinity entries: 60 x 59 = 3,540 entries x 10 bytes (8-byte id + 2-byte value) = 35,400;
+  - entities: 60 x 24 bytes (8-byte map key + 8-byte id + 4-byte value + 4-byte affinity-map length) = 1,440;
+  - header and rejections: 39 bytes (2 canon version + 8 seed + 4 config, which then included the 1-byte `days_per_tick` + 8 tick + 8 id counter + 4 entity-map length = 34, plus 5 for the empty rejection record: 4-byte map length + 1-byte `last` tag);
+  - total 35,400 + 1,440 + 39 = 36,879. After task 12 removed `days_per_tick` the header is 38 bytes and the total is 36,878 (35,400 + 1,440 + 38), which `sim-cli measure` prints today.
 - The JS-to-WASM boundary adds about 1.5 us per daily `step()` call and about 2.0 us per weekly one ((2720.85 - 2676.34) ms / 29,200; (388.14 - 379.57) ms / 4,160), 2% of a tick.
 - The numbers do not include the real life-sim, narrator, event log or presentation. The workload is a placeholder; real per-tick work will differ, probably upward.
 
