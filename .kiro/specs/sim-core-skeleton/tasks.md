@@ -7,7 +7,7 @@ Execution notes for the orchestrator:
 - Delegate each task to the `spec-task-execution` sub-agent if it exists in the registry. In this setup it has been rejected with "not found in registry"; in that case delegate to `general-task-execution` with the full task text, and read `requirements.md`, `design.md` and `.kiro/steering/*.md` first.
 - Task 11 ends with the author's decision on tick granularity. Stop after writing `docs/tick-granularity.md` and wait; do not start task 12 until the author has chosen.
 
-- [-] 1. Workspace scaffold
+- [x] 1. Workspace scaffold
   - Root `Cargo.toml`: workspace with `crates/sim-core`, `crates/sim-wasm`, `crates/sim-cli`; resolver 3; edition 2024; shared `[workspace.lints]`.
   - Empty crates that build: `sim-core` (lib, `#![forbid(unsafe_code)]`), `sim-wasm` (`cdylib` + `rlib`), `sim-cli` (bin).
   - `.cargo/config.toml`: `runner = "wasm-bindgen-test-runner"` for `wasm32-unknown-unknown`.
@@ -16,7 +16,7 @@ Execution notes for the orchestrator:
   - Commit `rust-toolchain.toml` and `mise.toml` (installed earlier) with the scaffold.
   - _Requirements: R1.1, R1.2, R1.3_
 
-- [~] 2. Determinism guards for sim-core
+- [-] 2. Determinism guards for sim-core
   - `crates/sim-core/clippy.toml`: `disallowed-types` (`f32`, `f64`, `HashMap`, `HashSet`, `Instant`, `SystemTime`) and `disallowed-methods` (`Instant::now`, `SystemTime::now`, `thread::spawn`, `env::var`, `env::vars`).
   - Deny in sim-core: `clippy::float_arithmetic`, `clippy::arithmetic_side_effects`, `clippy::cast_possible_truncation`.
   - `tests/source_guard.rs`: comment-stripped scan of `sim-core/src` for float literals and banned names.

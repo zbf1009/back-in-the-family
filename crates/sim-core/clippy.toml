@@ -1,0 +1,17 @@
+# Determinism bans, scoped to sim-core only (see tech.md determinism rules).
+disallowed-types = [
+    { path = "f32", reason = "simulation state and logic must use integers only (tech.md rule 1)" },
+    { path = "f64", reason = "simulation state and logic must use integers only (tech.md rule 1)" },
+    { path = "std::collections::HashMap", reason = "iteration order is not deterministic; use BTreeMap (tech.md rule 4)" },
+    { path = "std::collections::HashSet", reason = "iteration order is not deterministic; use BTreeSet (tech.md rule 4)" },
+    { path = "std::time::Instant", reason = "no wall-clock time inside the simulation (tech.md rule 6)" },
+    { path = "std::time::SystemTime", reason = "no wall-clock time inside the simulation (tech.md rule 6)" },
+]
+
+disallowed-methods = [
+    { path = "std::time::Instant::now", reason = "no wall-clock time inside the simulation (tech.md rule 6)" },
+    { path = "std::time::SystemTime::now", reason = "no wall-clock time inside the simulation (tech.md rule 6)" },
+    { path = "std::thread::spawn", reason = "no threads inside the simulation (tech.md rule 6)" },
+    { path = "std::env::var", reason = "no ambient inputs inside the simulation (tech.md rule 6)" },
+    { path = "std::env::vars", reason = "no ambient inputs inside the simulation (tech.md rule 6)" },
+]
