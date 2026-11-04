@@ -41,6 +41,32 @@ Status: early development. Build and run instructions will be added as the proje
 | [`cfg-if`](https://crates.io/crates/cfg-if) | 1.0.5 | MIT OR Apache-2.0 | Transitive (`blake3`): conditional compilation macro |
 | [`constant_time_eq`](https://crates.io/crates/constant_time_eq) | 0.4.2 | CC0-1.0 OR MIT-0 OR Apache-2.0 | Transitive (`blake3`): constant-time comparison |
 | [`cpufeatures`](https://crates.io/crates/cpufeatures) | 0.3.1 | MIT OR Apache-2.0 | Transitive (`blake3`): CPU feature detection |
+| [`proptest`](https://crates.io/crates/proptest) | 1.12.0 | MIT OR Apache-2.0 | Dev/test only: property-based tests in `sim-core/tests/properties.rs` (generates test inputs; never used by the simulation) |
+| [`rand`](https://crates.io/crates/rand) | 0.10.3 | MIT OR Apache-2.0 | Dev/test only; transitive (`proptest`): random test-input generation |
+| [`rand_core`](https://crates.io/crates/rand_core) | 0.10.1 | MIT OR Apache-2.0 | Dev/test only; transitive (`rand`, `chacha20`, `getrandom`, `rand_xorshift`) |
+| [`rand_xorshift`](https://crates.io/crates/rand_xorshift) | 0.5.0 | MIT OR Apache-2.0 | Dev/test only; transitive (`proptest`) |
+| [`chacha20`](https://crates.io/crates/chacha20) | 0.10.2 | MIT OR Apache-2.0 | Dev/test only; transitive (`proptest`) |
+| [`core_detect`](https://crates.io/crates/core_detect) | 1.0.0 | MIT/Apache-2.0 | Dev/test only; transitive (`proptest`) |
+| [`getrandom`](https://crates.io/crates/getrandom) | 0.4.3 | MIT OR Apache-2.0 | Dev/test only; transitive (`rand`, `tempfile`) |
+| [`bit-set`](https://crates.io/crates/bit-set) | 0.11.1 | Apache-2.0 OR MIT | Dev/test only; transitive (`proptest`) |
+| [`bit-vec`](https://crates.io/crates/bit-vec) | 0.10.1 | Apache-2.0 OR MIT | Dev/test only; transitive (`bit-set`) |
+| [`bitflags`](https://crates.io/crates/bitflags) | 2.13.2 | MIT OR Apache-2.0 | Dev/test only; transitive (`proptest`, `rustix`) |
+| [`num-traits`](https://crates.io/crates/num-traits) | 0.2.19 | MIT OR Apache-2.0 | Dev/test only; transitive (`proptest`) |
+| [`regex-syntax`](https://crates.io/crates/regex-syntax) | 0.8.11 | MIT OR Apache-2.0 | Dev/test only; transitive (`proptest`): regex-based string strategies |
+| [`rusty-fork`](https://crates.io/crates/rusty-fork) | 0.3.1 | MIT/Apache-2.0 | Dev/test only; transitive (`proptest`): forked test runs |
+| [`wait-timeout`](https://crates.io/crates/wait-timeout) | 0.2.1 | MIT/Apache-2.0 | Dev/test only; transitive (`rusty-fork`) |
+| [`quick-error`](https://crates.io/crates/quick-error) | 1.2.3 | MIT/Apache-2.0 | Dev/test only; transitive (`rusty-fork`) |
+| [`fnv`](https://crates.io/crates/fnv) | 1.0.7 | Apache-2.0 / MIT | Dev/test only; transitive (`rusty-fork`) |
+| [`tempfile`](https://crates.io/crates/tempfile) | 3.27.0 | MIT OR Apache-2.0 | Dev/test only; transitive (`rusty-fork`) |
+| [`fastrand`](https://crates.io/crates/fastrand) | 2.5.0 | Apache-2.0 OR MIT | Dev/test only; transitive (`tempfile`) |
+| [`once_cell`](https://crates.io/crates/once_cell) | 1.21.4 | MIT OR Apache-2.0 | Dev/test only; transitive (`tempfile`) |
+| [`errno`](https://crates.io/crates/errno) | 0.3.14 | MIT OR Apache-2.0 | Dev/test only; transitive (`rustix`) |
+| [`rustix`](https://crates.io/crates/rustix) | 1.1.6 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | Dev/test only; transitive (`tempfile`) |
+| [`linux-raw-sys`](https://crates.io/crates/linux-raw-sys) | 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | Dev/test only; transitive (`rustix`), Linux only |
+| [`unarray`](https://crates.io/crates/unarray) | 0.1.4 | MIT OR Apache-2.0 | Dev/test only; transitive (`proptest`) |
+| [`r-efi`](https://crates.io/crates/r-efi) | 6.0.0 | MIT OR Apache-2.0 OR LGPL-2.1-or-later | Dev/test only; transitive (`getrandom`), UEFI targets only; used under MIT OR Apache-2.0 |
+| [`windows-sys`](https://crates.io/crates/windows-sys) | 0.61.2 | MIT OR Apache-2.0 | Dev/test only; transitive (`errno`, `rustix`, `tempfile`), Windows only |
+| [`windows-link`](https://crates.io/crates/windows-link) | 0.2.1 | MIT OR Apache-2.0 | Dev/test only; transitive (`windows-sys`), Windows only |
 
 More entries are added here as libraries and assets arrive.
 

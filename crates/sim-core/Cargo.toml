@@ -11,5 +11,21 @@ blake3 = { version = "1.8.7", default-features = false, features = ["pure"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 
+[features]
+# Test-only mutation API (`sim_core::testing`) used by tests/properties.rs. It is
+# switched on for this crate's own tests by the self dev-dependency below; a normal
+# `cargo build` of sim-core, and every downstream crate, compiles without it.
+test-support = []
+
 [lints]
 workspace = true
+
+[dev-dependencies]
+# Enables the `test-support` feature for integration tests (they are compiled without
+# `cfg(test)`, so the feature is the only way to expose the mutation API to them).
+sim-core = { path = ".", features = ["test-support"] }
+# TEST-ONLY. proptest pulls in `rand` and `getrandom` to generate test INPUTS. They are
+# dev-dependencies, so they never enter the simulation's dependency graph
+# (`cargo tree -p sim-core -e normal`, checked by scripts/gates.sh). The simulation's own
+# randomness is the counter-based `rng::draw`, never `rand`.
+proptest = "1.12.0"

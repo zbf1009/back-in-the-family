@@ -45,14 +45,14 @@ Execution notes for the orchestrator:
   - Unit tests: past-tick submission rejected with state unchanged; each invalid input kind is skipped and counted; despawn removes inbound affinity; same-tick inputs apply in `seq` order.
   - _Requirements: R2.1, R2.2, R2.5, R2.6, R4.1, R4.2, R4.3, R4.4, R5.3_
 
-- [-] 6. Replay file and replay check
+- [x] 6. Replay file and replay check
   - Add `serde` and `serde_json` (check versions and licenses; list in `README.md`).
   - `replay.rs`: `ReplayFile` JSON with `u64` as decimal strings, format and version checks, `record`, `verify` returning the first `Divergence`.
   - `tests/replay.rs`: record and verify in-process for fixed seeds; a tampered checksum is reported at the right tick; wrong checksum count and unknown version are rejected.
   - Fault injection 3 (HashMap iteration in the drift step): show the replay test fails, revert, log.
   - _Requirements: R4.5, R6.2, R6.4_
 
-- [~] 7. Property-based tests
+- [-] 7. Property-based tests
   - Add `proptest` 1.12.0 as a dev-dependency; list in `README.md`.
   - Test-only mutation API behind `#[cfg(any(test, feature = "test-support"))]`.
   - `tests/properties.rs`: P1–P7 as specified in the design.
