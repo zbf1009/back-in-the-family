@@ -10,7 +10,7 @@ inclusion: always
 |---|---|---|
 | Simulation core | Rust (edition 2024), plain structs and functions, **no ECS** | Small town (40–60 residents), daily settlement; ECS scheduling buys nothing in single-threaded WASM |
 | Browser build | `wasm32-unknown-unknown` + `wasm-bindgen` | Every deployed file must stay under 25 MiB |
-| Headless runner | Native Rust binary | Seed batches, replay checks, metrics for hooks |
+| Headless runner | Native Rust binary | Seed batches, replay checks, metrics |
 | Frontend | TypeScript web app (DOM + Canvas) | Framework chosen in the web-shell spec |
 | Hosting | Cloudflare (Workers static assets or Pages) | Ask before any deploy |
 | LLM runtime | Decided by the W1 probe | Candidates: in-browser (WebLLM or transformers.js) and server-side (Cloudflare Workers AI). Rules default is always the last fallback |

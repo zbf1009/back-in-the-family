@@ -1,11 +1,17 @@
-# Tasks: sim-core-skeleton
+# Implementation Plan: sim-core-skeleton
+
+## Overview
 
 Each task ends with the gates green (`scripts/gates.sh` once it exists) and one local conventional commit. Fault injections are run, shown to fail, reverted, and logged in `docs/kiro-log.md` in the same task. Nothing is pushed.
+
+## Notes
 
 Execution notes for the orchestrator:
 - Tasks run strictly one at a time, in numeric order (see "Task Dependency Graph" at the end). They edit the same files (`Cargo.toml`, `scripts/gates.sh`, `README.md`, `docs/kiro-log.md`), so they must not run in parallel.
 - Delegate each task to the `spec-task-execution` sub-agent if it exists in the registry. In this setup it has been rejected with "not found in registry"; in that case delegate to `general-task-execution` with the full task text, and read `requirements.md`, `design.md` and `.kiro/steering/*.md` first.
 - Task 11 ended with the author's decision on tick granularity: 1 day per tick, recorded in `tech.md`. Task 12 applies it to the code; task 13 is the final check.
+
+## Tasks
 
 - [x] 1. Workspace scaffold
   - Root `Cargo.toml`: workspace with `crates/sim-core`, `crates/sim-wasm`, `crates/sim-cli`; resolver 3; edition 2024; shared `[workspace.lints]`.
@@ -102,13 +108,31 @@ Execution notes for the orchestrator:
   - Do not change the canonical encoding rules, the hash, or anything not listed. All gates pass. Record in `docs/kiro-log.md` what the `replay-on-save` hook did while sim-core files were being edited, and where (if anywhere) its output appeared.
   - _Requirements: R2.1, R6.2, R7.2, R10.3_
 
-- [-] 13. Final check
+- [x] 13. Final check
   - Run `scripts/gates.sh` from a clean `target/`.
   - Sync the spec documents with what was built, without rewriting history: `design.md` (the checksum builds the canonical encoding into a buffer and then hashes it, not a stream into the hasher (D4); P4 became P4a and P4b; `bench_checksum` returns a hex string and uses a wrapping sum as its sink; the input and config JSON shapes; the sim-cli flags; replay format version 2 without `days_per_tick`; the observed hook behavior) and `requirements.md` (R2 and R10 mention two granularities: record the decision and keep R10 as the measurement that led to it).
   - Correct `docs/tick-granularity.md` section 3: the 36,879-byte state is 3,540 affinity entries x 10 bytes (8-byte id + 2-byte value) = 35,400, plus 60 entities x 24 bytes = 1,440, plus 39 bytes of header and rejections; the sentence that says "60 entities x 59 affinities x 2 bytes" is wrong.
   - Re-read requirements R1–R11 and confirm each criterion against the code and test output; note any gap.
   - Update `README.md` (build and test instructions, third-party list) and `structure.md` "Next steps".
   - _Requirements: all_
+
+- [x] 14. Remove the Kiro hooks (author decision)
+  - Context: hook tests A and B (kiro-log, 2026-11-04) showed that in Kiro CLI V3 both hooks run (`PostFileSave` for the agent's edit-tool saves only, `PostTaskExec` on task completions) but their output never reaches the agent, and the author saw no warning either. On 2026-11-04 the author decided to delete the hooks instead of rebuilding the replay check as a `Stop` hook. `sim-cli batch` is kept and becomes a gate.
+  - Delete `.kiro/hooks/replay-on-save.json`, `.kiro/hooks/seed-batch-after-task.json` (and the empty `.kiro/hooks/` directory), `scripts/hook-replay.sh` and `scripts/hook-seed-batch.sh`. Do not touch `sim-cli batch` or its tests.
+  - `scripts/gates.sh`: add a step that runs `sim-cli batch --seeds 1..=20 --ticks 2000` (it checks invariants after every tick and does a record-and-verify round trip per seed, for 20 seeds of 2,000 ticks; the property tests only run 150 ticks). Use a release build for that step if a debug run is too slow; measure both and report the gate's added wall time. Per `tech.md`, show the new step fails once by injecting the fault it guards against (for example removing the drift clamp so values leave 0..=1000, in a scratch copy of the repository or with a careful revert), then log it.
+  - Docs, without deleting history: `README.md` (remove the "Kiro hooks" section and the mentions of hooks in the first paragraph and in the gate description; add the batch step to the gate description; add two sentences saying hooks were tried and removed, and where the evidence is); `.kiro/steering/structure.md` (layout comment lines, the `scripts/` list, the `.kiro/` tree line, and the two "Next steps" bullets about hooks) and `.kiro/steering/tech.md` (the "metrics for hooks" wording in the stack table); `requirements.md` R11 and `design.md` "Kiro hooks (R11)": add a dated note that the hooks were withdrawn, keep all criteria and text; `docs/sim-core-skeleton-audit.md`: change the R11.1 to R11.4 rows to a withdrawn status, fix the counts and the gaps list, and add a row note for the new batch gate. Keep the spec files valid for `validate_spec_format`.
+  - Do not change sim-core, the fixtures, or anything not listed. All gates pass.
+  - Log in `docs/kiro-log.md`: what was deleted, the gate timing, the injection result, and the conclusions about hooks (they run, only on agent edit-tool saves and on task completions, output not visible to the agent or, as far as the author noticed, to the human).
+  - _Requirements: R11 (withdrawn), R8.2_
+
+- [x] 15. Close the thread-ban gap (audit gap 4)
+  - Context: the pre-push review of the audit found that the thread ban in `crates/sim-core/clippy.toml` and in `tests/source_guard.rs` covers only `std::thread::spawn`. `thread::scope`, `thread::Builder::spawn` and `thread::Scope::spawn` would pass both guards, and `thread::available_parallelism` (an environment-dependent value) is not banned either (tech.md rule 6: no threads, no ambient inputs).
+  - `clippy.toml` `disallowed-methods`: add `std::thread::scope`, `std::thread::Builder::spawn`, `std::thread::Builder::spawn_scoped`, `std::thread::Scope::spawn` and `std::thread::available_parallelism`, each with a reason. Check by compiling that every path resolves (clippy reports an unresolvable path as a configuration error).
+  - `tests/source_guard.rs`: extend the banned name/path lists so the text scan also rejects `thread::scope`, `thread::Builder` and `thread::available_parallelism` (the scan catches code hidden behind `#[allow]`), with unit tests for the scanner (each new pattern flagged in code, ignored in comments and strings, and a lookalike identifier such as `my_thread::scoped` not flagged).
+  - Per `tech.md` and R8.2, show each extended guard fails once by injection, then revert with a backup copy: (a) clippy: put `std::thread::scope(|_| {});` (and one `Builder::new().spawn(..)`) in `lib.rs` and show `cargo clippy --workspace --all-targets -- -D warnings` fails with the disallowed-method message; (b) source guard: hide the same code behind `#[allow(clippy::disallowed_methods)]` and show clippy is silent while `cargo test -p sim-core --test source_guard` fails. Restore `lib.rs` and verify `git diff --stat -- crates/sim-core/src/lib.rs` is empty (sim-core has no pending changes in this file, so an empty diff proves the restore).
+  - Docs: `docs/sim-core-skeleton-audit.md` (R8.1 row and gap 4 become fixed, recount, add the injection results), the guard table in `design.md` "Determinism guards (R8)" (add the new banned methods in place; keep the file validator-clean), and `docs/kiro-log.md`. Keep it factual.
+  - Do not change anything else in sim-core. All gates pass.
+  - _Requirements: R8.1, R8.2_
 
 ## Task Dependency Graph
 
@@ -129,7 +153,9 @@ Every task depends on the files the previous task left in place (shared `Cargo.t
     { "id": 9, "tasks": ["10. Kiro hooks (only after task 9 is done)"] },
     { "id": 10, "tasks": ["11. Tick granularity measurement"] },
     { "id": 11, "tasks": ["12. Apply the tick granularity decision (daily ticks)"] },
-    { "id": 12, "tasks": ["13. Final check"] }
+    { "id": 12, "tasks": ["13. Final check"] },
+    { "id": 13, "tasks": ["14. Remove the Kiro hooks (author decision)"] },
+    { "id": 14, "tasks": ["15. Close the thread-ban gap (audit gap 4)"] }
   ]
 }
 ```

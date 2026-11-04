@@ -13,13 +13,13 @@ back-in-the-family/
   crates/
     sim-core/     # deterministic simulation: model, tick steps, event log, narrator, rules, TickInput, checksum
     sim-wasm/     # wasm-bindgen bindings: create world, step, submit input, read snapshot
-    sim-cli/      # native headless runner: seed batches, replay check, metrics for hooks
+    sim-cli/      # native headless runner: seed batches, replay check, metrics
   web/            # TypeScript frontend: town view, scenes, chronicle, settings, LLM runtime adapter
   eval/           # LLM probe: imported locked cards, prompt templates, runner, results
   fixtures/
     parity/       # golden replay files shared by native and WASM parity tests (seed1/seed2/seedbig-pairwise)
     configs/      # world config JSON used to record them
-  scripts/        # gates.sh, wasm-build.sh, measure-wasm.*, regen-fixtures.sh, hook-*.sh, check-wasm-bindgen.sh
+  scripts/        # gates.sh, wasm-build.sh, measure-wasm.*, regen-fixtures.sh, check-wasm-bindgen.sh
   docs/
     kiro-log.md   # evidence log of Kiro usage
     tick-granularity.md          # measurement and design comparison behind the 1-day tick
@@ -29,7 +29,7 @@ back-in-the-family/
   rust-toolchain.toml  # pinned Rust version, components and wasm32 target
   mise.toml       # pinned project tools: wasm-bindgen-cli, Node
   .kiro/
-    steering/  specs/  hooks/  agents/
+    steering/  specs/  agents/
 ```
 
 ## Modules and boundaries
@@ -65,7 +65,7 @@ eval runner ──> sim-core (context rendering + validation) and the LLM adapte
 
 ## Next steps (as of 2026-11-04, after spec 1)
 
-- Spec 1 (`sim-core-skeleton`) is done: gates pass from a clean build, and the audit is in `docs/sim-core-skeleton-audit.md`. Known open items from it: the two hooks fire, but whether a failing hook's output ever reaches the agent was not observed (R11), and the weekly half of the tick measurement can only be re-run at commit `bac46e3`.
+- Spec 1 (`sim-core-skeleton`) is done: gates pass from a clean build, and the audit is in `docs/sim-core-skeleton-audit.md`. Known open item from it: the weekly half of the tick measurement can only be re-run at commit `bac46e3`.
 - Next is spec 2, `web-shell`: load `sim-wasm` in a page, show tick and checksum, choose the deploy target. Ask before any deploy.
-- Hooks are set up (`.kiro/hooks/`): `replay-on-save` and `seed-batch-after-task`. When a later spec changes tick logic, regenerate the fixtures on purpose (`scripts/regen-fixtures.sh`) and say so in the commit.
+- Hooks were tried and removed on 2026-11-04 (output never reached the agent; see `docs/kiro-log.md`); `sim-cli batch` runs as a step in `scripts/gates.sh`. When a later spec changes tick logic, regenerate the fixtures on purpose (`scripts/regen-fixtures.sh`) and say so in the commit.
 - Evaluation cards are still being authored and locked outside the repository. Import the locked set only when it arrives, and log its manifest hash in `docs/kiro-log.md` before any model run (spec 3, `llm-probe`).

@@ -12,6 +12,11 @@ disallowed-methods = [
     { path = "std::time::Instant::now", reason = "no wall-clock time inside the simulation (tech.md rule 6)" },
     { path = "std::time::SystemTime::now", reason = "no wall-clock time inside the simulation (tech.md rule 6)" },
     { path = "std::thread::spawn", reason = "no threads inside the simulation (tech.md rule 6)" },
+    { path = "std::thread::scope", reason = "no threads inside the simulation (tech.md rule 6)" },
+    { path = "std::thread::Builder::spawn", reason = "no threads inside the simulation (tech.md rule 6)" },
+    { path = "std::thread::Builder::spawn_scoped", reason = "no threads inside the simulation (tech.md rule 6)" },
+    { path = "std::thread::Scope::spawn", reason = "no threads inside the simulation (tech.md rule 6)" },
+    { path = "std::thread::available_parallelism", reason = "environment-dependent value; no ambient inputs inside the simulation (tech.md rule 6)" },
     { path = "std::env::var", reason = "no ambient inputs inside the simulation (tech.md rule 6)" },
     { path = "std::env::vars", reason = "no ambient inputs inside the simulation (tech.md rule 6)" },
 ]

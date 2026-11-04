@@ -4,7 +4,7 @@
 
 A reincarnation life-sim set in a small American town where, after a Halloween clerical error at the local branch of the underworld, everyone who dies in town can only be reborn into the town's own newborns.
 
-Built for Kiroween 2026 (Frankenstein category). Development is done with Kiro CLI; the `.kiro/` directory (steering, specs, hooks, agents) is part of this repository.
+Built for Kiroween 2026 (Frankenstein category). Development is done with Kiro CLI; the `.kiro/` directory (steering, specs, agents) is part of this repository.
 
 Status: the deterministic simulation skeleton (`sim-core`, with the native runner `sim-cli` and the browser bindings `sim-wasm`) is built and checked; there is no playable game or web page yet. The next spec is `web-shell`.
 
@@ -21,7 +21,7 @@ Everything, in one command (about 2.5 minutes from a clean `target/`, about 2 mi
 scripts/gates.sh
 ```
 
-It runs `cargo fmt --check`, a check that `sim-core`'s normal dependency tree has no `rand` or `getrandom`, `cargo clippy --workspace --all-targets -- -D warnings` (plus wasm32 clippy), `cargo test --workspace`, the `bench`-feature test, `cargo test -p sim-wasm --target wasm32-unknown-unknown` (the fixtures replayed in Node), and `scripts/wasm-build.sh` (release build, `wasm-bindgen --target web` into `target/wasm-pkg`, and a check that every output file is under 25 MiB).
+It runs `cargo fmt --check`, a check that `sim-core`'s normal dependency tree has no `rand` or `getrandom`, `cargo clippy --workspace --all-targets -- -D warnings` (plus wasm32 clippy), `cargo test --workspace`, `sim-cli batch --seeds 1..=20 --ticks 2000` (release build; invariants after every tick and a record-and-verify round trip per seed, which the 150-tick property tests do not cover), the `bench`-feature test, `cargo test -p sim-wasm --target wasm32-unknown-unknown` (the fixtures replayed in Node), and `scripts/wasm-build.sh` (release build, `wasm-bindgen --target web` into `target/wasm-pkg`, and a check that every output file is under 25 MiB).
 
 Tests only: `cargo test --workspace` (the property tests take about 30 seconds in a debug build).
 
@@ -42,14 +42,7 @@ cargo run --release -p sim-cli -- measure                 # native timing of one
 
 `fixtures/parity/*.replay.json` are golden replay files (three seeds, 2,000 ticks each). The native test (`cargo test -p sim-core --test replay`) and the WASM test replay them and must produce the recorded checksum at every tick. Regenerate them only after an intentional change to tick logic, random streams, the canonical encoding or the replay format: `scripts/regen-fixtures.sh`, then read the diff. Details are in `fixtures/parity/README.md`.
 
-### Kiro hooks
-
-Two hooks live in `.kiro/hooks/`:
-
-- `replay-on-save` runs `scripts/hook-replay.sh` (the sim-core replay tests, about 4 seconds) after the agent saves a Rust file under `crates/sim-core/`.
-- `seed-batch-after-task` runs `scripts/hook-seed-batch.sh` (`sim-cli batch` over seeds 1 to 20) after a spec task finishes.
-
-Both scripts can be run by hand. What was and was not observed about how the hooks report to the agent is recorded in `docs/kiro-log.md` and `docs/sim-core-skeleton-audit.md`.
+Kiro hooks were tried and removed on 2026-11-04: they ran only on the agent's edit-tool saves and on task completions, and their output did not reach the agent. The evidence is in `docs/kiro-log.md` and `docs/sim-core-skeleton-audit.md`; `sim-cli batch` is now a gate step instead.
 
 Other documents: `docs/tick-granularity.md` (measurement behind the 1-day tick), `docs/sim-core-skeleton-audit.md` (requirement-by-requirement check of the first spec), `docs/kiro-log.md` (how Kiro was used).
 

@@ -222,6 +222,35 @@
         "executionId": "86b72878-5684-48ba-9fa1-ef72757f0487",
         "chatSessionId": "sess_7cde2f39-7fc8-412b-bc62-ea7cc8f227a5",
         "timestamp": 1793798021270
+      },
+      {
+        "executionId": "86b72878-5684-48ba-9fa1-ef72757f0487",
+        "chatSessionId": "sess_7cde2f39-7fc8-412b-bc62-ea7cc8f227a5",
+        "timestamp": 1793799295856
+      }
+    ],
+    "14. Remove the Kiro hooks (author decision)": [
+      {
+        "executionId": "974f4769-a0ac-43c4-9b52-31d956c186b0",
+        "chatSessionId": "sess_7cde2f39-7fc8-412b-bc62-ea7cc8f227a5",
+        "timestamp": 1793802375081
+      },
+      {
+        "executionId": "974f4769-a0ac-43c4-9b52-31d956c186b0",
+        "chatSessionId": "sess_7cde2f39-7fc8-412b-bc62-ea7cc8f227a5",
+        "timestamp": 1793802994741
+      }
+    ],
+    "15. Close the thread-ban gap (audit gap 4)": [
+      {
+        "executionId": "3406ed7f-6e7f-47fa-b171-76b116298fd8",
+        "chatSessionId": "sess_7cde2f39-7fc8-412b-bc62-ea7cc8f227a5",
+        "timestamp": 1793803783521
+      },
+      {
+        "executionId": "3406ed7f-6e7f-47fa-b171-76b116298fd8",
+        "chatSessionId": "sess_7cde2f39-7fc8-412b-bc62-ea7cc8f227a5",
+        "timestamp": 1793804156067
       }
     ]
   }

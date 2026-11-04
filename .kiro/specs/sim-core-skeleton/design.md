@@ -128,7 +128,15 @@ docs/sim-core-skeleton-audit.md   # requirement audit (task 13)   [added]
 
 Dependency direction: `sim-wasm -> sim-core`, `sim-cli -> sim-core`. `sim-core` depends only on `blake3` [D3], `serde` and `serde_json` [D5].
 
-## Data model (sim-core)
+## Architecture
+
+The crate layout and the dependency direction are described in the Overview above.
+
+## Data Models
+
+This section groups the simulation data model.
+
+### Data model (sim-core)
 
 All integer newtypes derive `Copy, Eq, Ord` and implement `Canon`. None derive `std::hash::Hash`; nothing in sim-core needs it.
 
@@ -178,7 +186,11 @@ pub enum RejectReason { UnknownEntity, ValueOutOfRange, IdExhausted }
 
 There is no derived state yet. The `Canon` impl for `World` encodes every field above; future caches will live outside these structs.
 
-## Random streams [D2: counter-based]
+## Components and Interfaces
+
+This section groups the simulation components and their interfaces.
+
+### Random streams [D2: counter-based]
 
 ```rust
 pub enum StreamTag { Drift = 1, Affinity = 2, ToolingInputs = 3 }   // values are permanent; never renumber (ToolingInputs added in task 8: tooling only, the simulation never draws from it)
@@ -192,7 +204,7 @@ pub fn in_range(x: u64, lo: i64, hi: i64) -> i64;   // inclusive, built on below
 - `below` uses a 128-bit multiply with no rejection loop. Its bias is at most `n / 2^64`, documented in the code; all our ranges are under 2^16.
 - Draw indexes: the drift step uses `index = 0`; the affinity step for pair `(a, b)` uses `index = b.0`, so adding an entity never changes the draws for existing pairs.
 
-## Canonical encoding [D4] and checksum [D3]
+### Canonical encoding [D4] and checksum [D3]
 
 ```rust
 pub trait Canon { fn encode<W: CanonWriter>(&self, w: &mut W); }
@@ -208,7 +220,7 @@ Rules:
 
 `Checksum(u64)` is the first 8 bytes (little-endian) of the BLAKE3 hash of the canonical encoding. Displayed and stored as 16 lowercase hex characters.
 
-## Input stream [D6: submission order]
+### Input stream [D6: submission order]
 
 ```rust
 pub struct TickInput { pub tick: Tick, pub seq: InputSeq, pub payload: InputPayload }
@@ -226,7 +238,7 @@ pub struct InputStream { inputs: Vec<TickInput>, next_seq: IdCounter }
 - `InputStream::for_tick(tick) -> &[TickInput]` returns that tick's inputs in `seq` order.
 - Validation against the World happens at apply time, not at submission (R4.4).
 
-## Tick loop
+### Tick loop
 
 `World::step(&mut self, inputs: &[TickInput]) -> Checksum` runs this fixed sequence. The same list is the module doc of `tick.rs`.
 
@@ -252,7 +264,7 @@ impl Sim {
 
 `World::check_invariants() -> Result<(), InvariantViolation>` checks the documented ranges, that affinity keys exist and are not self, and that every entity ID is below the counter. Tests call it after every tick (R9.7). It is not called inside `step`.
 
-## Replay [D5: JSON]
+### Replay [D5: JSON]
 
 ```json
 {
@@ -272,7 +284,7 @@ impl Sim {
 - `replay::verify(&ReplayFile) -> Result<(), Divergence>` rebuilds from seed, config and inputs only, compares every tick, and stops at the first mismatch: `Divergence { tick, expected, actual }`. A file with the wrong number of checksums is an error too.
 - Unknown `format` or `version` is rejected.
 
-## sim-cli
+### sim-cli
 
 Hand-parsed arguments (no CLI framework needed yet).
 
@@ -285,7 +297,7 @@ Hand-parsed arguments (no CLI framework needed yet).
 
 `sim-cli` may use `std::time::Instant` for measurement; the bans in `crates/sim-core/clippy.toml` apply only to `sim-core`.
 
-## sim-wasm
+### sim-wasm
 
 ```rust
 #[wasm_bindgen] pub struct WasmSim { inner: Sim }
@@ -304,21 +316,75 @@ Hand-parsed arguments (no CLI framework needed yet).
 
 `u64` maps to JavaScript `BigInt` in wasm-bindgen. The `wasm-bindgen` crate is pinned with `=0.2.130` to match the CLI.
 
-## Native vs WASM parity [D7: shared fixtures]
+## Correctness Properties
+
+This section groups the property-based tests.
+
+#### Property-based tests (R9)
+
+In `sim-core/tests/properties.rs`, native only, using `proptest` 1.12.0. Strategies generate a seed, a config (`entity_count` 0..=80, both workloads; the first design also chose both `days_per_tick` values, superseded), and an input stream (0..=40 inputs at ticks 0..=150, any payload, including invalid IDs and out-of-range values), then run 150 ticks. As built P4 is two tests (P4a, P4b) and P6 is two tests (P6a counter, P6b entity ids); cases per test: P1 128, P2 128, P3 128, P4a 64, P4b 64, P5 128, P6a 256, P6b 128, P7 128.
+
+### Property 1: Reproducibility
+
+Two independent `Sim`s give equal checksum vectors.
+
+**Validates: Requirements 9.1**
+
+### Property 2: Replay round-trip
+
+`record` → JSON → parse → `verify` succeeds.
+
+**Validates: Requirements 9.2**
+
+### Property 3: Serialization round-trip
+
+`InputStream` and `ReplayFile` decode to values equal to the originals.
+
+**Validates: Requirements 9.3**
+
+### Property 4: Stream independence
+
+Same seed and inputs, plus one extra `Spawn` at tick 0 in world B: every original entity has the same `value` and the same affinity toward every other original entity in both worlds after each tick.
+
+**Validates: Requirements 9.4**
+
+### Property 5: Checksum sensitivity
+
+After k ticks, apply one generated single-field mutation (entity value ±1 within range, one affinity ±1, tick +1, ID counter +1, a rejection counter +1): checksum changes. Uses a test-only mutation API behind `#[cfg(any(test, feature = "test-support"))]`.
+
+**Validates: Requirements 9.5**
+
+### Property 6: ID monotonicity
+
+Spawned IDs are strictly increasing; a despawned ID never reappears.
+
+**Validates: Requirements 9.6**
+
+### Property 7: Semantic invariants
+
+`check_invariants()` passes after every tick.
+
+**Validates: Requirements 9.7**
+
+## Testing Strategy
+
+This section groups the parity test, determinism guards and measurement.
+
+### Native vs WASM parity [D7: shared fixtures]
 
 - `fixtures/parity/` holds replay files: as built, three seeds (`seed1-pairwise`, `seed2-pairwise`, `seedbig-pairwise`, the last above 2^53) × `Pairwise`, 2,000 ticks each, 50 entities, 120 generated inputs including invalid ones. (The first design had two seeds × both `days_per_tick` values, four files; superseded by task 12.)
 - Native: `sim-core/tests/replay.rs` verifies every fixture.
 - WASM: `sim-wasm/tests/parity.rs` embeds the same files with `include_str!` and calls `verify_replay` under `wasm-bindgen-test` in Node (`.cargo/config.toml` sets `runner = "wasm-bindgen-test-runner"` for `wasm32-unknown-unknown`).
 - `scripts/wasm-build.sh` builds `sim-wasm` in release mode, runs `wasm-bindgen --target web`, and calls `sim-cli check-size` on the output (R7.3).
 
-## Determinism guards (R8)
+### Determinism guards (R8)
 
 | Guard | Catches |
 |---|---|
 | `crates/sim-core/clippy.toml` `disallowed-types`: `f32`, `f64`, `std::collections::HashMap`, `std::collections::HashSet`, `std::time::Instant`, `std::time::SystemTime` | Banned types in signatures, fields, `use` items. Clippy supports primitive types in this list. |
-| `disallowed-methods`: `Instant::now`, `SystemTime::now`, `std::thread::spawn`, `std::env::var`, `std::env::vars` | Ambient inputs. |
+| `disallowed-methods`: `Instant::now`, `SystemTime::now`, `std::thread::spawn`, `std::thread::scope`, `std::thread::Builder::spawn`, `std::thread::Builder::spawn_scoped`, `std::thread::Scope::spawn`, `std::thread::available_parallelism`, `std::env::var`, `std::env::vars` | Ambient inputs and threads. |
 | `clippy::float_arithmetic` denied in sim-core | Float arithmetic on inferred types that `disallowed-types` cannot see. |
-| `tests/source_guard.rs` | Backstop text scan of `sim-core/src` (comments stripped) for float literals and the banned names, including in code an `#[allow]` hides from clippy. |
+| `tests/source_guard.rs` | Backstop text scan of `sim-core/src` (comments stripped) for float literals and the banned names (also `thread::scope`, `thread::Builder`, `thread::available_parallelism`), including in code an `#[allow]` hides from clippy. |
 | `scripts/gates.sh` checks `cargo tree -p sim-core -e normal` | `rand` or `getrandom` entering the dependency graph. |
 | Replay check (`tests/replay.rs`) | Hidden nondeterminism within one platform. |
 | Parity fixtures (native + WASM) | Platform-dependent behavior. |
@@ -330,21 +396,7 @@ Planned fault injections (each reverted after it is shown to fail, and logged):
 4. Parity test: encode a length as `usize` instead of `u32`. Native writes 8 bytes and wasm32 writes 4, so checksums differ only across platforms.
 5. Dependency check: add `rand` to `sim-core`.
 
-## Property-based tests (R9)
-
-In `sim-core/tests/properties.rs`, native only, using `proptest` 1.12.0. Strategies generate a seed, a config (`entity_count` 0..=80, both workloads; the first design also chose both `days_per_tick` values, superseded), and an input stream (0..=40 inputs at ticks 0..=150, any payload, including invalid IDs and out-of-range values), then run 150 ticks. As built P4 is two tests (P4a, P4b) and P6 is two tests (P6a counter, P6b entity ids); cases per test: P1 128, P2 128, P3 128, P4a 64, P4b 64, P5 128, P6a 256, P6b 128, P7 128.
-
-| Property | Check |
-|---|---|
-| P1 Reproducibility | Two independent `Sim`s give equal checksum vectors. |
-| P2 Replay round-trip | `record` → JSON → parse → `verify` succeeds. |
-| P3 Serialization round-trip | `InputStream` and `ReplayFile` decode to values equal to the originals. |
-| P4 Stream independence | Same seed and inputs, plus one extra `Spawn` at tick 0 in world B: every original entity has the same `value` and the same affinity toward every other original entity in both worlds after each tick. |
-| P5 Checksum sensitivity | After k ticks, apply one generated single-field mutation (entity value ±1 within range, one affinity ±1, tick +1, ID counter +1, a rejection counter +1): checksum changes. Uses a test-only mutation API behind `#[cfg(any(test, feature = "test-support"))]`. |
-| P6 ID monotonicity | Spawned IDs are strictly increasing; a despawned ID never reappears. |
-| P7 Semantic invariants | `check_invariants()` passes after every tick. |
-
-## Tick granularity measurement (R10)
+### Tick granularity measurement (R10)
 
 Superseded in part (2026-11-04): the weekly option and the weekly column no longer exist in the code (task 12). What follows is the measurement as designed and as run at commit `bac46e3`; `sim-cli measure` and `scripts/measure-wasm.mjs` now report only the daily lifetime. The author chose 1 day per tick (`tech.md`).
 
@@ -355,6 +407,8 @@ Superseded in part (2026-11-04): the weekly option and the weekly column no long
 - `docs/tick-granularity.md` reports the numbers, the machine and versions, and a design comparison: resolution of "due within N days" stakes, events per tick at the narrator's 30–40 s interruption budget, and fast-forward time per in-game year. The author chooses; `tech.md` is updated.
 
 ## Kiro hooks (R11)
+
+**Withdrawn 2026-11-04 (author decision).** Both hooks and their scripts were deleted in task 14 because their output never reached the agent. The text and tables below describe what was built and are kept as history. `sim-cli batch --seeds 1..=20 --ticks 2000` now runs as a release-build step in `scripts/gates.sh`.
 
 Added after the parity test exists. Files live in `.kiro/hooks/` (tracked).
 

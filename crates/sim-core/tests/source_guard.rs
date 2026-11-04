@@ -23,8 +23,15 @@ const BANNED_IDENTS: &[&str] = &[
 ];
 
 /// `a::b` pairs that must not appear in simulation code.
+///
+/// The scan sees pairs of adjacent identifiers, so `std::thread::Builder::new().spawn(..)`
+/// is caught through `thread::Builder`. An item imported by name (`use std::thread::scope;`
+/// then `scope(..)`) is not caught here; clippy resolves paths and catches that case.
 const BANNED_PATHS: &[(&str, &str)] = &[
     ("thread", "spawn"),
+    ("thread", "scope"),
+    ("thread", "Builder"),
+    ("thread", "available_parallelism"),
     ("env", "var"),
     ("env", "vars"),
     ("env", "var_os"),
@@ -411,6 +418,40 @@ fn banned_word_in_code_fails() {
     ] {
         assert!(!scan("t.rs", src).is_empty(), "should flag: {src}");
     }
+}
+
+#[test]
+fn thread_scope_builder_and_parallelism_are_flagged_in_code_only() {
+    for src in [
+        "std::thread::scope(|_| {});",
+        "let b = std::thread::Builder::new();",
+        "let n = thread::available_parallelism();",
+    ] {
+        assert_eq!(scan("t.rs", src).len(), 1, "should flag: {src}");
+        assert!(
+            scan("t.rs", &format!("// {src}\nfn a() {{}}")).is_empty(),
+            "comment: {src}"
+        );
+        assert!(
+            scan(
+                "t.rs",
+                &format!("const S: &str = \"{}\";", src.replace('"', ""))
+            )
+            .is_empty(),
+            "string: {src}"
+        );
+    }
+}
+
+#[test]
+fn lookalike_thread_paths_pass() {
+    assert!(
+        scan(
+            "t.rs",
+            "my_thread::scoped(); thread::scoped_x(); thread2::Builder::new();"
+        )
+        .is_empty()
+    );
 }
 
 #[test]

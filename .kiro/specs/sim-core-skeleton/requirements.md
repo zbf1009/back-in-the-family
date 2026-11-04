@@ -1,4 +1,4 @@
-# Requirements: sim-core-skeleton
+# Requirements Document
 
 ## Introduction
 
@@ -116,6 +116,8 @@ THE test suite SHALL include `proptest` properties for at least:
 *Decision recorded 2026-11-04 (task 13): R10 is kept as the measurement that led to the decision. Both granularities were measured at commit `bac46e3`; the author then chose 1 day per tick, and task 12 removed the weekly option from the code, so the weekly half of R10.1 can no longer be re-run on `main` (see `docs/sim-core-skeleton-audit.md`, R10.1).*
 
 ### R11. Kiro hooks
+
+**Withdrawn 2026-11-04 (author decision).** The hooks ran, but only on the agent's edit-tool saves and on task completions, and their output never reached the agent. They were deleted in task 14; `sim-cli batch` now runs as a step in `scripts/gates.sh`. The criteria below are kept as history. Evidence: `docs/kiro-log.md` and `docs/sim-core-skeleton-audit.md`.
 
 **User story:** As the developer, I want Kiro hooks that run the determinism checks while the agent works, so that divergence and behavior drift are caught when they are introduced, not at the end of a task.
 
