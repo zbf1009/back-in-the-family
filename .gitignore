@@ -1,0 +1,25 @@
+# Rust
+/target/
+**/*.rs.bk
+
+# Web / Node
+node_modules/
+dist/
+*.log
+
+# wasm-pack output
+/pkg/
+**/pkg/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+*.swp
+.idea/
+.vscode/
+
+# NOTE: .kiro/ must stay tracked (hackathon requirement). Do not add it here.
