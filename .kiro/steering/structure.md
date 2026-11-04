@@ -16,8 +16,14 @@ back-in-the-family/
     sim-cli/      # native headless runner: seed batches, replay check, metrics for hooks
   web/            # TypeScript frontend: town view, scenes, chronicle, settings, LLM runtime adapter
   eval/           # LLM probe: imported locked cards, prompt templates, runner, results
+  fixtures/       # golden replay files shared by native and WASM parity tests
+  scripts/        # gates.sh and other repeatable commands used by hooks and CI-style checks
   docs/
     kiro-log.md   # evidence log of Kiro usage
+  .cargo/         # config.toml: wasm32 test runner
+  Cargo.toml      # workspace manifest
+  rust-toolchain.toml  # pinned Rust version, components and wasm32 target
+  mise.toml       # pinned project tools: wasm-bindgen-cli, Node
   .kiro/
     steering/  specs/  hooks/  agents/
 ```

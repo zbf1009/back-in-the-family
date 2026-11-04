@@ -1,0 +1,10 @@
+[package]
+name = "sim-core"
+description = "Deterministic simulation core for Back in the Family"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
