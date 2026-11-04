@@ -11,5 +11,7 @@
     clippy::cast_possible_truncation
 )]
 
+pub mod canon;
+pub mod checksum;
 pub mod ids;
 pub mod rng;

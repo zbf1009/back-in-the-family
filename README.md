@@ -21,8 +21,13 @@ Status: early development. Build and run instructions will be added as the proje
   written during the Kiroween 2026 submission period and can be traced
   through the commit history.
 
-Third-party libraries and assets, with their licenses, will be listed here
-as they are added.
+## Third-party libraries and assets
+
+| Name | Version | License | Used for |
+|---|---|---|---|
+| [`blake3`](https://crates.io/crates/blake3) (feature `pure`, default features off) | 1.8.7 | CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception | Per-tick state checksum in `sim-core` (first 8 bytes of the BLAKE3 hash of the canonical encoding) |
+
+More entries are added here as libraries and assets arrive.
 
 ## License
 

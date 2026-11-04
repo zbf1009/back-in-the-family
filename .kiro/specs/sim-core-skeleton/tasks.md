@@ -24,13 +24,13 @@ Execution notes for the orchestrator:
   - Fault injections 1 (HashMap field), 2 (float literal under `#[allow]`), 5 (`rand` dependency): show each gate fails, revert, log.
   - _Requirements: R8.1, R8.2, R2.3_
 
-- [-] 3. IDs and counter-based random streams
+- [x] 3. IDs and counter-based random streams
   - `ids.rs`: `Tick`, `EntityId`, `InputSeq`, `IdCounter` with checked increment and `IdExhausted`.
   - `rng.rs`: `StreamTag` with fixed values, `draw`, `below`, `in_range`; bias bound documented.
   - Unit tests: pinned outputs for a few fixed inputs; `in_range` stays inside bounds at the extremes; changing any one of the five `draw` inputs changes the output for sample values.
   - _Requirements: R2.4, R3.1, R3.2, R3.3_
 
-- [~] 4. Canonical encoding and checksum
+- [-] 4. Canonical encoding and checksum
   - Add `blake3` 1.8.7 (`default-features = false`, `pure`); verify license on crates.io; list it in `README.md`.
   - `canon.rs`: `Canon`, `CanonWriter`, impls for integers, `bool`, `Option`, `Vec`, `BTreeMap`; `u32` lengths via checked conversion; `CANON_VERSION`.
   - `checksum.rs`: `Checksum(u64)` from the first 8 bytes of BLAKE3, hex display and parse.
