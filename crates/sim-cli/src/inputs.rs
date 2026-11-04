@@ -138,7 +138,7 @@ mod tests {
 
     #[test]
     fn about_one_third_is_rejected_at_apply_time() {
-        let config = WorldConfig::try_new(50, 1, Workload::Pairwise).unwrap();
+        let config = WorldConfig::try_new(50, Workload::Pairwise).unwrap();
         for seed in [1, 2, 3, u64::MAX] {
             let inputs = generate_inputs(seed, 120, 300, 50);
             let file = record(seed, config, &inputs, 300).unwrap();
@@ -161,7 +161,7 @@ mod tests {
     #[test]
     fn all_rejection_reasons_that_inputs_can_cause_appear() {
         use sim_core::world::RejectReason;
-        let config = WorldConfig::try_new(50, 1, Workload::Pairwise).unwrap();
+        let config = WorldConfig::try_new(50, Workload::Pairwise).unwrap();
         let inputs = generate_inputs(2, 240, 300, 50);
         let mut sim = sim_core::tick::Sim::new(2, config).unwrap();
         for (tick, payload) in &inputs {

@@ -16,7 +16,6 @@ record() {
     --config "fixtures/configs/$config" --out "fixtures/parity/$name.replay.json"
 }
 
-record seed1-d1-pairwise 1 pairwise-d1.json
-record seed1-d7-pairwise 1 pairwise-d7.json
-record seedbig-d1-pairwise 18446744073709551557 pairwise-d1.json
-record seedbig-d7-pairwise 18446744073709551557 pairwise-d7.json
+record seed1-pairwise 1 pairwise.json
+record seed2-pairwise 2 pairwise.json
+record seedbig-pairwise 18446744073709551557 pairwise.json

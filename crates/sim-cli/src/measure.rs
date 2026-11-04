@@ -1,6 +1,6 @@
-//! `sim-cli measure`: tick-granularity timings (R10), native side.
+//! `sim-cli measure`: tick performance benchmark (R10), native side.
 //!
-//! For each granularity (1 day and 7 days per tick) it times one full 80-year lifetime
+//! One tick is one day. It times one full 80-year lifetime (29,200 ticks)
 //! on a fresh `Sim` with the `Pairwise` workload and no inputs, `--runs` times, and times
 //! `Checksum::of(world)` separately on a representative state. The numbers depend on the
 //! machine and the build profile, so tests only check structure, never values.
@@ -30,9 +30,8 @@ use crate::commands::{EXIT_OK, EXIT_USAGE_OR_MALFORMED};
 pub const MEASURE_SEED: u64 = 1;
 /// Years in one measured lifetime.
 pub const LIFETIME_YEARS: u64 = 80;
-/// Ticks per in-game year: 365 daily ticks, or 52 weekly ticks. 365 is not a multiple of 7
-/// (365 / 7 = 52.14), so a weekly calendar of 52 weeks is a 364-day year; the lifetime is
-/// 80 x 52 = 4,160 weekly ticks as in the design, not 29,200 / 7 = 4,171.
+/// Ticks per in-game year: one tick is one day.
+pub const TICKS_PER_YEAR: u64 = 365;
 /// Ticks run before the checksum is timed, so affinities are populated.
 pub const WARMUP_TICKS: u32 = 100;
 /// `Checksum::of` calls per timing sample.
@@ -44,10 +43,9 @@ pub const MAX_RUNS: u64 = 50;
 pub const MEASURE_USAGE: &str = "usage: sim-cli measure [--runs N] [--entities N]\n\
 defaults: --runs 5 (1..=50), --entities 60 (0..=200)";
 
-/// Timings for one granularity.
+/// Timings for the daily lifetime.
 #[derive(Debug)]
 struct Row {
-    days_per_tick: u8,
     lifetime_ticks: u64,
     best: Duration,
     median: Duration,
@@ -92,30 +90,25 @@ pub fn measure(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32
         return EXIT_USAGE_OR_MALFORMED;
     };
 
-    let mut rows = Vec::new();
-    for days_per_tick in [1u8, 7] {
-        match measure_one(days_per_tick, entities, runs) {
-            Ok(row) => rows.push(row),
-            Err(e) => {
-                let _ = writeln!(err, "error: {e}");
-                return EXIT_USAGE_OR_MALFORMED;
-            }
+    let row = match measure_one(entities, runs) {
+        Ok(row) => row,
+        Err(e) => {
+            let _ = writeln!(err, "error: {e}");
+            return EXIT_USAGE_OR_MALFORMED;
         }
-    }
+    };
     let build = if cfg!(debug_assertions) {
         "debug (numbers are NOT meaningful)"
     } else {
         "release"
     };
-    let _ = write_report(out, build, entities, runs, &rows);
+    let _ = write_report(out, build, entities, runs, &row);
     EXIT_OK
 }
 
-fn measure_one(days_per_tick: u8, entities: u16, runs: usize) -> Result<Row, String> {
-    let config = WorldConfig::try_new(entities, days_per_tick, Workload::Pairwise)
-        .map_err(|e| e.to_string())?;
-    let ticks_per_year = if days_per_tick == 1 { 365 } else { 52 };
-    let lifetime_ticks = LIFETIME_YEARS * ticks_per_year;
+fn measure_one(entities: u16, runs: usize) -> Result<Row, String> {
+    let config = WorldConfig::try_new(entities, Workload::Pairwise).map_err(|e| e.to_string())?;
+    let lifetime_ticks = LIFETIME_YEARS * TICKS_PER_YEAR;
 
     let mut samples = Vec::with_capacity(runs);
     for _ in 0..runs {
@@ -147,7 +140,6 @@ fn measure_one(days_per_tick: u8, entities: u16, runs: usize) -> Result<Row, Str
     }
     let checksum_ns = best_checksum.as_secs_f64() * 1e9 / f64::from(CHECKSUM_ITERATIONS);
     Ok(Row {
-        days_per_tick,
         lifetime_ticks,
         best,
         median,
@@ -178,7 +170,7 @@ fn write_report(
     build: &str,
     entities: u16,
     runs: usize,
-    rows: &[Row],
+    row: &Row,
 ) -> std::io::Result<()> {
     writeln!(out, "sim-cli measure (native) build={build}")?;
     writeln!(
@@ -188,7 +180,7 @@ fn write_report(
     )?;
     writeln!(
         out,
-        "lifetime: 80 years = 80 x 365 daily ticks or 80 x 52 weekly ticks; no inputs; fresh Sim per run"
+        "lifetime: 80 years = 80 x 365 = 29200 daily ticks; no inputs; fresh Sim per run"
     )?;
     writeln!(
         out,
@@ -199,47 +191,27 @@ fn write_report(
         "  checksum share = checksum ns per call / (best lifetime ns / lifetime ticks)"
     )?;
     writeln!(out)?;
-    writeln!(
-        out,
-        "{:<28}{:>16}{:>16}",
-        "metric", "daily (1d)", "weekly (7d)"
-    )?;
-    let cell = |f: &dyn Fn(&Row) -> String| -> (String, String) {
-        (
-            rows.first().map_or_else(|| "-".into(), f),
-            rows.get(1).map_or_else(|| "-".into(), f),
-        )
-    };
-    let table: [(&str, (String, String)); 8] = [
-        ("days_per_tick", cell(&|r| r.days_per_tick.to_string())),
-        ("lifetime_ticks", cell(&|r| r.lifetime_ticks.to_string())),
-        (
-            "ticks_per_second",
-            cell(&|r| format!("{:.0}", ticks_per_second(r))),
-        ),
+    writeln!(out, "{:<28}{:>16}", "metric", "daily (1d)")?;
+    let table: [(&str, String); 7] = [
+        ("lifetime_ticks", row.lifetime_ticks.to_string()),
+        ("ticks_per_second", format!("{:.0}", ticks_per_second(row))),
         (
             "lifetime_best_ms",
-            cell(&|r| format!("{:.2}", r.best.as_secs_f64() * 1e3)),
+            format!("{:.2}", row.best.as_secs_f64() * 1e3),
         ),
         (
             "lifetime_median_ms",
-            cell(&|r| format!("{:.2}", r.median.as_secs_f64() * 1e3)),
+            format!("{:.2}", row.median.as_secs_f64() * 1e3),
         ),
-        (
-            "checksum_ns_per_call",
-            cell(&|r| format!("{:.0}", r.checksum_ns)),
-        ),
+        ("checksum_ns_per_call", format!("{:.0}", row.checksum_ns)),
         (
             "checksum_share_percent",
-            cell(&|r| format!("{:.1}", checksum_share(r) * 100.0)),
+            format!("{:.1}", checksum_share(row) * 100.0),
         ),
-        (
-            "canonical_state_bytes",
-            cell(&|r| r.state_bytes.to_string()),
-        ),
+        ("canonical_state_bytes", row.state_bytes.to_string()),
     ];
-    for (label, (a, b)) in table {
-        writeln!(out, "{label:<28}{a:>16}{b:>16}")?;
+    for (label, value) in table {
+        writeln!(out, "{label:<28}{value:>16}")?;
     }
     Ok(())
 }
@@ -285,7 +257,6 @@ mod tests {
             "{out}"
         );
         for label in [
-            "days_per_tick",
             "lifetime_ticks",
             "ticks_per_second",
             "lifetime_best_ms",
@@ -300,7 +271,10 @@ mod tests {
             .lines()
             .find(|l| l.starts_with("lifetime_ticks"))
             .unwrap();
-        assert!(ticks.contains("29200") && ticks.contains("4160"), "{ticks}");
+        assert!(
+            ticks.contains("29200") && !ticks.contains("4160"),
+            "{ticks}"
+        );
         assert!(err.is_empty());
     }
 

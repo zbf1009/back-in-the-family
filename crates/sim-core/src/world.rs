@@ -39,8 +39,6 @@ pub enum Workload {
 pub enum ConfigError {
     /// `entity_count` is above [`ENTITY_COUNT_MAX`].
     EntityCountOutOfRange { entity_count: u16 },
-    /// `days_per_tick` is neither 1 nor 7.
-    InvalidDaysPerTick { days_per_tick: u8 },
 }
 
 impl fmt::Display for ConfigError {
@@ -50,9 +48,6 @@ impl fmt::Display for ConfigError {
                 f,
                 "entity_count {entity_count} is out of range 0..={ENTITY_COUNT_MAX}"
             ),
-            Self::InvalidDaysPerTick { days_per_tick } => {
-                write!(f, "days_per_tick must be 1 or 7, got {days_per_tick}")
-            }
         }
     }
 }
@@ -66,21 +61,14 @@ impl std::error::Error for ConfigError {}
 pub struct WorldConfig {
     /// Entities created at the start. Valid range `0..=200`; default 50.
     pub entity_count: u16,
-    /// Days of in-game time per tick: 1 or 7.
-    pub days_per_tick: u8,
     pub workload: Workload,
 }
 
 impl WorldConfig {
     /// Builds and validates a config.
-    pub fn try_new(
-        entity_count: u16,
-        days_per_tick: u8,
-        workload: Workload,
-    ) -> Result<Self, ConfigError> {
+    pub fn try_new(entity_count: u16, workload: Workload) -> Result<Self, ConfigError> {
         let config = Self {
             entity_count,
-            days_per_tick,
             workload,
         };
         config.validate()?;
@@ -91,25 +79,20 @@ impl WorldConfig {
     pub fn validate(&self) -> Result<(), ConfigError> {
         let Self {
             entity_count,
-            days_per_tick,
             workload: _,
         } = *self;
         if entity_count > ENTITY_COUNT_MAX {
             return Err(ConfigError::EntityCountOutOfRange { entity_count });
-        }
-        if !matches!(days_per_tick, 1 | 7) {
-            return Err(ConfigError::InvalidDaysPerTick { days_per_tick });
         }
         Ok(())
     }
 }
 
 impl Default for WorldConfig {
-    /// 50 entities, daily ticks, light workload.
+    /// 50 entities, light workload.
     fn default() -> Self {
         Self {
             entity_count: DEFAULT_ENTITY_COUNT,
-            days_per_tick: 1,
             workload: Workload::Light,
         }
     }
@@ -334,11 +317,9 @@ impl Canon for WorldConfig {
     fn encode<W: CanonWriter>(&self, w: &mut W) {
         let Self {
             entity_count,
-            days_per_tick,
             workload,
         } = self;
         entity_count.encode(w);
-        days_per_tick.encode(w);
         workload.encode(w);
     }
 }
@@ -404,30 +385,23 @@ mod tests {
     fn config_validation_rejects_bad_values() {
         assert_eq!(WorldConfig::default().validate(), Ok(()));
         assert_eq!(WorldConfig::default().entity_count, 50);
-        assert!(WorldConfig::try_new(0, 1, Workload::Light).is_ok());
-        assert!(WorldConfig::try_new(200, 7, Workload::Pairwise).is_ok());
+        assert!(WorldConfig::try_new(0, Workload::Light).is_ok());
+        assert!(WorldConfig::try_new(200, Workload::Pairwise).is_ok());
         assert_eq!(
-            WorldConfig::try_new(201, 1, Workload::Light),
+            WorldConfig::try_new(201, Workload::Light),
             Err(ConfigError::EntityCountOutOfRange { entity_count: 201 })
         );
-        for d in [0u8, 2, 6, 8, 255] {
-            assert_eq!(
-                WorldConfig::try_new(10, d, Workload::Light),
-                Err(ConfigError::InvalidDaysPerTick { days_per_tick: d })
-            );
-        }
     }
 
     #[test]
     fn world_new_validates_config() {
         let bad = WorldConfig {
-            entity_count: 10,
-            days_per_tick: 3,
+            entity_count: 201,
             workload: Workload::Light,
         };
         assert_eq!(
             World::new(1, bad).unwrap_err(),
-            ConfigError::InvalidDaysPerTick { days_per_tick: 3 }
+            ConfigError::EntityCountOutOfRange { entity_count: 201 }
         );
     }
 
@@ -448,7 +422,7 @@ mod tests {
 
     #[test]
     fn check_invariants_detects_each_violation() {
-        let base = World::new(1, WorldConfig::try_new(3, 1, Workload::Light).unwrap()).unwrap();
+        let base = World::new(1, WorldConfig::try_new(3, Workload::Light).unwrap()).unwrap();
 
         let mut w = base.clone();
         w.entities.get_mut(&EntityId(1)).unwrap().value = 1001;

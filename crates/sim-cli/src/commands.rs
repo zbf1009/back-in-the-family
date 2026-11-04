@@ -22,7 +22,7 @@ pub const EXIT_FAILED: i32 = 1;
 pub const EXIT_OK: i32 = 0;
 
 /// Reads a `--config` file: JSON with exactly the replay file's `config` shape, e.g.
-/// `{"entity_count":50,"days_per_tick":1,"workload":"Pairwise"}`, then validates it.
+/// `{"entity_count":50,"workload":"Pairwise"}`, then validates it.
 pub(crate) fn load_config(path: &str) -> Result<WorldConfig, String> {
     let text =
         fs::read_to_string(path).map_err(|e| format!("cannot read config file {path}: {e}"))?;
@@ -37,19 +37,18 @@ pub const MAX_TICKS: u64 = 1_000_000;
 /// Largest `--random-inputs` accepted by `record`.
 pub const MAX_RANDOM_INPUTS: u64 = 1_000_000;
 
-/// The config used when `record` gets no `--config`: 50 entities, 1 day per tick,
-/// `Pairwise`. (`WorldConfig::default()` is `Light`, so it is not used here.)
+/// The config used when `record` gets no `--config`: 50 entities, `Pairwise`.
+/// (`WorldConfig::default()` is `Light`, so it is not used here.)
 pub fn default_config() -> WorldConfig {
     WorldConfig {
         entity_count: DEFAULT_ENTITY_COUNT,
-        days_per_tick: 1,
         workload: Workload::Pairwise,
     }
 }
 
 pub const RECORD_USAGE: &str = "usage: sim-cli record --seed S --ticks N [--config FILE] \
 [--random-inputs K] --out FILE\n\
-without --config: 50 entities, 1 day per tick, Pairwise workload";
+without --config: 50 entities, Pairwise workload";
 
 pub fn record(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let parsed = match args::parse(args, &["seed", "ticks", "config", "random-inputs", "out"]) {

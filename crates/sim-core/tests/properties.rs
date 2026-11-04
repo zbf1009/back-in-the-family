@@ -1,7 +1,7 @@
 //! Property-based tests P1–P7 (R9, R5.4), native only, using `proptest` 1.12.0.
 //!
 //! Every property runs on generated scenarios: a seed, a config (`entity_count` 0..=80,
-//! both `days_per_tick`, both workloads) and 0..=40 inputs at ticks 0..=150 (valid and
+//! both workloads) and 0..=40 inputs at ticks 0..=150 (valid and
 //! invalid ids, in-range and out-of-range values), stepped for 150 ticks. Inputs are
 //! submitted in generated order, not sorted by tick.
 //!
@@ -41,10 +41,9 @@ struct Scenario {
 fn config_strategy() -> impl Strategy<Value = WorldConfig> {
     (
         0u16..=80,
-        prop_oneof![Just(1u8), Just(7u8)],
         prop_oneof![Just(Workload::Light), Just(Workload::Pairwise)],
     )
-        .prop_map(|(n, d, w)| WorldConfig::try_new(n, d, w).unwrap())
+        .prop_map(|(n, w)| WorldConfig::try_new(n, w).unwrap())
 }
 
 fn value_strategy() -> impl Strategy<Value = i32> {
@@ -252,7 +251,6 @@ proptest! {
     fn p4b_stream_independence_lower_id_entity(s in scenario()) {
         let config = WorldConfig::try_new(
             s.config.entity_count + 1,
-            s.config.days_per_tick,
             s.config.workload,
         )
         .unwrap();
@@ -287,7 +285,6 @@ fn mutation_strategy() -> impl Strategy<Value = Mutation> {
     prop_oneof![
         any::<u8>().prop_map(|bit| Mutation::Seed { bit }),
         Just(Mutation::ConfigEntityCount),
-        Just(Mutation::ConfigDaysPerTick),
         Just(Mutation::ConfigWorkload),
         Just(Mutation::Tick),
         Just(Mutation::EntityIdCounter),

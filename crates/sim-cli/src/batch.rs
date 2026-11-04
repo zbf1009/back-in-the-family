@@ -346,7 +346,7 @@ mod tests {
     }
 
     fn small_config() -> WorldConfig {
-        WorldConfig::try_new(8, 1, sim_core::world::Workload::Pairwise).unwrap()
+        WorldConfig::try_new(8, sim_core::world::Workload::Pairwise).unwrap()
     }
 
     fn run(
@@ -432,7 +432,7 @@ mod tests {
 
     #[test]
     fn an_empty_world_prints_dashes_for_the_value_statistics() {
-        let config = WorldConfig::try_new(0, 1, sim_core::world::Workload::Light).unwrap();
+        let config = WorldConfig::try_new(0, sim_core::world::Workload::Light).unwrap();
         let (mut out, mut err) = (Vec::new(), Vec::new());
         let code = run_batch(
             (1, 1),

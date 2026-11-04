@@ -12,8 +12,8 @@
 //!    - `Despawn`: the entity must exist (`UnknownEntity`); it is removed, together
 //!      with every affinity entry in other entities that points at it.
 //! 2. **Drift**: for each entity in ID order,
-//!    `value = clamp(value + in_range(draw(seed, id, Drift, tick, 0), -10*d, 10*d), 0, 1000)`
-//!    where `d = days_per_tick`.
+//!    `value = clamp(value + in_range(draw(seed, id, Drift, tick, 0), -10, 10), 0, 1000)`
+//!    (one tick is one day).
 //! 3. **Affinity** (only with `Workload::Pairwise`): for each ordered pair `(a, b)` of
 //!    distinct entities, both in ID order,
 //!    `affinity[a][b] = clamp(old + in_range(draw(seed, a, Affinity, tick, b), -3, 3), -100, 100)`
@@ -33,8 +33,8 @@ use crate::world::{
     WorldConfig,
 };
 
-/// Largest drift per day, in value units.
-const DRIFT_PER_DAY: i64 = 10;
+/// Largest drift per tick (one tick is one day), in value units.
+const DRIFT_PER_TICK: i64 = 10;
 /// Largest affinity change per tick, in either direction.
 const AFFINITY_STEP: i64 = 3;
 
@@ -105,12 +105,12 @@ impl World {
     }
 
     fn drift(&mut self) {
-        let bound = i64::from(self.config.days_per_tick).saturating_mul(DRIFT_PER_DAY);
-        // `bound` is derived from `days_per_tick` (1 or 7), so `0 - bound` cannot overflow
-        // `i64`; `checked_neg` makes that explicit instead of relying on plain `-`.
+        let bound = DRIFT_PER_TICK;
+        // `bound` is a small constant, so `0 - bound` cannot overflow `i64`;
+        // `checked_neg` makes that explicit instead of relying on plain `-`.
         let lower_bound = bound
             .checked_neg()
-            .expect("drift bound derived from days_per_tick cannot overflow i64 negation");
+            .expect("drift bound is a small constant and cannot overflow i64 negation");
         let (seed, tick) = (self.seed, self.tick);
         for (&id, entity) in &mut self.entities {
             let delta = in_range(
@@ -225,7 +225,7 @@ mod tests {
     use crate::ids::IdCounter;
 
     fn sim(count: u16, workload: Workload) -> Sim {
-        Sim::new(42, WorldConfig::try_new(count, 1, workload).unwrap()).unwrap()
+        Sim::new(42, WorldConfig::try_new(count, workload).unwrap()).unwrap()
     }
 
     /// Runs tick 0 with `payload` submitted, and a control sim with no input; returns both.
@@ -400,24 +400,22 @@ mod tests {
     #[test]
     fn invariants_hold_over_many_ticks_for_both_workloads() {
         for workload in [Workload::Light, Workload::Pairwise] {
-            for days in [1u8, 7] {
-                let mut s = Sim::new(7, WorldConfig::try_new(12, days, workload).unwrap()).unwrap();
-                assert_eq!(s.world().check_invariants(), Ok(()));
-                s.submit(
-                    Tick(5),
-                    InputPayload::Despawn {
-                        entity: EntityId(3),
-                    },
-                )
-                .unwrap();
-                s.submit(Tick(6), InputPayload::Spawn { value: 0 }).unwrap();
-                for _ in 0..60 {
-                    s.step();
-                    assert_eq!(s.world().check_invariants(), Ok(()), "{workload:?} {days}");
-                }
-                assert_eq!(s.world().tick(), Tick(60));
-                assert_eq!(s.checksums().len(), 60);
+            let mut s = Sim::new(7, WorldConfig::try_new(12, workload).unwrap()).unwrap();
+            assert_eq!(s.world().check_invariants(), Ok(()));
+            s.submit(
+                Tick(5),
+                InputPayload::Despawn {
+                    entity: EntityId(3),
+                },
+            )
+            .unwrap();
+            s.submit(Tick(6), InputPayload::Spawn { value: 0 }).unwrap();
+            for _ in 0..60 {
+                s.step();
+                assert_eq!(s.world().check_invariants(), Ok(()), "{workload:?}");
             }
+            assert_eq!(s.world().tick(), Tick(60));
+            assert_eq!(s.checksums().len(), 60);
         }
     }
 
@@ -435,12 +433,12 @@ mod tests {
 
     #[test]
     fn different_seeds_and_configs_give_different_checksums() {
-        let cfg = WorldConfig::try_new(10, 1, Workload::Pairwise).unwrap();
+        let cfg = WorldConfig::try_new(10, Workload::Pairwise).unwrap();
         let c1 = Sim::new(1, cfg).unwrap().step();
         let c2 = Sim::new(2, cfg).unwrap().step();
         assert_ne!(c1, c2);
-        let cfg7 = WorldConfig::try_new(10, 7, Workload::Pairwise).unwrap();
-        assert_ne!(c1, Sim::new(1, cfg7).unwrap().step());
+        let other = WorldConfig::try_new(11, Workload::Pairwise).unwrap();
+        assert_ne!(c1, Sim::new(1, other).unwrap().step());
         // And the same seed and config reproduce.
         assert_eq!(c1, Sim::new(1, cfg).unwrap().step());
     }

@@ -5,14 +5,14 @@
 //! and compares each tick's checksum with the recorded one; the recorded checksums are
 //! never used to build state.
 //!
-//! # Format (version 1)
+//! # Format (version 2)
 //!
 //! ```json
 //! {
 //!   "format": "back-in-the-family/replay",
-//!   "version": 1,
+//!   "version": 2,
 //!   "seed": "1234567890123",
-//!   "config": { "entity_count": 50, "days_per_tick": 1, "workload": "Pairwise" },
+//!   "config": { "entity_count": 50, "workload": "Pairwise" },
 //!   "ticks": "2000",
 //!   "inputs": [ { "tick": "5", "seq": "0",
 //!                 "payload": { "SetValue": { "entity": "3", "value": 500 } } } ],
@@ -25,7 +25,7 @@
 //!   `"0"` itself, no overflow. JavaScript numbers cannot hold a `u64` exactly, and one
 //!   textual form per value keeps files diffable. A JSON number in its place is an
 //!   error.
-//! - Small integers (`value`, `entity_count`, `days_per_tick`, `version`) are JSON
+//! - Small integers (`value`, `entity_count`, `version`) are JSON
 //!   numbers. No field is a float; `1.5` anywhere an integer is expected is an error.
 //! - Checksums are 16 lowercase hex characters ([`Checksum`]'s `Display`).
 //! - Unknown fields are rejected, so a typo or a newer format cannot be silently
@@ -58,7 +58,7 @@ use crate::world::{ConfigError, Workload, WorldConfig};
 /// The `format` string of every replay file.
 pub const REPLAY_FORMAT: &str = "back-in-the-family/replay";
 /// The only replay `version` this code reads and writes.
-pub const REPLAY_VERSION: u32 = 1;
+pub const REPLAY_VERSION: u32 = 2;
 
 /// Strict decimal-string codec for `u64`, for `#[serde(with = "u64_string")]`.
 mod u64_string {
@@ -181,7 +181,6 @@ impl From<ReplayWorkload> for Workload {
 #[serde(deny_unknown_fields)]
 pub struct ReplayConfig {
     pub entity_count: u16,
-    pub days_per_tick: u8,
     pub workload: ReplayWorkload,
 }
 
@@ -196,12 +195,10 @@ impl From<WorldConfig> for ReplayConfig {
     fn from(c: WorldConfig) -> Self {
         let WorldConfig {
             entity_count,
-            days_per_tick,
             workload,
         } = c;
         Self {
             entity_count,
-            days_per_tick,
             workload: workload.into(),
         }
     }
@@ -212,7 +209,7 @@ impl TryFrom<ReplayConfig> for WorldConfig {
 
     /// Validates the ranges (`WorldConfig::try_new`).
     fn try_from(c: ReplayConfig) -> Result<Self, ConfigError> {
-        Self::try_new(c.entity_count, c.days_per_tick, c.workload.into())
+        Self::try_new(c.entity_count, c.workload.into())
     }
 }
 

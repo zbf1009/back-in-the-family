@@ -8,7 +8,7 @@
 //!
 //! JSON formats:
 //! - `config_json`: the `ReplayConfig` shape, e.g.
-//!   `{"entity_count":50,"days_per_tick":1,"workload":"Pairwise"}`.
+//!   `{"entity_count":50,"workload":"Pairwise"}`.
 //! - `input_json`: `{"tick":"5","payload":{"SetValue":{"entity":"3","value":500}}}`;
 //!   `u64` values are strict decimal strings, and there is no `seq` (the stream assigns it).
 //! - Checksums are returned as 16 lowercase hex characters.

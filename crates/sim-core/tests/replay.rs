@@ -50,12 +50,12 @@ fn mixed_inputs() -> Vec<(Tick, InputPayload)> {
 }
 
 fn cases() -> Vec<(u64, WorldConfig)> {
-    let cfg = |n, d, w| WorldConfig::try_new(n, d, w).unwrap();
+    let cfg = |n, w| WorldConfig::try_new(n, w).unwrap();
     vec![
-        (1, cfg(12, 1, Workload::Pairwise)),
-        (0x0123_4567_89ab_cdef, cfg(20, 7, Workload::Light)),
-        (u64::MAX, cfg(8, 7, Workload::Pairwise)),
-        (42, cfg(15, 1, Workload::Light)),
+        (1, cfg(12, Workload::Pairwise)),
+        (0x0123_4567_89ab_cdef, cfg(20, Workload::Light)),
+        (u64::MAX, cfg(8, Workload::Pairwise)),
+        (42, cfg(15, Workload::Light)),
     ]
 }
 
@@ -122,7 +122,7 @@ fn json_round_trip_is_exact_and_verifies() {
 fn json_has_the_documented_shape() {
     let file = record(
         1_234_567_890_123,
-        WorldConfig::try_new(5, 1, Workload::Pairwise).unwrap(),
+        WorldConfig::try_new(5, Workload::Pairwise).unwrap(),
         &[(
             Tick(5),
             InputPayload::SetValue {
@@ -135,7 +135,7 @@ fn json_has_the_documented_shape() {
     .unwrap();
     let json = file.to_json_string().unwrap();
     assert!(json.starts_with(
-        r#"{"format":"back-in-the-family/replay","version":1,"seed":"1234567890123","config":{"entity_count":5,"days_per_tick":1,"workload":"Pairwise"},"ticks":"2","inputs":[{"tick":"5","seq":"0","payload":{"SetValue":{"entity":"3","value":500}}}],"checksums":[""#
+        r#"{"format":"back-in-the-family/replay","version":2,"seed":"1234567890123","config":{"entity_count":5,"workload":"Pairwise"},"ticks":"2","inputs":[{"tick":"5","seq":"0","payload":{"SetValue":{"entity":"3","value":500}}}],"checksums":[""#
     ));
     for c in &file.checksums {
         assert!(json.contains(&format!("\"{c}\"")));
@@ -247,10 +247,10 @@ fn unknown_format_and_version_are_rejected() {
         Err(ReplayError::UnknownFormat { .. })
     ));
 
-    let bad_version = json.replacen("\"version\":1", "\"version\":2", 1);
+    let bad_version = json.replacen("\"version\":2", "\"version\":3", 1);
     assert_eq!(
         ReplayFile::from_json_str(&bad_version),
-        Err(ReplayError::UnsupportedVersion { found: 2 })
+        Err(ReplayError::UnsupportedVersion { found: 3 })
     );
 
     // A future file with a different shape still reports the version, not a field error.
@@ -262,10 +262,10 @@ fn unknown_format_and_version_are_rejected() {
 
     // verify() checks the header too, for files built or edited in memory.
     let mut file = sample();
-    file.version = 2;
+    file.version = 1;
     assert_eq!(
         verify(&file),
-        Err(ReplayError::UnsupportedVersion { found: 2 })
+        Err(ReplayError::UnsupportedVersion { found: 1 })
     );
     let mut file = sample();
     file.format = "x".into();
@@ -280,7 +280,7 @@ fn u64_values_above_2_pow_53_survive_the_round_trip() {
     let big = (1u64 << 53) + 1;
     let mut file = record(
         u64::MAX,
-        WorldConfig::try_new(3, 1, Workload::Light).unwrap(),
+        WorldConfig::try_new(3, Workload::Light).unwrap(),
         &[
             (
                 Tick(big),
@@ -394,6 +394,17 @@ fn u64_strings_are_parsed_strictly() {
     }
 }
 
+/// Version 1 files (which carried `days_per_tick`) are rejected by the version check,
+/// before the config is looked at.
+#[test]
+fn version_1_files_are_rejected_as_unsupported() {
+    let v1 = r#"{"format":"back-in-the-family/replay","version":1,"seed":"1","config":{"entity_count":5,"days_per_tick":1,"workload":"Light"},"ticks":"0","inputs":[],"checksums":[]}"#;
+    assert_eq!(
+        ReplayFile::from_json_str(v1),
+        Err(ReplayError::UnsupportedVersion { found: 1 })
+    );
+}
+
 #[test]
 fn floats_and_bad_small_ints_are_rejected() {
     let json = sample().to_json_string().unwrap();
@@ -401,8 +412,11 @@ fn floats_and_bad_small_ints_are_rejected() {
         ("\"value\":900", "\"value\":900.5"),
         ("\"entity_count\":12", "\"entity_count\":12.0"),
         ("\"entity_count\":12", "\"entity_count\":70000"),
-        ("\"days_per_tick\":1", "\"days_per_tick\":-1"),
-        ("\"version\":1", "\"version\":1.5"),
+        (
+            "\"entity_count\":12",
+            "\"days_per_tick\":1,\"entity_count\":12",
+        ),
+        ("\"version\":2", "\"version\":2.5"),
         ("\"workload\":\"Pairwise\"", "\"workload\":\"Heavy\""),
     ] {
         let text = json.replacen(from, to, 1);
@@ -420,7 +434,7 @@ fn floats_and_bad_small_ints_are_rejected() {
 #[test]
 fn invalid_config_values_are_a_config_error_at_verify() {
     let mut file = sample();
-    file.config.days_per_tick = 3;
+    file.config.entity_count = 201;
     assert!(matches!(verify(&file), Err(ReplayError::Config(_))));
 }
 
@@ -508,8 +522,7 @@ fn out_of_order_or_gapped_seq_is_a_malformed_file_error() {
 #[test]
 fn record_rejects_an_invalid_config() {
     let bad = WorldConfig {
-        entity_count: 5,
-        days_per_tick: 2,
+        entity_count: 201,
         workload: Workload::Light,
     };
     assert!(matches!(
@@ -526,11 +539,10 @@ fn record_rejects_an_invalid_config() {
 
 /// The exact set of fixture file names. A deleted or renamed fixture must fail the
 /// test, not silently shrink coverage.
-const FIXTURE_NAMES: [&str; 4] = [
-    "seed1-d1-pairwise.replay.json",
-    "seed1-d7-pairwise.replay.json",
-    "seedbig-d1-pairwise.replay.json",
-    "seedbig-d7-pairwise.replay.json",
+const FIXTURE_NAMES: [&str; 3] = [
+    "seed1-pairwise.replay.json",
+    "seed2-pairwise.replay.json",
+    "seedbig-pairwise.replay.json",
 ];
 
 const FIXTURE_TICKS: u64 = 2000;
@@ -578,10 +590,10 @@ fn parity_fixtures_have_the_documented_shape() {
             Workload::Pairwise,
             "{name}"
         );
-        let days = if name.contains("-d1-") { 1 } else { 7 };
-        assert_eq!(file.config.days_per_tick, days, "{name}");
         let seed = if name.starts_with("seedbig") {
             18_446_744_073_709_551_557
+        } else if name.starts_with("seed2") {
+            2
         } else {
             1
         };

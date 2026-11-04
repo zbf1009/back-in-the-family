@@ -33,8 +33,6 @@ pub enum Mutation {
     Seed { bit: u8 },
     /// `WorldConfig::entity_count`: toggle the lowest bit (stays within `0..=200`).
     ConfigEntityCount,
-    /// `WorldConfig::days_per_tick`: swap 1 and 7.
-    ConfigDaysPerTick,
     /// `WorldConfig::workload`: swap `Light` and `Pairwise`.
     ConfigWorkload,
     /// `World::tick`: plus one.
@@ -79,18 +77,14 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
             *seed ^= 1u64.rotate_left(u32::from(bit)); // bit % 64, by rotation
             true
         }
-        Mutation::ConfigEntityCount | Mutation::ConfigDaysPerTick | Mutation::ConfigWorkload => {
+        Mutation::ConfigEntityCount | Mutation::ConfigWorkload => {
             // Exhaustive: a new `WorldConfig` field is a compile error here.
             let WorldConfig {
                 entity_count,
-                days_per_tick,
                 workload,
             } = config;
             match mutation {
                 Mutation::ConfigEntityCount => *entity_count ^= 1,
-                Mutation::ConfigDaysPerTick => {
-                    *days_per_tick = if *days_per_tick == 1 { 7 } else { 1 };
-                }
                 _ => {
                     *workload = match workload {
                         Workload::Light => Workload::Pairwise,
@@ -264,7 +258,6 @@ mod tests {
         let mut v = vec![
             Mutation::Seed { bit: 63 },
             Mutation::ConfigEntityCount,
-            Mutation::ConfigDaysPerTick,
             Mutation::ConfigWorkload,
             Mutation::Tick,
             Mutation::EntityIdCounter,
@@ -300,7 +293,7 @@ mod tests {
 
     #[test]
     fn every_mutation_changes_world_and_checksum() {
-        let mut sim = Sim::new(5, WorldConfig::try_new(3, 1, Workload::Pairwise).unwrap()).unwrap();
+        let mut sim = Sim::new(5, WorldConfig::try_new(3, Workload::Pairwise).unwrap()).unwrap();
         for _ in 0..3 {
             sim.step();
         }
@@ -315,8 +308,7 @@ mod tests {
     #[test]
     fn entity_mutations_report_no_target_on_empty_world() {
         let mut w =
-            crate::world::World::new(1, WorldConfig::try_new(0, 1, Workload::Light).unwrap())
-                .unwrap();
+            crate::world::World::new(1, WorldConfig::try_new(0, Workload::Light).unwrap()).unwrap();
         for m in [
             Mutation::EntityValue {
                 entity: 9,
@@ -339,8 +331,7 @@ mod tests {
     #[test]
     fn value_and_affinity_mutations_stay_in_range_at_the_edges() {
         let mut w =
-            crate::world::World::new(1, WorldConfig::try_new(2, 1, Workload::Light).unwrap())
-                .unwrap();
+            crate::world::World::new(1, WorldConfig::try_new(2, Workload::Light).unwrap()).unwrap();
         w.entities.get_mut(&EntityId(0)).unwrap().value = VALUE_MAX;
         w.entities.get_mut(&EntityId(1)).unwrap().value = VALUE_MIN;
         assert!(apply(

@@ -5,7 +5,7 @@ Each task ends with the gates green (`scripts/gates.sh` once it exists) and one 
 Execution notes for the orchestrator:
 - Tasks run strictly one at a time, in numeric order (see "Task Dependency Graph" at the end). They edit the same files (`Cargo.toml`, `scripts/gates.sh`, `README.md`, `docs/kiro-log.md`), so they must not run in parallel.
 - Delegate each task to the `spec-task-execution` sub-agent if it exists in the registry. In this setup it has been rejected with "not found in registry"; in that case delegate to `general-task-execution` with the full task text, and read `requirements.md`, `design.md` and `.kiro/steering/*.md` first.
-- Task 11 ends with the author's decision on tick granularity. Stop after writing `docs/tick-granularity.md` and wait; do not start task 12 until the author has chosen.
+- Task 11 ended with the author's decision on tick granularity: 1 day per tick, recorded in `tech.md`. Task 12 applies it to the code; task 13 is the final check.
 
 - [x] 1. Workspace scaffold
   - Root `Cargo.toml`: workspace with `crates/sim-core`, `crates/sim-wasm`, `crates/sim-cli`; resolver 3; edition 2024; shared `[workspace.lints]`.
@@ -85,15 +85,27 @@ Execution notes for the orchestrator:
   - From here on, every real hook catch is logged in `docs/kiro-log.md` when it happens.
   - _Requirements: R11.1, R11.2, R11.3, R11.4_
 
-- [-] 11. Tick granularity measurement
+- [x] 11. Tick granularity measurement
   - `sim-cli measure`: native ticks per second, lifetime wall time, checksum time per tick; best of 5; release build.
   - `bench` feature in sim-wasm with `bench_checksum`; `scripts/measure-wasm.mjs` with the same three numbers.
   - Write `docs/tick-granularity.md`: numbers, machine and tool versions, design comparison.
   - **Stop for the author's choice**, then record it in `tech.md` (steering change, logged).
   - _Requirements: R10.1, R10.2, R10.3_
 
-- [~] 12. Final check
+- [-] 12. Apply the tick granularity decision (daily ticks)
+  - Context: the author chose 1 day per tick (`docs/tick-granularity.md` section 5, `tech.md`). The weekly option is removed from the code. `docs/tick-granularity.md` stays as the record of the measurement and is only annotated, not rewritten.
+  - sim-core: remove `days_per_tick` from `WorldConfig` (field, validation, `ConfigError::InvalidDaysPerTick`, `Default`, `try_new`, `Canon` encoding). Drift becomes a plain +-10 per tick. Remove `Mutation::ConfigDaysPerTick` from the test API; update unit tests and the property generators (they no longer choose a granularity).
+  - Replay format: drop `days_per_tick` from `ReplayConfig` and bump `REPLAY_VERSION` to 2, since the format changes; version 1 files must be rejected by the existing unsupported-version error. Update the format docs in `replay.rs`, tests, and the JSON examples and help text in sim-cli and sim-wasm.
+  - Fixtures: regenerate them (an intentional change; say so in the commit message). Remove the two `d7` fixtures and `fixtures/configs/pairwise-d7.json`, drop `d1` from the remaining names (for example `seed1-pairwise`, `seedbig-pairwise`) and add a third seed so parity coverage does not shrink. Update `fixtures/parity/README.md`, `scripts/regen-fixtures.sh`, and the native and WASM parity tests, which assert the exact file names.
+  - Tooling: `sim-cli measure` and `scripts/measure-wasm.mjs` stay as a performance benchmark of the single granularity (daily lifetime of 29,200 ticks only; drop the weekly column). Update `batch`, `record` and `--config` examples.
+  - Docs: update `README.md` where it mentions the old options; add one dated note at the top of `docs/tick-granularity.md` saying weekly tick support was removed in this task and the numbers reproduce at commit `bac46e3`.
+  - Do not change the canonical encoding rules, the hash, or anything not listed. All gates pass. Record in `docs/kiro-log.md` what the `replay-on-save` hook did while sim-core files were being edited, and where (if anywhere) its output appeared.
+  - _Requirements: R2.1, R6.2, R7.2, R10.3_
+
+- [~] 13. Final check
   - Run `scripts/gates.sh` from a clean `target/`.
+  - Sync the spec documents with what was built, without rewriting history: `design.md` (the checksum builds the canonical encoding into a buffer and then hashes it, not a stream into the hasher (D4); P4 became P4a and P4b; `bench_checksum` returns a hex string and uses a wrapping sum as its sink; the input and config JSON shapes; the sim-cli flags; replay format version 2 without `days_per_tick`; the observed hook behavior) and `requirements.md` (R2 and R10 mention two granularities: record the decision and keep R10 as the measurement that led to it).
+  - Correct `docs/tick-granularity.md` section 3: the 36,879-byte state is 3,540 affinity entries x 10 bytes (8-byte id + 2-byte value) = 35,400, plus 60 entities x 24 bytes = 1,440, plus 39 bytes of header and rejections; the sentence that says "60 entities x 59 affinities x 2 bytes" is wrong.
   - Re-read requirements R1–R11 and confirm each criterion against the code and test output; note any gap.
   - Update `README.md` (build and test instructions, third-party list) and `structure.md` "Next steps".
   - _Requirements: all_
@@ -116,7 +128,8 @@ Every task depends on the files the previous task left in place (shared `Cargo.t
     { "id": 8, "tasks": ["9. sim-wasm bindings and native-vs-WASM parity"] },
     { "id": 9, "tasks": ["10. Kiro hooks (only after task 9 is done)"] },
     { "id": 10, "tasks": ["11. Tick granularity measurement"] },
-    { "id": 11, "tasks": ["12. Final check"] }
+    { "id": 11, "tasks": ["12. Apply the tick granularity decision (daily ticks)"] },
+    { "id": 12, "tasks": ["13. Final check"] }
   ]
 }
 ```

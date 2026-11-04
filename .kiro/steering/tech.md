@@ -8,7 +8,7 @@ inclusion: always
 
 | Layer | Choice | Notes |
 |---|---|---|
-| Simulation core | Rust (edition 2024), plain structs and functions, **no ECS** | Small town (40–60 residents), daily or weekly settlement; ECS scheduling buys nothing in single-threaded WASM |
+| Simulation core | Rust (edition 2024), plain structs and functions, **no ECS** | Small town (40–60 residents), daily settlement; ECS scheduling buys nothing in single-threaded WASM |
 | Browser build | `wasm32-unknown-unknown` + `wasm-bindgen` | Every deployed file must stay under 25 MiB |
 | Headless runner | Native Rust binary | Seed batches, replay checks, metrics for hooks |
 | Frontend | TypeScript web app (DOM + Canvas) | Framework chosen in the web-shell spec |
@@ -16,7 +16,7 @@ inclusion: always
 | LLM runtime | Decided by the W1 probe | Candidates: in-browser (WebLLM or transformers.js) and server-side (Cloudflare Workers AI). Rules default is always the last fallback |
 | Property-based tests | `proptest` (Rust), `fast-check` if needed on the TS side | |
 
-Tick granularity (1 day or 1 week) is decided by a quick measurement in the sim-core spec. Pick it on design needs (how precise "due within N days" stakes must be), not performance.
+Tick granularity: **1 day per tick**. Decided by the author on 2026-11-04, after the measurements and design comparison in `docs/tick-granularity.md`. Main reasons from that comparison: "due within N days" stakes are exact (weekly ticks would round short stakes up to a whole week), the calendar is a plain 365 days, and events seldom share a tick, so cause and effect keep their order. Performance did not decide it: both options are fast. Accepted cost: 7x more ticks per life than weekly (29,200 per 80 years), mostly checksum work, and larger replay files (about 0.55 MB per life). Every duration in the game is therefore written in days.
 
 ## Determinism rules (mandatory in all simulation code)
 

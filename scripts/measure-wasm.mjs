@@ -1,4 +1,4 @@
-// R10: WASM tick-granularity timings (Node, no dependencies).
+// R10: WASM tick performance benchmark (one tick is one day) (Node, no dependencies).
 // Usage: node scripts/measure-wasm.mjs WASM_DIR [--runs N] [--entities N]
 // Run through scripts/measure-wasm.sh, which builds WASM_DIR (a --target nodejs build of
 // sim-wasm with the `bench` feature). Same parameters and table layout as
@@ -8,7 +8,7 @@ import path from "node:path";
 
 const SEED = 1n;
 const LIFETIME_YEARS = 80;
-const TICKS_PER_YEAR = { 1: 365, 7: 52 }; // 365 is not a multiple of 7: weekly years are 52 weeks
+const TICKS_PER_YEAR = 365; // one tick is one day
 const CHECKSUM_ITERATIONS = 2000;
 const WARMUP_TICKS = 100;
 const MAX_RUNS = 50;
@@ -52,9 +52,9 @@ const time = (f) => {
   return performance.now() - t0;
 };
 
-function measureOne(days) {
-  const config = JSON.stringify({ entity_count: entities, days_per_tick: days, workload: "Pairwise" });
-  const ticks = LIFETIME_YEARS * TICKS_PER_YEAR[days];
+function measureOne() {
+  const config = JSON.stringify({ entity_count: entities, workload: "Pairwise" });
+  const ticks = LIFETIME_YEARS * TICKS_PER_YEAR;
 
   // Whole lifetime in one run_ticks call (one JS-to-WASM crossing).
   const bulk = [];
@@ -83,26 +83,24 @@ function measureOne(days) {
     tN.push(time(() => bench_checksum(SEED, config, CHECKSUM_ITERATIONS)));
   }
   const checksumNs = ((best(tN) - best(t1)) * 1e6) / (CHECKSUM_ITERATIONS - 1);
-  return { days, ticks, bulk, stepped, checksumNs };
+  return { ticks, bulk, stepped, checksumNs };
 }
 
-const rows = [1, 7].map(measureOne);
+const r0 = measureOne();
 
 console.log(`sim-wasm measure (node ${process.version}, wasm-bindgen ${process.env.WASM_BINDGEN_VERSION ?? "unknown"}) build=release+bench`);
 console.log(
   `params: seed=1 entities=${entities} workload=Pairwise runs=${runs} checksum_iterations=${CHECKSUM_ITERATIONS} checksum_state_after_ticks=${WARMUP_TICKS}`,
 );
-console.log("lifetime: 80 years = 80 x 365 daily ticks or 80 x 52 weekly ticks; no inputs; fresh WasmSim per run");
+console.log("lifetime: 80 years = 80 x 365 = 29200 daily ticks; no inputs; fresh WasmSim per run");
 console.log("definitions: best/median over runs; ticks/s = lifetime ticks / best lifetime (run_ticks);");
 console.log("  checksum share = checksum ns per call / (best lifetime ns / lifetime ticks)");
 console.log("  checksum ns per call = (best t(2000 iterations) - best t(1 iteration)) / 1999");
 console.log("  step() rows: one WasmSim.step() call per tick, including the JS-to-WASM boundary");
 console.log();
-const line = (label, a, b) => console.log(`${label.padEnd(28)}${a.padStart(16)}${b.padStart(16)}`);
-line("metric", "daily (1d)", "weekly (7d)");
-const f = (g) => rows.map(g);
-const row = (label, g) => line(label, ...f(g));
-row("days_per_tick", (r) => String(r.days));
+const line = (label, a) => console.log(`${label.padEnd(28)}${a.padStart(16)}`);
+line("metric", "daily (1d)");
+const row = (label, g) => line(label, g(r0));
 row("lifetime_ticks", (r) => String(r.ticks));
 row("ticks_per_second", (r) => ((r.ticks / best(r.bulk)) * 1000).toFixed(0));
 row("lifetime_best_ms", (r) => best(r.bulk).toFixed(2));

@@ -1,6 +1,8 @@
 # Tick granularity: measurements and design comparison (R10)
 
-Status: **measured; the choice is pending** (see "Decision" at the end).
+> Note (2026-11-04): weekly tick support was removed from the code in task 12 of the `sim-core-skeleton` spec (`days_per_tick`, replay format version 1, the `d7` fixtures and the weekly column of `sim-cli measure`). The numbers below reproduce at commit `bac46e3`. This document is otherwise unchanged and stays as the record of the measurement.
+
+Status: **measured; daily ticks chosen by the author on 2026-11-04** (see "Decision" at the end).
 
 ## 1. Purpose and what was measured
 
@@ -160,6 +162,8 @@ A replay stores one checksum per tick as a 16-character hex string in JSON, 19 b
 
 ## 5. Decision
 
-Pending: to be chosen by the author. Once chosen, record it in .kiro/steering/tech.md ("Tick granularity" paragraph) and in docs/kiro-log.md.
+**Chosen by the author on 2026-11-04: 1 day per tick.** Recorded in `.kiro/steering/tech.md` and `docs/kiro-log.md`. It rests on the design comparison in section 4: exact "due within N days" stakes, a plain 365-day calendar, and rarely more than one event per tick. Performance did not decide it; the measurements show both options are fast. Costs accepted: 7x more ticks per life, hence 7x more checksum work, and larger replay files (about 0.55 MB per 80-year life).
+
+Follow-up: the weekly option is removed from the code in task 12 of the `sim-core-skeleton` spec. The numbers above stay reproducible at commit `bac46e3`.
 
 Non-binding observation by the agent: the measurements do not separate the options on speed (both fast with large headroom), so the choice rests on stakes and calendar. Daily ticks keep "due within N days" and a 365-day calendar exact at the price of 7x more ticks (more checksum work, larger replays, 7x less fast-forward headroom); weekly ticks are cheaper and still give 200 to 600 ticks between nodes but need a round-up rule for short stakes and a 364-day year or leap weeks.

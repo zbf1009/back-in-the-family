@@ -29,9 +29,9 @@ USAGE:
   sim-cli --help
 
 record       Run N ticks from seed S and write a replay file (parent directories are
-             created). Without --config the world has 50 entities, 1 day per tick and the
-             Pairwise workload. --config FILE is JSON with the replay file's config shape:
-             {\"entity_count\":50,\"days_per_tick\":1,\"workload\":\"Pairwise\"}.
+             created). Without --config the world has 50 entities and the Pairwise
+             workload. --config FILE is JSON with the replay file's config shape:
+             {\"entity_count\":50,\"workload\":\"Pairwise\"}.
              --random-inputs K adds K inputs generated from the seed (about one third are
              invalid on purpose). The same command line always writes identical bytes.
 replay       Re-run each replay file from its seed, config and inputs and compare every
@@ -52,7 +52,7 @@ batch        For each seed in the inclusive range A..=B (or a single seed A; at 
              before the first tick). All seeds are run even after a failure; failures are
              also written to stderr. NOTE: --seeds A..=B is a range, unlike the plain
              decimal numbers of the other flags.
-measure      Time one 80-year lifetime (80 x 365 = 29200 daily ticks, 80 x 52 = 4160 weekly)
+measure      Time one 80-year lifetime (80 x 365 = 29200 daily ticks)
              on a fresh Sim, Pairwise workload, seed 1, no inputs, --runs times (default 5,
              1..=50) with --entities entities (default 60, 0..=200). Prints best and median
              lifetime wall time, ticks per second (from the best run), the cost of one

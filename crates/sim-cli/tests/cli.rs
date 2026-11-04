@@ -94,7 +94,6 @@ fn record_without_config_uses_the_documented_defaults() {
     let path = record_small(&dir, "a.replay.json");
     let file = ReplayFile::from_json_str(&fs::read_to_string(&path).unwrap()).unwrap();
     assert_eq!(file.config.entity_count, 50);
-    assert_eq!(file.config.days_per_tick, 1);
     assert_eq!(
         Workload::from(file.config.workload),
         Workload::Pairwise,
@@ -148,11 +147,7 @@ fn record_is_reproducible_byte_for_byte_and_creates_parent_directories() {
 fn record_reads_a_config_file() {
     let dir = TempDir::new("config");
     let cfg = dir.path("cfg.json");
-    fs::write(
-        &cfg,
-        r#"{"entity_count":7,"days_per_tick":7,"workload":"Light"}"#,
-    )
-    .unwrap();
+    fs::write(&cfg, r#"{"entity_count":7,"workload":"Light"}"#).unwrap();
     let out = dir.path("a.json");
     let o = sim_cli(&[
         "record",
@@ -168,7 +163,6 @@ fn record_reads_a_config_file() {
     assert_eq!(code(&o), 0, "{}", stderr(&o));
     let file = ReplayFile::from_json_str(&fs::read_to_string(&out).unwrap()).unwrap();
     assert_eq!(file.config.entity_count, 7);
-    assert_eq!(file.config.days_per_tick, 7);
 }
 
 #[test]
@@ -177,11 +171,7 @@ fn record_usage_errors_exit_two_and_write_nothing() {
     let out = dir.path("never.json");
     let o_arg = s(&out);
     let bad_cfg = dir.path("bad.json");
-    fs::write(
-        &bad_cfg,
-        r#"{"entity_count":7,"days_per_tick":3,"workload":"Light"}"#,
-    )
-    .unwrap();
+    fs::write(&bad_cfg, r#"{"entity_count":201,"workload":"Light"}"#).unwrap();
     let garbage_cfg = dir.path("garbage.json");
     fs::write(&garbage_cfg, "not json").unwrap();
     let huge = "9".repeat(5000);
@@ -355,10 +345,20 @@ fn replay_malformed_inputs_exit_two() {
     // A directory is not a replay file.
     assert_eq!(code(&sim_cli(&["replay", s(&dir.path(""))])), 2);
 
-    // Wrong version.
-    let v2 = dir.path("v2.json");
-    fs::write(&v2, text.replacen("\"version\":1", "\"version\":2", 1)).unwrap();
-    assert_eq!(code(&sim_cli(&["replay", s(&v2)])), 2);
+    // Unsupported versions: 1 (the old format) and 3 (a future one).
+    for (n, version) in [(1, 1), (3, 3)] {
+        let bad = dir.path(&format!("v{n}.json"));
+        let changed = text.replacen("\"version\":2", &format!("\"version\":{version}"), 1);
+        assert_ne!(changed, text);
+        fs::write(&bad, changed).unwrap();
+        let o = sim_cli(&["replay", s(&bad)]);
+        assert_eq!(code(&o), 2);
+        assert!(
+            stderr(&o).contains("unsupported replay version"),
+            "{}",
+            stderr(&o)
+        );
+    }
 
     // No files, unknown flag.
     assert_eq!(code(&sim_cli(&["replay"])), 2);
@@ -515,11 +515,7 @@ fn batch_usage_errors_exit_two() {
 fn batch_uses_a_config_file() {
     let dir = TempDir::new("batch-config");
     let cfg = dir.path("c.json");
-    fs::write(
-        &cfg,
-        r#"{"entity_count":5,"days_per_tick":7,"workload":"Light"}"#,
-    )
-    .unwrap();
+    fs::write(&cfg, r#"{"entity_count":5,"workload":"Light"}"#).unwrap();
     let o = sim_cli(&[
         "batch",
         "--seeds",

@@ -8,22 +8,18 @@ use serde_json::Value;
 use sim_wasm::{WasmSim, verify_replay, verify_replay_str};
 use wasm_bindgen_test::wasm_bindgen_test;
 
-const FIXTURES: [(&str, &str); 4] = [
+const FIXTURES: [(&str, &str); 3] = [
     (
-        "seed1-d1-pairwise",
-        include_str!("../../../fixtures/parity/seed1-d1-pairwise.replay.json"),
+        "seed1-pairwise",
+        include_str!("../../../fixtures/parity/seed1-pairwise.replay.json"),
     ),
     (
-        "seed1-d7-pairwise",
-        include_str!("../../../fixtures/parity/seed1-d7-pairwise.replay.json"),
+        "seed2-pairwise",
+        include_str!("../../../fixtures/parity/seed2-pairwise.replay.json"),
     ),
     (
-        "seedbig-d1-pairwise",
-        include_str!("../../../fixtures/parity/seedbig-d1-pairwise.replay.json"),
-    ),
-    (
-        "seedbig-d7-pairwise",
-        include_str!("../../../fixtures/parity/seedbig-d7-pairwise.replay.json"),
+        "seedbig-pairwise",
+        include_str!("../../../fixtures/parity/seedbig-pairwise.replay.json"),
     ),
 ];
 
@@ -79,7 +75,7 @@ fn wasm_sim_api_reproduces_every_recorded_checksum() {
 
 #[wasm_bindgen_test(unsupported = test)]
 fn run_ticks_returns_last_checksum_and_handles_zero() {
-    let cfg = r#"{"entity_count":5,"days_per_tick":1,"workload":"Light"}"#;
+    let cfg = r#"{"entity_count":5,"workload":"Light"}"#;
     let mut a = WasmSim::create(7, cfg).unwrap();
     assert_eq!(a.run_ticks(0), "", "no tick has run yet");
     let last = a.run_ticks(10);
@@ -95,15 +91,9 @@ fn run_ticks_returns_last_checksum_and_handles_zero() {
 
 #[wasm_bindgen_test(unsupported = test)]
 fn bad_caller_input_is_an_error_not_a_panic() {
-    let cfg = r#"{"entity_count":5,"days_per_tick":1,"workload":"Light"}"#;
+    let cfg = r#"{"entity_count":5,"workload":"Light"}"#;
     assert!(WasmSim::create(1, "not json").is_err());
-    assert!(
-        WasmSim::create(
-            1,
-            r#"{"entity_count":5,"days_per_tick":3,"workload":"Light"}"#
-        )
-        .is_err()
-    );
+    assert!(WasmSim::create(1, r#"{"entity_count":201,"workload":"Light"}"#).is_err());
     let mut sim = WasmSim::create(1, cfg).unwrap();
     sim.step();
     for bad in [
