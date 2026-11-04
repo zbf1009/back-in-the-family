@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 pub mod args;
+pub mod batch;
 pub mod commands;
 pub mod inputs;
 
@@ -22,6 +23,7 @@ USAGE:
   sim-cli record --seed S --ticks N --out FILE [--config FILE] [--random-inputs K]
   sim-cli replay FILE...
   sim-cli check-size DIR [--max-bytes N]
+  sim-cli batch --seeds A..=B --ticks N [--random-inputs K] [--config FILE]
   sim-cli --help
 
 record       Run N ticks from seed S and write a replay file (parent directories are
@@ -35,11 +37,25 @@ replay       Re-run each replay file from its seed, config and inputs and compar
              stderr.
 check-size   Fail if any file under DIR (recursive) is at or above --max-bytes
              (default 26214400, 25 MiB).
+batch        For each seed in the inclusive range A..=B (or a single seed A; at most 10000
+             seeds), in ascending order: generate K random inputs (default 60), run N ticks
+             checking the world invariants before the first tick and after every tick,
+             then record and verify a replay in memory and compare its checksums with the
+             stepped run's. Same default world as record. Prints one line per seed
+             (`seed 7 ok ticks=... final=... entities=... rejections=... value_min=...
+             value_max=... value_mean=...`, or `seed 7 FAIL ...`) and `batch: OK/TOTAL
+             seeds ok`; output has no timestamps and is identical across runs. value_mean
+             is integer division rounded down; with no entities the three value fields
+             print `-`. FAIL tick=T means T ticks had run when the invariant broke (0 =
+             before the first tick). All seeds are run even after a failure; failures are
+             also written to stderr. NOTE: --seeds A..=B is a range, unlike the plain
+             decimal numbers of the other flags.
 
 EXIT CODES:
   0  success
   1  replay: a checksum diverged (first divergent tick is printed); record: the fresh
-     replay failed its own verification; check-size: a file is at or above the limit
+     replay failed its own verification; check-size: a file is at or above the limit;
+     batch: any seed broke an invariant or diverged
   2  usage error, unreadable or malformed file, invalid config, I/O error
      (replay with several files: all are processed; 2 wins over 1)";
 
@@ -66,6 +82,7 @@ fn dispatch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
         "record" => commands::record(rest, out, err),
         "replay" => commands::replay(rest, out, err),
         "check-size" => commands::check_size(rest, out, err),
+        "batch" => batch::batch(rest, out, err),
         other => {
             let _ = writeln!(err, "error: unknown subcommand {other:?}\n\n{USAGE}");
             commands::EXIT_USAGE_OR_MALFORMED

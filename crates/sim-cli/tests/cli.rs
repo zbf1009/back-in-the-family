@@ -458,3 +458,79 @@ fn check_size_usage_errors_exit_two() {
         assert_eq!(code(&o), 2, "{args:?}: {}", stderr(&o));
     }
 }
+
+#[test]
+fn batch_small_healthy_run_exits_zero_with_one_line_per_seed() {
+    let o = sim_cli(&["batch", "--seeds", "1..=3", "--ticks", "50"]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    assert!(stderr(&o).is_empty(), "{}", stderr(&o));
+    let out = stdout(&o);
+    let lines: Vec<&str> = out.lines().collect();
+    assert_eq!(lines.len(), 4, "{out}");
+    assert!(lines[0].starts_with("seed 1 ok ticks=50 final="), "{out}");
+    assert!(lines[0].contains(" entities="), "{out}");
+    assert_eq!(lines[3], "batch: 3/3 seeds ok");
+}
+
+#[test]
+fn batch_output_is_byte_identical_across_runs_and_accepts_a_single_seed() {
+    let args = ["batch", "--seeds=7", "--ticks=40", "--random-inputs=25"];
+    let (a, b) = (sim_cli(&args), sim_cli(&args));
+    assert_eq!(code(&a), 0);
+    assert_eq!(a.stdout, b.stdout);
+    assert!(stdout(&a).starts_with("seed 7 ok ticks=40 "));
+    assert!(stdout(&a).ends_with("batch: 1/1 seeds ok\n"));
+}
+
+#[test]
+fn batch_usage_errors_exit_two() {
+    for args in [
+        &["batch", "--ticks", "10"][..],
+        &["batch", "--seeds", "1..=3"],
+        &["batch", "--seeds", "3..=1", "--ticks", "10"],
+        &["batch", "--seeds", "1..3", "--ticks", "10"],
+        &["batch", "--seeds", "x", "--ticks", "10"],
+        &["batch", "--seeds", "0..=10000", "--ticks", "10"],
+        &["batch", "--seeds", "1", "--ticks", "0"],
+        &["batch", "--seeds", "1", "--ticks", "10", "--bogus", "1"],
+        &["batch", "--seeds", "1", "--ticks", "10", "stray"],
+        &[
+            "batch",
+            "--seeds",
+            "1",
+            "--ticks",
+            "10",
+            "--config",
+            "/nonexistent.json",
+        ],
+    ] {
+        let o = sim_cli(args);
+        assert_eq!(code(&o), 2, "{args:?}");
+        assert!(stdout(&o).is_empty(), "{args:?}");
+        assert!(stderr(&o).contains("error:"), "{args:?}");
+    }
+}
+
+#[test]
+fn batch_uses_a_config_file() {
+    let dir = TempDir::new("batch-config");
+    let cfg = dir.path("c.json");
+    fs::write(
+        &cfg,
+        r#"{"entity_count":5,"days_per_tick":7,"workload":"Light"}"#,
+    )
+    .unwrap();
+    let o = sim_cli(&[
+        "batch",
+        "--seeds",
+        "1",
+        "--ticks",
+        "20",
+        "--random-inputs",
+        "0",
+        "--config",
+        s(&cfg),
+    ]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    assert!(stdout(&o).contains(" entities=5 "));
+}

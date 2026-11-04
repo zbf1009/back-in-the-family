@@ -1,0 +1,16 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "replay-on-save",
+      "trigger": "PostFileSave",
+      "description": "After the agent saves a Rust file under crates/sim-core/, run the fixed-seed replay checks; fails on divergence or compile error.",
+      "matcher": "crates/sim-core/.*\\.rs$",
+      "action": {
+        "type": "command",
+        "command": "scripts/hook-replay.sh"
+      },
+      "timeout": 120
+    }
+  ]
+}

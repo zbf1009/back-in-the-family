@@ -23,7 +23,7 @@ pub const EXIT_OK: i32 = 0;
 
 /// Reads a `--config` file: JSON with exactly the replay file's `config` shape, e.g.
 /// `{"entity_count":50,"days_per_tick":1,"workload":"Pairwise"}`, then validates it.
-fn load_config(path: &str) -> Result<WorldConfig, String> {
+pub(crate) fn load_config(path: &str) -> Result<WorldConfig, String> {
     let text =
         fs::read_to_string(path).map_err(|e| format!("cannot read config file {path}: {e}"))?;
     let file: ReplayConfig =

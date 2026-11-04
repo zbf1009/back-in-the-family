@@ -65,7 +65,7 @@ Execution notes for the orchestrator:
   - Manual check: `sim-cli replay` on a hand-edited fixture exits 1 and names the tick.
   - _Requirements: R6.1, R6.2, R6.3_
 
-- [-] 9. sim-wasm bindings and native-vs-WASM parity
+- [x] 9. sim-wasm bindings and native-vs-WASM parity
   - Add `wasm-bindgen` `=0.2.130` and `wasm-bindgen-test` (check version; list both in `README.md`).
   - `WasmSim` and `verify_replay` as in the design.
   - `tests/parity.rs`: verify every fixture under `wasm-bindgen-test` in Node.
@@ -74,7 +74,7 @@ Execution notes for the orchestrator:
   - Fault injection 4 (`usize` length encoding): show native tests pass and the WASM parity test fails, revert, log.
   - _Requirements: R7.1, R7.2, R7.3_
 
-- [~] 10. Kiro hooks (only after task 9 is done)
+- [-] 10. Kiro hooks (only after task 9 is done)
   - `sim-cli batch`: seed range, ticks, generated random inputs; invariant check after every tick; in-memory record and verify; per-seed line and summary as in the design; exit 1 on violation or divergence.
   - `scripts/hook-replay.sh` and `scripts/hook-seed-batch.sh`.
   - `.kiro/hooks/replay-on-save.json`: `PostFileSave`, matcher `crates/sim-core/.*\.rs$`, runs `scripts/hook-replay.sh`.
