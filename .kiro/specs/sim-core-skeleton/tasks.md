@@ -74,7 +74,7 @@ Execution notes for the orchestrator:
   - Fault injection 4 (`usize` length encoding): show native tests pass and the WASM parity test fails, revert, log.
   - _Requirements: R7.1, R7.2, R7.3_
 
-- [-] 10. Kiro hooks (only after task 9 is done)
+- [x] 10. Kiro hooks (only after task 9 is done)
   - `sim-cli batch`: seed range, ticks, generated random inputs; invariant check after every tick; in-memory record and verify; per-seed line and summary as in the design; exit 1 on violation or divergence.
   - `scripts/hook-replay.sh` and `scripts/hook-seed-batch.sh`.
   - `.kiro/hooks/replay-on-save.json`: `PostFileSave`, matcher `crates/sim-core/.*\.rs$`, runs `scripts/hook-replay.sh`.
@@ -85,7 +85,7 @@ Execution notes for the orchestrator:
   - From here on, every real hook catch is logged in `docs/kiro-log.md` when it happens.
   - _Requirements: R11.1, R11.2, R11.3, R11.4_
 
-- [~] 11. Tick granularity measurement
+- [-] 11. Tick granularity measurement
   - `sim-cli measure`: native ticks per second, lifetime wall time, checksum time per tick; best of 5; release build.
   - `bench` feature in sim-wasm with `bench_checksum`; `scripts/measure-wasm.mjs` with the same three numbers.
   - Write `docs/tick-granularity.md`: numbers, machine and tool versions, design comparison.

@@ -534,3 +534,14 @@ fn batch_uses_a_config_file() {
     assert_eq!(code(&o), 0, "{}", stderr(&o));
     assert!(stdout(&o).contains(" entities=5 "));
 }
+
+#[test]
+fn measure_runs_tiny_and_rejects_bad_usage() {
+    let ok = sim_cli(&["measure", "--runs", "1", "--entities", "3"]);
+    assert_eq!(code(&ok), 0, "{}", stderr(&ok));
+    assert!(stdout(&ok).contains("ticks_per_second"));
+    let bad = sim_cli(&["measure", "--runs", "0"]);
+    assert_eq!(code(&bad), 2);
+    assert!(stderr(&bad).contains("--runs"));
+    assert!(stdout(&sim_cli(&["--help"])).contains("sim-cli measure"));
+}

@@ -22,7 +22,9 @@ fi
 
 run cargo clippy --workspace --all-targets -- -D warnings
 run cargo clippy -p sim-core -p sim-wasm --target wasm32-unknown-unknown -- -D warnings
+run cargo clippy -p sim-wasm --features bench --target wasm32-unknown-unknown -- -D warnings
 run cargo test --workspace
+run cargo test -p sim-wasm --features bench --test bench
 run cargo test -p sim-wasm --target wasm32-unknown-unknown
 run scripts/wasm-build.sh
 

@@ -11,6 +11,7 @@ pub mod args;
 pub mod batch;
 pub mod commands;
 pub mod inputs;
+pub mod measure;
 
 use std::io::Write;
 
@@ -24,6 +25,7 @@ USAGE:
   sim-cli replay FILE...
   sim-cli check-size DIR [--max-bytes N]
   sim-cli batch --seeds A..=B --ticks N [--random-inputs K] [--config FILE]
+  sim-cli measure [--runs N] [--entities N]
   sim-cli --help
 
 record       Run N ticks from seed S and write a replay file (parent directories are
@@ -50,6 +52,13 @@ batch        For each seed in the inclusive range A..=B (or a single seed A; at 
              before the first tick). All seeds are run even after a failure; failures are
              also written to stderr. NOTE: --seeds A..=B is a range, unlike the plain
              decimal numbers of the other flags.
+measure      Time one 80-year lifetime (80 x 365 = 29200 daily ticks, 80 x 52 = 4160 weekly)
+             on a fresh Sim, Pairwise workload, seed 1, no inputs, --runs times (default 5,
+             1..=50) with --entities entities (default 60, 0..=200). Prints best and median
+             lifetime wall time, ticks per second (from the best run), the cost of one
+             Checksum::of call on the world after 100 ticks, its share of a tick, and the
+             canonical state size. Run with --release; a debug build says so in the header
+             and its numbers mean nothing. Output depends on timing, so it is not stable.
 
 EXIT CODES:
   0  success
@@ -83,6 +92,7 @@ fn dispatch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
         "replay" => commands::replay(rest, out, err),
         "check-size" => commands::check_size(rest, out, err),
         "batch" => batch::batch(rest, out, err),
+        "measure" => measure::measure(rest, out, err),
         other => {
             let _ = writeln!(err, "error: unknown subcommand {other:?}\n\n{USAGE}");
             commands::EXIT_USAGE_OR_MALFORMED

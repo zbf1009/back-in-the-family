@@ -108,3 +108,36 @@ pub fn verify_replay_str(replay_json: &str) -> Result<(), String> {
 pub fn verify_replay(replay_json: &str) -> Result<(), JsError> {
     verify_replay_str(replay_json).map_err(|e| JsError::new(&e))
 }
+
+/// Ticks run before the checksum loop in [`bench_checksum_hex`], so affinities are
+/// populated and the state is representative.
+#[cfg(feature = "bench")]
+pub const BENCH_WARMUP_TICKS: u32 = 100;
+
+/// Plain-Rust body of [`bench_checksum`].
+///
+/// Builds a `Sim` from `seed` and `config_json`, runs [`BENCH_WARMUP_TICKS`] ticks, then
+/// computes `Checksum::of(world)` `iterations` times. The sink is a running wrapping sum
+/// of the values, returned as 16 hex characters, so the optimizer cannot drop the loop.
+/// (An XOR sink would cancel for every even `iterations`.)
+#[cfg(feature = "bench")]
+pub fn bench_checksum_hex(seed: u64, config_json: &str, iterations: u32) -> Result<String, String> {
+    use sim_core::checksum::Checksum;
+    let mut sim = WasmSim::create(seed, config_json)?.inner;
+    for _ in 0..BENCH_WARMUP_TICKS {
+        sim.step();
+    }
+    let mut sink = 0u64;
+    for _ in 0..iterations {
+        sink = sink.wrapping_add(Checksum::of(sim.world()).0);
+    }
+    Ok(Checksum(sink).to_hex_string())
+}
+
+/// Benchmark helper (feature `bench` only): see [`bench_checksum_hex`]. The time for
+/// `iterations = 1` is the baseline (construction plus warm-up); callers subtract it.
+#[cfg(feature = "bench")]
+#[wasm_bindgen]
+pub fn bench_checksum(seed: u64, config_json: &str, iterations: u32) -> Result<String, JsError> {
+    bench_checksum_hex(seed, config_json, iterations).map_err(|e| JsError::new(&e))
+}
