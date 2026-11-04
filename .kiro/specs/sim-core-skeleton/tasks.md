@@ -16,7 +16,7 @@ Execution notes for the orchestrator:
   - Commit `rust-toolchain.toml` and `mise.toml` (installed earlier) with the scaffold.
   - _Requirements: R1.1, R1.2, R1.3_
 
-- [-] 2. Determinism guards for sim-core
+- [x] 2. Determinism guards for sim-core
   - `crates/sim-core/clippy.toml`: `disallowed-types` (`f32`, `f64`, `HashMap`, `HashSet`, `Instant`, `SystemTime`) and `disallowed-methods` (`Instant::now`, `SystemTime::now`, `thread::spawn`, `env::var`, `env::vars`).
   - Deny in sim-core: `clippy::float_arithmetic`, `clippy::arithmetic_side_effects`, `clippy::cast_possible_truncation`.
   - `tests/source_guard.rs`: comment-stripped scan of `sim-core/src` for float literals and banned names.
@@ -24,7 +24,7 @@ Execution notes for the orchestrator:
   - Fault injections 1 (HashMap field), 2 (float literal under `#[allow]`), 5 (`rand` dependency): show each gate fails, revert, log.
   - _Requirements: R8.1, R8.2, R2.3_
 
-- [~] 3. IDs and counter-based random streams
+- [-] 3. IDs and counter-based random streams
   - `ids.rs`: `Tick`, `EntityId`, `InputSeq`, `IdCounter` with checked increment and `IdExhausted`.
   - `rng.rs`: `StreamTag` with fixed values, `draw`, `below`, `in_range`; bias bound documented.
   - Unit tests: pinned outputs for a few fixed inputs; `in_range` stays inside bounds at the extremes; changing any one of the five `draw` inputs changes the output for sample values.
