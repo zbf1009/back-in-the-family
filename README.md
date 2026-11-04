@@ -26,6 +26,21 @@ Status: early development. Build and run instructions will be added as the proje
 | Name | Version | License | Used for |
 |---|---|---|---|
 | [`blake3`](https://crates.io/crates/blake3) (feature `pure`, default features off) | 1.8.7 | CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception | Per-tick state checksum in `sim-core` (first 8 bytes of the BLAKE3 hash of the canonical encoding) |
+| [`serde`](https://crates.io/crates/serde) (feature `derive`) | 1.0.229 | MIT OR Apache-2.0 | Replay file (de)serialization in `sim-core`, confined to the DTO types in `replay.rs` |
+| [`serde_json`](https://crates.io/crates/serde_json) | 1.0.154 | MIT OR Apache-2.0 | Replay file JSON reading and writing in `sim-core` |
+| [`serde_core`](https://crates.io/crates/serde_core) | 1.0.229 | MIT OR Apache-2.0 | Transitive (`serde`, `serde_json`): serde's core traits |
+| [`serde_derive`](https://crates.io/crates/serde_derive) | 1.0.229 | MIT OR Apache-2.0 | Transitive (`serde`): derive macros, build-time only |
+| [`proc-macro2`](https://crates.io/crates/proc-macro2) | 1.0.107 | MIT OR Apache-2.0 | Transitive (`serde_derive`): proc-macro support, build-time only |
+| [`quote`](https://crates.io/crates/quote) | 1.0.47 | MIT OR Apache-2.0 | Transitive (`serde_derive`): code generation, build-time only |
+| [`syn`](https://crates.io/crates/syn) | 3.0.9 | MIT OR Apache-2.0 | Transitive (`serde_derive`): Rust parser, build-time only |
+| [`unicode-ident`](https://crates.io/crates/unicode-ident) | 1.0.27 | (MIT OR Apache-2.0) AND Unicode-3.0 | Transitive (`proc-macro2`, `syn`): identifier tables, build-time only |
+| [`itoa`](https://crates.io/crates/itoa) | 1.0.18 | MIT OR Apache-2.0 | Transitive (`serde_json`): integer formatting |
+| [`memchr`](https://crates.io/crates/memchr) | 2.8.3 | Unlicense OR MIT | Transitive (`serde_json`): byte search |
+| [`zmij`](https://crates.io/crates/zmij) | 1.0.23 | MIT | Transitive (`serde_json`): number formatting |
+| [`arrayvec`](https://crates.io/crates/arrayvec) | 0.7.8 | MIT OR Apache-2.0 | Transitive (`blake3`): fixed-capacity vectors |
+| [`cfg-if`](https://crates.io/crates/cfg-if) | 1.0.5 | MIT OR Apache-2.0 | Transitive (`blake3`): conditional compilation macro |
+| [`constant_time_eq`](https://crates.io/crates/constant_time_eq) | 0.4.2 | CC0-1.0 OR MIT-0 OR Apache-2.0 | Transitive (`blake3`): constant-time comparison |
+| [`cpufeatures`](https://crates.io/crates/cpufeatures) | 0.3.1 | MIT OR Apache-2.0 | Transitive (`blake3`): CPU feature detection |
 
 More entries are added here as libraries and assets arrive.
 

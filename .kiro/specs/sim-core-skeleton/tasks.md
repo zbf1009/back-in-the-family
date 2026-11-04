@@ -37,7 +37,7 @@ Execution notes for the orchestrator:
   - Unit tests: encoded bytes for sample values match hand-written expectations; BLAKE3 matches an official test vector (empty input).
   - _Requirements: R5.1, R5.2, R1.4_
 
-- [-] 5. World, input stream and tick loop
+- [x] 5. World, input stream and tick loop
   - `world.rs`: `WorldConfig` (validated), `Workload`, `Entity`, `World`, `Rejections`, `RejectReason`, `check_invariants`; `Canon` impls with exhaustive destructuring.
   - `input.rs`: `TickInput`, `InputPayload`, `InputStream::submit` (rejects past ticks, assigns `seq`), `for_tick`.
   - `tick.rs`: the five steps in fixed order, documented as the module doc.
@@ -45,7 +45,7 @@ Execution notes for the orchestrator:
   - Unit tests: past-tick submission rejected with state unchanged; each invalid input kind is skipped and counted; despawn removes inbound affinity; same-tick inputs apply in `seq` order.
   - _Requirements: R2.1, R2.2, R2.5, R2.6, R4.1, R4.2, R4.3, R4.4, R5.3_
 
-- [~] 6. Replay file and replay check
+- [-] 6. Replay file and replay check
   - Add `serde` and `serde_json` (check versions and licenses; list in `README.md`).
   - `replay.rs`: `ReplayFile` JSON with `u64` as decimal strings, format and version checks, `record`, `verify` returning the first `Divergence`.
   - `tests/replay.rs`: record and verify in-process for fixed seeds; a tampered checksum is reported at the right tick; wrong checksum count and unknown version are rejected.
