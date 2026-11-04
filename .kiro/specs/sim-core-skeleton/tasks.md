@@ -52,13 +52,13 @@ Execution notes for the orchestrator:
   - Fault injection 3 (HashMap iteration in the drift step): show the replay test fails, revert, log.
   - _Requirements: R4.5, R6.2, R6.4_
 
-- [-] 7. Property-based tests
+- [x] 7. Property-based tests
   - Add `proptest` 1.12.0 as a dev-dependency; list in `README.md`.
   - Test-only mutation API behind `#[cfg(any(test, feature = "test-support"))]`.
   - `tests/properties.rs`: P1–P7 as specified in the design.
   - _Requirements: R9.1–R9.7, R5.4_
 
-- [~] 8. sim-cli and parity fixtures
+- [-] 8. sim-cli and parity fixtures
   - `record`, `replay`, `check-size` subcommands with hand-parsed arguments and the documented exit codes.
   - Generate `fixtures/parity/` (two seeds × `days_per_tick` 1 and 7, `Pairwise`, 2,000 ticks, random inputs including invalid ones).
   - `sim-core/tests/replay.rs` also verifies every fixture.

@@ -20,6 +20,10 @@ pub enum StreamTag {
     Drift = 1,
     /// Per-tick affinity change between a pair of entities.
     Affinity = 2,
+    /// **Tooling only; the simulation never draws from this stream.** `sim-cli record
+    /// --random-inputs` uses it to generate test inputs from a seed. It exists so that
+    /// tooling can never alias a simulation stream. Value 3 is permanent like the others.
+    ToolingInputs = 3,
 }
 
 // Distinct odd multipliers, one per input position (seed, entity, tag, tick, index).
@@ -112,6 +116,7 @@ mod tests {
     fn stream_tag_values_are_permanent() {
         assert_eq!(StreamTag::Drift as u8, 1);
         assert_eq!(StreamTag::Affinity as u8, 2);
+        assert_eq!(StreamTag::ToolingInputs as u8, 3);
     }
 
     #[test]

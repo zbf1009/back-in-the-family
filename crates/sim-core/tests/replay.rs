@@ -517,3 +517,103 @@ fn record_rejects_an_invalid_config() {
         Err(ReplayError::Config(_))
     ));
 }
+
+// ---------------------------------------------------------------------------------
+// Parity fixtures (design decision D7): `fixtures/parity/*.replay.json`, recorded by
+// `sim-cli record` (see fixtures/parity/README.md). Task 9 verifies the same files
+// under WASM.
+// ---------------------------------------------------------------------------------
+
+/// The exact set of fixture file names. A deleted or renamed fixture must fail the
+/// test, not silently shrink coverage.
+const FIXTURE_NAMES: [&str; 4] = [
+    "seed1-d1-pairwise.replay.json",
+    "seed1-d7-pairwise.replay.json",
+    "seedbig-d1-pairwise.replay.json",
+    "seedbig-d7-pairwise.replay.json",
+];
+
+const FIXTURE_TICKS: u64 = 2000;
+
+fn fixture_dir() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/parity")
+}
+
+fn load_fixture(name: &str) -> ReplayFile {
+    let path = fixture_dir().join(name);
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("cannot read fixture {}: {e}", path.display()));
+    ReplayFile::from_json_str(&text)
+        .unwrap_or_else(|e| panic!("fixture {} is malformed: {e}", path.display()))
+}
+
+#[test]
+fn the_fixture_directory_holds_exactly_the_expected_replays() {
+    let mut found: Vec<String> = std::fs::read_dir(fixture_dir())
+        .expect("fixtures/parity must exist")
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .filter(|name| name.ends_with(".replay.json"))
+        .collect();
+    found.sort();
+    assert_eq!(found, FIXTURE_NAMES);
+}
+
+#[test]
+fn every_parity_fixture_replays_ok() {
+    for name in FIXTURE_NAMES {
+        let file = load_fixture(name);
+        assert_eq!(verify(&file), Ok(()), "{name}");
+    }
+}
+
+#[test]
+fn parity_fixtures_have_the_documented_shape() {
+    for name in FIXTURE_NAMES {
+        let file = load_fixture(name);
+        assert_eq!(file.ticks, FIXTURE_TICKS, "{name}");
+        assert_eq!(file.checksums.len() as u64, FIXTURE_TICKS, "{name}");
+        assert_eq!(file.config.entity_count, 50, "{name}");
+        assert_eq!(
+            Workload::from(file.config.workload),
+            Workload::Pairwise,
+            "{name}"
+        );
+        let days = if name.contains("-d1-") { 1 } else { 7 };
+        assert_eq!(file.config.days_per_tick, days, "{name}");
+        let seed = if name.starts_with("seedbig") {
+            18_446_744_073_709_551_557
+        } else {
+            1
+        };
+        assert_eq!(file.seed, seed, "{name}");
+        assert!(!file.inputs.is_empty(), "{name} has no recorded inputs");
+
+        // The recorded inputs include invalid ones: re-running them produces rejections.
+        let config = WorldConfig::try_from(file.config).unwrap();
+        let mut sim = Sim::new(file.seed, config).unwrap();
+        for input in &file.inputs {
+            sim.submit(Tick(input.tick), input.payload.into()).unwrap();
+        }
+        for _ in 0..file.ticks {
+            sim.step();
+        }
+        let rejected: u64 = sim.world().rejections().count_by_reason.values().sum();
+        assert!(rejected > 0, "{name}: no rejection was exercised");
+    }
+}
+
+#[test]
+fn a_tampered_fixture_checksum_is_reported_at_the_right_tick() {
+    let mut file = load_fixture(FIXTURE_NAMES[0]);
+    let truth = file.checksums[1234];
+    let tampered = flip_last_digit(truth);
+    file.checksums[1234] = tampered;
+    assert_eq!(
+        verify(&file),
+        Err(ReplayError::Diverged(Divergence {
+            tick: Tick(1234),
+            expected: tampered,
+            actual: truth,
+        }))
+    );
+}
