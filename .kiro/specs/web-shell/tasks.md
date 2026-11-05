@@ -198,18 +198,18 @@ Execution notes for the orchestrator:
     - _Requirements: all_
 
 - [ ] 10. Enable deploy (author approval required at each step)
-  - [~] 10.1 Stop and ask before pushing `main`
+  - [x] 10.1 Stop and ask before pushing `main`
     - The remote `origin` (`zbf1009/back-in-the-family`, public) already exists; do not create another. Ask the author whether to push `main`, which carries the commits of tasks 1 to 9 and the new workflow. Do nothing until the author approves in that moment. With deploy still disabled, this push only runs the gates in CI; report the run's result and any CI-only difference (for example Chrome or mise behaviour on the runner) and log it.
     - _Requirements: 11.2, 11.4, 11.7, 11.8_
-  - [~] 10.2 Stop and ask before secrets; check the token's permissions
+  - [x] 10.2 Stop and ask before secrets; check the token's permissions
     - The author creates the Cloudflare API token (custom token, one account, Account → Workers Scripts → Edit as the starting point, no zone or DNS permissions) and ensures the account has a `workers.dev` subdomain. The design's claim that this permission alone is enough is unverified; say so to the author. With approval, the agent runs `gh secret set CLOUDFLARE_API_TOKEN` and `gh secret set CLOUDFLARE_ACCOUNT_ID` reading the values from the author's input, never echoing them, never writing them to a file or the log.
     - Record the token's permission list as the author reports it (or as shown by a read-only Cloudflare API call, if the author approves) against R11.6.
     - _Requirements: 11.5, 11.6, 11.8_
-  - [~] 10.3 Stop and ask before enabling deploy and running the first deploy
+  - [x] 10.3 Stop and ask before enabling deploy and running the first deploy
     - With approval, set the repository variable `DEPLOY_ENABLED=true` and trigger the first deploy by a push to `main` (approved separately). Watch the run. If the deploy step fails for a missing permission, report the exact error and ask the author to add only the named permission; log it. Do not retry automatically.
     - When it succeeds, record in `docs/kiro-log.md` the `*.workers.dev` URL, the full deployed commit hash and the date, and confirm the page loads at that URL.
     - _Requirements: 11.3, 11.8, 11.9, 11.10_
-  - [~] 10.4 Close the audit and commit
+  - [x] 10.4 Close the audit and commit
     - Update the R11.6, R11.8 and R11.9 rows (and any other R11 row affected) in `docs/web-shell-audit.md` and the "Next steps" in `.kiro/steering/structure.md`; log the final token permissions. One conventional commit; push only with the author's approval.
     - _Requirements: 11.6, 11.8, 11.9, 12.4_
 
