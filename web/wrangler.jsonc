@@ -1,0 +1,12 @@
+{
+  // Static Assets only (DA-1 A, R11.1): no `main`, no bindings, no routes, so this
+  // Worker serves the files in ./dist and nothing else. A request that matches no
+  // file returns 404. The Deploy_Workflow runs `pnpm exec wrangler deploy` from web/,
+  // which uploads ./dist (the Deploy_Directory the gates built and checked) with no
+  // build of its own (R11.3).
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "back-in-the-family",
+  "compatibility_date": "2026-11-05",
+  "assets": { "directory": "./dist" },
+  "workers_dev": true
+}

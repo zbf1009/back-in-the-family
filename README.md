@@ -140,7 +140,7 @@ More entries are added here as libraries and assets arrive.
 
 ### Web app (`web/`) dependencies
 
-Resolved versions are from the committed `web/pnpm-lock.yaml`; licenses are the SPDX identifiers on the npm registry. All eight are dev dependencies at this stage (task 1.1); `wrangler` is added in task 7. Transitive packages whose code reaches the Deploy_Directory are added from the build report in task 4.
+Resolved versions are from the committed `web/pnpm-lock.yaml`; licenses are the SPDX identifiers on the npm registry. All nine are dev dependencies. Transitive packages whose code reaches the Deploy_Directory are added from the build report in task 4; so far only `svelte` is bundled (`web/.bundle-report.json`), so `wrangler` is a dev/deploy tool and is not part of `web/dist`.
 
 | Name | Version | License | Used for |
 |---|---|---|---|
@@ -152,6 +152,7 @@ Resolved versions are from the committed `web/pnpm-lock.yaml`; licenses are the 
 | [`@types/node`](https://www.npmjs.com/package/@types/node) | 26.6.6 | MIT | Node type declarations for scripts, configs and tests (dev/gate only) |
 | [`@playwright/test`](https://www.npmjs.com/package/@playwright/test) | 1.64.1 | Apache-2.0 | Browser Smoke_Test driver using the system Chrome (dev/gate only; no browser download) |
 | [`fast-check`](https://www.npmjs.com/package/fast-check) | 4.10.2 | MIT | Property-based testing in the web Unit_Tests (dev/test only) |
+| [`wrangler`](https://www.npmjs.com/package/wrangler) | 4.157.0 | MIT OR Apache-2.0 | Deploy `web/dist` to Cloudflare Workers Static Assets (dev/deploy only). NOT bundled into `web/dist`; the Deploy_Workflow runs `pnpm exec wrangler deploy` from `web/` |
 
 
 
