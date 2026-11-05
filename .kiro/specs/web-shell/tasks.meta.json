@@ -1,0 +1,334 @@
+{
+  "pbtResults": {},
+  "executionHistory": {
+    "1.1 Pin pnpm and create the `web/` package": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150305
+      }
+    ],
+    "1.2 Add `scripts/check-pnpm-version.sh` and wire the first web gates": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150310
+      }
+    ],
+    "1.3 Fault injection for the pnpm version check, then commit": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150313
+      }
+    ],
+    "2.1 Write the shared modules": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150315
+      }
+    ],
+    "2.2 Write property test for seed parsing": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150317
+      }
+    ],
+    "2.3 Write the Ticks_Per_Second window": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150319
+      }
+    ],
+    "2.4 Write property test for the Ticks_Per_Second window": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150321
+      }
+    ],
+    "2.5 Write `SimController`": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150324
+      }
+    ],
+    "2.6 Write the controller test helpers": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150326
+      }
+    ],
+    "2.7 Write property test for reply discipline": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150328
+      }
+    ],
+    "2.8 Write property test for rejected requests": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150330
+      }
+    ],
+    "2.9 Write property test for speed independence": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150333
+      }
+    ],
+    "2.10 Write property test for frame discipline": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150335
+      }
+    ],
+    "2.11 Write property test for clock independence": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150338
+      }
+    ],
+    "2.12 Write controller example tests": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150342
+      }
+    ],
+    "2.13 Write a unit test for `check-pnpm-version.sh`": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150345
+      }
+    ],
+    "2.14 Wire the Unit_Tests gate, inject its fault, commit": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150347
+      }
+    ],
+    "3.1 Write the Sim_Worker entry": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150350
+      }
+    ],
+    "3.2 Write the Main_Thread client": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150352
+      }
+    ],
+    "3.3 Write the UI state reducer": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150354
+      }
+    ],
+    "3.4 Write property test for the UI reducer": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150356
+      }
+    ],
+    "3.5 Write property test for status formatting": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150358
+      }
+    ],
+    "3.6 Write the exhaustive controls table test": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150361
+      }
+    ],
+    "3.7 Write the page, `main.ts` and the harness": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150363
+      }
+    ],
+    "3.8 Write the Type_Check, wire its gate, inject its fault, commit": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150365
+      }
+    ],
+    "4.1 Finish `vite.config.ts`": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150368
+      }
+    ],
+    "4.2 Write `web/scripts/check-deploy.ts`": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150370
+      }
+    ],
+    "4.3 Write property test for the size check": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150374
+      }
+    ],
+    "4.4 Write `scripts/web-build.sh`": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150377
+      }
+    ],
+    "4.5 Write Local_Preview": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150379
+      }
+    ],
+    "4.6 Wire the Web_Build gate, inject its fault, update README, commit": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150381
+      }
+    ],
+    "5.1 Write the Playwright config and global setup": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150383
+      }
+    ],
+    "5.2 Write `web/tests/smoke/fixture.spec.ts`": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150385
+      }
+    ],
+    "5.3 Write `web/tests/smoke/responsive.spec.ts`": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150387
+      }
+    ],
+    "5.4 Wire the Smoke_Test gate, inject its fault, commit": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150389
+      }
+    ],
+    "6. Checkpoint - Ensure all tests pass": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150391
+      }
+    ],
+    "7.1 Add Wrangler and `web/wrangler.jsonc`": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150393
+      }
+    ],
+    "8.1 Write `.github/workflows/deploy.yml`": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150396
+      }
+    ],
+    "9.1 Run the gates from a clean build": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150398
+      }
+    ],
+    "9.2 Write `docs/web-shell-audit.md`": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150401
+      }
+    ],
+    "9.3 Update the steering files": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150403
+      }
+    ],
+    "9.4 Update `README.md` and run it from a fresh clone": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150405
+      }
+    ],
+    "9.5 Sync the spec documents with what was built": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150407
+      }
+    ],
+    "10.1 Stop and ask before pushing `main`": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150409
+      }
+    ],
+    "10.2 Stop and ask before secrets; check the token's permissions": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150411
+      }
+    ],
+    "10.3 Stop and ask before enabling deploy and running the first deploy": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150414
+      }
+    ],
+    "10.4 Close the audit and commit": [
+      {
+        "executionId": "47143c69-cd10-46b6-b58a-067791b9ab52",
+        "chatSessionId": "sess_143e16ab-6a14-44fb-99e4-b2e54239ac8c",
+        "timestamp": 1793842150416
+      }
+    ]
+  }
+}
