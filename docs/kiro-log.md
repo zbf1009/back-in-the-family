@@ -252,3 +252,27 @@ The author's pre-period design notes were reviewed with Kiro before writing code
 - Ignore rules: `.gitignore` already covered `web/node_modules/` (via `node_modules/`) and `web/dist` (via `dist/`); confirmed with `git check-ignore -v` (both resolve to `.gitignore:7:dist/` etc.). Added `web/.bundle-report.json` explicitly (it lives outside `dist`).
 - Licenses added to a new "Web app (`web/`) dependencies" table in `README.md` with package, resolved lockfile version and SPDX identifier. Also added `pnpm` 10.33.1 (MIT) to the development-tools line.
 - `scripts/gates.sh` was not edited in this task (web gates are added in 1.2/1.3). Ran the full existing `scripts/gates.sh`: green (all Rust gates, `sim-cli batch`, wasm32 parity, `wasm-build.sh`). The web skeleton breaks no existing gate.
+
+### Spec: web-shell — task 1.2 (`scripts/check-pnpm-version.sh` and the first two web gates)
+- Wrote `scripts/check-pnpm-version.sh` (`set -euo pipefail`, `cd` to repo root like the other scripts, `chmod +x`). It reads the `pnpm = "x.y.z"` line of `mise.toml` with `awk` and `packageManager` from `web/package.json` with `node -p`, requires both to be a full `major.minor.patch` (`pnpm@x.y.z` in `packageManager`), and on any missing, malformed or differing value prints `mise.toml: <value|missing>` and `web/package.json packageManager: <value|missing>` and exits 1 (R1.3); exits 0 only when both are present and equal. Verified on the matching pair (exit 0) and, against temporary copies, for a differing patch version, a range (`^10.33.1` → `missing`), a missing `packageManager` field and a missing `pnpm` line in `mise.toml` (each exit 1 with both values printed).
+- `scripts/gates.sh`: exported `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1` near the top (R9.2), and changed the `run()` helper so that on failure it prints `gate failed: <command>` to stderr and exits with the command's status (R10.2). First wording used `if ! "$@"; then status=$?; ...`, but under the `!` negation `$?` is the status of the negation (0), so the script exited 0 on failure; corrected to `local status=0; "$@" || status=$?`. Verified in isolation: a command exiting 42 is named and the helper exits 42; a succeeding command passes through (exit 0).
+- Added two gates after the existing `run scripts/wasm-build.sh` line, in R10.1 order: `run scripts/check-pnpm-version.sh` and `run mise exec -- pnpm --dir web install --frozen-lockfile`. The install goes through `mise exec` because the pnpm on PATH here is 10.34.4, not the pinned 10.33.1; a comment in the script records why. The frozen install ran clean ("Lockfile is up to date", pnpm v10.33.1) and left `web/pnpm-lock.yaml` unchanged.
+- R1.6 hand check: added an unlisted `dependencies` entry (`left-pad@1.3.0`) to `web/package.json` without touching the lockfile and ran the install gate. It failed with `ERR_PNPM_OUTDATED_LOCKFILE` ("Cannot install with \"frozen-lockfile\" because pnpm-lock.yaml is not up to date with .../package.json", "1 dependencies were added: left-pad@1.3.0"), exit 1, and `git diff --stat web/pnpm-lock.yaml` showed no change — the lockfile was left untouched. Reverted the `package.json` edit (no diff afterwards); the install gate is green again. The extra dependency was never installed and is not left in the tree.
+- No fault injection for the pnpm version check here — that is task 1.3. Ran the full `scripts/gates.sh` to exit 0, including the two new gates. Nothing committed (task 1.3 makes the single commit for all of task 1).
+
+### Spec: web-shell — task 1.3 (fault injection for the pnpm version check)
+- Gate shown to fail: `scripts/check-pnpm-version.sh` (the pnpm pin check, R10.5 to R10.8).
+- Injected fault: a patch-version mismatch — set `packageManager` in `web/package.json` to `pnpm@10.33.2` while `mise.toml` keeps `pnpm = "10.33.1"`. One fault at a time.
+- Observed failure (full `scripts/gates.sh`, after all Rust gates and `wasm-build.sh`): the pnpm check printed both values and the `run()` helper named the failing gate; the script exited 1. Excerpt:
+
+  ```
+  ==> scripts/check-pnpm-version.sh
+  mise.toml: 10.33.1
+  web/package.json packageManager: pnpm@10.33.2
+  gate failed: scripts/check-pnpm-version.sh
+  ```
+
+  (`EXIT_CODE=1`.)
+- Revert: set `packageManager` back to `pnpm@10.33.1` exactly. `git diff web/package.json` is empty afterwards (`git diff --quiet` clean), so no injected fault remains.
+- Passing re-run: the full `scripts/gates.sh` then exited 0, ending with `pnpm pinned to 10.33.1 in mise.toml and web/package.json.`, the frozen install `Lockfile is up to date` / `Already up to date`, and `All gates passed.`
+- Committed task 1 (1.2 and 1.3; 1.1 is already `969d0bc`) as one conventional commit: `scripts/check-pnpm-version.sh`, `scripts/gates.sh`, `docs/kiro-log.md`. The spec's `tasks.md` and `tasks.meta.json` are orchestrator-managed and not staged.

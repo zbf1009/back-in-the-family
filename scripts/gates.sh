@@ -5,9 +5,18 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# Never download a Playwright browser; the Smoke_Test uses the system Chrome (R9.2).
+export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
+
+# Run a gate; on failure name the failing command and exit with its status (R10.2).
 run() {
   echo "==> $*"
-  "$@"
+  local status=0
+  "$@" || status=$?
+  if [ "$status" -ne 0 ]; then
+    echo "gate failed: $*" >&2
+    exit "$status"
+  fi
 }
 
 run cargo fmt --check
@@ -30,5 +39,12 @@ run cargo run -q --release -p sim-cli -- batch --seeds 1..=20 --ticks 2000
 run cargo test -p sim-wasm --features bench --test bench
 run cargo test -p sim-wasm --target wasm32-unknown-unknown
 run scripts/wasm-build.sh
+
+# First web gates (R10.1 order): pnpm pin check, then a frozen-lockfile install.
+run scripts/check-pnpm-version.sh
+# The pinned pnpm (mise.toml) is reached through `mise exec`, because the pnpm on
+# PATH may be a different version. --frozen-lockfile neither resolves new versions
+# nor rewrites the lockfile, and fails if the lockfile is out of date (R1.5, R1.6).
+run mise exec -- pnpm --dir web install --frozen-lockfile
 
 echo "All gates passed."
