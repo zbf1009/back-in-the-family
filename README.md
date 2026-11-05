@@ -6,7 +6,7 @@ A reincarnation life-sim set in a small American town where, after a Halloween c
 
 Built for Kiroween 2026 (Frankenstein category). Development is done with Kiro CLI; the `.kiro/` directory (steering, specs, agents) is part of this repository.
 
-Status: the deterministic simulation skeleton (`sim-core`, with the native runner `sim-cli` and the browser bindings `sim-wasm`) is built and checked; there is no playable game or web page yet. The next spec is `web-shell`.
+Status: the deterministic simulation skeleton (`sim-core`, with the native runner `sim-cli` and the browser bindings `sim-wasm`) is built and checked, and the web shell (`web/`) is now built — a Svelte 5 + Vite page that loads the WASM in a dedicated Web Worker and shows the tick, checksum and ticks-per-second, together with the Web_Build (into `web/dist`), the Type_Check, Unit_Tests and Smoke_Test gates, and the Cloudflare deploy workflow (the deploy step is not yet enabled). There is no playable game yet. The next spec is `llm-probe`.
 
 ## Build and test
 
@@ -45,6 +45,37 @@ cargo run --release -p sim-cli -- measure                 # native timing of one
 Kiro hooks were tried and removed on 2026-11-04: they ran only on the agent's edit-tool saves and on task completions, and their output did not reach the agent. The evidence is in `docs/kiro-log.md` and `docs/sim-core-skeleton-audit.md`; `sim-cli batch` is now a gate step instead.
 
 Other documents: `docs/tick-granularity.md` (measurement behind the 1-day tick), `docs/sim-core-skeleton-audit.md` (requirement-by-requirement check of the first spec), `docs/kiro-log.md` (how Kiro was used).
+
+### Web app (`web/`)
+
+The browser front end lives in `web/`. It needs Node and pnpm from `mise`, and the Smoke_Test needs the system Google Chrome (it is driven through `channel: 'chrome'` and downloads no browser of its own). Run each command from the repository root.
+
+1. Install the pinned tools and the pnpm dependencies:
+
+   ```sh
+   mise install
+   mise exec -- pnpm --dir web install --frozen-lockfile
+   ```
+
+2. Web_Build — build the WASM, then the web app into `web/dist`, with the per-file size, `.wasm` byte-identity and main-bundle boundary checks:
+
+   ```sh
+   scripts/web-build.sh
+   ```
+
+3. Local_Preview — serve `web/dist` on <http://localhost:4173> without contacting Cloudflare (Ctrl-C to stop):
+
+   ```sh
+   mise exec -- pnpm --dir web run preview
+   ```
+
+4. Smoke_Test — `@playwright/test` on the system Chrome against `web/dist` (no browser download); it starts its own preview server:
+
+   ```sh
+   mise exec -- pnpm --dir web run test:smoke
+   ```
+
+`scripts/gates.sh` runs all of these — the pnpm version check, the frozen-lockfile install, the Type_Check, the Unit_Tests, the Web_Build and the Smoke_Test — as part of the full gate chain, after the Rust gates and the `sim-cli batch` step.
 
 ## Prior work disclosure
 

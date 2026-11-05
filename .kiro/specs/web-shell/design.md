@@ -663,3 +663,67 @@ R10.1 lists the new gates and does not mention web unit tests, but Properties 1�
 - API token: a custom account token with only Account → Workers Scripts → Edit for the one account (R11.6). The author creates it and the two GitHub secrets after approving (R11.8).
 - `compatibility_date` is set to the implementation date.
 - The Worker name `back-in-the-family` gives `back-in-the-family.<account-subdomain>.workers.dev`; the author can choose another name before the first deploy.
+
+## Implementation notes (built 2026-11-05)
+
+Added in the final check (task 9.5). The design above is left as written; this section records where the implementation (tasks 1–8) differs from or adds to it, and why. The requirement-by-requirement check is in `docs/web-shell-audit.md`; every item below is also in `docs/kiro-log.md` under the dated task entries. Nothing here reopens a requirement.
+
+### Resolved tool versions (pinned in the lockfile)
+
+The design left every version "to be confirmed when the lockfile is created". As built, the committed versions are:
+
+| Package | Pinned version | Note |
+|---|---|---|
+| `svelte` | 5.57.3 | |
+| `vite` | 8.3.5 | |
+| `@sveltejs/vite-plugin-svelte` | 7.3.1 | |
+| `svelte-check` | 4.7.8 | |
+| `typescript` | 6.0.3 | pinned on 6.x because `svelte-check` 4.7.8 rejects TypeScript 7 as a peer (the design foresaw this) |
+| `@types/node` | 26.6.6 | |
+| `@playwright/test` | 1.64.1 | |
+| `fast-check` | 4.10.2 | |
+| `wrangler` | 4.157.0 | |
+| `pnpm` | 10.33.1 | DA-2 A; pinned in `mise.toml` and `packageManager` |
+| `node` | 26.7.0 | from `mise.toml` |
+
+### `.ts` import specifiers, not `.js`
+
+The design's example code imported sibling modules with `.js` specifiers (the TypeScript-emit convention). As built, the controller/shared modules and the Node tests import with explicit **`.ts`** specifiers, because Node 26 strips types and resolves the specifier literally, so a `.js` specifier would not find the `.ts` file at test time. All three tsconfigs set `allowImportingTsExtensions` (with `noEmit`, which Vite and `node --test` both satisfy). Vite resolves `.ts` specifiers too, so the same source works in the browser build. No behavior changed; only the specifier text differs from the design snippets.
+
+### New module: `web/src/main/bridge.ts`
+
+Not in the design's module list. `bridge.ts` holds a small `EventBridge`: the `SimClient` is created in `main.ts` with its worker-initiated event handlers (`onStatus`, `onFatal`, `onError`) fixed at construction, but `App.svelte` and its reducer mount afterwards. The bridge is the holder those fixed handlers call into, and `App.svelte` registers the reducer dispatch with it on mount. This keeps the worker-event wiring out of `App.svelte` and lets the handlers exist before the component does. It is Main_Thread-only and touches no simulation state.
+
+### `ui-state.ts` derives `ReplyMessage` from the shared union
+
+So the pure reducer and its Node tests stay DOM-free, `ui-state.ts` derives the `ReplyMessage` type from the shared `WorkerMessage` union in `src/shared/protocol.ts` rather than importing it from the DOM-only `sim-client.ts`. `tsconfig.node.json` (which compiles the reducer tests) therefore pulls in no DOM lib through the reducer.
+
+### `SimController.ready()` for the load queue
+
+The design has `sim.worker.ts` "drain the queue of early requests" after `init()` resolves. As built, `SimController` exposes a `ready()` method that models the not-yet-loaded state: `createSim` is injected synchronously at construction, requests that arrive before `ready()` are queued, and the worker entry calls `ready()` once `init()` resolves, which drains the queue in order. This makes the load-queue behavior (R2.8 ordering) testable in Node without a real async load.
+
+### WASM loading: `initSync` in tests, default `init` in the worker
+
+The `sim-wasm` glue is wasm-bindgen 0.2.130 `--target web`. The Node property/controller tests load it with `initSync({ module: bytes })` (bytes read from `target/wasm-pkg/sim_wasm_bg.wasm`), which gives a synchronous `createSim` for the fake-scheduler tests. The worker loads it the way the design specifies — the default `init({ module_or_path: wasmUrl })` with a `?url` import and the Vite `sim-wasm` alias. Both paths construct the same `WasmSim`.
+
+### `check-deploy.ts` replaces `sim-cli check-size` for `web/dist`
+
+The design already noted that `sim-cli check-size` treats a file at the limit as too big and is not reused. As built, `check-deploy.ts` is the sole size check for `web/dist`: a file of **exactly** 26,214,400 bytes passes (R7.4), which `sim-cli check-size` would fail. `check-deploy.ts` also performs the two other deploy-directory checks from the design — `.wasm` SHA-256 byte-identity with the `wasm-build.sh` output (R7.3) and the main-bundle boundary that keeps `__wbindgen`/the hashed `.wasm` name out of every `.js` chunk except the worker chunk (R2.3).
+
+### R5.4 / R5.5 verified by `responsive.spec.ts` via the page controls, not the harness
+
+Display cadence (R5.4) and Main_Thread responsiveness (R5.5) are verified by the page-control-driven `responsive.spec.ts` smoke test rather than through the `__simHarness`. The page reducer ignores `status` messages for a world it did not itself create (R3.7), so a harness-created world would not drive the page's status display; running through the page controls is what exercises the displayed-cadence path.
+
+### Deploy tool: DA-1 A as built (accepted cost)
+
+DA-1 A was taken: `wrangler` is a `web/` dev dependency. Accepted cost observed at install time: Wrangler pulls `workerd` and `esbuild` binaries, adding roughly 220 MiB to `web/node_modules` on every `pnpm install`, including in the gates. This was the known trade-off in the DA-1 table and is accepted.
+
+### CI action pins (as written in `.github/workflows/deploy.yml`)
+
+- `actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1` # v7.0.1
+- `jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c` # v5.2.6
+- runner `ubuntu-24.04` (pinned, not `ubuntu-latest`).
+
+### Deploy enablement deferred to task 10
+
+R11.6 (the custom API token), R11.8 (the author creating the token and the two GitHub secrets) and R11.9 (the first deploy and `workers.dev` subdomain registration) are deferred to task 10, pending the author's approval. The Deploy_Workflow's live CI behavior — the gates running on a GitHub runner and the deploy step — is therefore **unverified until the first push to `main`**. The workflow was validated by read-through and local `scripts/gates.sh` runs only (see the task 8 log entry).

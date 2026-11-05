@@ -11,10 +11,11 @@ inclusion: always
 | Simulation core | Rust (edition 2024), plain structs and functions, **no ECS** | Small town (40–60 residents), daily settlement; ECS scheduling buys nothing in single-threaded WASM |
 | Browser build | `wasm32-unknown-unknown` + `wasm-bindgen` | Every deployed file must stay under 25 MiB |
 | Headless runner | Native Rust binary | Seed batches, replay checks, metrics |
-| Frontend | TypeScript web app (DOM + Canvas) | Framework chosen in the web-shell spec |
-| Hosting | Cloudflare (Workers static assets or Pages) | Ask before any deploy |
+| Frontend | Svelte 5 + Vite, all TypeScript (`web/`) | Chosen in the web-shell spec. The vertical slice adds the DOM + Canvas town view and scenes on top |
+| Web package manager | pnpm, one exact version | Pinned in both `mise.toml` and `web/package.json` `packageManager`; the two must match (a gate enforces it). Install uses `--frozen-lockfile` |
+| Hosting | Cloudflare Workers Static Assets (assets only, no Worker script), on a `*.workers.dev` subdomain | Deployed by the GitHub Actions Deploy_Workflow (`.github/workflows/deploy.yml`) on push to `main`, only after the gates pass. **Ask before any deploy** — the deploy step stays disabled until the author enables it (web-shell task 10) |
 | LLM runtime | Decided by the W1 probe | Candidates: in-browser (WebLLM or transformers.js) and server-side (Cloudflare Workers AI). Rules default is always the last fallback |
-| Property-based tests | `proptest` (Rust), `fast-check` if needed on the TS side | |
+| Property-based tests | `proptest` (Rust), `fast-check` on the TS side | fast-check is wired into the web Unit_Tests gate with Node's test runner |
 
 Tick granularity: **1 day per tick**. Decided by the author on 2026-11-04, after the measurements and design comparison in `docs/tick-granularity.md`. Main reasons from that comparison: "due within N days" stakes are exact (weekly ticks would round short stakes up to a whole week), the calendar is a plain 365 days, and events seldom share a tick, so cause and effect keep their order. Performance did not decide it: both options are fast. Accepted cost: 7x more ticks per life than weekly (29,200 per 80 years), mostly checksum work, and larger replay files (about 0.55 MB per life). Every duration in the game is therefore written in days.
 
@@ -46,9 +47,15 @@ Tick granularity: **1 day per tick**. Decided by the author on 2026-11-04, after
 ## Quality gates
 
 - Rust: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`.
-- TS: type check with no errors.
+- Web (`web/`), run by `scripts/gates.sh` after the Rust gates and the `sim-cli batch` step, in this order:
+  - pnpm version check (`scripts/check-pnpm-version.sh`): `mise.toml` and `web/package.json` `packageManager` present and equal.
+  - frozen-lockfile install: `pnpm --dir web install --frozen-lockfile`.
+  - Type_Check: `svelte-check` plus `tsc` over the three tsconfigs, covering every first-party `.ts`/`.svelte` file and the wasm-bindgen declarations.
+  - Unit_Tests: Node's test runner (`node --test`) with `fast-check` property tests.
+  - Web_Build (`scripts/web-build.sh`): `scripts/wasm-build.sh`, then `vite build` into `web/dist`, then the deploy-directory checks (per-file size limit, `.wasm` byte-identity with the wasm-build output, and the main-bundle boundary that keeps WASM out of the main thread).
+  - Smoke_Test: `@playwright/test` on the system Chrome (`channel: 'chrome'`, no browser download) against `web/dist` served by the local preview, comparing worker checksums to a native parity fixture.
 - Replay check: fixed seed, record N ticks, replay, compare per-tick checksums.
-- Any new gate must be shown to fail at least once by injecting the fault it guards against (e.g. a `HashMap` iteration, an OS random call), then the injection is reverted. Record this in `docs/kiro-log.md`.
+- Any new gate must be shown to fail at least once by injecting the fault it guards against (e.g. a `HashMap` iteration, an OS random call, a type error, an oversized deploy file, a wrong fixture checksum), then the injection is reverted. Record this in `docs/kiro-log.md`.
 - Watch for "deterministically wrong" bugs: checksums stay green while behavior is wrong. Guard important behavior with semantic assertions (e.g. "a soul is in exactly one place").
 
 ## Process
