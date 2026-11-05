@@ -19,6 +19,8 @@ web/test-results/
 .env
 .env.*
 !.env.example
+# A root `env` file (no dot) the author uses for the Cloudflare token; must never be committed
+/env
 
 # Editor / OS
 .DS_Store
