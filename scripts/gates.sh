@@ -52,5 +52,9 @@ run mise exec -- pnpm --dir web install --frozen-lockfile
 run mise exec -- pnpm --dir web run typecheck
 # Unit_Tests gate: the web unit and property tests (R10.1).
 run mise exec -- pnpm --dir web run test:unit
+# Web_Build gate (R7, R10.1): build Sim_Wasm and the Web_App into the Deploy_Directory
+# (web/dist) and check every file against the Size_Limit and the deploy boundary. Runs
+# after the Unit_Tests gate and before the Smoke_Test gate (added in task 5.4).
+run scripts/web-build.sh
 
 echo "All gates passed."
