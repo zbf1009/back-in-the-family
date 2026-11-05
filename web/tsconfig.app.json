@@ -1,0 +1,18 @@
+{
+  // Main_Thread code (src/main), shared modules (src/shared) and App.svelte.
+  // Checked with svelte-check (task 3.8).
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": [],
+    "strict": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src/main/**/*.ts", "src/shared/**/*.ts", "src/main.ts", "src/**/*.svelte"]
+}

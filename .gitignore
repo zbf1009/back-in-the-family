@@ -6,6 +6,8 @@
 node_modules/
 dist/
 *.log
+# Vite bundle report written by web/vite.config.ts (outside dist)
+web/.bundle-report.json
 
 # wasm-pack output
 /pkg/

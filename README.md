@@ -138,7 +138,24 @@ Other documents: `docs/tick-granularity.md` (measurement behind the 1-day tick),
 
 More entries are added here as libraries and assets arrive.
 
-Development tools (not linked into any build output): `wasm-bindgen-cli` 0.2.130 (MIT OR Apache-2.0) and Node.js 26.7.0 (MIT), both pinned in `mise.toml`.
+### Web app (`web/`) dependencies
+
+Resolved versions are from the committed `web/pnpm-lock.yaml`; licenses are the SPDX identifiers on the npm registry. All eight are dev dependencies at this stage (task 1.1); `wrangler` is added in task 7. Transitive packages whose code reaches the Deploy_Directory are added from the build report in task 4.
+
+| Name | Version | License | Used for |
+|---|---|---|---|
+| [`svelte`](https://www.npmjs.com/package/svelte) | 5.57.3 | MIT | Main_Thread UI framework; the only direct dependency whose runtime code is bundled into `web/dist` |
+| [`vite`](https://www.npmjs.com/package/vite) | 8.3.5 | MIT | Dev server and the Web_Build bundler |
+| [`@sveltejs/vite-plugin-svelte`](https://www.npmjs.com/package/@sveltejs/vite-plugin-svelte) | 7.3.1 | MIT | Compiles `.svelte` files under Vite (build-time only) |
+| [`svelte-check`](https://www.npmjs.com/package/svelte-check) | 4.7.8 | MIT | Type_Check of `.svelte` and `.ts` files (dev/gate only) |
+| [`typescript`](https://www.npmjs.com/package/typescript) | 6.0.3 | Apache-2.0 | `tsc` type check and the peer compiler for `svelte-check` (dev/gate only); pinned to 6.x because `svelte-check` 4.7.8 does not accept TypeScript 7 |
+| [`@types/node`](https://www.npmjs.com/package/@types/node) | 26.6.6 | MIT | Node type declarations for scripts, configs and tests (dev/gate only) |
+| [`@playwright/test`](https://www.npmjs.com/package/@playwright/test) | 1.64.1 | Apache-2.0 | Browser Smoke_Test driver using the system Chrome (dev/gate only; no browser download) |
+| [`fast-check`](https://www.npmjs.com/package/fast-check) | 4.10.2 | MIT | Property-based testing in the web Unit_Tests (dev/test only) |
+
+
+
+Development tools (not linked into any build output): `wasm-bindgen-cli` 0.2.130 (MIT OR Apache-2.0), Node.js 26.7.0 (MIT) and `pnpm` 10.33.1 (MIT), all pinned in `mise.toml`.
 
 ## License
 
