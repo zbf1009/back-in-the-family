@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.33.1",
   "scripts": {
     "build": "vite build",
+    "typecheck": "node scripts/typecheck.ts",
     "test:unit": "node --test \"tests/unit/**/*.test.ts\""
   },
   "devDependencies": {

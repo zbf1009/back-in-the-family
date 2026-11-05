@@ -46,9 +46,11 @@ run scripts/check-pnpm-version.sh
 # PATH may be a different version. --frozen-lockfile neither resolves new versions
 # nor rewrites the lockfile, and fails if the lockfile is out of date (R1.5, R1.6).
 run mise exec -- pnpm --dir web install --frozen-lockfile
-# Unit_Tests gate: the web unit and property tests (R10.1). Type_Check (task 3.8)
-# will be inserted just before this line; for now Unit_Tests runs right after the
-# frozen-lockfile install.
+# Type_Check gate (R8, R10.1): svelte-check + tsc over every first-party .ts and
+# .svelte file, checked against the wasm-bindgen declarations produced by the
+# wasm-build.sh step above. Runs between the frozen install and the Unit_Tests.
+run mise exec -- pnpm --dir web run typecheck
+# Unit_Tests gate: the web unit and property tests (R10.1).
 run mise exec -- pnpm --dir web run test:unit
 
 echo "All gates passed."

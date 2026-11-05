@@ -1,12 +1,17 @@
 {
   // Sim_Worker code (src/worker) and the shared modules it imports.
-  // The `sim-wasm` paths entry and `vite/client` types are added in task 3.1.
+  // Task 3.1 adds the `sim-wasm` paths entry (D3: resolve the bare specifier to
+  // the generated declarations in target/wasm-pkg) and the `vite/client` types
+  // (for the `?url` import of the .wasm asset).
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2022", "WebWorker"],
-    "types": [],
+    "types": ["vite/client"],
+    "paths": {
+      "sim-wasm/*": ["../target/wasm-pkg/*"]
+    },
     "strict": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
