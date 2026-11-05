@@ -1,0 +1,85 @@
+# Deploy_Workflow (R11). On every push to `main` this runs the full gate chain
+# (scripts/gates.sh) and, only when the gates pass AND deploy has been enabled by the
+# Author with the two Cloudflare secrets present, deploys the Deploy_Directory
+# (web/dist, built and checked by the gates in this same run) to the Cloudflare_Target.
+#
+# Deploy is DISABLED until task 10: `vars.DEPLOY_ENABLED` is unset and no secrets
+# exist, so the "Check deploy configuration" step prints the not-configured message
+# and the deploy step is skipped. Until then this workflow only runs the gates in CI.
+name: deploy
+
+on:
+  push:
+    branches: [main]
+
+# Read-only token: the workflow checks out the commit and deploys with the Cloudflare
+# secrets; it never writes back to the repository (R11.5).
+permissions:
+  contents: read
+
+# One serial group for the whole job. cancel-in-progress: false means a running deploy
+# is never cancelled; GitHub keeps at most one pending run and replaces it with a newer
+# one, so after all runs finish the Cloudflare_Target serves the Deploy_Directory of the
+# latest pushed commit whose gates passed (R11.11).
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  gates-and-deploy:
+    # Pinned to ubuntu-24.04 (NOT ubuntu-latest): the runner image ships the system
+    # Chrome the Smoke_Test needs and a preinstalled rustup, and ubuntu-latest moves to
+    # 26.04 in Nov 2026.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      # The Smoke_Test uses the system Chrome; never download a Playwright browser (R9.2).
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      WRANGLER_SEND_METRICS: "false"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Install the Rust toolchain pinned in rust-toolchain.toml (channel 1.99.1,
+      # clippy + rustfmt, wasm32-unknown-unknown target) without upgrading it. rustup is
+      # preinstalled on the runner; `rustup show` reads rust-toolchain.toml and installs
+      # the pinned toolchain and its targets/components (R11.2).
+      - name: Install pinned Rust toolchain
+        run: rustup show
+
+      # Install the mise.toml tools (wasm-bindgen-cli 0.2.130, node 26.7.0, pnpm 10.33.1)
+      # at exactly their pinned versions, no upgrades (R11.2).
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+
+      # Full gate chain, ending with the Smoke_Test. This builds and checks web/dist.
+      - name: Run gates
+        run: scripts/gates.sh
+
+      # Decide whether to deploy. deploy=true only when both Cloudflare secrets are
+      # present AND the Author has set the DEPLOY_ENABLED repository variable to 'true';
+      # otherwise print the not-configured message and leave deploy skipped (R11.7).
+      - name: Check deploy configuration
+        id: cfg
+        env:
+          HAS_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN != '' }}
+          HAS_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID != '' }}
+          ENABLED: ${{ vars.DEPLOY_ENABLED == 'true' }}
+        run: |
+          if [ "$HAS_TOKEN$HAS_ACCOUNT$ENABLED" = "truetruetrue" ]; then
+            echo "deploy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Deployment is not configured (token: $HAS_TOKEN, account: $HAS_ACCOUNT, enabled: $ENABLED); skipping deploy."
+          fi
+
+      # Deploy the web/dist that the gates built and checked in this same run, with no
+      # rebuild (R11.3). Runs only when the gates passed (a failed gate step stops the
+      # job here, R11.4) and deploy is configured. The two secrets are read from GitHub
+      # Actions secrets and exist ONLY in this step's environment (R11.5). No retry
+      # step: a failed deploy fails the job and the previous version keeps serving
+      # (R11.10).
+      - name: Deploy web/dist
+        if: steps.cfg.outputs.deploy == 'true'
+        working-directory: web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: mise exec -- pnpm exec wrangler deploy

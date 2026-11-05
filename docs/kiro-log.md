@@ -339,3 +339,23 @@ Tasks 5.1–5.3 wrote the Playwright config, global setup and the two smoke spec
   - smoke exited non-zero (1).
   Then reverted the channel back to `'chrome'` (`grep 'chrome-nonexistent'` returns nothing). This exercises the real global-setup code path and the exact message string; it is the same path the FP2/global-setup check covers.
 - Committed all of task 5 (playwright.config.ts, the three smoke `.ts` files, the `test:smoke` package script, the `tsconfig.node.json` include for `playwright.config.ts`, the Smoke_Test gate wiring, the `.gitignore` addition and this log entry) as one conventional commit. `tasks.md` and `tasks.meta.json` are orchestrator-managed and not staged; `web/test-results/`, `web/dist`, `web/.bundle-report.json` are build output / gitignored and not staged.
+
+### Spec: web-shell — task 8 (GitHub Actions Deploy_Workflow, deploy disabled), 2026-11-05
+
+Task 8.1 wrote `.github/workflows/deploy.yml` exactly per the design's Deploy_Workflow section, with deploy disabled. Nothing was pushed; no remote, variable or secret was created or changed.
+
+- The file is a new `.github/workflows/` (did not exist before). It triggers on push to `main`, `permissions: contents: read`, `concurrency` group `deploy-main` with `cancel-in-progress: false`, one job `gates-and-deploy` on `ubuntu-24.04` (not `ubuntu-latest`), `timeout-minutes: 45`, job `env` `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"` and `WRANGLER_SEND_METRICS: "false"`.
+- Steps: `actions/checkout` (pinned SHA `3d3c42e5aac5ba805825da76410c181273ba90b1` # v7.0.1) → `rustup show` (reads `rust-toolchain.toml`, installs the pinned 1.99.1 toolchain + clippy/rustfmt + wasm32 target, no upgrade) → `jdx/mise-action` (pinned SHA `f5be966e4a917d54244728e6a5fdcd1d93a35e6c` # v5.2.6, installs the `mise.toml` tools at their pinned versions, no upgrade) → `scripts/gates.sh` → "Check deploy configuration" (`id: cfg`) → "Deploy web/dist" (`if: steps.cfg.outputs.deploy == 'true'`). The two action SHAs are the verified pins; no SHA was invented.
+- The deploy step runs `mise exec -- pnpm exec wrangler deploy` from `working-directory: web`, matching the gates' pattern of reaching the pinned pnpm through `mise exec` (the pnpm on PATH may differ). The two Cloudflare values are set only in that step's `env`, from `secrets.*` only.
+- YAML validation: parsed with PyYAML (available: `python3 -c 'import yaml'` succeeds; `actionlint` is not installed on this machine). `yaml.safe_load` succeeded and a structural dump confirmed every field above. Note: PyYAML reads the bare `on:` key as the boolean `True`; the script checks both `on` and `True` keys and found `push.branches == ['main']`. This is a YAML-spec quirk (`on` is a YAML 1.1 boolean), not a GitHub Actions problem — Actions parses `on:` correctly.
+- Manual check against R11.2–R11.5, R11.7, R11.10, R11.11 (the file does not run here; this is a read-through):
+  - R11.2 — on push to `main`, checks out the commit, installs the pinned `rust-toolchain.toml` + `mise.toml` tools without upgrade (`rustup show`, `jdx/mise-action`), then runs `scripts/gates.sh`. ✓
+  - R11.3 — one job, so the deploy uploads the same `web/dist` the gates built in the same run; assets-only `wrangler deploy` runs no build. ✓
+  - R11.4 — a failed `scripts/gates.sh` step stops the job before the deploy step (no `if: always()` / `continue-on-error`); the run finishes failed. ✓
+  - R11.5 — token and account ID come only from `secrets.*`, live only in the deploy step's `env`, and no step echoes them; `permissions: contents: read` means nothing is written back. ✓
+  - R11.7 — "Check deploy configuration" sets `deploy=true` only when both secrets are non-empty AND `vars.DEPLOY_ENABLED == 'true'`; otherwise it prints "Deployment is not configured (token: …, account: …, enabled: …); skipping deploy." and the deploy step's `if` is false, so the run's status reflects only the gates. ✓
+  - R11.10 — a single deploy step, no retry/loop; a failed deploy fails the job. ✓
+  - R11.11 — `concurrency: { group: deploy-main, cancel-in-progress: false }` serializes runs and never cancels a running deploy. ✓
+  - Deploy is disabled now: `DEPLOY_ENABLED` is unset and no secrets exist, so the workflow will only run the gates in CI until task 10 enables deploy.
+- Local gates: `scripts/gates.sh` run green from a built tree (the workflow file does not affect local gates); ended in `All gates passed.`. No new gate was added.
+- Committed `.github/workflows/deploy.yml` and this `docs/kiro-log.md` entry as task 8's single conventional commit. Not pushed. `tasks.md` / `tasks.meta.json` are orchestrator-managed and not staged.
