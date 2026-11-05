@@ -8,6 +8,8 @@ dist/
 *.log
 # Vite bundle report written by web/vite.config.ts (outside dist)
 web/.bundle-report.json
+# Playwright Smoke_Test output (traces, screenshots); build output, never committed
+web/test-results/
 
 # wasm-pack output
 /pkg/

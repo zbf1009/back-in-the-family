@@ -54,7 +54,12 @@ run mise exec -- pnpm --dir web run typecheck
 run mise exec -- pnpm --dir web run test:unit
 # Web_Build gate (R7, R10.1): build Sim_Wasm and the Web_App into the Deploy_Directory
 # (web/dist) and check every file against the Size_Limit and the deploy boundary. Runs
-# after the Unit_Tests gate and before the Smoke_Test gate (added in task 5.4).
+# after the Unit_Tests gate and before the Smoke_Test gate.
 run scripts/web-build.sh
+# Smoke_Test gate (R9, R10.1): the LAST gate. Playwright drives the BUILT page in the
+# system Chrome against the native Parity_Fixture. Its `webServer` serves the web/dist
+# that the Web_Build gate just produced (Local_Preview rebuilds nothing), so Web_Build
+# must run before it for dist to exist -- it does, directly above.
+run mise exec -- pnpm --dir web run test:smoke
 
 echo "All gates passed."
