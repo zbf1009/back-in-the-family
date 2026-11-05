@@ -8,8 +8,9 @@ Each task ends with the gates green (`scripts/gates.sh` once it exists) and one 
 
 Execution notes for the orchestrator:
 - Tasks run strictly one at a time, in numeric order (see "Task Dependency Graph" at the end). They edit the same files (`Cargo.toml`, `scripts/gates.sh`, `README.md`, `docs/kiro-log.md`), so they must not run in parallel.
-- Delegate each task to the `spec-task-execution` sub-agent if it exists in the registry. In this setup it has been rejected with "not found in registry"; in that case delegate to `general-task-execution` with the full task text, and read `requirements.md`, `design.md` and `.kiro/steering/*.md` first.
-- Task 11 ended with the author's decision on tick granularity: 1 day per tick, recorded in `tech.md`. Task 12 applies it to the code; task 13 is the final check.
+- Delegate each task to the `spec-task-execution` sub-agent. In the first two `/spec run` attempts it was rejected with "not found in registry" (the fallback then was `general-task-execution` with the full task text after reading `requirements.md`, `design.md` and `.kiro/steering/*.md`); from the third attempt on it was found and used for every task (kiro-log, run summary).
+- Task 11 ended with the author's decision on tick granularity: 1 day per tick, recorded in `tech.md`. Task 12 applies it to the code; task 13 was the final check of the original plan.
+- Tasks 14 (remove the Kiro hooks) and 15 (close the thread-ban gap) were added after task 13 by author decision on 2026-11-04; the spec is complete after task 15.
 
 ## Tasks
 
