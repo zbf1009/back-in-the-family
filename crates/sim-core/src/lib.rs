@@ -15,6 +15,7 @@ pub mod canon;
 pub mod checksum;
 pub mod ids;
 pub mod input;
+pub mod llm;
 pub mod replay;
 pub mod rng;
 #[cfg(any(test, feature = "test-support"))]
