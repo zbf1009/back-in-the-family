@@ -433,3 +433,217 @@ Synced `design.md` with what tasks 1–8 actually built and made task 9's single
 - At the start of the next session the orchestrator checked spec 2's close-out against the spec, steering and README and found stale text no earlier audit had caught: `tech.md` Hosting row still said the deploy step "stays disabled until the author enables it"; the README status line said "the deploy step is not yet enabled"; the `deploy.yml` header said "Deploy is DISABLED until task 10"; `docs/web-shell-audit.md` R11.6 still cited `/user/tokens/verify` for a token that had since been rotated, R11.1 said "Live behavior unverified (not deployed)", and deviation 10 said "Nothing committed"; `web-shell/design.md` never recorded that Account → Workers Scripts → Edit alone was enough nor that task 10 happened; parent task 10 in `tasks.md` was unticked. Also: `web/.wrangler/` was not gitignored, the empty `web/public/.gitkeep` was being copied into `web/dist` and deployed, and README/`structure.md` listed a `.kiro/agents/` directory that does not exist. Also found: local `main` was one commit (`2fa4545`) ahead of `origin`.
 - The orchestrator reported these to the Author without fixing them; the Author approved fixing them as one commit and pushing.
 - Fixes: steering `tech.md` Hosting row (steering fix: deploy is enabled, every green push to `main` deploys, ask before manual deploys) and `structure.md` layout (`agents/` removed); README status and `.kiro/` description; `deploy.yml` header comment; audit dated update note plus R11.1, R11.6 and deviation 10; dated as-built notes in `web-shell/design.md` (token sufficiency, rotation, task 10 outcome, `web/public/` removal) and task 10 ticked; `.wrangler/` added to `.gitignore`; `web/public/.gitkeep` deleted (`web/public/` is recreated when spec 3 adds `_headers`).
+- Gates green locally before committing (`All gates passed.`; `web/dist` now holds only `index.html` and `assets/`). Two commits: `0c217f8` (the cleanup above) and `091d1d7` (the Author's card import in `eval/cards/`, unchanged; committed separately so the import is its own commit). The orchestrator re-checked the import first: `sha256sum MANIFEST.sha256` = `9322729c…b34f` as logged, `sha256sum -c` 27/27 OK, both jsonl hashes and card counts (34 / 108) match the entry above.
+- Pushed with the Author's approval (`7f8361a..091d1d7`, including the previously unpushed `2fa4545`). The push auto-deployed: run `42156224398` green; site `GET /` 200 text/html, `GET /.gitkeep` 404.
+- The Author's Workers AI token (in the gitignored `env`, `WORKERS_AI_TOKEN`) verified at the account endpoint `/accounts/<account_id>/tokens/verify`: `success: true, status: active`. Value never printed.
+
+### Spec: llm-probe — requirements drafted
+- Wrote `.kiro/specs/llm-probe/requirements.md` (and `.config.kiro`, requirements-first feature workflow). First draft, not yet reviewed by the Author. Design and tasks not started.
+- Inputs read: steering (product, tech, structure), `eval/cards/README.md`, `eval/cards/LOCK.md`, the four output schemas, and the first lines of `cards/dev.jsonl`. Not opened: `cards/locked.jsonl`, `review/locked.md`, `blind/*` (the locked set is for the runner only). Nothing under `eval/cards/` was edited. Rechecked `sha256sum eval/cards/MANIFEST.sha256` = `9322729c…b34f`, matching the import entry.
+- Content: 17 requirements. Manifest check against the pinned hash and every listed file, also as an offline gate (R1); card loading with the LOCK.md void list and a card parse round trip (R2); locked-set blindness, a Locked_Run_Ledger with refuse-or-record re-runs, resumable runs, and no card content on the console during locked runs (R3); the Rust Output_Validator and Grader in `sim-core` with proptest properties (R4, R5); `sim-wasm` exports with a native-vs-WASM grading parity test (R6); prompt rendering and the shuffle permutations (R7); the adapter interface, 10 s timeout and fallback chain (R8); WebLLM and transformers.js adapters within 4 GiB VRAM (R9); headless Playwright or a headed dev-only Probe_Page with JSON ingest (R10); the Workers AI REST adapter, token handling and the Request_Budget (R11); Results and Model_Fingerprint (R12); Metrics, thresholds, cluster bootstrap and Wilson intervals (R13); performance figures (R14); the Report and the steering update after the Author decides (R15); gates with fault injection and README license entries (R16); approvals and process (R17).
+- Left open for design (Q-open-1 to 11): model candidates, where the runner lives, how Rust reaches Node, Probe_Page gating and COOP/COEP, the answer format and JSON extraction rule, sampling parameters, whether late answers are kept, the budget values and cost, the percentile/PRNG/rotation-direction details, where the ledger lives, and how memory is measured.
+
+### Spec: llm-probe — requirements detailed (2026-11-06)
+- Each of the 17 requirements was refined by a separate requirement-detailer pass (more exact error outputs, counts from `LOCK.md` incl. per-type and sanity counts, duplicate-ID and malformed-void-table failures, ledger statuses and resume rules, validator reason codes and no-panic bounds, Grader error on unknown severe conditions, D/S gold self-checks, Illegal-in-shuffle and Illegal-in-contrast rules, integer-count threshold comparison, Wilson test values, cold-start cache definitions, UTC-day budget counter, deploy-approval wording for pushes to `main`).
+- Orchestrator fixes while merging: Requirement 5.15's cross-references were renumbered to the detailed Requirement 4 (8, 10, 11, 12); Requirement 16.2 now also names the Workers AI API host, so it matches Requirement 11.10; Requirement 17.7 names the import commit `091d1d7`.
+
+### Spec: llm-probe — requirements revised (D1 scope) (2026-11-06)
+- Author feedback after reviewing the detailed requirements: decision D1 (Workers AI through its REST API from the local runner, no Worker script, hosting stays assets-only) applies only to this probe phase, where the runtimes are tested and debugged. It is not a decision for the later demo or game. The production server-side inference path (for example a deployed Worker that proxies Workers AI, with the request budget and rate limits from `tech.md`) is undecided and belongs to a later spec.
+- Sections changed in `.kiro/specs/llm-probe/requirements.md`, with minimal edits and no renumbering:
+  - Introduction: the Runtime_Adapters bullet now says the REST transport is used in this probe and the game's server transport is decided later; the D1 bullet is scoped to this probe and says it does not decide the production server path; the out-of-scope paragraph adds the production server path, neither ruled in nor out.
+  - Open points: a separate "Deferred to later specs" note after Q-open-11 (Q-open numbering unchanged).
+  - Glossary: **Workers_AI** now says it is called through REST from the local runner "in this probe".
+  - Requirement 8: new criterion 11, the Adapter_Interface is transport-neutral so a later spec can plug in a different server transport.
+  - Requirement 11 criterion 1: the no-Worker-script and no-hosting-change rule is phrased as a constraint of this spec, not of the product.
+  - Requirement 15: new criterion 10, the Report states that the Workers_AI figures used the local REST path and lists what a production server path would still need to decide or measure, without deciding it.
+
+### Spec: llm-probe — design drafted (2026-11-06)
+- Wrote `.kiro/specs/llm-probe/design.md` (requirements-first workflow, design phase). First draft, not yet reviewed by the Author. `tasks.md` not started; no code written; nothing committed.
+- Inputs read: approved `requirements.md`, steering, `eval/cards/README.md`, `LOCK.md`, `MANIFEST.sha256` (27 entries, sha256 `9322729c…b34f`, matching the import entry), the four output schemas and `card.schema.json`, `cards/dev.jsonl`, and the existing sim-core, sim-wasm, gates, web build and web-shell design files. Not opened: `cards/locked.jsonl`, `review/locked.md`, `blind/*`, the root `env`. Nothing under `eval/cards/` was edited.
+- Local read-only check: headless system Chrome 155 through Playwright gives no WebGPU adapter by default, a SwiftShader (software) adapter with `--enable-unsafe-webgpu` alone, and the real GPUs with `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan` (`high-performance` → NVIDIA ampere without `shader-f16`; `low-power` → Intel gen-12lp with `shader-f16`). No model was downloaded and no Workers AI request was sent.
+- Pending Author decisions (recommendation in brackets): DA-1 candidate models [3 WebLLM q4f32 + 2 transformers.js q4 on NVIDIA, gemma-4-26b and glm-4.7-flash on Workers AI]; DA-2 runner location [own package `eval/probe/`]; DA-3 Rust to Node [`initSync` on the existing `--target web` wasm, LLM exports in the game build]; DA-4 Probe_Page [separate Vite app on localhost, no COOP/COEP, no `_headers`]; DA-5 answer format [`{"option":…}` for D; one JSON value, one optional code fence]; DA-6 sampling [greedy, seed 20261104, constrained decoding where supported]; DA-7 late answers [keep in-browser late text as a secondary "untimed" figure]; DA-8 Request_Budget [per-run 410, daily 600, 10 Smoke_Calls/day; locked run ≤ 408 requests, gemma-4 ≤ 12,425 neurons]; DA-9 statistics [nearest rank, SplitMix64, left rotation]; DA-10 storage [ledger and Results tracked, budget counter gitignored]; DA-11 memory [nvidia-smi memory.used delta; GPU-process RSS for Intel]; DA-12 strict JSON reader in sim-core; DA-13 prompt rendering in Rust; DA-14 approvals file for Workers AI runs. Open question for the Author: Workers Free or Paid plan.
+- Proposed requirement changes (not applied): RC-1 read `CLOUDFLARE_ACCOUNT_ID` from `env` too (the REST URL needs it); RC-2 allow a VRAM pre-flight for transformers.js models, which have no published VRAM figure; RC-3 headless flags fixed in design and SwiftShader counts as not-GPU; RC-4 extra validator reason codes; RC-5 the Probe_Page gets runner-rendered prompts and the deploy leak check uses markers instead of reading `locked.jsonl`; RC-6 `not_run` records carry no latency; RC-7 the parity fixture holds synthetic outputs; RC-8 the Manifest_Check fault injection uses a wrong pinned constant instead of editing `eval/cards/`.
+
+### Spec: llm-probe — design revised: model list re-screened (2026-11-06)
+- The Author caught that the first design draft's model list (DA-1) was stale: it proposed Qwen2.5-1.5B on both in-browser runtimes with no stated reason, ran transformers.js only on older Qwen builds (Qwen2.5, Qwen3), kept Llama-3.2-3B with no reason, and did not consider `@cf/qwen/qwen3.8-27b` on Workers AI.
+- The orchestrator verified the current state against WebLLM `src/config.ts` at v0.2.87 (newest families: Qwen3.5 0.8B/2B/4B/9B, Qwen3, gemma-4-E2B-it, Ministral-3-3B, Phi-4-mini; no Qwen3.6+ builds; `q4f32_1` VRAM Qwen3.5-0.8B 1894.19, Qwen3.5-2B 2591.55, Qwen3.5-4B 4680.36, gemma-4-E2B-it 3862.72, Ministral-3-3B-Instruct 3532.37, Phi-4-mini 4220.59), the Hugging Face API (Qwen3.8 only at 27B and larger, Qwen3.6 only 27B and 35B-A3B, no Qwen3.7; onnx-community Qwen3.5 and gemma-4 ONNX exports from 2026-10-13) and the Workers AI models/search API for the Author's account (includes qwen3.8-27b, gpt-oss-20b, llama-4-scout, glm-5.x and others). The spec agent then read per-model neuron prices from the Workers AI pricing page (updated 2026-10-20), the qwen3.8-27b and gpt-oss-20b model pages, the q4 file sizes of the onnx-community trees, and licenses from the Hugging Face API.
+- What changed in `.kiro/specs/llm-probe/design.md`: DA-1 now states a selection rule (newest generation per family within the runtime constraints; older models only with a stated reason) and offers three option sets; the recommendation is set B: WebLLM Qwen3.5-2B, gemma-4-E2B-it and Ministral-3-3B-Instruct-2512; transformers.js Qwen3.5-2B-ONNX and gemma-4-E2B-it-ONNX (after a VRAM pre-flight); Workers AI gemma-4-26b-a4b-it, glm-4.7-flash and qwen3.8-27b. Qwen2.5, Qwen3, Llama-3.2 and llama-3.3-70b were dropped. DA-8's cost table was recomputed: a locked run costs at most 11,169 (glm-4.7-flash) to 86,779 (qwen3.8-27b) neurons, and set B's dev plus locked runs cost at most 134,489 neurons (about $1.48 list). DA-8 also gained a proposed daily neuron guard for the Free plan. The research notes and the example IDs in Data Models were updated, and a dated revision note was added. Still pending Author decision; the Free-vs-Paid question is still open. No other section changed, `tasks.md` was not started, nothing was committed.
+
+### Spec: llm-probe — design revised: Free plan and upper-bound screening (2026-11-06)
+- The Author answered three review points on the revised design:
+  1. The Cloudflare account is on the Free plan, so larger, more expensive server models cannot be supported. The Free-vs-Paid question is closed as Free.
+  2. The Target_Machine is the upper bound of the hardware a demo visitor might have, not the typical case. In-browser models that are too large in download size or parameter count to run in a typical browser are dropped.
+  3. Also evaluate `LiquidAI/LFM2.5-1.2B-Instruct-ONNX`, `onnx-community/granite-4.0-1b-ONNX-web` and `HuggingFaceTB/SmolLM3-3B-ONNX`.
+- The orchestrator's Hugging Face API checks (sum of `onnx/` files per variant, MiB = 2^20 bytes):
+  - LFM2.5-1.2B-Instruct-ONNX: license `other` = `lfm1.0`; q4 811, q4f16 725, q8 1,686, fp16 2,248, fp32 4,496; no transformers.js library tag.
+  - granite-4.0-1b-ONNX-web: Apache-2.0, transformers.js tag, updated 2026-10-07; q4 1,699, q4f16 1,190, fp16 3,145, fp32 6,289.
+  - SmolLM3-3B-ONNX: Apache-2.0, transformers.js tag, updated 2026-10-28; q4 2,711, q4f16 2,026, bnb4 2,543, int8 2,966.
+  - Qwen3.5 q4 text paths: 0.8B ≈ 619 (q4f16 ≈ 557); 2B ≈ 1,465 (q4f16 ≈ 1,320), whose card has an empty license field.
+  - gemma-4-E2B q4 text path ≈ 3,459.
+  - WebLLM 0.2.87 `q4f32_1` VRAM: Qwen3.5-0.8B 1,894.19, Qwen3.5-2B 2,591.55, gemma-4-E2B 3,862.72, Ministral-3-3B 3,532.37.
+- Further checks by the spec agent:
+  - Read the LFM Open License v1.0 text: Apache-2.0 wording plus a commercial-use limit (entities under USD 10 M annual revenue); no restriction on outputs.
+  - transformers.js 4.3.2 npm package: its README lists LFM2, GraniteMoeHybrid and SmolLM3, and its bundle contains the `lfm2`, `granitemoehybrid` and `smollm3` model types. The granite-4.0-1b config uses attention layers only.
+  - WebLLM 0.2.87 npm package: no LFM, Granite or SmolLM3 build.
+  - Parameter totals from the Hugging Face API: LFM2.5-1.2B 1.17 B, granite-4.0-1b 1.63 B, SmolLM3-3B 3.08 B, Qwen3.5-2B 2.27 B, Qwen3.5-0.8B 0.87 B, gemma-4-E2B 5.12 B, Ministral-3-3B 3.85 B.
+  - Workers AI pages: granite-4.0-h-micro costs 1,542 / 10,158 neurons per M tokens, lists `response_format` and is not a reasoning model; the Free plan's 10,000 neurons per day with failures above it.
+  - Exa MCP fetches failed partway (OAuth timeout), so the remaining pages were read through the anysearch skill.
+- What changed in `.kiro/specs/llm-probe/design.md`:
+  - DA-1: an in-browser size rule with three threshold options. S: ≤ 1,024 MiB, ≤ 1.2 B, ≤ 2,048 MiB VRAM. M (recommended): ≤ 1,536 MiB, ≤ 2.3 B, ≤ 2,600 MiB. L: ≤ 2,560 MiB, ≤ 3.1 B, ≤ 3,072 MiB.
+  - Under M the candidates are WebLLM and transformers.js Qwen3.5-0.8B and Qwen3.5-2B, plus transformers.js LFM2.5-1.2B (pending the Author's acceptance of its custom license). gemma-4-E2B, Ministral-3-3B and SmolLM3-3B are dropped as too heavy, and granite-4.0-1b is dropped under M for its 1,699 MiB q4 download.
+  - Workers AI under Free: gemma-4-26b-a4b-it, glm-4.7-flash and granite-4.0-h-micro are kept. qwen3.8-27b (typical locked run 37,863 neurons), gpt-oss-20b, llama-4-scout and the Paid-only models are dropped.
+  - DA-8: Paid and set-C figures removed; a 9,000-neuron daily guard proposed; a 4-UTC-day run schedule (6 at the upper bound).
+  - New RC-9 adds the daily estimated-neuron cap to Requirement 11, and RC-2 gains the size rule's VRAM limit.
+  - Updated the Q-open-1, Q-open-8 and plan rows and the research notes; added a dated revision note.
+- Still pending Author decision. `tasks.md` not started, nothing committed.
+
+### Spec: llm-probe — requirements revised after design review (2026-11-06)
+- Author decisions after reviewing `.kiro/specs/llm-probe/design.md`:
+  - Approved all proposed requirement changes RC-1 to RC-9.
+  - Chose in-browser size option M: q4 text-path download ≤ 1,536 MiB, ≤ 2.3 B parameters, WebLLM VRAM ≤ 2,600 MiB, measured on the `q4f32_1` (WebLLM) and `q4` (transformers.js) builds, on the principle that the Target_Machine is the upper bound of visitor hardware.
+  - Accepted the LFM Open License v1.0 (custom, not OSI) for `LiquidAI/LFM2.5-1.2B-Instruct-ONNX`.
+  - Chose the two-phase, browser-first plan. The orchestrator had offered three options: two-phase conditional (recommended), browser only, or keep the original 4-UTC-day server plan.
+- Changed in `.kiro/specs/llm-probe/requirements.md`:
+  - Introduction: decisions list; Q-open-1 now points to the size limits.
+  - Glossary: Locked_Run and Locked_Run_Ledger carry a Task_Type_Subset; Request_Budget includes the Neuron_Cap; Target_Machine is the upper bound of visitor hardware; new terms Task_Type_Subset, Neuron_Cap, Cloudflare_Account_ID, In_Browser_Size_Limits, VRAM_Preflight, Headless_Launch_Flags, Software_Adapter, Phase_1, Phase_2.
+  - R3.3, R3.6, R3.8, R3.12 (Task_Type_Subset in the ledger and re-run rule); R3.13 (marker-based leak check, RC-5); new R3.14.
+  - R4.3, R4.6 (reason codes, RC-4); new R4.14 (duplicate keys are a parse failure).
+  - R6.4, R6.5 (synthetic parity outputs, RC-7).
+  - R9.1 (forward pass on hardware WebGPU, CPU tokenization and sampling allowed, RC-3); R9.2, R9.3 (option M limits replace the 4,096 MiB rule, RC-2); R9.6; new R9.8 to R9.11 (screening builds, VRAM pre-flight, measured download over the limit).
+  - R10.1, R10.2, R10.6 (Headless_Launch_Flags, SwiftShader is not a GPU, RC-3); new R10.11 (Probe_Page gets runner-rendered prompts, RC-5).
+  - R11.2 to R11.4 (`CLOUDFLARE_ACCOUNT_ID`, RC-1); R11.6, R11.12; new R11.13, R11.14 (9,000-neuron daily cap, RC-9).
+  - R12.7; new R12.9 (`not_run` records with null latency, RC-6).
+  - R15.1, R15.4 ("not measured (browser passed)" state), R15.6 (custom licenses named as such with the Author's acceptance).
+  - R16.4, R16.6; new R16.10 (Manifest_Check fault via a wrong pinned constant, no edit under `eval/cards/`, RC-8).
+  - R17.6 (Task_Type_Subset in the Locked_Run log entry).
+  - New Requirement 18: two-phase measurement plan, browser first, server conditional.
+- `design.md` and `tasks.md` were not changed by this revision; nothing committed.
+
+### Spec: llm-probe — design updated to Author decisions (2026-11-06)
+- Updated `.kiro/specs/llm-probe/design.md` to the revised `requirements.md` and the Author decisions of 2026-11-06. Added a dated note "Revised 2026-11-06 (third review)".
+- Decision tables and DA entries: every "pending Author decision" status is now "decided" with the chosen option. DA-1 is option M: WebLLM Qwen3.5-0.8B and Qwen3.5-2B (`q4f32_1`); transformers.js Qwen3.5-0.8B, Qwen3.5-2B and LFM2.5-1.2B-Instruct (`q4`); one Intel iGPU Dev_Run; LFM Open License v1.0 accepted (custom, not OSI). DA-2 to DA-14 adopt the earlier recommendations. A new "Measurement plan" row records the two-phase decision.
+- "Proposed requirement changes" is marked "Applied 2026-11-06". The text is kept, with a note that `requirements.md` governs where the wording differs.
+- Two-phase plan (R18):
+  - DA-8's 4-UTC-day Workers AI schedule is replaced by Phase_1 (in-browser runs, Workers AI Smoke_Calls only), a checkpoint, and Phase_2 branch A (Smoke_Calls only) or branch B (one approved model, one Dev_Run and one Locked_Run on the failing Task_Type_Subset).
+  - Branch-B default is gemma-4-26b-a4b-it; alternatives are glm-4.7-flash and granite-4.0-h-micro.
+  - gemma estimates for Dev_Run + Locked_Run, typical / upper bound: D only 3,608 / 6,337; S only 3,968 / 8,945; D and S 7,576 / 15,282 neurons.
+- Runner CLI:
+  - `--task D|S|DS` on `dev-run`, `locked-run` and `page-bundle`.
+  - New `preflight` and `phase-status` commands.
+  - A phase gate (`phase.ts`); runs it refuses are handled as unapproved runs under R11.8.
+- `budget.ts` and the counter now implement the Neuron_Cap of R11.13 and R11.14 (a per-day `neurons` field, estimate before sending, usage-based cost after the response).
+- Data models:
+  - `task_subset` added to the Results header, bundle and ledger start entry.
+  - Re-run key is Combination + template hashes + an overlapping Task_Type_Subset.
+  - The Dev_Run precondition is checked per Task_Type.
+  - Combination gains size fields, `phase1_locked` and license acceptance.
+  - New Approvals model with `phase2` entries.
+- Report outline: adds the Phase_2 branch and approval date, "not measured (browser passed)" with Smoke_Call counts, the custom-license line, and over-limit downloads.
+- Correctness properties:
+  - Updated Properties 25 (re-run key and R18.5), 27 (account ID), 28 (Neuron_Cap), 36 (option M limits and VRAM_Preflight) and 37 ("not measured (browser passed)").
+  - New Property 38 (phase gate and Task_Type_Subset).
+  - Prework re-run for the changed criteria.
+- Contradictions fixed:
+  - The Combination check used 4,096 MiB; R9.3 now sets 2,600 MiB.
+  - The Headless_Launch_Flags in Mechanical choices added `--disable-vulkan-surface`, which was not in the verified set; it is removed.
+  - The phase-gate refusal now follows R11.8.
+  - Error Handling, Testing Strategy and the Workers AI candidate labels are aligned with R18.
+- `validate_spec_format` reports no issues. `tasks.md` not started; nothing committed.
+
+### Spec: llm-probe — requirements revised after Author review 1 (2026-11-06)
+- The Author sent a detailed review of `requirements.md` and `design.md`: 6 blockers, 12 majors and 10 minors. This entry covers the changes to `.kiro/specs/llm-probe/requirements.md` only; `design.md` and `tasks.md` are updated in a separate pass.
+- Alternatives in the review were resolved by adopting the first option: B6, one card-independent D answer schema `{"option": string}` with membership checked by the Output_Validator; M8, cold start, download and memory measured at Locked_Run start in a fresh browser profile, so R14 and R15.2 stay "Locked_Run figures only". Weak evidence is defined as a pass whose bootstrap lower bound is more than 10 percentage points under the Threshold; a pass with a lower bound under the Threshold by at most 10 points is labelled "pass (interval overlaps threshold)".
+- Changes per item:
+  - B1 (once-only key): glossary Model_Key and Locked_Run_Ledger; R3.3, R3.6, R3.7, R3.8, R3.10, R18.5.
+  - B2 (ticks in prompts): new R7.10.
+  - B3 (render errors, completeness, denominator): R7.9; new R7.11; new R3.15; R3.5; R13.1.
+  - B4 (Workers AI response): glossary Response_Shape; new R11.15 to R11.19.
+  - B5 (browser profile, quota): glossary Fresh_Profile; R14.4; new R14.9.
+  - B6 (D schema): R4.2; new R4.15; Q-open-5 marked decided for D.
+  - M1: R3.1. M2: glossary Generation_Cap, Idle_Cap, Late_Answer; R8.2; new R8.12, R8.13, R12.10, R13.12; Q-open-7 marked decided. M3: glossary Model_Fingerprint; new R9.14, R12.12. M4: glossary Warm_Up_Prompt; new R9.12, R9.13; R14.4. M5: glossary Pinned_Revision; new R9.15, R11.21. M6: glossary VRAM_Preflight; new R9.16. M7: glossary Exclusion_Record; new R9.17; R15.4, R18.2, R18.3. M8: R14.4, R14.7, new R14.10. M9: R8.5, glossary Illegal, R12.9. M10: R9.1. M11: R3.13, new R3.16, R16.1, new R16.11. M12: R14.7.
+  - Minors: R14.1 (nearest-rank percentile with integer index), new R13.13 (percentile tests for n = 60 and n = 10,000, weak-evidence label tests), R13.9 and glossary Weak_Evidence_Margin, R2.8 (`excluded: [{id, reason}]`), R3.13 and new R12.11 and glossary Schema_Prefix (`llm-probe-` prefix), new R11.20 and R18.4 and glossary Approvals_File (approvals only from git `HEAD`, no uncommitted changes), R11.3 (redaction of token and account ID in every writer, including echoed remote error text), R15.6 (license of conversion repos without a license tag).
+  - Left to the design pass: the minors on design line 45, DA-8 arithmetic and DA-9, plus the exact Playwright calls, the per-model `max_tokens` / `max_completion_tokens` choice and Property numbering.
+- `validate_spec_format` reports no issues. Nothing committed.
+
+### Spec: llm-probe — design revised after Author review 1 (2026-11-06)
+- `.kiro/specs/llm-probe/design.md` brought in line with the revised `requirements.md`. Every review item (B1 to B6, M1 to M12, the minors) is mapped to the design sections it changed in a table under the new note "Revised 2026-11-06 (Author review 1)".
+- Main changes:
+  - Ledger once-only rule keyed on the Model_Key (runtime, model ID, quantization, Pinned_Revision): any overlapping entry, complete or incomplete, allows only `--resume` or `--rerun-reason` (with `rerun_of` and `overlaps`); the Report uses the earliest complete entry per Model_Key × Task_Type.
+  - New "Locked run flow": Manifest_Check, gates, once-only check, Dev_Run precondition, pre-render of every Card × Permutation, Fresh_Profile and quota check, ledger start, cold start on Warm_Up_Prompts, card requests; `complete` only with no remaining `not_run`.
+  - Renderer: `Today is day {{tick}}.`, `, due day N` on events with a `due_tick`, `none` for empty optional fields, render errors structural only; `RENDERER_VERSION` 2.
+  - Workers AI adapter: per-model `response_shape` and output-token parameter, re-read on the developers.cloudflare.com model pages and output schemas: gemma-4-26b-a4b-it and glm-4.7-flash use the chat shape and `max_completion_tokens`; granite-4.0-h-micro uses the `response` text shape and `max_tokens`. Raw text only from the content field; `empty_content`, `truncated`, `non_text_response`; no `JSON.stringify`; usage mapping including `reasoning_tokens`; smoke check of the declared shape gates later runs.
+  - Browser driver with `chromium.launchPersistentContext(mkdtemp dir, …)`, warm cache via `page.reload()`, quota check through `navigator.storage.estimate()`, profile deleted in `finally`; performance figures taken at Locked_Run start.
+  - D constraint is one card-independent schema `{"option": string}`. WebLLM issue 560 was re-read: it is closed, and a maintainer reported it fixed in npm 0.2.66; not verified on the Target_Machine.
+  - Timing state machine for Generation_Cap, Late_Answer, Idle_Cap and `runtime_stuck`; outcome mapping for `budget`, `not_approved`, `gpu_unavailable`; pinned weights (commit sha, commit-pinned model library URL, `resolve/<sha>/`); thinking disabled with recorded `chat_template_kwargs`; VRAM_Preflight prompt length and `min_new_tokens` 1,024; ONNX Runtime placement logging with CPU nodes flagged; Exclusion_Records as a terminal Phase_1 state; new `check-web-imports` gate with a `?raw` fault injection planned; Intel memory named "Chrome GPU process peak RSS (excludes unmapped GEM buffers)" in its own column.
+  - Minors: integer nearest-rank percentile index, three weak-evidence labels with the 10-point margin, the stale second-review note marked superseded, `excluded: [{id, reason}]` in the grades file, the `llm-probe-` schema prefix on every record, approvals read only from git `HEAD` with a clean file, one redaction sink for every writer, the conversion-repo license note, DA-8 gemma S-only typical corrected to 3,969 (with a rounding note), and the DA-9 note that the rotation direction was chosen after the lock and before any model run.
+  - Properties 3, 14, 19, 20, 23, 24, 25, 26, 27, 29, 32, 35, 36, 37 and 38 revised; Property 39 (Workers AI response extraction) added; prework re-run for the changed criteria.
+- A section "Contradictions fixed in this revision" lists 17 contradictions with the revised requirements that were found and fixed, plus one tension (R8.2 versus R11.11 for Workers AI) resolved by taking the more specific criterion.
+- Awaiting Author confirmation (implemented as written, not yet confirmed):
+  1. R8.13: at the Idle_Cap no Late_Answer is recorded and later requests on that engine return `runtime_stuck` until the engine is rebuilt.
+  2. M10 / R9.1: CPU-placed ONNX Runtime nodes are flagged, not failed.
+  3. M6 / R9.16: the VRAM_Preflight prompt length is bounded by the longest rendered Dev_Card prompt (at least 8,000 bytes), because rendering Locked_Card prompts outside a Locked_Run would break R3.1.
+- Web research used the anysearch fallback because the Exa MCP call failed (OAuth not completed).
+- `validate_spec_format` reports no issues. `tasks.md` not started; nothing committed.
+
+### Spec: llm-probe — requirements: Author confirmations (2026-11-06)
+- The Author answered the three "awaiting confirmation" items from the design revision above. `.kiro/specs/llm-probe/requirements.md` was edited in place; numbering kept.
+  1. Idle_Cap and `runtime_stuck`: confirmed. The timed-out request stays a Timeout (Illegal). Before the next request the Probe_Runner rebuilds the engine and runs the Warm_Up_Prompts. If the rebuild fails, the whole Combination is recorded as one failure, and its remaining runs are not counted card by card as Illegal in any Metric. A `runtime_stuck` record is not expected in normal operation; if one occurs it is an ungraded engine fault listed in the Report. Changed: R8.13 (extended), R8.5 (exception for `runtime_stuck` and the remaining runs after a failed rebuild), R15.7 (engine rebuild failures and `runtime_stuck` faults listed).
+  2. CPU-placed ONNX Runtime nodes: flagged, not failed, confirmed, because the game meets the same fallback. The Report must say that a flagged Combination's latency figures are not pure-WebGPU results and, if it is recommended, list this as a risk. Changed: R9.1 (sentence appended), new R15.11 and R15.12.
+  3. VRAM_Preflight prompt length: margin added. The prompt is at least max(8,000 bytes, 2 × the longest rendered Dev_Card prompt), and its synthetic context holds at least 8 events and 6 persons. The Author supplied aggregate maxima only (context JSON D 2,146 dev / 3,092 locked bytes, S 2,019 / 2,394 bytes; S events 6 / 8; persons 5 / 6), so no Locked_Card was rendered outside a Locked_Run and R3.1 holds. The VRAM_Preflight result records prompt length, event count and person count. Changed: R9.16 and the VRAM_Preflight glossary entry.
+- The Author also listed unverified items to be checked before the formal runs (WebLLM issue 560 at 0.2.87, `enable_thinking` in the Qwen3.5 template, gemma-4 / glm-4.7 reasoning fields, granite truncation by `completion_tokens`, DA-8 neuron estimates for glm and granite, ONNX Runtime placement logging, actual WebLLM download size, re-reading WebLLM at the v0.2.87 tag). These go into `tasks.md`, which is not started; no requirement changed for them.
+- `validate_spec_format` reports no issues. `design.md` and `tasks.md` not edited; nothing committed.
+
+### Spec: llm-probe — design: Author confirmations and pre-run verification list (2026-11-06)
+- `.kiro/specs/llm-probe/design.md` brought in line with the requirements update above (R8.5, R8.13, R9.1, R9.16, R15.7, R15.11, R15.12, glossary VRAM_Preflight). The "Awaiting Author confirmation" list is now marked decided (Author, 2026-11-06), and a new note "Revised 2026-11-06 (Author review 2)" maps each change to the sections it touched.
+- Idle_Cap: the timing state machine gains `Rebuilding` and `Failed` states. After an Idle_Cap hit the runner rebuilds the engine and runs both Warm_Up_Prompts before the next request. A failed rebuild writes one Combination failure record `rebuild_failed`, an `abort` ledger event and `not_run` (`rebuild_failed`) for the remaining runs, none graded. A `runtime_stuck` refusal becomes a new outcome kind `engine_fault`: not graded, not Illegal, in no Metric, listed in the Report. Outcome mapping, phase gate, Metrics, Report section 10, Results record and Error Handling updated.
+- CPU-placed nodes: flagged, not failed. Report section 6 adds a "not pure-WebGPU results" note to the latency rows, and section 9 adds a "Risks" line when a flagged Combination is recommended.
+- VRAM_Preflight: prompt at least max(8,000 bytes, 2 × longest rendered Dev_Card prompt), with a synthetic context of at least 8 events and 6 persons. The Author-supplied aggregates (dev / locked: D context 2,146 / 3,092 bytes, S context 2,019 / 2,394 bytes, S events 6 / 8, persons 5 / 6) are recorded as the basis. The preflight record gains `event_count` and `person_count`.
+- Property 40 (engine faults never reach a Metric) added; Property 29 unchanged. Testing Strategy gains example tests for rebuild success, rebuild failure (one failure record, no per-card Illegal grade), forced `runtime_stuck`, the new preflight fields and the two new Report lines.
+- New section "Pre-run verification items" (V1 to V8) lists the Author's eight unverified items with when to verify and the fallback, to become tasks that must be done before the Phase_1 Locked_Runs.
+- `validate_spec_format` reports no issues. `tasks.md` not started; nothing committed.
+
+### Spec: llm-probe — tasks drafted (2026-11-06)
+- `.kiro/specs/llm-probe/tasks.md` written from the approved `requirements.md` and `design.md`, in the style of the web-shell plan: 26 parent tasks, 151 leaf sub-tasks, one wave per leaf in the Task Dependency Graph.
+- Parent tasks:
+  1. `sim_core::llm` types, strict JSON reader, Card parser (Property 1).
+  2. Output_Validator (Properties 2 to 6, forbidden-literal scan).
+  3. Grader, Identity_Value, contrast (Properties 7 to 11; fault injection: Grader ignores `must_not_include`).
+  4. Prompt_Renderer, permutations, JSON API (Properties 12 to 14).
+  5. `sim-wasm` exports and the native/wasm32 grading parity fixture (Property 15; fault injection: one byte of `dev-golden.json`).
+  6. `eval/probe/` package with the pnpm pin, frozen install, Type_Check and Unit_Tests gates (fault injections for the first three).
+  7. Manifest_Check and card loading (Properties 16, 17; fault injection: one hex digit of the pinned constant).
+  8. Results, ledger, budget and approvals storage with redaction (Properties 24, 27, 28, 32).
+  9. Metrics and statistics (Properties 18 to 23; Unit_Tests fault injection: Wilson `z` = 1.0).
+  10. Phase gate and Report generator (Property 37).
+  11. Deploy leak checks and the `web/`-imports-`eval/` gate (Property 35; four fault injections).
+  12. Adapter_Interface, timing state machine, fallback chain (Properties 29, 31).
+  13. Run flow, ingest, re-grade (Properties 25, 26, 30, 33, 34, 38, 40).
+  14. Checkpoint.
+  15. Pre-run verification V1 to V8.
+  16. In-browser adapters, Probe_Page, browser driver, preflight and screen (Property 36).
+  17. Workers AI adapter and the `smoke` command (Property 39).
+  18. to 26. Measurement and closing: budget approval, screening and VRAM_Preflight, Dev_Runs and template freeze, Phase_1 Locked_Runs, Phase_1 checkpoint, Phase_2, Report, runtime decision and steering, final audit and push.
+- Stop-and-ask points:
+  - 18.1: Request_Budget and Neuron_Cap approval, after V5.
+  - 19.1: before `screen` and the VRAM_Preflights.
+  - 20.1 and 20.6: before the Dev_Runs, and before freezing the templates.
+  - 21.2 to 21.6: one approval per Phase_1 Locked_Run, each with kiro-log start and end entries.
+  - 22.1: Phase_1 checkpoint and the Phase_2 branch decision.
+  - 23.2 and 23.3: branch B `dev` and `locked` approvals.
+  - 24.2: Report review.
+  - 25.1: runtime decision.
+  - 26.6: deploy approval before pushing `main`.
+  - Headed Chrome only if headless WebGPU fails (20.1).
+- Where V1 to V8 sit (task 15, sub-tasks 15.1 to 15.8 = V1 to V8, scheduled by the graph):
+  - V8 runs after task 14 and before the WebLLM adapter (task 16).
+  - V3 and V4 are Smoke_Calls after the Workers AI adapter (task 17), within the 10-per-day count.
+  - V5 runs after them and before the budget approval (18.1).
+  - V6 runs at the first VRAM_Preflight (19.3).
+  - V1 and V7 run at the first WebLLM Dev_Run (20.2, with V7 also at 20.4); V2 runs at the first transformers.js Dev_Run (20.3).
+  - All are required before 21.1.
+- Deviations from the design noted in the plan for the task 26.5 sync:
+  - Property 35's Deploy_Directory half sits in `web/tests/unit/` next to `check-deploy.ts`.
+  - The Type_Check injection uses a number field in `simwasm.ts`, because `latencyMs` does not exist until task 12.
+  - The Unit_Tests gate is wired in task 6, and its injection waits for task 9.
+- Optional sub-tasks: only 6.8 (pnpm-check unit test) and 16.13 (Intel memory via i915 or `intel_gpu_top`).
+- `validate_spec_format` reports no issues. No code written; nothing committed.
