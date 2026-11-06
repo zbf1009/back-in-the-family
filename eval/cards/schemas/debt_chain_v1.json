@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "debt_chain_v1.json",
+  "title": "debt_chain_v1: who owes whom, why, and whether the debt moved to an heir",
+  "description": "One item per debt obligation as it stands at the end of the log. When a debt passes to an heir, list the original obligation with status transferred and the heir's obligation with status open (or repaid/forgiven) and transferred_from set. Identity fields for the shuffle comparison: debtor, creditor, origin_event, status, amount.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "items"],
+  "properties": {
+    "schema": {"const": "debt_chain_v1"},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["debtor", "creditor", "amount", "status", "origin_event", "transferred_from", "evidence", "reason"],
+        "properties": {
+          "debtor": {"type": "integer"},
+          "creditor": {"type": "integer"},
+          "amount": {"type": "integer", "minimum": 0, "description": "Amount still owed by this debtor at the end of the log. 0 when repaid, forgiven or transferred."},
+          "status": {"enum": ["open", "repaid", "transferred", "forgiven"]},
+          "origin_event": {"type": "string", "pattern": "^e[0-9]{1,4}$", "description": "The loan event the obligation comes from."},
+          "transferred_from": {"type": ["integer", "null"], "description": "Previous debtor when this obligation was inherited; otherwise null."},
+          "evidence": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^e[0-9]{1,4}$"}},
+          "reason": {"type": "string", "description": "Free text for presentation only. Not scored."}
+        }
+      }
+    }
+  }
+}

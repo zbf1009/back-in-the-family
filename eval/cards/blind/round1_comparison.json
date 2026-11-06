@@ -1,0 +1,231 @@
+{
+ "round": 1,
+ "author_key_sha256": "b27173b94e54dbe69ad1500a5f17ec14209d8f2c72e260f98c743836b96472dd",
+ "agree": 2,
+ "cards": 12,
+ "result": "fail (needs >= 10)",
+ "rows": [
+  {
+   "blind_id": "B01",
+   "card_id": "D-dream_interpretation-006",
+   "agree": true,
+   "reviewer_A_inside_author_A": true,
+   "a_s_clash": [],
+   "diff": {}
+  },
+  {
+   "blind_id": "B02",
+   "card_id": "D-dream_interpretation-007",
+   "agree": false,
+   "reviewer_A_inside_author_A": true,
+   "a_s_clash": [],
+   "diff": {
+    "break_in": {
+     "author": "S",
+     "reviewer": "N"
+    },
+    "check_mattress": {
+     "author": "A",
+     "reviewer": "N"
+    }
+   }
+  },
+  {
+   "blind_id": "B03",
+   "card_id": "D-will_execution-004",
+   "agree": true,
+   "reviewer_A_inside_author_A": true,
+   "a_s_clash": [],
+   "diff": {}
+  },
+  {
+   "blind_id": "B04",
+   "card_id": "D-will_execution-005",
+   "agree": false,
+   "reviewer_A_inside_author_A": false,
+   "a_s_clash": [],
+   "diff": {
+    "refuse_mill": {
+     "author": "A",
+     "reviewer": "N"
+    },
+    "challenge": {
+     "author": "A",
+     "reviewer": "N"
+    },
+    "take_terms": {
+     "author": "A",
+     "reviewer": "N"
+    },
+    "take_and_stop": {
+     "author": "N",
+     "reviewer": "A"
+    }
+   }
+  },
+  {
+   "blind_id": "B05",
+   "card_id": "D-reconcile_or_revenge-010",
+   "agree": false,
+   "reviewer_A_inside_author_A": false,
+   "a_s_clash": [
+    "drown_meadow"
+   ],
+   "diff": {
+    "drown_meadow": {
+     "author": "S",
+     "reviewer": "A"
+    },
+    "clear_free": {
+     "author": "N",
+     "reviewer": "S"
+    },
+    "quote_price": {
+     "author": "A",
+     "reviewer": "N"
+    }
+   }
+  },
+  {
+   "blind_id": "B06",
+   "card_id": "D-reconcile_or_revenge-012",
+   "agree": false,
+   "reviewer_A_inside_author_A": true,
+   "a_s_clash": [
+    "burn_paper"
+   ],
+   "diff": {
+    "burn_paper": {
+     "author": "A",
+     "reviewer": "S"
+    },
+    "seal_ghost": {
+     "author": "A",
+     "reviewer": "N"
+    }
+   }
+  },
+  {
+   "blind_id": "B07",
+   "card_id": "D-debt_repayment-008",
+   "agree": false,
+   "reviewer_A_inside_author_A": false,
+   "a_s_clash": [],
+   "diff": {
+    "sell_stock": {
+     "author": "N",
+     "reviewer": "A"
+    }
+   }
+  },
+  {
+   "blind_id": "B08",
+   "card_id": "D-debt_repayment-010",
+   "agree": false,
+   "reviewer_A_inside_author_A": false,
+   "a_s_clash": [
+    "dispute_note"
+   ],
+   "diff": {
+    "pay_rest": {
+     "author": "N",
+     "reviewer": "S"
+    },
+    "offer_plan": {
+     "author": "A",
+     "reviewer": "N"
+    },
+    "stall_again": {
+     "author": "A",
+     "reviewer": "N"
+    },
+    "dispute_note": {
+     "author": "S",
+     "reviewer": "A"
+    }
+   }
+  },
+  {
+   "blind_id": "B09",
+   "card_id": "D-remarriage-008",
+   "agree": false,
+   "reviewer_A_inside_author_A": true,
+   "a_s_clash": [],
+   "diff": {
+    "propose_now": {
+     "author": "A",
+     "reviewer": "N"
+    },
+    "wait_for_school": {
+     "author": "A",
+     "reviewer": "N"
+    }
+   }
+  },
+  {
+   "blind_id": "B10",
+   "card_id": "D-remarriage-010",
+   "agree": false,
+   "reviewer_A_inside_author_A": true,
+   "a_s_clash": [
+    "ask_office_first"
+   ],
+   "diff": {
+    "marry_and_register_later": {
+     "author": "A",
+     "reviewer": "N"
+    },
+    "ask_office_first": {
+     "author": "A",
+     "reviewer": "S"
+    },
+    "decline_outsider": {
+     "author": "N",
+     "reviewer": "S"
+    }
+   }
+  },
+  {
+   "blind_id": "B11",
+   "card_id": "D-magistrate_ruling-004",
+   "agree": false,
+   "reviewer_A_inside_author_A": true,
+   "a_s_clash": [],
+   "diff": {
+    "move_up_monthly": {
+     "author": "A",
+     "reviewer": "N"
+    },
+    "next_newborn_slot": {
+     "author": "N",
+     "reviewer": "S"
+    },
+    "strike_both": {
+     "author": "S",
+     "reviewer": "N"
+    },
+    "restore_place": {
+     "author": "A",
+     "reviewer": "N"
+    }
+   }
+  },
+  {
+   "blind_id": "B12",
+   "card_id": "D-magistrate_ruling-009",
+   "agree": false,
+   "reviewer_A_inside_author_A": true,
+   "a_s_clash": [],
+   "diff": {
+    "waive_the_fee": {
+     "author": "N",
+     "reviewer": "S"
+    },
+    "grant_entry": {
+     "author": "A",
+     "reviewer": "N"
+    }
+   }
+  }
+ ]
+}

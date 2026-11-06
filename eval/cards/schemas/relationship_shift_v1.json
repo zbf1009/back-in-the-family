@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "relationship_shift_v1.json",
+  "title": "relationship_shift_v1: how a relationship changed over the log window",
+  "description": "One item per unordered pair whose relationship changed (unchanged pairs may be listed with direction unchanged). The grader treats a and b as unordered. direction compares the start of the log window with its end: warmer or colder; reversed means the relationship crossed from friendly to hostile or the other way. Identity fields for the shuffle comparison: {a, b}, direction, turning_point.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "items"],
+  "properties": {
+    "schema": {"const": "relationship_shift_v1"},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["a", "b", "direction", "turning_point", "evidence", "reason"],
+        "properties": {
+          "a": {"type": "integer"},
+          "b": {"type": "integer"},
+          "direction": {"enum": ["warmer", "colder", "unchanged", "reversed"]},
+          "turning_point": {"type": ["string", "null"], "pattern": "^e[0-9]{1,4}$", "description": "The single event that changed the relationship most; null when unchanged."},
+          "evidence": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^e[0-9]{1,4}$"}},
+          "reason": {"type": "string", "description": "Free text for presentation only. Not scored."}
+        }
+      }
+    }
+  }
+}

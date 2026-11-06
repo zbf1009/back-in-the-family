@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "broken_promise_v1.json",
+  "title": "broken_promise_v1: promises and whether they were kept",
+  "description": "One item per promise event. broken: the due point passed without fulfilment, it was fulfilled only in part, or the promisor made it impossible. pending: not yet due and still possible. kept: fulfilled in full and on time. Listing kept promises is optional. Identity fields for the shuffle comparison: promisor, promisee, promise_event, status.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "items"],
+  "properties": {
+    "schema": {"const": "broken_promise_v1"},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["promisor", "promisee", "promise_event", "status", "evidence", "reason"],
+        "properties": {
+          "promisor": {"type": "integer"},
+          "promisee": {"type": "integer"},
+          "promise_event": {"type": "string", "pattern": "^e[0-9]{1,4}$"},
+          "status": {"enum": ["broken", "pending", "kept"]},
+          "evidence": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^e[0-9]{1,4}$"}},
+          "reason": {"type": "string", "description": "Free text for presentation only. Not scored."}
+        }
+      }
+    }
+  }
+}

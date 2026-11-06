@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "card.schema.json",
+  "title": "Back in the Family LLM probe card",
+  "description": "One evaluation card (one JSON Lines row). Cross-field rules that JSON Schema cannot express are enforced by tools/validate.py and listed in README.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "task", "family", "scenario_group", "split", "scored", "context", "author_note"],
+  "properties": {
+    "id": {"type": "string", "pattern": "^(D|S)-[a-z_]+-[0-9]{3}$"},
+    "task": {"enum": ["decision", "synthesis"]},
+    "family": {
+      "enum": [
+        "dream_interpretation", "will_execution", "reconcile_or_revenge", "debt_repayment", "remarriage", "magistrate_ruling",
+        "grudge_detection", "debt_chain", "broken_promise", "relationship_shift",
+        "sanity"
+      ]
+    },
+    "scenario_group": {"type": "string", "pattern": "^G[0-9]{3}$"},
+    "split": {"enum": ["dev", "locked"]},
+    "scored": {"type": "boolean"},
+    "context": {"$ref": "#/$defs/context"},
+    "contrast": {"$ref": "#/$defs/contrast"},
+    "author_note": {"type": "string", "minLength": 1},
+
+    "options": {
+      "type": "array", "minItems": 2, "maxItems": 5,
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["id", "label"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[a-z][a-z_]*$"},
+          "label": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "acceptable": {"$ref": "#/$defs/option_ids", "minItems": 1},
+    "severe": {"$ref": "#/$defs/option_ids"},
+
+    "output_schema": {"enum": ["grudge_v1", "debt_chain_v1", "broken_promise_v1", "relationship_shift_v1"]},
+    "gold": {
+      "type": "object", "additionalProperties": false, "required": ["must_include", "must_not_include"],
+      "properties": {
+        "must_include": {"type": "array", "items": {"$ref": "#/$defs/pattern"}},
+        "must_not_include": {"type": "array", "items": {"$ref": "#/$defs/pattern"}}
+      }
+    },
+    "severe_conditions": {
+      "type": "array", "uniqueItems": true,
+      "items": {"$ref": "#/$defs/severe_condition"}
+    },
+    "severe_patterns": {
+      "type": "array",
+      "items": {
+        "type": "object", "additionalProperties": false, "required": ["condition", "pattern"],
+        "properties": {
+          "condition": {"$ref": "#/$defs/severe_condition"},
+          "pattern": {"$ref": "#/$defs/pattern"}
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"task": {"const": "decision"}}},
+      "then": {
+        "required": ["options", "acceptable", "severe"],
+        "not": {"anyOf": [
+          {"required": ["output_schema"]}, {"required": ["gold"]},
+          {"required": ["severe_conditions"]}, {"required": ["severe_patterns"]}
+        ]}
+      }
+    },
+    {
+      "if": {"properties": {"task": {"const": "synthesis"}}},
+      "then": {
+        "required": ["output_schema", "gold", "severe_conditions"],
+        "not": {"anyOf": [
+          {"required": ["options"]}, {"required": ["acceptable"]}, {"required": ["severe"]}
+        ]}
+      }
+    }
+  ],
+
+  "$defs": {
+    "option_ids": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[a-z][a-z_]*$"}
+    },
+    "event_id": {"type": "string", "pattern": "^e[0-9]{1,4}$"},
+    "severe_condition": {
+      "enum": [
+        "invented_event_id", "invented_person", "reversed_direction",
+        "dead_person_as_actor_after_death", "contradicts_fact",
+        "self_reference", "wrong_debt_holder"
+      ]
+    },
+    "pattern": {
+      "description": "A conclusion pattern. Scalar value: the item field must equal it. Array value: the field must equal one of the entries. evidence_any: the item's evidence must contain at least one listed event ID.",
+      "type": "object", "minProperties": 1,
+      "additionalProperties": {
+        "anyOf": [
+          {"type": "integer"}, {"type": "string"}, {"type": "null"},
+          {"type": "array", "minItems": 1, "items": {"anyOf": [{"type": "integer"}, {"type": "string"}, {"type": "null"}]}}
+        ]
+      }
+    },
+    "traits": {
+      "type": "object", "additionalProperties": false,
+      "required": ["greed", "loyalty", "pride", "warmth", "temper", "vindictiveness", "piety"],
+      "properties": {
+        "greed": {"$ref": "#/$defs/trait"},
+        "loyalty": {"$ref": "#/$defs/trait"},
+        "pride": {"$ref": "#/$defs/trait"},
+        "warmth": {"$ref": "#/$defs/trait"},
+        "temper": {"$ref": "#/$defs/trait"},
+        "vindictiveness": {"$ref": "#/$defs/trait"},
+        "piety": {"$ref": "#/$defs/trait"}
+      }
+    },
+    "trait": {"type": "integer", "minimum": -3, "maximum": 3},
+    "person": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "name", "age", "sex", "alive", "origin", "traits", "wealth", "soul_id"],
+      "properties": {
+        "id": {"type": "integer", "minimum": 1},
+        "name": {"type": "string", "minLength": 1},
+        "age": {"type": "integer", "minimum": 0, "maximum": 999, "description": "Townsfolk 0..120 (checked by tools/validate.py). Underworld officials carry a nominal age."},
+        "sex": {"enum": ["female", "male"]},
+        "alive": {"type": "boolean"},
+        "origin": {"enum": ["native", "possessed", "rebuilt", "official"]},
+        "traits": {"$ref": "#/$defs/traits"},
+        "wealth": {"type": "integer", "minimum": 0},
+        "soul_id": {"type": "string", "pattern": "^S-[0-9]{4}$"}
+      }
+    },
+    "relation": {
+      "type": "object", "additionalProperties": false, "required": ["from", "to", "affinity", "trust", "tags"],
+      "properties": {
+        "from": {"type": "integer"},
+        "to": {"type": "integer"},
+        "affinity": {"type": "integer", "minimum": -100, "maximum": 100},
+        "trust": {"type": "integer", "minimum": -100, "maximum": 100},
+        "tags": {
+          "type": "array", "uniqueItems": true,
+          "items": {"enum": [
+            "parent", "child", "sibling", "spouse", "former_spouse", "grandparent", "grandchild",
+            "cousin", "in_law", "friend", "rival", "neighbor", "employer", "employee", "suitor", "former_suitor"
+          ]}
+        }
+      }
+    },
+    "event": {
+      "type": "object", "additionalProperties": false,
+      "required": ["id", "tick", "type", "actors", "magnitude", "caused_by", "tags"],
+      "properties": {
+        "id": {"$ref": "#/$defs/event_id"},
+        "tick": {"type": "integer", "minimum": 0},
+        "type": {"enum": [
+          "birth", "death", "illness", "accident", "marriage", "courtship", "deal",
+          "loan", "repayment", "debt_transfer", "debt_forgiven",
+          "promise", "promise_kept",
+          "will", "inheritance",
+          "insult", "apology", "help", "gift", "quarrel", "theft", "lawsuit",
+          "offering", "dream", "haunting", "possession", "rebuild", "appeal"
+        ]},
+        "actors": {"type": "array", "minItems": 1, "items": {"type": "integer"}},
+        "magnitude": {"type": "integer", "minimum": 0},
+        "due_tick": {"type": "integer", "minimum": 0, "description": "Only on loan and promise events: the tick by which repayment or fulfilment is due."},
+        "caused_by": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/event_id"}},
+        "tags": {
+          "type": "array", "uniqueItems": true,
+          "items": {"enum": [
+            "public", "private", "witnessed", "written", "verbal", "partial",
+            "cash", "joss_paper", "land", "house", "shop", "heirloom", "deathbed"
+          ]}
+        }
+      }
+    },
+    "context": {
+      "type": "object", "additionalProperties": false,
+      "required": ["tick", "subject", "people", "relations", "events", "situation", "player_input"],
+      "properties": {
+        "tick": {"type": "integer", "minimum": 0},
+        "subject": {"type": ["integer", "null"]},
+        "people": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/person"}},
+        "relations": {"type": "array", "items": {"$ref": "#/$defs/relation"}},
+        "events": {"type": "array", "items": {"$ref": "#/$defs/event"}},
+        "situation": {"type": "string", "minLength": 1},
+        "player_input": {
+          "anyOf": [
+            {"type": "null"},
+            {
+              "type": "object", "additionalProperties": false, "required": ["intent", "content"],
+              "properties": {
+                "intent": {"enum": ["warn", "reassure", "urge", "reveal", "request_offering", "forbid"]},
+                "content": {"type": "string", "minLength": 1}
+              }
+            }
+          ]
+        }
+      }
+    },
+    "contrast": {
+      "type": "object", "additionalProperties": false, "required": ["pair_id", "role", "changed_fact", "expected"],
+      "properties": {
+        "pair_id": {"type": "string", "pattern": "^P[0-9]{3}$"},
+        "role": {"enum": ["a", "b"]},
+        "changed_fact": {"type": "string", "minLength": 1},
+        "expected": {
+          "type": "object", "additionalProperties": false, "required": ["a", "b"],
+          "properties": {
+            "a": {"$ref": "#/$defs/expected_side"},
+            "b": {"$ref": "#/$defs/expected_side"}
+          }
+        }
+      }
+    },
+    "expected_side": {
+      "description": "Decision cards: a non-empty list of option IDs. Synthesis cards: include/exclude pattern lists.",
+      "anyOf": [
+        {"$ref": "#/$defs/option_ids", "minItems": 1},
+        {
+          "type": "object", "additionalProperties": false, "required": ["include", "exclude"],
+          "properties": {
+            "include": {"type": "array", "items": {"$ref": "#/$defs/pattern"}},
+            "exclude": {"type": "array", "items": {"$ref": "#/$defs/pattern"}}
+          }
+        }
+      ]
+    }
+  }
+}

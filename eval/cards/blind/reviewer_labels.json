@@ -1,0 +1,14 @@
+[
+ {"blind_id": "B01", "grades": {"refuse_sale": "A", "sell_timber": "N"}},
+ {"blind_id": "B02", "grades": {"confront_dexter": "A", "accuse_church": "N", "let_it_go": "N", "break_in": "N", "check_mattress": "N"}},
+ {"blind_id": "B03", "grades": {"keep_farm": "N", "sign_over": "A"}},
+ {"blind_id": "B04", "grades": {"refuse_mill": "N", "challenge": "N", "clear_room": "S", "take_terms": "N", "take_and_stop": "A"}},
+ {"blind_id": "B05", "grades": {"drown_meadow": "A", "clear_free": "S", "quote_price": "N", "ask_creek_strip": "A"}},
+ {"blind_id": "B06", "grades": {"burn_paper": "S", "bill_widow": "A", "seal_ghost": "N", "open_grave": "S"}},
+ {"blind_id": "B07", "grades": {"work_it_off": "A", "sell_stock": "A"}},
+ {"blind_id": "B08", "grades": {"pay_rest": "S", "offer_plan": "N", "stall_again": "N", "dispute_note": "A"}},
+ {"blind_id": "B09", "grades": {"propose_now": "N", "ask_blessing": "A", "wait_for_school": "N", "send_children": "S"}},
+ {"blind_id": "B10", "grades": {"marry_and_register_later": "N", "wait_for_hearing": "A", "ask_office_first": "S", "decline_outsider": "S", "sell_store_for_licence": "S"}},
+ {"blind_id": "B11", "grades": {"move_up_monthly": "N", "fine_the_clerk": "A", "next_newborn_slot": "S", "strike_both": "N", "restore_place": "N"}},
+ {"blind_id": "B12", "grades": {"refuse_entry": "N", "waive_the_fee": "S", "withdraw_body": "S", "grant_entry": "N", "grant_provisional": "A"}}
+]

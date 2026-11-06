@@ -1,0 +1,121 @@
+[
+ {
+  "blind_id": "B01",
+  "card_id": "D-dream_interpretation-006",
+  "grades": {
+   "refuse_sale": "A",
+   "sell_timber": "N"
+  }
+ },
+ {
+  "blind_id": "B02",
+  "card_id": "D-dream_interpretation-007",
+  "grades": {
+   "confront_dexter": "A",
+   "accuse_church": "N",
+   "let_it_go": "N",
+   "break_in": "S",
+   "check_mattress": "A"
+  }
+ },
+ {
+  "blind_id": "B03",
+  "card_id": "D-will_execution-004",
+  "grades": {
+   "keep_farm": "N",
+   "sign_over": "A"
+  }
+ },
+ {
+  "blind_id": "B04",
+  "card_id": "D-will_execution-005",
+  "grades": {
+   "refuse_mill": "A",
+   "challenge": "A",
+   "clear_room": "S",
+   "take_terms": "A",
+   "take_and_stop": "N"
+  }
+ },
+ {
+  "blind_id": "B05",
+  "card_id": "D-reconcile_or_revenge-010",
+  "grades": {
+   "drown_meadow": "S",
+   "clear_free": "N",
+   "quote_price": "A",
+   "ask_creek_strip": "A"
+  }
+ },
+ {
+  "blind_id": "B06",
+  "card_id": "D-reconcile_or_revenge-012",
+  "grades": {
+   "burn_paper": "A",
+   "bill_widow": "A",
+   "seal_ghost": "A",
+   "open_grave": "S"
+  }
+ },
+ {
+  "blind_id": "B07",
+  "card_id": "D-debt_repayment-008",
+  "grades": {
+   "work_it_off": "A",
+   "sell_stock": "N"
+  }
+ },
+ {
+  "blind_id": "B08",
+  "card_id": "D-debt_repayment-010",
+  "grades": {
+   "pay_rest": "N",
+   "offer_plan": "A",
+   "stall_again": "A",
+   "dispute_note": "S"
+  }
+ },
+ {
+  "blind_id": "B09",
+  "card_id": "D-remarriage-008",
+  "grades": {
+   "propose_now": "A",
+   "ask_blessing": "A",
+   "wait_for_school": "A",
+   "send_children": "S"
+  }
+ },
+ {
+  "blind_id": "B10",
+  "card_id": "D-remarriage-010",
+  "grades": {
+   "marry_and_register_later": "A",
+   "wait_for_hearing": "A",
+   "ask_office_first": "A",
+   "decline_outsider": "N",
+   "sell_store_for_licence": "S"
+  }
+ },
+ {
+  "blind_id": "B11",
+  "card_id": "D-magistrate_ruling-004",
+  "grades": {
+   "move_up_monthly": "A",
+   "fine_the_clerk": "A",
+   "next_newborn_slot": "N",
+   "strike_both": "S",
+   "restore_place": "A"
+  }
+ },
+ {
+  "blind_id": "B12",
+  "card_id": "D-magistrate_ruling-009",
+  "grades": {
+   "refuse_entry": "N",
+   "waive_the_fee": "N",
+   "withdraw_body": "S",
+   "grant_entry": "A",
+   "grant_provisional": "A"
+  }
+ }
+]
