@@ -541,3 +541,39 @@ fn measure_runs_tiny_and_rejects_bad_usage() {
     assert!(stderr(&bad).contains("--runs"));
     assert!(stdout(&sim_cli(&["--help"])).contains("sim-cli measure"));
 }
+
+/// The grading fixture generators are deterministic and match the committed fixtures.
+/// They write to a temp directory only; the committed files are read, never written.
+#[test]
+fn grading_generators_are_deterministic_and_match_the_committed_fixtures() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let cards = root.join("eval/cards/cards/dev.jsonl");
+    let cards = cards.to_str().unwrap();
+    let dir = TempDir::new("grading");
+    let (outputs, golden) = (dir.path("o.json"), dir.path("g.json"));
+    let (outputs, golden) = (outputs.to_str().unwrap(), golden.to_str().unwrap());
+    let o = sim_cli(&["grading-outputs", "--cards", cards, "--out", outputs]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    let o = sim_cli(&[
+        "grading-golden",
+        "--cards",
+        cards,
+        "--outputs",
+        outputs,
+        "--out",
+        golden,
+    ]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    for (made, committed) in [
+        (outputs, "fixtures/grading/dev-outputs.json"),
+        (golden, "fixtures/grading/dev-golden.json"),
+    ] {
+        let made = fs::read(made).unwrap();
+        assert!(made.ends_with(b"}\n"));
+        assert!(
+            made == fs::read(root.join(committed)).unwrap(),
+            "{committed} differs from the generator output; regenerate on purpose with \
+             scripts/regen-grading-golden.sh if the change is intended"
+        );
+    }
+}

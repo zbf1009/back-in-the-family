@@ -1,0 +1,3905 @@
+{
+  "cards": [
+    {
+      "card": "D-dream_interpretation-001",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:heed_warning",
+          "raw": "```json\n{\"option\":\"heed_warning\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:heed_warning",
+          "raw": "{\"option\":\"heed_warning\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:burn_offering",
+          "raw": "{\"option\":\"burn_offering\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "other:dismiss_dream",
+          "raw": "{\"option\":\"dismiss_dream\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:read_as_blessing",
+          "raw": "{\"option\":\"read_as_blessing\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"heed_warning"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"heed_warning\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"heed_warning\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"heed_warning\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-dream_interpretation-002",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:heed_warning",
+          "raw": "```json\n{\"option\":\"heed_warning\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:heed_warning",
+          "raw": "{\"option\":\"heed_warning\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "other:burn_offering",
+          "raw": "{\"option\":\"burn_offering\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:dismiss_dream",
+          "raw": "{\"option\":\"dismiss_dream\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:read_as_blessing",
+          "raw": "{\"option\":\"read_as_blessing\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"heed_warning"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"heed_warning\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"heed_warning\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"heed_warning\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-dream_interpretation-003",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:burn_offering",
+          "raw": "```json\n{\"option\":\"burn_offering\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:burn_offering",
+          "raw": "{\"option\":\"burn_offering\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:burn_small",
+          "raw": "{\"option\":\"burn_small\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "other:ignore_dream",
+          "raw": "{\"option\":\"ignore_dream\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:sell_house",
+          "raw": "{\"option\":\"sell_house\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"burn_offering"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"burn_offering\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"burn_offering\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"burn_offering\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-will_execution-001",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "other:honor_will",
+          "raw": "{\"option\":\"honor_will\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced:contest_will",
+          "raw": "```json\n{\"option\":\"contest_will\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:contest_will",
+          "raw": "{\"option\":\"contest_will\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:hide_will",
+          "raw": "{\"option\":\"hide_will\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:offer_buyout",
+          "raw": "{\"option\":\"offer_buyout\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"contest_will"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"contest_will\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"contest_will\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"honor_will\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-will_execution-002",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:honor_will",
+          "raw": "```json\n{\"option\":\"honor_will\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:honor_will",
+          "raw": "{\"option\":\"honor_will\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "other:contest_will",
+          "raw": "{\"option\":\"contest_will\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "other:hide_will",
+          "raw": "{\"option\":\"hide_will\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:offer_buyout",
+          "raw": "{\"option\":\"offer_buyout\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"honor_will"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"honor_will\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"honor_will\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"honor_will\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-will_execution-003",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:accept_and_comply",
+          "raw": "```json\n{\"option\":\"accept_and_comply\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:accept_and_comply",
+          "raw": "{\"option\":\"accept_and_comply\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:accept_and_neglect",
+          "raw": "{\"option\":\"accept_and_neglect\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "other:decline_house",
+          "raw": "{\"option\":\"decline_house\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:dig_up_graves",
+          "raw": "{\"option\":\"dig_up_graves\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"accept_and_comply"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"accept_and_comply\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"accept_and_comply\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"accept_and_comply\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-reconcile_or_revenge-001",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "other:reconcile",
+          "raw": "{\"option\":\"reconcile\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced:keep_away",
+          "raw": "```json\n{\"option\":\"keep_away\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:keep_away",
+          "raw": "{\"option\":\"keep_away\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:public_revenge",
+          "raw": "{\"option\":\"public_revenge\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:poison_dog",
+          "raw": "{\"option\":\"poison_dog\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"keep_away"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"keep_away\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"keep_away\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"reconcile\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-reconcile_or_revenge-002",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:reconcile",
+          "raw": "```json\n{\"option\":\"reconcile\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:reconcile",
+          "raw": "{\"option\":\"reconcile\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:keep_away",
+          "raw": "{\"option\":\"keep_away\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "other:public_revenge",
+          "raw": "{\"option\":\"public_revenge\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:poison_dog",
+          "raw": "{\"option\":\"poison_dog\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"reconcile"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"reconcile\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"reconcile\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"reconcile\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-reconcile_or_revenge-003",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:visit_and_reconcile",
+          "raw": "```json\n{\"option\":\"visit_and_reconcile\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:visit_and_reconcile",
+          "raw": "{\"option\":\"visit_and_reconcile\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:send_letter",
+          "raw": "{\"option\":\"send_letter\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:refuse",
+          "raw": "{\"option\":\"refuse\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:demand_pasture",
+          "raw": "{\"option\":\"demand_pasture\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"visit_and_reconcile"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"visit_and_reconcile\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"visit_and_reconcile\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"visit_and_reconcile\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-debt_repayment-001",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:repay",
+          "raw": "```json\n{\"option\":\"repay\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:repay",
+          "raw": "{\"option\":\"repay\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "other:ask_extension",
+          "raw": "{\"option\":\"ask_extension\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "other:pay_part",
+          "raw": "{\"option\":\"pay_part\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:deny_debt",
+          "raw": "{\"option\":\"deny_debt\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"repay"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"repay\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"repay\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"repay\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-debt_repayment-002",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:repay",
+          "raw": "```json\n{\"option\":\"repay\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:repay",
+          "raw": "{\"option\":\"repay\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:ask_extension",
+          "raw": "{\"option\":\"ask_extension\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:pay_part",
+          "raw": "{\"option\":\"pay_part\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:deny_debt",
+          "raw": "{\"option\":\"deny_debt\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"repay"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"repay\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"repay\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"repay\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-debt_repayment-003",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:repay",
+          "raw": "```json\n{\"option\":\"repay\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:repay",
+          "raw": "{\"option\":\"repay\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:ask_extension",
+          "raw": "{\"option\":\"ask_extension\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:refuse_inherited",
+          "raw": "{\"option\":\"refuse_inherited\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "other:work_it_off",
+          "raw": "{\"option\":\"work_it_off\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"repay"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"repay\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"repay\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"repay\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-remarriage-001",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "other:accept",
+          "raw": "{\"option\":\"accept\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced:ask_to_wait",
+          "raw": "```json\n{\"option\":\"ask_to_wait\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:ask_to_wait",
+          "raw": "{\"option\":\"ask_to_wait\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:decline",
+          "raw": "{\"option\":\"decline\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:elope_tonight",
+          "raw": "{\"option\":\"elope_tonight\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"ask_to_wait"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"ask_to_wait\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"ask_to_wait\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"accept\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-remarriage-002",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:accept",
+          "raw": "```json\n{\"option\":\"accept\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:accept",
+          "raw": "{\"option\":\"accept\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:ask_to_wait",
+          "raw": "{\"option\":\"ask_to_wait\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "other:decline",
+          "raw": "{\"option\":\"decline\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:elope_tonight",
+          "raw": "{\"option\":\"elope_tonight\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"accept"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"accept\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"accept\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"accept\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-remarriage-003",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:propose_to_mae",
+          "raw": "```json\n{\"option\":\"propose_to_mae\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:propose_to_mae",
+          "raw": "{\"option\":\"propose_to_mae\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:stay_single",
+          "raw": "{\"option\":\"stay_single\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:court_someone_new",
+          "raw": "{\"option\":\"court_someone_new\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:send_children_away",
+          "raw": "{\"option\":\"send_children_away\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"propose_to_mae"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"propose_to_mae\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"propose_to_mae\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"propose_to_mae\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-magistrate_ruling-001",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:grant_next_slot",
+          "raw": "```json\n{\"option\":\"grant_next_slot\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:grant_next_slot",
+          "raw": "{\"option\":\"grant_next_slot\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:grant_later_slot",
+          "raw": "{\"option\":\"grant_later_slot\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "other:deny",
+          "raw": "{\"option\":\"deny\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:strike_from_register",
+          "raw": "{\"option\":\"strike_from_register\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"grant_next_slot"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"grant_next_slot\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"grant_next_slot\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"grant_next_slot\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-magistrate_ruling-002",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "other:grant_next_slot",
+          "raw": "{\"option\":\"grant_next_slot\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced:grant_later_slot",
+          "raw": "```json\n{\"option\":\"grant_later_slot\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:grant_later_slot",
+          "raw": "{\"option\":\"grant_later_slot\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:deny",
+          "raw": "{\"option\":\"deny\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:strike_from_register",
+          "raw": "{\"option\":\"strike_from_register\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"grant_later_slot"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"grant_later_slot\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"grant_later_slot\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"grant_next_slot\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-magistrate_ruling-003",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:fine_haunter",
+          "raw": "```json\n{\"option\":\"fine_haunter\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:fine_haunter",
+          "raw": "{\"option\":\"fine_haunter\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:warn_haunter",
+          "raw": "{\"option\":\"warn_haunter\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "other:dismiss",
+          "raw": "{\"option\":\"dismiss\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:fine_appellant",
+          "raw": "{\"option\":\"fine_appellant\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"fine_haunter"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"fine_haunter\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"fine_haunter\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"fine_haunter\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-sanity-001",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:thank_him",
+          "raw": "```json\n{\"option\":\"thank_him\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:thank_him",
+          "raw": "{\"option\":\"thank_him\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:accuse_him",
+          "raw": "{\"option\":\"accuse_him\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"thank_him"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"thank_him\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"thank_him\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"thank_him\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "D-sanity-002",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "fenced:repay",
+          "raw": "```json\n{\"option\":\"repay\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "acceptable:repay",
+          "raw": "{\"option\":\"repay\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe:deny_loan",
+          "raw": "{\"option\":\"deny_loan\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"option\":\"repay"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"option\":\"repay\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"option\":\"repay\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "out_of_set",
+          "raw": "{\"option\":\"zz_not_an_option\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "extra_member",
+          "raw": "{\"option\":\"repay\",\"why\":\"because\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_option",
+          "raw": "{}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type",
+          "raw": "{\"option\":1}"
+        }
+      ]
+    },
+    {
+      "card": "S-grudge_detection-001",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[{\"evidence\":[\"e102\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[{\"evidence\":[\"e102\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"evidence\":[\"e100\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":3}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:0",
+          "raw": "{\"items\":[{\"evidence\":[\"e100\"],\"from\":2,\"level\":\"high\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:1",
+          "raw": "{\"items\":[{\"evidence\":[\"e100\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":3}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[{\"evidence\":[\"e102\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[{\"evidence\":[\"e102\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[{\"evidence\":[\"e102\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"evidence\":[\"e102\"],\"from\":1,\"level\":\"medium\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"evidence\":[\"e102\"],\"extra\":1,\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"evidence\":[],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"evidence\":[\"e102\",\"e102\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"evidence\":[\"E1\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"evidence\":[\"e102\"],\"from\":1,\"level\":\"bogus\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"evidence\":[\"e102\"],\"from\":\"one\",\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"evidence\":[\"e102\"],\"from\":1.5,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-grudge_detection-002",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[],\"schema\":\"grudge_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"evidence\":[\"e100\"],\"from\":1,\"level\":\"high\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:1",
+          "raw": "{\"items\":[{\"evidence\":[\"e100\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":3}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:0",
+          "raw": "{\"items\":[{\"evidence\":[\"e100\"],\"from\":2,\"level\":\"high\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:1",
+          "raw": "{\"items\":[{\"evidence\":[\"e100\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":3}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[],\"schema\":\"grudge_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[],\"schema\":\"grudge_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"evidence\":[\"e100\"],\"from\":1,\"level\":\"medium\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"evidence\":[\"e100\"],\"extra\":1,\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"evidence\":[],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"evidence\":[\"e100\",\"e100\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"evidence\":[\"E1\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"evidence\":[\"e100\"],\"from\":1,\"level\":\"bogus\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"evidence\":[\"e100\"],\"from\":\"one\",\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"evidence\":[\"e100\"],\"from\":1.5,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-grudge_detection-003",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[{\"evidence\":[\"e203\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[{\"evidence\":[\"e203\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"evidence\":[\"e201\"],\"from\":2,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":3}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:1",
+          "raw": "{\"items\":[{\"evidence\":[\"e201\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":3}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[{\"evidence\":[\"e203\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[{\"evidence\":[\"e203\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[{\"evidence\":[\"e203\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"evidence\":[\"e203\"],\"from\":1,\"level\":\"medium\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"evidence\":[\"e203\"],\"extra\":1,\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"evidence\":[],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"evidence\":[\"e203\",\"e203\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"evidence\":[\"E1\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"evidence\":[\"e203\"],\"from\":1,\"level\":\"bogus\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"evidence\":[\"e203\"],\"from\":\"one\",\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"evidence\":[\"e203\"],\"from\":1.5,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-debt_chain-001",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"transferred\",\"transferred_from\":null},{\"amount\":2000,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e305\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":2}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"transferred\",\"transferred_from\":null},{\"amount\":2000,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e305\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":2}],\"schema\":\"debt_chain_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":4,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:1",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:0",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":4,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:1",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":2,\"debtor\":1,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:2",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"transferred\",\"transferred_from\":null},{\"amount\":2000,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e305\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":2}],\"schema\":\"debt_chain_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"transferred\",\"transferred_from\":null},{\"amount\":2000,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e305\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":2}],\"schema\":\"debt_chain_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"transferred\",\"transferred_from\":null},{\"amount\":2000,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e305\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":2}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"status\":\"transferred\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e301\"],\"extra\":1,\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"transferred\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"transferred\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e301\",\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"transferred\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"E1\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"transferred\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"bogus\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":\"one\",\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"transferred\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2.5,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"transferred\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-debt_chain-002",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e306\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"forgiven\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e306\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"forgiven\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":4,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:1",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:2",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:0",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":4,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:1",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":2,\"debtor\":1,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:2",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e301\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e306\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"forgiven\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e306\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"forgiven\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e306\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"forgiven\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e306\"],\"origin_event\":\"e301\",\"status\":\"forgiven\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e306\"],\"extra\":1,\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"forgiven\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"forgiven\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e306\",\"e306\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"forgiven\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"E1\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"forgiven\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e306\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"bogus\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":\"one\",\"evidence\":[\"e306\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"forgiven\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3.5,\"evidence\":[\"e306\"],\"origin_event\":\"e301\",\"reason\":\"synthetic fixture item\",\"status\":\"forgiven\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-debt_chain-003",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[{\"amount\":100,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e401\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null},{\"amount\":0,\"creditor\":2,\"debtor\":3,\"evidence\":[\"e401\"],\"origin_event\":\"e402\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[{\"amount\":100,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e401\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null},{\"amount\":0,\"creditor\":2,\"debtor\":3,\"evidence\":[\"e401\"],\"origin_event\":\"e402\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e401\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:1",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e401\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:0",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":3,\"evidence\":[\"e401\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:1",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":2,\"debtor\":1,\"evidence\":[\"e401\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[{\"amount\":100,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e401\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null},{\"amount\":0,\"creditor\":2,\"debtor\":3,\"evidence\":[\"e401\"],\"origin_event\":\"e402\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[{\"amount\":100,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e401\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null},{\"amount\":0,\"creditor\":2,\"debtor\":3,\"evidence\":[\"e401\"],\"origin_event\":\"e402\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[{\"amount\":100,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e401\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null},{\"amount\":0,\"creditor\":2,\"debtor\":3,\"evidence\":[\"e401\"],\"origin_event\":\"e402\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"amount\":100,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e401\"],\"origin_event\":\"e401\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"amount\":100,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e401\"],\"extra\":1,\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"amount\":100,\"creditor\":1,\"debtor\":2,\"evidence\":[],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"amount\":100,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e401\",\"e401\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"amount\":100,\"creditor\":1,\"debtor\":2,\"evidence\":[\"E1\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"amount\":100,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e401\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"bogus\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"amount\":100,\"creditor\":1,\"debtor\":\"one\",\"evidence\":[\"e401\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"amount\":100,\"creditor\":1,\"debtor\":2.5,\"evidence\":[\"e401\"],\"origin_event\":\"e401\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-broken_promise-001",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":3,\"promisor\":2,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"},{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":3,\"promisor\":2,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"},{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:0",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":1,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:1",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":3,\"promisor\":2,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"},{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":3,\"promisor\":2,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"},{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":3,\"promisor\":2,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"},{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":3,\"promisor\":2,\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"extra\":1,\"promise_event\":\"e501\",\"promisee\":3,\"promisor\":2,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"evidence\":[],\"promise_event\":\"e501\",\"promisee\":3,\"promisor\":2,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\",\"e501\"],\"promise_event\":\"e501\",\"promisee\":3,\"promisor\":2,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"evidence\":[\"E1\"],\"promise_event\":\"e501\",\"promisee\":3,\"promisor\":2,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":3,\"promisor\":2,\"reason\":\"synthetic fixture item\",\"status\":\"bogus\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":3,\"promisor\":\"one\",\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":3,\"promisor\":2.5,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-broken_promise-002",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:1",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:0",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":1,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:1",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e501\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"extra\":1,\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"evidence\":[],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\",\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"evidence\":[\"E1\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3,\"reason\":\"synthetic fixture item\",\"status\":\"bogus\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":\"one\",\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"evidence\":[\"e501\"],\"promise_event\":\"e504\",\"promisee\":2,\"promisor\":3.5,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-broken_promise-003",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[{\"evidence\":[\"e601\"],\"promise_event\":\"e603\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[{\"evidence\":[\"e601\"],\"promise_event\":\"e603\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"evidence\":[\"e601\"],\"promise_event\":\"e602\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:0",
+          "raw": "{\"items\":[{\"evidence\":[\"e601\"],\"promise_event\":\"e603\",\"promisee\":1,\"promisor\":2,\"reason\":\"synthetic fixture item\",\"status\":\"pending\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:1",
+          "raw": "{\"items\":[{\"evidence\":[\"e601\"],\"promise_event\":\"e602\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[{\"evidence\":[\"e601\"],\"promise_event\":\"e603\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[{\"evidence\":[\"e601\"],\"promise_event\":\"e603\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[{\"evidence\":[\"e601\"],\"promise_event\":\"e603\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"evidence\":[\"e601\"],\"promise_event\":\"e603\",\"promisee\":2,\"promisor\":1,\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"evidence\":[\"e601\"],\"extra\":1,\"promise_event\":\"e603\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"evidence\":[],\"promise_event\":\"e603\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"evidence\":[\"e601\",\"e601\"],\"promise_event\":\"e603\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"evidence\":[\"E1\"],\"promise_event\":\"e603\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"evidence\":[\"e601\"],\"promise_event\":\"e603\",\"promisee\":2,\"promisor\":1,\"reason\":\"synthetic fixture item\",\"status\":\"bogus\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"evidence\":[\"e601\"],\"promise_event\":\"e603\",\"promisee\":2,\"promisor\":\"one\",\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"evidence\":[\"e601\"],\"promise_event\":\"e603\",\"promisee\":2,\"promisor\":1.5,\"reason\":\"synthetic fixture item\",\"status\":\"broken\"}],\"schema\":\"broken_promise_v1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-relationship_shift-001",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e703\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e703\"}],\"schema\":\"relationship_shift_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:0",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e703\"}],\"schema\":\"relationship_shift_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e703\"}],\"schema\":\"relationship_shift_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e703\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e701\"],\"turning_point\":\"e703\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e701\"],\"extra\":1,\"reason\":\"synthetic fixture item\",\"turning_point\":\"e703\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"colder\",\"evidence\":[],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e703\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e701\",\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e703\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"E1\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e703\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"bogus\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e703\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"a\":\"one\",\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e703\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"a\":1.5,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e703\"}],\"schema\":\"relationship_shift_v1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-relationship_shift-002",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:0",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e701\"],\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e701\"],\"extra\":1,\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"warmer\",\"evidence\":[],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e701\",\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"E1\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"bogus\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"a\":\"one\",\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"a\":1.5,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e701\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-relationship_shift-003",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[{\"a\":3,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e801\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e805\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[{\"a\":3,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e801\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e805\"}],\"schema\":\"relationship_shift_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"a\":1,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e801\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:0",
+          "raw": "{\"items\":[{\"a\":3,\"b\":2,\"direction\":\"colder\",\"evidence\":[\"e801\"],\"reason\":\"synthetic fixture item\",\"turning_point\":null}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[{\"a\":3,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e801\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e805\"}],\"schema\":\"relationship_shift_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[{\"a\":3,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e801\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e805\"}],\"schema\":\"relationship_shift_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[{\"a\":3,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e801\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e805\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"a\":3,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e801\"],\"turning_point\":\"e805\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"a\":3,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e801\"],\"extra\":1,\"reason\":\"synthetic fixture item\",\"turning_point\":\"e805\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"a\":3,\"b\":2,\"direction\":\"warmer\",\"evidence\":[],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e805\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"a\":3,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e801\",\"e801\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e805\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"a\":3,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"E1\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e805\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"a\":3,\"b\":2,\"direction\":\"bogus\",\"evidence\":[\"e801\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e805\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"a\":\"one\",\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e801\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e805\"}],\"schema\":\"relationship_shift_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"a\":3.5,\"b\":2,\"direction\":\"warmer\",\"evidence\":[\"e801\"],\"reason\":\"synthetic fixture item\",\"turning_point\":\"e805\"}],\"schema\":\"relationship_shift_v1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-sanity-001",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[{\"evidence\":[\"e1\"],\"from\":2,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[{\"evidence\":[\"e1\"],\"from\":2,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"evidence\":[\"e1\"],\"from\":3,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:1",
+          "raw": "{\"items\":[{\"evidence\":[\"e1\"],\"from\":4,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:0",
+          "raw": "{\"items\":[{\"evidence\":[\"e1\"],\"from\":1,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":2}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[{\"evidence\":[\"e1\"],\"from\":2,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[{\"evidence\":[\"e1\"],\"from\":2,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[{\"evidence\":[\"e1\"],\"from\":2,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"evidence\":[\"e1\"],\"from\":2,\"level\":\"medium\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"evidence\":[\"e1\"],\"extra\":1,\"from\":2,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"evidence\":[],\"from\":2,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"evidence\":[\"e1\",\"e1\"],\"from\":2,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"evidence\":[\"E1\"],\"from\":2,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"evidence\":[\"e1\"],\"from\":2,\"level\":\"bogus\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"evidence\":[\"e1\"],\"from\":\"one\",\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"evidence\":[\"e1\"],\"from\":2.5,\"level\":\"medium\",\"reason\":\"synthetic fixture item\",\"to\":1}],\"schema\":\"grudge_v1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-sanity-002",
+      "outputs": [
+        {
+          "kind": "valid",
+          "label": "gold",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":3,\"debtor\":4,\"evidence\":[\"e1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "fenced_gold",
+          "raw": "```json\n{\"items\":[{\"amount\":0,\"creditor\":3,\"debtor\":4,\"evidence\":[\"e1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}\n```"
+        },
+        {
+          "kind": "valid",
+          "label": "empty_items",
+          "raw": "{\"items\":[],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:0",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":4,\"evidence\":[\"e1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:1",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":2,\"debtor\":1,\"evidence\":[\"e1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "must_not:2",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":1,\"debtor\":2,\"evidence\":[\"e1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "valid",
+          "label": "severe_pattern:0",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":4,\"debtor\":3,\"evidence\":[\"e1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"open\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty",
+          "raw": ""
+        },
+        {
+          "kind": "illegal",
+          "label": "prose",
+          "raw": "I think the answer is probably the first one."
+        },
+        {
+          "kind": "illegal",
+          "label": "truncated",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":3,\"debtor\":4,\"evidence\":[\"e1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1"
+        },
+        {
+          "kind": "illegal",
+          "label": "array_root",
+          "raw": "[]"
+        },
+        {
+          "kind": "illegal",
+          "label": "trailing_text",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":3,\"debtor\":4,\"evidence\":[\"e1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"} Hope that helps."
+        },
+        {
+          "kind": "illegal",
+          "label": "unclosed_fence",
+          "raw": "```json\n{\"items\":[{\"amount\":0,\"creditor\":3,\"debtor\":4,\"evidence\":[\"e1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "timeout",
+          "outcome": {
+            "kind": "timeout"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "runtime_error",
+          "outcome": {
+            "code": "runtime_error",
+            "detail": "synthetic",
+            "kind": "error"
+          }
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_schema_const",
+          "raw": "{\"items\":[],\"schema\":\"not_a_schema_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_items",
+          "raw": "{\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_top_field",
+          "raw": "{\"extra\":1,\"items\":[],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "items_not_array",
+          "raw": "{\"items\":{},\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "missing_reason",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":3,\"debtor\":4,\"evidence\":[\"e1\"],\"origin_event\":\"e1\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "unknown_item_field",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":3,\"debtor\":4,\"evidence\":[\"e1\"],\"extra\":1,\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "empty_evidence",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":3,\"debtor\":4,\"evidence\":[],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "duplicate_evidence",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":3,\"debtor\":4,\"evidence\":[\"e1\",\"e1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "malformed_event_id",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":3,\"debtor\":4,\"evidence\":[\"E1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "illegal_enum_value",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":3,\"debtor\":4,\"evidence\":[\"e1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"bogus\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "wrong_type_person",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":3,\"debtor\":\"one\",\"evidence\":[\"e1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        },
+        {
+          "kind": "illegal",
+          "label": "non_integer",
+          "raw": "{\"items\":[{\"amount\":0,\"creditor\":3,\"debtor\":4.5,\"evidence\":[\"e1\"],\"origin_event\":\"e1\",\"reason\":\"synthetic fixture item\",\"status\":\"repaid\",\"transferred_from\":null}],\"schema\":\"debt_chain_v1\"}"
+        }
+      ]
+    }
+  ],
+  "format": "llm-probe-grading-outputs-v1",
+  "note": "Synthetic. Built from the Dev_Cards' own answer keys and a fixed list of mutations. No model output."
+}

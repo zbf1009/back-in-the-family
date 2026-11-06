@@ -657,3 +657,24 @@ Synced `design.md` with what tasks 1–8 actually built and made task 9's single
 - Property 8 check: running `cargo test -p sim-core --test llm_properties` by hand with the same fault failed `s_grades_agree_with_the_reference_model` (and `contrast_decisions_follow_the_expected_subsets`) with a minimal failing input listing a non-empty `must_not_include`. It wrote `llm_properties.proptest-regressions`, which I deleted.
 - Revert: restored `grade.rs` from a backup copy; `grep` finds no injection and `satisfies` again has the `!exclude.iter().any(...)` line.
 - Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0.
+
+### Spec: llm-probe — task 5.3 grading fixtures generator location (2026-11-06)
+
+- Choice: the generator is two `sim-cli` subcommands in `crates/sim-cli/src/grading.rs`: `grading-outputs` (writes `fixtures/grading/dev-outputs.json`) and `grading-golden` (writes `fixtures/grading/dev-golden.json`). `scripts/regen-grading-golden.sh` runs both. Reason: `sim-cli` is native tooling that already owns `scripts/regen-fixtures.sh`, and it can call `sim_core::llm::api` directly, so the golden bytes come from the same code the exports wrap.
+- Both files are deterministic (sorted keys, stable order, trailing newline). A `sim-cli` black-box test regenerates them into a temp directory and compares with the committed files; it never writes the fixtures. Only `dev.jsonl` is read.
+
+### Spec: llm-probe — task 5.5 game build and existing gates check (2026-11-06)
+
+- `scripts/gates.sh` ran from the working tree: `All gates passed.`, exit 0 (fmt, clippy, tests native and wasm32, `sim-cli batch`, pnpm check, frozen install, Type_Check, Unit_Tests, Web_Build, check-deploy, Smoke_Test with 2 passed).
+- `sim_wasm_bg.wasm`: 615,000 bytes now (`assets/sim_wasm_bg-BMzgb45R.wasm`), against 232,449 bytes before this spec (web-shell audit). That is +382,551 bytes (about 2.65x), still far under the Size_Limit of 26,214,400 bytes. `check-deploy` passed: 4 files, `.wasm` byte-identical to `target/wasm-pkg`, worker chunk only carrier of the glue.
+- `git diff --stat 091d1d7 -- fixtures/parity web/tests web/playwright.config.ts` printed nothing (and `git status` shows no changes there): parity fixtures and Smoke_Test files are unchanged. The existing parity tests (native and wasm32) and both Smoke_Tests passed.
+
+### Spec: llm-probe — task 5.6 fault injection: one byte of dev-golden.json (2026-11-06)
+
+- Gate under test: the grading parity checks. `cargo test --workspace` in `scripts/gates.sh` (native `llm_parity`, plus the `sim-cli` fixture-regeneration test) and `cargo test -p sim-wasm --target wasm32-unknown-unknown` (the same `llm_parity` test under wasm32).
+- Injected fault: in `fixtures/grading/dev-golden.json`, the expected `validate` verdict of card `D-dream_interpretation-001` (output `fenced:heed_warning`): `heed_warning` became `heed_warnimg` (one byte, still valid JSON).
+- Full gates: failed at `cargo test --workspace`, but in the `sim-cli` test `grading_generators_are_deterministic_and_match_the_committed_fixtures` first (it names the file, not the card): `fixtures/grading/dev-golden.json differs from the generator output; regenerate on purpose with scripts/regen-grading-golden.sh if the change is intended`, then `gate failed: cargo test --workspace`, exit 101. Cargo stops after the first failing test binary, so `llm_parity` did not run inside the gate.
+- Native `cargo test -p sim-wasm --test llm_parity` by hand: `grading_exports_match_golden_bytes` failed with `card D-dream_interpretation-001: export llm_validate (fenced:heed_warning) differs from golden`, with expected `...heed_warnimg...` and actual `...heed_warning...`. This is the message naming Card ID and export.
+- `cargo test -p sim-wasm --target wasm32-unknown-unknown` alone: exit 1; the 2 unit tests passed and `llm_parity` failed with the same panic text (`card D-dream_interpretation-001: export llm_validate (fenced:heed_warning) differs from golden`) at `crates/sim-wasm/tests/llm_parity.rs:55:5`.
+- Revert: copied the backup back; `sha256sum -c` matched the original. No stray files were left (no regressions files; `git status` showed only the task 5 changes).
+- Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0.

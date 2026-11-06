@@ -16,6 +16,8 @@
 //! `u64` arguments and results (`seed`, `tick()`) are JavaScript `BigInt`s.
 #![forbid(unsafe_code)]
 
+pub mod llm;
+
 use sim_core::ids::Tick;
 use sim_core::replay::{ReplayConfig, ReplayFile, SubmitInput, verify};
 use sim_core::tick::Sim;

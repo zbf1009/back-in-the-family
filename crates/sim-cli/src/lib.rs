@@ -10,6 +10,7 @@
 pub mod args;
 pub mod batch;
 pub mod commands;
+pub mod grading;
 pub mod inputs;
 pub mod measure;
 
@@ -26,6 +27,8 @@ USAGE:
   sim-cli check-size DIR [--max-bytes N]
   sim-cli batch --seeds A..=B --ticks N [--random-inputs K] [--config FILE]
   sim-cli measure [--runs N] [--entities N]
+  sim-cli grading-outputs --cards FILE --out FILE
+  sim-cli grading-golden --cards FILE --outputs FILE --out FILE
   sim-cli --help
 
 record       Run N ticks from seed S and write a replay file (parent directories are
@@ -59,6 +62,11 @@ measure      Time one 80-year lifetime (80 x 365 = 29200 daily ticks)
              Checksum::of call on the world after 100 ticks, its share of a tick, and the
              canonical state size. Run with --release; a debug build says so in the header
              and its numbers mean nothing. Output depends on timing, so it is not stable.
+grading-outputs  Write the synthetic Dev_Card outputs (valid ones from each card's answer
+             key, Illegal ones from fixed mutations; no model output) for the llm grading
+             fixtures. Deterministic. Run only by scripts/regen-grading-golden.sh.
+grading-golden   Run every sim_core::llm::api export on every card x fixture output and
+             write the expected result bytes. Deterministic. Same script.
 
 EXIT CODES:
   0  success
@@ -93,6 +101,8 @@ fn dispatch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
         "check-size" => commands::check_size(rest, out, err),
         "batch" => batch::batch(rest, out, err),
         "measure" => measure::measure(rest, out, err),
+        "grading-outputs" => grading::grading_outputs(rest, out, err),
+        "grading-golden" => grading::grading_golden(rest, out, err),
         other => {
             let _ = writeln!(err, "error: unknown subcommand {other:?}\n\n{USAGE}");
             commands::EXIT_USAGE_OR_MALFORMED
