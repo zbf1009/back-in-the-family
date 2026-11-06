@@ -17,8 +17,10 @@ use proptest::prelude::*;
 use proptest::strategy::{Strategy, ValueTree};
 use proptest::test_runner::TestRunner;
 use sim_core::llm::card::{CardErrorKind, ParsedCard, parse_card};
+use sim_core::llm::card::{CardMeta, Split};
 use sim_core::llm::grade::{grade, identity};
 use sim_core::llm::json::{self, Json};
+use sim_core::llm::render::{Permutation, permutations, render};
 use sim_core::llm::validate::validate_raw;
 use sim_core::llm::{
     AnswerKey, FrozenContext, IdentityValue, IllegalReason, Task, TaskSpec, Verdict,
@@ -2377,6 +2379,393 @@ fn gold_answers_grade_acceptable_on_every_dev_card_for_every_choice() {
             for extra in [0, 1, 7] {
                 if let Err(e) = assert_gold_card(card, choice, extra) {
                     panic!("{} (choice {choice}, extra {extra}): {e}", card.0.id);
+                }
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Property 12: prompts depend only on the Frozen_Context
+// ---------------------------------------------------------------------------
+
+const DECISION_TEMPLATE: &str = "[system]\nYou advise a town. Answer with JSON only.\n{{schema}}\n[user]\nToday is day {{tick}}.\n{{situation}}\nSubject: {{subject}}\nPeople:\n{{people}}\nRelations:\n{{relations}}\nEvents:\n{{events}}\nOptions:\n{{options}}\nPlayer: {{player_input}}\n";
+const SYNTHESIS_TEMPLATE: &str = "[system]\nYou summarize town facts. Answer with JSON only.\n{{schema}}\n[user]\nToday is day {{tick}}.\n{{situation}}\nSubject: {{subject}}\nPeople:\n{{people}}\nRelations:\n{{relations}}\nEvents:\n{{events}}\nPlayer: {{player_input}}\n";
+const TEST_SCHEMA: &str = "Schema: {\"fixed\":true}";
+
+fn template_for(ctx: &FrozenContext) -> &'static str {
+    match ctx.task {
+        Task::Decision => DECISION_TEMPLATE,
+        Task::Synthesis => SYNTHESIS_TEMPLATE,
+    }
+}
+
+/// Every kept permutation of the card on this line, rendered.
+fn render_line(line: &str) -> Result<Vec<(Permutation, String, String)>, TestCaseError> {
+    let (_, ctx, _, _) = parse_card(line, 1).map_err(|e| TestCaseError::fail(e.to_string()))?;
+    let template = template_for(&ctx);
+    permutations(&ctx)
+        .into_iter()
+        .map(|perm| {
+            let p = render(&ctx, template, Some(TEST_SCHEMA), perm)
+                .map_err(|e| TestCaseError::fail(format!("{e:?}")))?;
+            Ok((perm, p.system, p.user))
+        })
+        .collect()
+}
+
+proptest! {
+    // Feature: llm-probe, Property 12: Prompts depend only on the Frozen_Context
+    // **Validates: Requirements 4.9, 7.1, 7.2**
+    #[test]
+    fn prompts_ignore_card_metadata_and_answer_key(
+        (card, new_key) in arb_card().prop_flat_map(|c| {
+            let k = arb_key(&c.1);
+            (Just(c), k)
+        }),
+        group in 1u32..=999,
+        scored in any::<bool>(),
+        note in "\\PC{1,60}",
+        drop_contrast in any::<bool>(),
+    ) {
+        let (meta, ctx, _, contrast) = card.clone();
+        let before = render_line(&card_line(&card))?;
+        prop_assert!(!before.is_empty());
+        // Rendering the same inputs twice is byte-identical.
+        prop_assert_eq!(&before, &render_line(&card_line(&card))?);
+
+        // Change every meta and answer-key field, keeping task, family and context.
+        let prefix = &meta.id[..meta.id.len() - 3];
+        let new_meta = CardMeta {
+            id: format!("{prefix}{group:03}"),
+            scenario_group: format!("G{group:03}"),
+            split: Split::Dev,
+            scored,
+            author_note: note,
+        };
+        let new_contrast = if drop_contrast { None } else { contrast.clone() };
+        let changed = (new_meta, ctx.clone(), new_key, new_contrast);
+        let after = render_line(&card_line(&changed))?;
+        prop_assert_eq!(&before, &after);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Property 13: permutations follow the fixed rules
+// ---------------------------------------------------------------------------
+
+/// The candidate orders written out independently of the renderer.
+fn model_candidate<T: Clone>(xs: &[T], perm: Permutation) -> Vec<T> {
+    let n = xs.len();
+    let rot = |k: usize| -> Vec<T> {
+        if n == 0 {
+            return Vec::new();
+        }
+        let k = k % n;
+        xs[k..].iter().chain(&xs[..k]).cloned().collect()
+    };
+    match perm {
+        Permutation::Base => xs.to_vec(),
+        Permutation::Reversed => xs.iter().rev().cloned().collect(),
+        Permutation::Rotated1 => rot(1),
+        Permutation::Rotated2 => rot(2),
+    }
+}
+
+/// Events with the candidate applied inside each same-tick block.
+fn model_events(ctx: &FrozenContext, perm: Permutation) -> Vec<sim_core::llm::Event> {
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < ctx.events.len() {
+        let mut j = i;
+        while j < ctx.events.len() && ctx.events[j].tick == ctx.events[i].tick {
+            j += 1;
+        }
+        out.extend(model_candidate(&ctx.events[i..j], perm));
+        i = j;
+    }
+    out
+}
+
+/// The same context with the options (D) or events (S) put in the modelled order.
+fn model_context(ctx: &FrozenContext, perm: Permutation) -> FrozenContext {
+    let mut c = ctx.clone();
+    match &ctx.spec {
+        TaskSpec::Decision { options } => {
+            c.spec = TaskSpec::Decision {
+                options: model_candidate(options, perm),
+            };
+        }
+        TaskSpec::Synthesis { .. } => c.events = model_events(ctx, perm),
+    }
+    c
+}
+
+fn sorted_lines(text: &str) -> Vec<&str> {
+    let mut v: Vec<&str> = text.lines().collect();
+    v.sort_unstable();
+    v
+}
+
+fn check_permutation_rules(ctx: &FrozenContext) -> Result<(), TestCaseError> {
+    let kept = permutations(ctx);
+    prop_assert_eq!(kept.first(), Some(&Permutation::Base));
+    if ctx.family == sim_core::llm::Family::Sanity {
+        prop_assert_eq!(&kept, &vec![Permutation::Base]);
+    }
+
+    // The expected list: base, then each candidate whose order is new.
+    let mut expected = vec![Permutation::Base];
+    let mut orders = vec![model_context(ctx, Permutation::Base)];
+    if ctx.family != sim_core::llm::Family::Sanity {
+        for cand in [
+            Permutation::Reversed,
+            Permutation::Rotated1,
+            Permutation::Rotated2,
+        ] {
+            let c = model_context(ctx, cand);
+            if orders.iter().all(|o| *o != c) {
+                orders.push(c);
+                expected.push(cand);
+            }
+        }
+    }
+    prop_assert_eq!(&kept, &expected);
+
+    match &ctx.spec {
+        TaskSpec::Decision { options } if ctx.family != sim_core::llm::Family::Sanity => {
+            let non_base = kept.len() - 1;
+            prop_assert_eq!(non_base, if options.len() == 2 { 1 } else { 3 });
+        }
+        TaskSpec::Synthesis { .. } => {
+            let multi = ctx.events.windows(2).any(|w| w[0].tick == w[1].tick);
+            if !multi {
+                prop_assert_eq!(&kept, &vec![Permutation::Base]);
+            }
+        }
+        _ => {}
+    }
+
+    let template = template_for(ctx);
+    let base = render(ctx, template, Some(TEST_SCHEMA), Permutation::Base)
+        .map_err(|e| TestCaseError::fail(format!("{e:?}")))?;
+    for perm in kept {
+        let got = render(ctx, template, Some(TEST_SCHEMA), perm)
+            .map_err(|e| TestCaseError::fail(format!("{e:?}")))?;
+        // The prompt equals the base prompt of the modelled order.
+        let want = render(
+            &model_context(ctx, perm),
+            template,
+            Some(TEST_SCHEMA),
+            Permutation::Base,
+        )
+        .map_err(|e| TestCaseError::fail(format!("{e:?}")))?;
+        prop_assert_eq!(&got, &want);
+        // Same options and events as the base prompt, only in another order.
+        prop_assert_eq!(sorted_lines(&got.user), sorted_lines(&base.user));
+        prop_assert_eq!(&got.system, &base.system);
+        if matches!(ctx.spec, TaskSpec::Synthesis { .. }) {
+            let ticks = |c: &FrozenContext| c.events.iter().map(|e| e.tick).collect::<Vec<_>>();
+            let m = model_context(ctx, perm);
+            prop_assert_eq!(ticks(&m), ticks(ctx));
+        }
+    }
+    Ok(())
+}
+
+proptest! {
+    // Feature: llm-probe, Property 13: Permutations follow the fixed rules
+    // **Validates: Requirements 7.3, 7.4, 7.5, 7.8**
+    #[test]
+    fn permutations_follow_the_fixed_rules(ctx in arb_context()) {
+        check_permutation_rules(&ctx)?;
+    }
+
+    // Feature: llm-probe, Property 13: Permutations follow the fixed rules
+    // **Validates: Requirements 7.3, 7.4, 7.5, 7.8**
+    #[test]
+    fn decision_permutations_ignore_same_tick_events(ctx in arb_decision_context()) {
+        check_permutation_rules(&ctx)?;
+    }
+}
+
+// Feature: llm-probe, Property 13: Permutations follow the fixed rules
+// **Validates: Requirements 7.3, 7.4, 7.5, 7.8**
+#[test]
+fn every_dev_card_follows_the_permutation_rules() {
+    for (meta, ctx, ..) in dev_cards() {
+        if let Err(e) = check_permutation_rules(&ctx) {
+            panic!("{}: {e}", meta.id);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Property 14: every ID, the tick and every due day appear verbatim in the prompt
+// ---------------------------------------------------------------------------
+
+/// The context with `player_input`, `subject` and `relations` in the given absent or empty
+/// form: `mode` 0 keeps them, 1 makes them absent, 2 makes `player_input` an empty value.
+fn blank_optionals(ctx: &FrozenContext, mode: u8) -> FrozenContext {
+    let mut c = ctx.clone();
+    if mode >= 1 {
+        c.subject = None;
+        c.relations = Vec::new();
+        c.player_input = if mode == 1 {
+            None
+        } else {
+            Some(sim_core::llm::PlayerInput {
+                intent: String::new(),
+                content: String::new(),
+            })
+        };
+    }
+    c
+}
+
+fn check_verbatim(ctx: &FrozenContext, perm: Permutation) -> Result<(), TestCaseError> {
+    let template = template_for(ctx);
+    let p = render(ctx, template, Some(TEST_SCHEMA), perm)
+        .map_err(|e| TestCaseError::fail(format!("{e:?}")))?;
+    let user = &p.user;
+    if let TaskSpec::Decision { options } = &ctx.spec {
+        for o in options {
+            let line = format!("- {}: {}", o.id.as_str(), o.label);
+            prop_assert!(user.contains(&line), "option line {}", line);
+        }
+    }
+    for person in &ctx.people {
+        let line = format!("#{} {},", person.id.0, person.name);
+        prop_assert!(
+            user.lines().any(|l| l.starts_with(&line)),
+            "person line {}",
+            line
+        );
+    }
+    let today = format!("Today is day {}.", ctx.tick);
+    prop_assert!(user.contains(&today), "{}", today);
+    for e in &ctx.events {
+        let head = format!("{} day {} ", e.id.as_str(), e.tick);
+        let lines: Vec<&str> = user.lines().filter(|l| l.starts_with(&head)).collect();
+        prop_assert_eq!(lines.len(), 1, "one line for {}", e.id.as_str());
+        if let Some(due) = e.due_tick {
+            let want = format!("due day {due}");
+            prop_assert!(lines[0].ends_with(&want), "{} in {}", want, lines[0]);
+        } else {
+            prop_assert!(!lines[0].contains("due day"));
+        }
+    }
+    // Absent or empty optional fields render as `none`.
+    if ctx.subject.is_none() {
+        prop_assert!(user.contains("Subject: none\n"));
+    }
+    if ctx.relations.is_empty() {
+        prop_assert!(user.contains("Relations:\nnone\n"));
+    }
+    let empty_input = ctx
+        .player_input
+        .as_ref()
+        .is_none_or(|i| i.intent.is_empty() && i.content.is_empty());
+    if empty_input {
+        prop_assert!(user.ends_with("Player: none"), "{}", user);
+    }
+    Ok(())
+}
+
+proptest! {
+    // Feature: llm-probe, Property 14: Every ID, the tick and every due day appear verbatim in the prompt
+    // **Validates: Requirements 7.6, 7.9, 7.10, 7.11**
+    #[test]
+    fn ids_tick_and_due_days_appear_verbatim(ctx in arb_context(), mode in 0u8..3) {
+        let ctx = blank_optionals(&ctx, mode);
+        for perm in permutations(&ctx) {
+            check_verbatim(&ctx, perm)?;
+        }
+    }
+
+    // Feature: llm-probe, Property 14: Every ID, the tick and every due day appear verbatim in the prompt
+    // **Validates: Requirements 7.6, 7.9, 7.10, 7.11**
+    #[test]
+    fn structural_faults_are_render_errors_naming_the_card(
+        ctx in arb_decision_context(),
+        keep in 0usize..2,
+        extra in 6usize..9,
+        card_id in "[DSX][0-9]{3}",
+    ) {
+        use sim_core::llm::{OptionDef, OptionId};
+        use sim_core::llm::render::RenderReason;
+        let TaskSpec::Decision { options } = &ctx.spec else {
+            return Err(TestCaseError::fail("decision context expected"));
+        };
+        let with_options = |opts: Vec<OptionDef>| {
+            let mut c = ctx.clone();
+            c.spec = TaskSpec::Decision { options: opts };
+            c
+        };
+        let check = |c: &FrozenContext, template: &str, want: RenderReason|
+            -> Result<(), TestCaseError> {
+            let err = render(c, template, Some(TEST_SCHEMA), Permutation::Base)
+                .err()
+                .ok_or_else(|| TestCaseError::fail("structural fault was rendered"))?
+                .with_card_id(&card_id);
+            prop_assert_eq!(&err.reason, &want);
+            prop_assert!(err.to_string().contains(&card_id), "{}", err);
+            prop_assert!(err.to_string().contains(&want.to_string()), "{}", err);
+            Ok(())
+        };
+        // Too few options.
+        let few: Vec<OptionDef> = options.iter().take(keep).cloned().collect();
+        check(&with_options(few), DECISION_TEMPLATE, RenderReason::OptionCount(keep))?;
+        // Too many options (unique IDs).
+        let many: Vec<OptionDef> = (0..extra)
+            .map(|i| OptionDef {
+                id: OptionId::new(&format!("opt_{}", (b'a' + i as u8) as char)).expect("id"),
+                label: format!("label {i}"),
+            })
+            .collect();
+        check(&with_options(many), DECISION_TEMPLATE, RenderReason::OptionCount(extra))?;
+        // A repeated option ID.
+        let mut dup = options.clone();
+        dup[1].id = dup[0].id.clone();
+        let dup_id = dup[0].id.as_str().to_owned();
+        check(&with_options(dup), DECISION_TEMPLATE, RenderReason::DuplicateOptionId(dup_id))?;
+        // A template without a required placeholder.
+        check(
+            &ctx,
+            &DECISION_TEMPLATE.replace("{{tick}}", "?"),
+            RenderReason::MissingPlaceholder("tick"),
+        )?;
+        check(
+            &ctx,
+            &DECISION_TEMPLATE.replace("{{options}}", "?"),
+            RenderReason::MissingPlaceholder("options"),
+        )?;
+        if !ctx.events.is_empty() {
+            check(
+                &ctx,
+                &DECISION_TEMPLATE.replace("{{events}}", "?"),
+                RenderReason::MissingPlaceholder("events"),
+            )?;
+        }
+        // Schema text missing for `{{schema}}`.
+        let err = render(&ctx, DECISION_TEMPLATE, None, Permutation::Base).err();
+        prop_assert_eq!(
+            err.map(|e| e.reason),
+            Some(RenderReason::MissingValue("schema"))
+        );
+    }
+}
+
+// Feature: llm-probe, Property 14: Every ID, the tick and every due day appear verbatim in the prompt
+// **Validates: Requirements 7.6, 7.9, 7.10, 7.11**
+#[test]
+fn every_dev_card_prompt_carries_ids_tick_and_due_days() {
+    for (meta, ctx, ..) in dev_cards() {
+        for mode in 0..3 {
+            let c = blank_optionals(&ctx, mode);
+            for perm in permutations(&c) {
+                if let Err(e) = check_verbatim(&c, perm) {
+                    panic!("{} mode {mode} {perm:?}: {e}", meta.id);
                 }
             }
         }

@@ -12,11 +12,13 @@
 )]
 
 pub mod answer;
+pub mod api;
 pub mod card;
 pub mod context;
 pub mod grade;
 pub mod json;
 pub mod key;
+pub mod render;
 pub mod validate;
 
 use std::collections::BTreeSet;
@@ -116,6 +118,44 @@ pub enum IllegalReason {
     Timeout,
     /// Built by the runner for non-text outcomes.
     RuntimeError,
+}
+
+impl IllegalReason {
+    const NAMES: [(IllegalReason, &'static str); 14] = [
+        (IllegalReason::ParseFailure, "parse_failure"),
+        (IllegalReason::OutOfSetOption, "out_of_set_option"),
+        (
+            IllegalReason::MissingRequiredField,
+            "missing_required_field",
+        ),
+        (IllegalReason::UnknownField, "unknown_field"),
+        (IllegalReason::IllegalEnumValue, "illegal_enum_value"),
+        (IllegalReason::NonInteger, "non_integer"),
+        (IllegalReason::IntegerOutOfRange, "integer_out_of_range"),
+        (IllegalReason::EmptyEvidence, "empty_evidence"),
+        (IllegalReason::DuplicateEvidence, "duplicate_evidence"),
+        (IllegalReason::MalformedEventId, "malformed_event_id"),
+        (IllegalReason::WrongType, "wrong_type"),
+        (IllegalReason::WrongSchemaConst, "wrong_schema_const"),
+        (IllegalReason::Timeout, "timeout"),
+        (IllegalReason::RuntimeError, "runtime_error"),
+    ];
+
+    /// The snake_case name written to JSON.
+    pub fn as_str(self) -> &'static str {
+        Self::NAMES
+            .iter()
+            .find(|(r, _)| *r == self)
+            .map_or("", |(_, n)| *n)
+    }
+
+    /// Inverse of [`IllegalReason::as_str`].
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::NAMES
+            .iter()
+            .find(|(_, n)| *n == name)
+            .map(|(r, _)| *r)
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

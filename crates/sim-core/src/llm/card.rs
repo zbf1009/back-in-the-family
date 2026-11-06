@@ -528,6 +528,86 @@ fn is_decision_family(family: Family) -> bool {
     !is_synthesis_family(family) && family != Family::Sanity
 }
 
+/// The card-file name of a family.
+pub fn family_name(family: Family) -> &'static str {
+    match family {
+        Family::DreamInterpretation => "dream_interpretation",
+        Family::WillExecution => "will_execution",
+        Family::ReconcileOrRevenge => "reconcile_or_revenge",
+        Family::DebtRepayment => "debt_repayment",
+        Family::Remarriage => "remarriage",
+        Family::MagistrateRuling => "magistrate_ruling",
+        Family::GrudgeDetection => "grudge_detection",
+        Family::DebtChain => "debt_chain",
+        Family::BrokenPromise => "broken_promise",
+        Family::RelationshipShift => "relationship_shift",
+        Family::Sanity => "sanity",
+    }
+}
+
+/// The card-file name of a severe condition.
+pub fn severe_condition_name(cond: SevereCondition) -> &'static str {
+    SEVERE
+        .iter()
+        .find(|(_, c)| *c == cond)
+        .map_or("", |(n, _)| *n)
+}
+
+/// Reads a Frozen_Context from the JSON the JSON API exchanges: the card's context members
+/// (`tick`, `subject`, `people`, `relations`, `events`, `situation`, `player_input`) plus
+/// `task`, `family`, and `options` (decision) or `output_schema` (synthesis).
+pub fn frozen_context_from_json(v: Json) -> Result<FrozenContext, CardError> {
+    let kind = CardErrorKind::Context;
+    let mut o = Obj::new(kind, "frozen_context", v)?;
+    let task = match o.choice("task", &["decision", "synthesis"])?.as_str() {
+        "decision" => Task::Decision,
+        _ => Task::Synthesis,
+    };
+    let family_name = o.choice("family", &FAMILIES)?;
+    let family = family_of(&family_name)
+        .ok_or_else(|| bad(kind, "frozen_context.family", "illegal_enum_value"))?;
+    let family_ok = match task {
+        Task::Decision => is_decision_family(family) || family == Family::Sanity,
+        Task::Synthesis => is_synthesis_family(family) || family == Family::Sanity,
+    };
+    if !family_ok {
+        return Err(bad(kind, "frozen_context.family", "family_task_mismatch"));
+    }
+    let spec = match task {
+        Task::Decision => TaskSpec::Decision {
+            options: options(o.req("options")?)?,
+        },
+        Task::Synthesis => {
+            let name = o.choice("output_schema", &SCHEMAS)?;
+            let schema = schema_of(&name)
+                .ok_or_else(|| bad(kind, "frozen_context.output_schema", "illegal_enum_value"))?;
+            if let Some(required) = family_schema(family)
+                && required != schema
+            {
+                return Err(bad(
+                    kind,
+                    "frozen_context.output_schema",
+                    "schema_family_mismatch",
+                ));
+            }
+            TaskSpec::Synthesis { schema }
+        }
+    };
+    let ctx = context(Json::Object(o.map))?;
+    Ok(FrozenContext {
+        task,
+        family,
+        tick: ctx.tick,
+        subject: ctx.subject,
+        people: ctx.people,
+        relations: ctx.relations,
+        events: ctx.events,
+        situation: ctx.situation,
+        player_input: ctx.player_input,
+        spec,
+    })
+}
+
 /// Item fields a pattern may name for each output schema (besides `evidence_any`).
 pub(super) fn pattern_fields(schema: OutputSchema) -> &'static [&'static str] {
     match schema {

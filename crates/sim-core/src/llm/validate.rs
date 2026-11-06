@@ -292,6 +292,28 @@ fn check_item(schema: OutputSchema, index: usize, v: &Json) -> Check<Item> {
 }
 
 fn check_synthesis(ctx: &FrozenContext, schema: OutputSchema, value: &Json) -> Check<Verdict> {
+    let (typed, persons, events) = check_answer(schema, value)?;
+    let known_persons: BTreeSet<i64> = ctx.people.iter().map(|p| p.id.0).collect();
+    let known_events: BTreeSet<&str> = ctx.events.iter().map(|e| e.id.as_str()).collect();
+    Ok(Verdict::Synthesis {
+        answer: typed,
+        missing_persons: persons
+            .into_iter()
+            .filter(|p| !known_persons.contains(p))
+            .collect(),
+        missing_events: events
+            .into_iter()
+            .filter(|e| !known_events.contains(e.as_str()))
+            .collect(),
+    })
+}
+
+/// Checks an S answer against the family schema alone (no context) and returns the typed
+/// answer with every person ID and event ID it names.
+fn check_answer(
+    schema: OutputSchema,
+    value: &Json,
+) -> Check<(SynthesisAnswer, BTreeSet<i64>, BTreeSet<String>)> {
     let Json::Object(top) = value else {
         return fail(IllegalReason::WrongType, "$");
     };
@@ -312,19 +334,27 @@ fn check_synthesis(ctx: &FrozenContext, schema: OutputSchema, value: &Json) -> C
         return fail(IllegalReason::WrongType, "items");
     };
     let (persons, events) = references(&items);
-    let known_persons: BTreeSet<i64> = ctx.people.iter().map(|p| p.id.0).collect();
-    let known_events: BTreeSet<&str> = ctx.events.iter().map(|e| e.id.as_str()).collect();
-    Ok(Verdict::Synthesis {
-        answer: typed,
-        missing_persons: persons
-            .into_iter()
-            .filter(|p| !known_persons.contains(p))
-            .collect(),
-        missing_events: events
-            .into_iter()
-            .filter(|e| !known_events.contains(e.as_str()))
-            .collect(),
-    })
+    Ok((typed, persons, events))
+}
+
+/// Reads a typed S answer back from the JSON written by `answer::to_json`. The schema is
+/// taken from the value's own `schema` member. `None` when the value is not a legal answer.
+pub fn read_answer(value: &Json) -> Option<SynthesisAnswer> {
+    let Json::Object(top) = value else {
+        return None;
+    };
+    let Some(Json::Str(name)) = top.get("schema") else {
+        return None;
+    };
+    let schema = [
+        OutputSchema::GrudgeV1,
+        OutputSchema::DebtChainV1,
+        OutputSchema::BrokenPromiseV1,
+        OutputSchema::RelationshipShiftV1,
+    ]
+    .into_iter()
+    .find(|s| answer::schema_name(*s) == name)?;
+    check_answer(schema, value).ok().map(|(a, _, _)| a)
 }
 
 /// Person fields and event fields per R4.7, collected as sorted sets.

@@ -1703,3 +1703,316 @@ mod readme_grading {
         }
     }
 }
+
+// ---- JSON API (task 4.5) ----
+//
+// The canonical JSON of each `sim_core::llm::api` function for Dev_Cards. Only
+// `dev.jsonl` is read. Answer-key member names are built at runtime.
+
+mod json_api {
+    use serde_json::{Value, json};
+    use sim_core::llm::api::{
+        frozen_context_to_json, llm_contrast, llm_grade, llm_identity, llm_parse_card,
+        llm_permutations, llm_render_prompt, llm_validate,
+    };
+    use sim_core::llm::card::{frozen_context_from_json, parse_card};
+
+    const DEV: &str = include_str!("../../../eval/cards/cards/dev.jsonl");
+
+    fn card(id: &str) -> &'static str {
+        DEV.lines()
+            .find(|l| l.contains(&format!("\"id\":\"{id}\"")))
+            .unwrap_or_else(|| panic!("no dev card {id}"))
+    }
+
+    fn val(s: &str) -> Value {
+        serde_json::from_str(s).unwrap_or_else(|e| panic!("not JSON ({e}): {s}"))
+    }
+
+    fn ok(s: &str) -> Value {
+        let v = val(s);
+        assert_eq!(v["ok"], json!(true), "{s}");
+        v
+    }
+
+    fn error(s: &str) -> (String, String) {
+        let v = val(s);
+        assert_eq!(v["ok"], json!(false), "{s}");
+        (
+            v["error"]["kind"].as_str().unwrap_or_default().to_owned(),
+            v["error"]["message"]
+                .as_str()
+                .unwrap_or_default()
+                .to_owned(),
+        )
+    }
+
+    const D1: &str = "D-dream_interpretation-001";
+    const D2: &str = "D-dream_interpretation-002";
+    const S1: &str = "S-grudge_detection-001";
+
+    fn ctx_of(id: &str) -> Value {
+        ok(&llm_parse_card(card(id)))["frozen_context"].clone()
+    }
+
+    #[test]
+    fn parse_card_result_for_a_decision_dev_card() {
+        let out = llm_parse_card(card(D1));
+        let v = ok(&out);
+        assert_eq!(
+            v["meta"],
+            json!({"family":"dream_interpretation","id":D1,"pair_id":"P001","role":"a",
+                   "scenario_group":"G001","scored":true,"split":"dev","task":"decision"})
+        );
+        assert_eq!(
+            v["random_baseline_parts"],
+            json!({"acceptable_count":2,"option_count":4})
+        );
+        assert_eq!(v["frozen_context"]["task"], json!("decision"));
+        assert_eq!(
+            v["frozen_context"]["options"][0]["id"],
+            json!("heed_warning")
+        );
+        // `card` is the canonical form of the input line, so it parses back to the same card.
+        let canonical = serde_json::to_string(&v["card"]).unwrap_or_default();
+        assert_eq!(val(card(D1)), val(&canonical));
+        // Canonical: keys in byte order, no whitespace; calling twice gives the same bytes.
+        assert!(out.starts_with("{\"card\":{"), "{}", &out[..40]);
+        assert!(!out.contains("\n"));
+        assert_eq!(out, llm_parse_card(card(D1)));
+    }
+
+    #[test]
+    fn parse_card_result_for_a_synthesis_dev_card_has_no_baseline() {
+        let v = ok(&llm_parse_card(card(S1)));
+        assert_eq!(v["random_baseline_parts"], Value::Null);
+        assert_eq!(v["meta"]["task"], json!("synthesis"));
+        assert_eq!(v["frozen_context"]["output_schema"], json!("grudge_v1"));
+    }
+
+    #[test]
+    fn frozen_context_json_round_trips_for_every_dev_card() {
+        for (i, line) in DEV.lines().enumerate() {
+            let (_, ctx, _, _) = parse_card(line, i + 1).expect("dev card parses");
+            let back = frozen_context_from_json(frozen_context_to_json(&ctx))
+                .unwrap_or_else(|e| panic!("line {}: {e}", i + 1));
+            assert_eq!(back, ctx, "line {}", i + 1);
+        }
+    }
+
+    #[test]
+    fn permutations_result() {
+        let input = json!({"frozen_context": ctx_of(D1)}).to_string();
+        assert_eq!(
+            llm_permutations(&input),
+            r#"{"ok":true,"permutations":["base","reversed","rotated_1","rotated_2"]}"#
+        );
+        let sanity = json!({"frozen_context": ctx_of("D-sanity-001")}).to_string();
+        assert_eq!(
+            llm_permutations(&sanity),
+            r#"{"ok":true,"permutations":["base"]}"#
+        );
+    }
+
+    #[test]
+    fn render_prompt_result() {
+        let template = "[system]\nYou decide. Today is day {{tick}}.\n[user]\n{{situation}}\n{{people}}\n{{relations}}\n{{events}}\n{{options}}\n";
+        let input = json!({"frozen_context": ctx_of(D1), "template": template,
+                           "schema_text": null, "permutation": "reversed"})
+        .to_string();
+        let out = llm_render_prompt(&input);
+        let v = ok(&out);
+        assert_eq!(v["renderer_version"], json!(2));
+        assert!(
+            v["system"]
+                .as_str()
+                .unwrap_or_default()
+                .starts_with("You decide. Today is day ")
+        );
+        let user = v["user"].as_str().unwrap_or_default();
+        let first = user
+            .find("read_as_blessing")
+            .expect("reversed puts it first");
+        let last = user.find("heed_warning").expect("last option");
+        assert!(first < last);
+        assert_eq!(out, llm_render_prompt(&input));
+        // A template that uses an unknown placeholder is a render error.
+        let bad = json!({"frozen_context": ctx_of(D1), "template": "[system]\n{{nope}}\n[user]\nx",
+                         "permutation": "base"})
+        .to_string();
+        let (kind, message) = error(&llm_render_prompt(&bad));
+        assert_eq!(kind, "render");
+        assert!(message.contains("nope"), "{message}");
+    }
+
+    #[test]
+    fn validate_results() {
+        let ctx = ctx_of(D1);
+        let raw =
+            json!({"frozen_context": ctx, "raw": "{\"option\":\"heed_warning\"}"}).to_string();
+        assert_eq!(
+            llm_validate(&raw),
+            r#"{"ok":true,"verdict":{"kind":"decision","option":"heed_warning"}}"#
+        );
+        let off = json!({"frozen_context": ctx, "raw": "{\"option\":\"nope\"}"}).to_string();
+        assert_eq!(
+            llm_validate(&off),
+            r#"{"ok":true,"verdict":{"kind":"illegal","path":"option","reason":"out_of_set_option"}}"#
+        );
+        let timeout = json!({"frozen_context": ctx, "outcome": {"kind": "timeout"}}).to_string();
+        assert_eq!(
+            llm_validate(&timeout),
+            r#"{"ok":true,"verdict":{"kind":"illegal","path":null,"reason":"timeout"}}"#
+        );
+        let fail = json!({"frozen_context": ctx, "outcome": {"kind": "error", "code": "http_500"}})
+            .to_string();
+        assert_eq!(
+            llm_validate(&fail),
+            r#"{"ok":true,"verdict":{"kind":"illegal","path":null,"reason":"runtime_error"}}"#
+        );
+    }
+
+    fn decision(option: &str) -> Value {
+        json!({"kind": "decision", "option": option})
+    }
+
+    #[test]
+    fn grade_identity_and_contrast_results() {
+        let grade = json!({"card": card(D1), "verdict": decision("heed_warning")}).to_string();
+        assert_eq!(
+            llm_grade(&grade),
+            r#"{"grade":{"acceptable":true,"illegal":false,"severe":false,"severe_conditions":[]},"ok":true}"#
+        );
+        assert_eq!(
+            llm_identity(&grade),
+            r#"{"identity":{"kind":"option","option":"heed_warning"},"ok":true}"#
+        );
+        let illegal = json!({"card": card(D1),
+            "verdict": {"kind":"illegal","reason":"timeout","path":null}})
+        .to_string();
+        assert_eq!(
+            llm_grade(&illegal),
+            r#"{"grade":{"acceptable":false,"illegal":true,"severe":false,"severe_conditions":[]},"ok":true}"#
+        );
+        assert_eq!(
+            llm_identity(&illegal),
+            r#"{"identity":{"kind":"invalid"},"ok":true}"#
+        );
+        let pair = json!({"card_a": card(D1), "verdict_a": decision("heed_warning"),
+                          "card_b": card(D2), "verdict_b": decision("heed_warning")})
+        .to_string();
+        let v = ok(&llm_contrast(&pair));
+        assert_eq!(v["contrast"]["a_in_expected"], json!(true));
+        assert_eq!(
+            v["contrast"]["consistent"],
+            json!(
+                v["contrast"]["a_in_expected"] == json!(true)
+                    && v["contrast"]["b_in_expected"] == json!(true)
+            )
+        );
+        assert_eq!(llm_contrast(&pair), llm_contrast(&pair));
+    }
+
+    #[test]
+    fn synthesis_card_validate_grade_identity_chain() {
+        let ctx = ctx_of(S1);
+        let people = ctx["people"].as_array().cloned().unwrap_or_default();
+        let events = ctx["events"].as_array().cloned().unwrap_or_default();
+        let answer = json!({"schema":"grudge_v1","items":[{
+            "from": people[0]["id"], "to": people[1]["id"], "level": "high",
+            "evidence": [events[0]["id"]], "reason": "r"}]});
+        let input = json!({"frozen_context": ctx, "raw": answer.to_string()}).to_string();
+        let verdict = ok(&llm_validate(&input))["verdict"].clone();
+        assert_eq!(verdict["kind"], json!("synthesis"));
+        assert_eq!(verdict["missing_events"], json!([]));
+        let graded = ok(&llm_grade(
+            &json!({"card": card(S1), "verdict": verdict}).to_string(),
+        ));
+        assert_eq!(graded["grade"]["illegal"], json!(false));
+        let identity = ok(&llm_identity(
+            &json!({"card": card(S1), "verdict": verdict}).to_string(),
+        ));
+        assert_eq!(identity["identity"]["kind"], json!("set"));
+        assert_eq!(identity["identity"]["tuples"][0]["type"], json!("grudge"));
+        assert_eq!(identity["identity"]["tuples"][0]["level"], json!("high"));
+    }
+
+    #[test]
+    fn bad_input_is_an_input_error_and_never_panics() {
+        let deep = "[".repeat(10_000);
+        let huge = format!("\"{}\"", "a".repeat(9_000_000));
+        let inputs = [
+            "",
+            " ",
+            "null",
+            "[]",
+            "42",
+            "\"x\"",
+            "{",
+            "{}",
+            "{\"frozen_context\":1}",
+            "{\"card\":3,\"verdict\":{}}",
+            deep.as_str(),
+            huge.as_str(),
+        ];
+        for input in inputs {
+            for out in [
+                llm_parse_card(input),
+                llm_permutations(input),
+                llm_render_prompt(input),
+                llm_validate(input),
+                llm_grade(input),
+                llm_identity(input),
+                llm_contrast(input),
+            ] {
+                let v = val(&out);
+                assert!(
+                    v["ok"] == json!(true) || v["error"]["kind"].is_string(),
+                    "{out}"
+                );
+            }
+        }
+        assert_eq!(error(&llm_permutations("{")).0, "input");
+        assert_eq!(
+            error(&llm_grade(&json!({"card": card(D1)}).to_string())).0,
+            "input"
+        );
+        let extra =
+            json!({"card": card(D1), "verdict": decision("heed_warning"), "more": 1}).to_string();
+        assert_eq!(error(&llm_grade(&extra)).0, "input");
+        assert_eq!(error(&llm_parse_card("not json")).0, "card");
+    }
+
+    #[test]
+    fn card_and_answer_key_errors_name_fields_bare() {
+        // A synthesis-only member on a decision card is an answer-key error.
+        let name = format!("{}_{}", "severe", "patterns");
+        let line =
+            card(D1).trim_end().trim_end_matches('}').to_owned() + &format!(",\"{name}\":[]}}");
+        let (kind, message) = error(&llm_parse_card(&line));
+        assert_eq!(kind, "answer_key");
+        assert!(message.contains(&name), "{message}");
+        assert!(!message.contains('"'), "{message}");
+        // A verdict of the wrong task is an answer-key error from the grader.
+        let synth = ok(&llm_validate(
+            &json!({"frozen_context": ctx_of(S1), "raw": "{\"schema\":\"grudge_v1\",\"items\":[]}"}).to_string(),
+        ))["verdict"]
+            .clone();
+        let (kind, message) = error(&llm_grade(
+            &json!({"card": card(D1), "verdict": synth}).to_string(),
+        ));
+        assert_eq!(kind, "answer_key");
+        assert!(!message.contains('"'), "{message}");
+    }
+
+    #[test]
+    fn contrast_needs_one_pair_in_order() {
+        let v = decision("heed_warning");
+        let swapped =
+            json!({"card_a": card(D2), "verdict_a": v, "card_b": card(D1), "verdict_b": v});
+        assert_eq!(error(&llm_contrast(&swapped.to_string())).0, "card");
+        let unpaired = json!({"card_a": card("D-dream_interpretation-003"), "verdict_a": v,
+                              "card_b": card(D2), "verdict_b": v});
+        assert_eq!(error(&llm_contrast(&unpaired.to_string())).0, "card");
+    }
+}

@@ -236,7 +236,13 @@ impl Reader<'_> {
 
 /// Parses `input` as exactly one JSON value with only whitespace around it.
 pub fn parse(input: &str) -> Result<Json, JsonError> {
-    if input.len() > MAX_INPUT_BYTES {
+    parse_limited(input, MAX_INPUT_BYTES)
+}
+
+/// Like [`parse`] with a caller-chosen byte limit (the JSON API wraps model output in an
+/// envelope, so its outer limit is larger than the limit for the model output itself).
+pub fn parse_limited(input: &str, max_bytes: usize) -> Result<Json, JsonError> {
+    if input.len() > max_bytes {
         return Err(fail("too_large"));
     }
     let mut r = Reader {
