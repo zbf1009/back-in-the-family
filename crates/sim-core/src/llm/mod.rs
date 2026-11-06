@@ -14,6 +14,7 @@
 pub mod answer;
 pub mod card;
 pub mod context;
+pub mod grade;
 pub mod json;
 pub mod key;
 pub mod validate;

@@ -812,3 +812,894 @@ mod forbidden_literals {
         }
     }
 }
+
+// ---- README grading examples (task 3.7) ----
+//
+// Hand-built cards, one or more per grading rule of the Grading section of
+// `eval/cards/README.md`. No card file is read. The answer-key member names are built
+// at runtime so this file keeps the same habit as the source files.
+
+mod readme_grading {
+    use sim_core::llm::card::{CardErrorKind, ExpectedSide, parse_card};
+    use sim_core::llm::grade::{GradeError, contrast, grade, identity};
+    use sim_core::llm::validate::validate_raw;
+    use sim_core::llm::{
+        AnswerKey, FrozenContext, Grade, IdentityValue, OptionId, OutputSchema, Pattern,
+        PatternValue, Scalar, SevereCondition, SynthesisAnswer, Verdict,
+    };
+    use std::collections::{BTreeMap, BTreeSet};
+
+    const AUTHOR_NOTE: &str = concat!("author", "_note");
+    const SEVERE_PATTERNS: &str = concat!("severe", "_patterns");
+
+    const PEOPLE: &str = r#"[
+        {"id":1,"name":"Ann One","age":40,"sex":"female","alive":true,"origin":"native","traits":{"greed":0,"loyalty":0,"pride":0,"warmth":0,"temper":0,"vindictiveness":0,"piety":0},"wealth":0,"soul_id":"S-0101"},
+        {"id":2,"name":"Bob Two","age":42,"sex":"male","alive":true,"origin":"native","traits":{"greed":0,"loyalty":0,"pride":0,"warmth":0,"temper":0,"vindictiveness":0,"piety":0},"wealth":0,"soul_id":"S-0102"},
+        {"id":3,"name":"Cy Three","age":80,"sex":"male","alive":false,"origin":"native","traits":{"greed":0,"loyalty":0,"pride":0,"warmth":0,"temper":0,"vindictiveness":0,"piety":0},"wealth":0,"soul_id":"S-0103"}]"#;
+
+    const EVENTS: &str = r#"[
+        {"id":"e1","tick":10,"type":"loan","actors":[2,1],"magnitude":50,"due_tick":90,"caused_by":[],"tags":[]},
+        {"id":"e2","tick":20,"type":"gift","actors":[1,2],"magnitude":5,"caused_by":[],"tags":[]},
+        {"id":"e3","tick":20,"type":"insult","actors":[2,1],"magnitude":5,"caused_by":[],"tags":[]},
+        {"id":"e4","tick":30,"type":"death","actors":[3],"magnitude":0,"caused_by":[],"tags":[]}]"#;
+
+    fn context(subject: &str) -> String {
+        format!(
+            r#"{{"tick":100,"subject":{subject},"people":{PEOPLE},"relations":[],"events":{EVENTS},"situation":"Hand built.","player_input":null}}"#
+        )
+    }
+
+    /// A synthesis card line. `contrast` is either empty or `,"contrast":{...}`.
+    #[allow(clippy::too_many_arguments)]
+    fn s_line(
+        id: &str,
+        family: &str,
+        schema: &str,
+        include: &str,
+        exclude: &str,
+        conds: &str,
+        severe_patterns: &str,
+        contrast: &str,
+    ) -> String {
+        format!(
+            r#"{{"id":"{id}","task":"synthesis","family":"{family}","scenario_group":"G001","split":"dev","scored":true,"context":{ctx}{contrast},"{AUTHOR_NOTE}":"hand built","output_schema":"{schema}","gold":{{"must_include":{include},"must_not_include":{exclude}}},"severe_conditions":{conds},"{SEVERE_PATTERNS}":{severe_patterns}}}"#,
+            ctx = context("null"),
+        )
+    }
+
+    fn grudge_card(include: &str, exclude: &str, conds: &str, sp: &str) -> String {
+        s_line(
+            "S-grudge_detection-001",
+            "grudge_detection",
+            "grudge_v1",
+            include,
+            exclude,
+            conds,
+            sp,
+            "",
+        )
+    }
+
+    fn d_line(id: &str, acceptable: &str, severe: &str, contrast: &str) -> String {
+        format!(
+            r#"{{"id":"{id}","task":"decision","family":"will_execution","scenario_group":"G001","split":"dev","scored":true,"context":{ctx}{contrast},"{AUTHOR_NOTE}":"hand built","options":[{{"id":"heed","label":"Heed"}},{{"id":"burn","label":"Burn"}},{{"id":"dismiss","label":"Dismiss"}},{{"id":"bless","label":"Bless"}}],"acceptable":{acceptable},"severe":{severe}}}"#,
+            ctx = context("1"),
+        )
+    }
+
+    fn parsed(
+        line: &str,
+    ) -> (
+        String,
+        FrozenContext,
+        AnswerKey,
+        Option<sim_core::llm::card::Contrast>,
+    ) {
+        let (meta, ctx, key, c) = parse_card(line, 1).unwrap_or_else(|e| panic!("{e}\n{line}"));
+        (meta.id, ctx, key, c)
+    }
+
+    fn graded(line: &str, raw: &str) -> Grade {
+        let (id, ctx, key, _) = parsed(line);
+        grade(&id, &validate_raw(&ctx, raw), &key).expect("answer key is sound")
+    }
+
+    /// (acceptable, severe, illegal)
+    fn flags(g: &Grade) -> (bool, bool, bool) {
+        (g.acceptable, g.severe, g.illegal)
+    }
+
+    fn verdict(line: &str, raw: &str) -> Verdict {
+        let (_, ctx, _, _) = parsed(line);
+        validate_raw(&ctx, raw)
+    }
+
+    // ---- item and answer builders (JSON text) ----
+
+    fn ids(list: &[&str]) -> String {
+        let quoted: Vec<String> = list.iter().map(|e| format!("\"{e}\"")).collect();
+        format!("[{}]", quoted.join(","))
+    }
+
+    fn grudge(from: i64, to: i64, level: &str, evidence: &[&str]) -> String {
+        format!(
+            r#"{{"from":{from},"to":{to},"level":"{level}","evidence":{},"reason":"r"}}"#,
+            ids(evidence)
+        )
+    }
+
+    fn debt(
+        debtor: i64,
+        creditor: i64,
+        amount: i64,
+        status: &str,
+        origin: &str,
+        evidence: &[&str],
+    ) -> String {
+        format!(
+            r#"{{"debtor":{debtor},"creditor":{creditor},"amount":{amount},"status":"{status}","origin_event":"{origin}","transferred_from":null,"evidence":{},"reason":"r"}}"#,
+            ids(evidence)
+        )
+    }
+
+    fn promise(promisor: i64, promisee: i64, event: &str, status: &str) -> String {
+        format!(
+            r#"{{"promisor":{promisor},"promisee":{promisee},"promise_event":"{event}","status":"{status}","evidence":["e1"],"reason":"r"}}"#
+        )
+    }
+
+    fn shift(a: i64, b: i64, direction: &str, turning: Option<&str>) -> String {
+        let tp = turning.map_or("null".to_owned(), |t| format!("\"{t}\""));
+        format!(
+            r#"{{"a":{a},"b":{b},"direction":"{direction}","turning_point":{tp},"evidence":["e1"],"reason":"r"}}"#
+        )
+    }
+
+    fn wrap(schema: &str, items: &[String]) -> String {
+        format!(r#"{{"schema":"{schema}","items":[{}]}}"#, items.join(","))
+    }
+
+    fn g(items: &[String]) -> String {
+        wrap("grudge_v1", items)
+    }
+
+    // ---- Decision cards ----
+
+    #[test]
+    fn decision_acceptable_severe_and_illegal() {
+        let line = d_line(
+            "D-will_execution-001",
+            r#"["heed","burn"]"#,
+            r#"["bless"]"#,
+            "",
+        );
+        let pick = |o: &str| graded(&line, &format!(r#"{{"option":"{o}"}}"#));
+        assert_eq!(flags(&pick("heed")), (true, false, false));
+        assert_eq!(flags(&pick("burn")), (true, false, false));
+        // Neither acceptable nor severe.
+        assert_eq!(flags(&pick("dismiss")), (false, false, false));
+        // Severe, and therefore not acceptable.
+        assert_eq!(flags(&pick("bless")), (false, true, false));
+        // Illegal: an ID that is not an option, or text that does not parse. Not
+        // acceptable, not severe, reported as its own rate.
+        for raw in [r#"{"option":"fly"}"#, "I would heed it.", ""] {
+            let grade = graded(&line, raw);
+            assert_eq!(flags(&grade), (false, false, true), "{raw:?}");
+            assert!(grade.severe_conditions.is_empty());
+        }
+    }
+
+    // ---- Synthesis cards: illegal, acceptable ----
+
+    #[test]
+    fn synthesis_illegal_output_is_never_severe() {
+        // The card lists every automatic condition; severe checks run only on
+        // schema-valid outputs, so a schema failure stays plain Illegal.
+        let line = grudge_card(
+            "[]",
+            "[]",
+            r#"["invented_event_id","invented_person","self_reference"]"#,
+            "[]",
+        );
+        let bad_enum = g(&[grudge(9, 9, "huge", &["e99"])]);
+        let wrong_schema = wrap("debt_chain_v1", &[]);
+        for raw in [bad_enum.as_str(), wrong_schema.as_str(), "not json", "[]"] {
+            let grade = graded(&line, raw);
+            assert_eq!(flags(&grade), (false, false, true), "{raw}");
+            assert!(grade.severe_conditions.is_empty());
+        }
+    }
+
+    #[test]
+    fn synthesis_acceptable_needs_every_include_and_no_exclude() {
+        let line = grudge_card(
+            r#"[{"from":1,"to":2,"level":["medium","high"],"evidence_any":["e1","e2"]}]"#,
+            r#"[{"from":2,"to":1}]"#,
+            "[]",
+            "[]",
+        );
+        let good = grudge(1, 2, "high", &["e1", "e3"]);
+        let ok = |items: &[String]| flags(&graded(&line, &g(items)));
+        assert_eq!(ok(std::slice::from_ref(&good)), (true, false, false));
+        // A list means "equal to one of these": `low` is not listed.
+        assert_eq!(ok(&[grudge(1, 2, "low", &["e1"])]), (false, false, false));
+        // `evidence_any` needs one listed ID in the item's evidence.
+        assert_eq!(ok(&[grudge(1, 2, "high", &["e3"])]), (false, false, false));
+        // Extra items are allowed...
+        assert_eq!(
+            ok(&[good.clone(), grudge(3, 1, "low", &["e4"])]),
+            (true, false, false)
+        );
+        // ...unless one matches a must_not_include pattern.
+        assert_eq!(
+            ok(&[good.clone(), grudge(2, 1, "low", &["e3"])]),
+            (false, false, false)
+        );
+        // An empty list is schema-valid and misses the include pattern.
+        assert_eq!(ok(&[]), (false, false, false));
+    }
+
+    #[test]
+    fn synthesis_every_include_pattern_must_be_matched() {
+        let line = grudge_card(r#"[{"from":1,"to":2},{"from":3,"to":1}]"#, "[]", "[]", "[]");
+        let a = grudge(1, 2, "low", &["e1"]);
+        let b = grudge(3, 1, "low", &["e4"]);
+        let acceptable = |items: &[String]| graded(&line, &g(items)).acceptable;
+        assert!(!acceptable(std::slice::from_ref(&a)));
+        assert!(!acceptable(std::slice::from_ref(&b)));
+        assert!(acceptable(&[b, a]));
+    }
+
+    #[test]
+    fn item_matching_no_pattern_is_neither_required_nor_harmful() {
+        let line = grudge_card(
+            r#"[{"from":1,"to":2}]"#,
+            r#"[{"from":2,"to":1}]"#,
+            "[]",
+            "[]",
+        );
+        let stray = grudge(3, 2, "medium", &["e4"]);
+        // Alone, the stray item satisfies no include pattern.
+        assert_eq!(
+            flags(&graded(&line, &g(std::slice::from_ref(&stray)))),
+            (false, false, false)
+        );
+        // Next to a matching item it changes nothing.
+        let both = g(&[stray, grudge(1, 2, "high", &["e1"])]);
+        assert_eq!(flags(&graded(&line, &both)), (true, false, false));
+    }
+
+    #[test]
+    fn relationship_shift_pattern_matches_only_with_a_and_b_swapped() {
+        let line = s_line(
+            "S-relationship_shift-001",
+            "relationship_shift",
+            "relationship_shift_v1",
+            r#"[{"a":1,"b":2,"direction":["colder","reversed"],"turning_point":"e3"}]"#,
+            r#"[{"a":1,"b":2,"direction":"warmer"}]"#,
+            "[]",
+            "[]",
+            "",
+        );
+        let w = |items: &[String]| wrap("relationship_shift_v1", items);
+        // As written.
+        let direct = w(&[shift(1, 2, "colder", Some("e3"))]);
+        assert!(graded(&line, &direct).acceptable);
+        // Only the swapped orientation (a=2, b=1) matches the include pattern.
+        let swapped = w(&[shift(2, 1, "colder", Some("e3"))]);
+        assert!(graded(&line, &swapped).acceptable);
+        // The exclude pattern is also tried swapped.
+        let excluded = w(&[
+            shift(1, 2, "reversed", Some("e3")),
+            shift(2, 1, "warmer", None),
+        ]);
+        assert!(!graded(&line, &excluded).acceptable);
+        // A different pair never matches, swapped or not.
+        let other = w(&[shift(1, 3, "colder", Some("e3"))]);
+        assert!(!graded(&line, &other).acceptable);
+        // A swap does not repair a wrong direction or turning point.
+        let wrong_dir = w(&[shift(2, 1, "unchanged", Some("e3"))]);
+        assert!(!graded(&line, &wrong_dir).acceptable);
+        let wrong_tp = w(&[shift(2, 1, "colder", Some("e2"))]);
+        assert!(!graded(&line, &wrong_tp).acceptable);
+    }
+
+    // ---- Synthesis cards: severe ----
+
+    #[test]
+    fn automatic_severe_conditions_fire_only_when_listed() {
+        let all = r#"["invented_event_id","invented_person","self_reference"]"#;
+        let line = grudge_card("[]", "[]", all, "[]");
+        let sev = |items: &[String]| graded(&line, &g(items)).severe_conditions;
+        assert!(sev(&[grudge(1, 2, "low", &["e1"])]).is_empty());
+        // Any event ID not in the card, in any item.
+        assert_eq!(
+            sev(&[grudge(1, 2, "low", &["e1", "e99"])]),
+            vec![SevereCondition::InventedEventId]
+        );
+        // Any person ID not in the card.
+        assert_eq!(
+            sev(&[grudge(1, 9, "low", &["e1"])]),
+            vec![SevereCondition::InventedPerson]
+        );
+        // An item whose two people are the same person.
+        assert_eq!(
+            sev(&[grudge(2, 2, "low", &["e1"])]),
+            vec![SevereCondition::SelfReference]
+        );
+        // All three at once come out in the fixed condition order.
+        assert_eq!(
+            sev(&[grudge(9, 9, "low", &["e99"])]),
+            vec![
+                SevereCondition::InventedEventId,
+                SevereCondition::InventedPerson,
+                SevereCondition::SelfReference
+            ]
+        );
+        // The same answer on a card that lists no condition is not severe.
+        let quiet = grudge_card("[]", "[]", "[]", "[]");
+        let grade = graded(&quiet, &g(&[grudge(9, 9, "low", &["e99"])]));
+        assert_eq!(flags(&grade), (true, false, false));
+        assert!(grade.severe_conditions.is_empty());
+        // Only the listed ones fire.
+        let one = grudge_card("[]", "[]", r#"["self_reference"]"#, "[]");
+        assert_eq!(
+            graded(&one, &g(&[grudge(9, 9, "low", &["e99"])])).severe_conditions,
+            vec![SevereCondition::SelfReference]
+        );
+    }
+
+    #[test]
+    fn invented_event_id_also_covers_origin_and_turning_point_fields() {
+        let debt_line = s_line(
+            "S-debt_chain-001",
+            "debt_chain",
+            "debt_chain_v1",
+            "[]",
+            "[]",
+            r#"["invented_event_id"]"#,
+            "[]",
+            "",
+        );
+        let raw = wrap("debt_chain_v1", &[debt(2, 1, 50, "open", "e77", &["e1"])]);
+        assert_eq!(
+            graded(&debt_line, &raw).severe_conditions,
+            vec![SevereCondition::InventedEventId]
+        );
+        let shift_line = s_line(
+            "S-relationship_shift-001",
+            "relationship_shift",
+            "relationship_shift_v1",
+            "[]",
+            "[]",
+            r#"["invented_event_id"]"#,
+            "[]",
+            "",
+        );
+        let raw = wrap(
+            "relationship_shift_v1",
+            &[shift(1, 2, "colder", Some("e55"))],
+        );
+        assert_eq!(
+            graded(&shift_line, &raw).severe_conditions,
+            vec![SevereCondition::InventedEventId]
+        );
+    }
+
+    /// One row per pattern-based condition: (condition, family, schema, pattern,
+    /// triggering answer, answer that must not trigger).
+    fn pattern_rows() -> Vec<(
+        &'static str,
+        &'static str,
+        &'static str,
+        &'static str,
+        String,
+        String,
+    )> {
+        vec![
+            (
+                "reversed_direction",
+                "relationship_shift",
+                "relationship_shift_v1",
+                r#"{"a":1,"b":2,"direction":"reversed"}"#,
+                wrap("relationship_shift_v1", &[shift(2, 1, "reversed", None)]),
+                wrap("relationship_shift_v1", &[shift(1, 2, "colder", None)]),
+            ),
+            (
+                "dead_person_as_actor_after_death",
+                "broken_promise",
+                "broken_promise_v1",
+                r#"{"promisor":3,"status":"kept"}"#,
+                wrap("broken_promise_v1", &[promise(3, 1, "e1", "kept")]),
+                wrap("broken_promise_v1", &[promise(1, 3, "e1", "kept")]),
+            ),
+            (
+                "contradicts_fact",
+                "grudge_detection",
+                "grudge_v1",
+                r#"{"from":1,"to":2,"level":"low"}"#,
+                g(&[grudge(1, 2, "low", &["e1"])]),
+                g(&[grudge(1, 2, "high", &["e1"])]),
+            ),
+            (
+                "wrong_debt_holder",
+                "debt_chain",
+                "debt_chain_v1",
+                r#"{"debtor":3,"creditor":1}"#,
+                wrap("debt_chain_v1", &[debt(3, 1, 50, "open", "e1", &["e1"])]),
+                wrap("debt_chain_v1", &[debt(2, 1, 50, "open", "e1", &["e1"])]),
+            ),
+        ]
+    }
+
+    #[test]
+    fn pattern_based_severe_conditions_follow_severe_patterns() {
+        let expected = [
+            SevereCondition::ReversedDirection,
+            SevereCondition::DeadPersonAsActorAfterDeath,
+            SevereCondition::ContradictsFact,
+            SevereCondition::WrongDebtHolder,
+        ];
+        for ((cond, family, schema, pattern, hit, miss), want) in
+            pattern_rows().into_iter().zip(expected)
+        {
+            let id = format!("S-{family}-001");
+            let sp = format!(r#"[{{"condition":"{cond}","pattern":{pattern}}}]"#);
+            let listed = s_line(
+                &id,
+                family,
+                schema,
+                "[]",
+                "[]",
+                &format!("[\"{cond}\"]"),
+                &sp,
+                "",
+            );
+            assert_eq!(
+                graded(&listed, &hit).severe_conditions,
+                vec![want],
+                "{cond}"
+            );
+            assert!(graded(&listed, &hit).severe, "{cond}");
+            assert!(
+                graded(&listed, &miss).severe_conditions.is_empty(),
+                "{cond}"
+            );
+            // A pattern entry for a condition the card does not list never fires.
+            let unlisted = s_line(&id, family, schema, "[]", "[]", "[]", &sp, "");
+            let g = graded(&unlisted, &hit);
+            assert!(!g.severe && g.severe_conditions.is_empty(), "{cond}");
+        }
+    }
+
+    #[test]
+    fn severe_is_independent_of_acceptable() {
+        let line = grudge_card(
+            r#"[{"from":1,"to":2}]"#,
+            "[]",
+            r#"["self_reference"]"#,
+            "[]",
+        );
+        let raw = g(&[grudge(1, 2, "high", &["e1"]), grudge(3, 3, "low", &["e4"])]);
+        let grade = graded(&line, &raw);
+        assert_eq!(flags(&grade), (true, true, false));
+        assert_eq!(
+            grade.severe_conditions,
+            vec![SevereCondition::SelfReference]
+        );
+    }
+
+    // ---- Shuffle identity fields ----
+
+    fn id_of(line: &str, raw: &str) -> IdentityValue {
+        identity(&verdict(line, raw))
+    }
+
+    #[test]
+    fn identity_ignores_item_order_evidence_order_and_reason() {
+        let line = grudge_card("[]", "[]", "[]", "[]");
+        let a = grudge(1, 2, "high", &["e1", "e2"]);
+        let b = grudge(2, 1, "low", &["e3"]);
+        let base = id_of(&line, &g(&[a.clone(), b.clone()]));
+        assert!(matches!(base, IdentityValue::Set(ref s) if s.len() == 2));
+        assert_eq!(base, id_of(&line, &g(&[b.clone(), a.clone()])));
+        let reworded = grudge(1, 2, "high", &["e2", "e1"]).replace("\"r\"", "\"other words\"");
+        assert_eq!(base, id_of(&line, &g(&[reworded, b])));
+    }
+
+    #[test]
+    fn grudge_identity_fields_are_from_to_level() {
+        let line = grudge_card("[]", "[]", "[]", "[]");
+        let base = id_of(&line, &g(&[grudge(1, 2, "high", &["e1"])]));
+        for changed in [
+            grudge(2, 1, "high", &["e1"]),
+            grudge(1, 3, "high", &["e1"]),
+            grudge(1, 2, "low", &["e1"]),
+        ] {
+            assert_ne!(base, id_of(&line, &g(&[changed])));
+        }
+        // Evidence is not an identity field.
+        assert_eq!(
+            base,
+            id_of(&line, &g(&[grudge(1, 2, "high", &["e2", "e3"])]))
+        );
+    }
+
+    #[test]
+    fn debt_identity_fields_are_debtor_creditor_origin_status_amount() {
+        let line = s_line(
+            "S-debt_chain-001",
+            "debt_chain",
+            "debt_chain_v1",
+            "[]",
+            "[]",
+            "[]",
+            "[]",
+            "",
+        );
+        let w = |item: String| id_of(&line, &wrap("debt_chain_v1", &[item]));
+        let base = w(debt(2, 1, 50, "open", "e1", &["e1"]));
+        for changed in [
+            debt(1, 2, 50, "open", "e1", &["e1"]),
+            debt(3, 1, 50, "open", "e1", &["e1"]),
+            debt(2, 1, 51, "open", "e1", &["e1"]),
+            debt(2, 1, 50, "repaid", "e1", &["e1"]),
+            debt(2, 1, 50, "open", "e2", &["e1"]),
+        ] {
+            assert_ne!(base, w(changed));
+        }
+        assert_eq!(base, w(debt(2, 1, 50, "open", "e1", &["e3", "e2"])));
+        // `transferred_from` is not an identity field.
+        let transferred = debt(2, 1, 50, "open", "e1", &["e1"]).replace("null", "3");
+        assert_eq!(base, w(transferred));
+    }
+
+    #[test]
+    fn promise_identity_fields_are_promisor_promisee_event_status() {
+        let line = s_line(
+            "S-broken_promise-001",
+            "broken_promise",
+            "broken_promise_v1",
+            "[]",
+            "[]",
+            "[]",
+            "[]",
+            "",
+        );
+        let w = |item: String| id_of(&line, &wrap("broken_promise_v1", &[item]));
+        let base = w(promise(1, 2, "e1", "broken"));
+        for changed in [
+            promise(2, 1, "e1", "broken"),
+            promise(1, 3, "e1", "broken"),
+            promise(1, 2, "e2", "broken"),
+            promise(1, 2, "e1", "kept"),
+        ] {
+            assert_ne!(base, w(changed));
+        }
+        let other_evidence = promise(1, 2, "e1", "broken").replace("[\"e1\"]", "[\"e2\"]");
+        assert_eq!(base, w(other_evidence));
+    }
+
+    #[test]
+    fn shift_identity_is_an_unordered_pair_with_direction_and_turning_point() {
+        let line = s_line(
+            "S-relationship_shift-001",
+            "relationship_shift",
+            "relationship_shift_v1",
+            "[]",
+            "[]",
+            "[]",
+            "[]",
+            "",
+        );
+        let w = |item: String| id_of(&line, &wrap("relationship_shift_v1", &[item]));
+        let base = w(shift(1, 2, "colder", Some("e3")));
+        assert_eq!(base, w(shift(2, 1, "colder", Some("e3"))));
+        assert_ne!(base, w(shift(1, 2, "warmer", Some("e3"))));
+        assert_ne!(base, w(shift(1, 2, "colder", Some("e2"))));
+        assert_ne!(base, w(shift(1, 2, "colder", None)));
+        assert_ne!(base, w(shift(1, 3, "colder", Some("e3"))));
+    }
+
+    #[test]
+    fn decision_identity_is_the_chosen_id_and_illegal_is_invalid() {
+        let line = d_line("D-will_execution-001", r#"["heed"]"#, "[]", "");
+        let heed = id_of(&line, r#"{"option":"heed"}"#);
+        assert_eq!(
+            heed,
+            IdentityValue::Option(OptionId::new("heed").expect("id"))
+        );
+        assert_ne!(heed, id_of(&line, r#"{"option":"burn"}"#));
+        // Different illegal outputs compare as the same value `invalid`.
+        let one = id_of(&line, r#"{"option":"fly"}"#);
+        let two = id_of(&line, "garbage");
+        assert_eq!(
+            (&one, &two),
+            (&IdentityValue::Invalid, &IdentityValue::Invalid)
+        );
+        let s_card = grudge_card("[]", "[]", "[]", "[]");
+        assert_eq!(id_of(&s_card, "garbage"), IdentityValue::Invalid);
+    }
+
+    // ---- Contrast pairs ----
+
+    #[test]
+    fn decision_contrast_pair_is_consistent_only_in_the_expected_subsets() {
+        let ct = |role: &str| {
+            format!(
+                r#","contrast":{{"pair_id":"P001","role":"{role}","changed_fact":"piety","expected":{{"a":["heed","burn"],"b":["dismiss"]}}}}"#
+            )
+        };
+        let card_a = d_line("D-will_execution-001", r#"["heed","burn"]"#, "[]", &ct("a"));
+        let card_b = d_line("D-will_execution-002", r#"["dismiss"]"#, "[]", &ct("b"));
+        let (_, _, _, ca) = parsed(&card_a);
+        let ca = ca.expect("contrast on card a");
+        assert_eq!(ca.pair_id, "P001");
+        let pick = |line: &str, o: &str| verdict(line, &format!(r#"{{"option":"{o}"}}"#));
+        let decide = |va: &Verdict, vb: &Verdict| {
+            let d =
+                contrast(&ca.pair_id, va, vb, &ca.expected_a, &ca.expected_b).expect("sound pair");
+            (d.a_in_expected, d.b_in_expected, d.consistent)
+        };
+        let heed = pick(&card_a, "heed");
+        let dismiss = pick(&card_b, "dismiss");
+        assert_eq!(decide(&heed, &dismiss), (true, true, true));
+        // A model that ignores the changed fact answers both cards alike.
+        assert_eq!(decide(&heed, &pick(&card_b, "heed")), (true, false, false));
+        assert_eq!(decide(&dismiss, &dismiss), (false, true, false));
+        // The reverse direction is inconsistent too.
+        assert_eq!(decide(&dismiss, &heed), (false, false, false));
+        // An Illegal answer is in neither subset.
+        let illegal = verdict(&card_a, "nonsense");
+        assert!(matches!(illegal, Verdict::Illegal { .. }));
+        assert_eq!(decide(&illegal, &dismiss), (false, true, false));
+        assert_eq!(decide(&heed, &illegal), (true, false, false));
+        assert_eq!(decide(&illegal, &illegal), (false, false, false));
+    }
+
+    #[test]
+    fn synthesis_contrast_pair_uses_include_and_exclude_patterns() {
+        let ct = |role: &str| {
+            format!(
+                r#","contrast":{{"pair_id":"P002","role":"{role}","changed_fact":"e3 is a theft or a gift","expected":{{"a":{{"include":[{{"a":1,"b":2,"direction":["colder","reversed"]}}],"exclude":[{{"a":1,"b":2,"direction":"warmer"}}]}},"b":{{"include":[{{"a":1,"b":2,"direction":"warmer"}}],"exclude":[{{"a":1,"b":2,"direction":["colder","reversed"]}}]}}}}}}"#
+            )
+        };
+        let line = |id: &str, role: &str| {
+            s_line(
+                id,
+                "relationship_shift",
+                "relationship_shift_v1",
+                "[]",
+                "[]",
+                "[]",
+                "[]",
+                &ct(role),
+            )
+        };
+        let card_a = line("S-relationship_shift-001", "a");
+        let (_, _, _, c) = parsed(&card_a);
+        let c = c.expect("contrast");
+        assert!(matches!(c.expected_a, ExpectedSide::Patterns { .. }));
+        let w = |items: &[String]| verdict(&card_a, &wrap("relationship_shift_v1", items));
+        let colder = w(&[shift(2, 1, "colder", Some("e3"))]);
+        let warmer = w(&[shift(1, 2, "warmer", None)]);
+        let both = w(&[shift(1, 2, "warmer", None), shift(1, 2, "colder", None)]);
+        let unrelated = w(&[shift(1, 3, "colder", None)]);
+        let decide = |va: &Verdict, vb: &Verdict| {
+            let d = contrast(&c.pair_id, va, vb, &c.expected_a, &c.expected_b).expect("sound pair");
+            (d.a_in_expected, d.b_in_expected, d.consistent)
+        };
+        // The swapped (a=2, b=1) colder item satisfies card a's include pattern.
+        assert_eq!(decide(&colder, &warmer), (true, true, true));
+        assert_eq!(decide(&warmer, &colder), (false, false, false));
+        // "Falls in" means every include is matched and no exclude is matched.
+        assert_eq!(decide(&both, &warmer), (false, true, false));
+        assert_eq!(decide(&colder, &both), (true, false, false));
+        assert_eq!(decide(&unrelated, &warmer), (false, true, false));
+        let illegal = w(&[]);
+        assert!(matches!(illegal, Verdict::Synthesis { .. }));
+        assert_eq!(decide(&illegal, &illegal), (false, false, false));
+        let bad = verdict(&card_a, "garbage");
+        assert_eq!(decide(&bad, &warmer), (false, true, false));
+    }
+
+    // ---- Answer-key errors ----
+
+    fn unknown_field_pattern() -> Pattern {
+        Pattern {
+            fields: BTreeMap::from([(
+                "colour".to_owned(),
+                PatternValue::Exact(Scalar::Str("red".into())),
+            )]),
+            evidence_any: None,
+        }
+    }
+
+    fn good_pattern() -> Pattern {
+        Pattern {
+            fields: BTreeMap::from([("from".to_owned(), PatternValue::Exact(Scalar::Int(1)))]),
+            evidence_any: None,
+        }
+    }
+
+    fn empty_grudge_verdict() -> Verdict {
+        Verdict::Synthesis {
+            answer: SynthesisAnswer::Grudge(Vec::new()),
+            missing_persons: Vec::new(),
+            missing_events: Vec::new(),
+        }
+    }
+
+    fn key_with(
+        include: Vec<Pattern>,
+        exclude: Vec<Pattern>,
+        severe: Vec<(SevereCondition, Pattern)>,
+    ) -> AnswerKey {
+        AnswerKey::Synthesis {
+            schema: OutputSchema::GrudgeV1,
+            must_include: include,
+            must_not_include: exclude,
+            severe_conditions: BTreeSet::new(),
+            severe_patterns: severe,
+        }
+    }
+
+    #[test]
+    fn grader_names_the_card_and_the_faulty_entry() {
+        let v = empty_grudge_verdict();
+        let cases = [
+            (
+                key_with(
+                    vec![good_pattern(), unknown_field_pattern()],
+                    vec![],
+                    vec![],
+                ),
+                "must_include[1].colour".to_owned(),
+            ),
+            (
+                key_with(
+                    vec![],
+                    vec![good_pattern(), unknown_field_pattern()],
+                    vec![],
+                ),
+                "must_not_include[1].colour".to_owned(),
+            ),
+            (
+                key_with(
+                    vec![],
+                    vec![],
+                    vec![
+                        (SevereCondition::ContradictsFact, good_pattern()),
+                        (SevereCondition::ReversedDirection, unknown_field_pattern()),
+                    ],
+                ),
+                format!("{SEVERE_PATTERNS}[1].colour"),
+            ),
+        ];
+        for (key, entry) in cases {
+            let e = grade("S-grudge_detection-007", &v, &key).expect_err("faulty key");
+            assert_eq!(
+                e,
+                GradeError {
+                    card_id: "S-grudge_detection-007".to_owned(),
+                    entry: entry.clone(),
+                    detail: "unknown_pattern_field",
+                }
+            );
+            let text = e.to_string();
+            assert!(
+                text.contains("S-grudge_detection-007") && text.contains(&entry),
+                "{text}"
+            );
+        }
+        // A field of another schema is just as faulty: `debtor` is not a grudge field.
+        let other = Pattern {
+            fields: BTreeMap::from([("debtor".to_owned(), PatternValue::Exact(Scalar::Int(1)))]),
+            evidence_any: None,
+        };
+        let e = grade(
+            "S-grudge_detection-008",
+            &v,
+            &key_with(vec![other], vec![], vec![]),
+        )
+        .expect_err("faulty key");
+        assert_eq!(
+            (e.card_id.as_str(), e.entry.as_str()),
+            ("S-grudge_detection-008", "must_include[0].debtor")
+        );
+    }
+
+    #[test]
+    fn contrast_check_names_the_pair_and_the_faulty_side() {
+        let v = empty_grudge_verdict();
+        let bad = ExpectedSide::Patterns {
+            include: vec![],
+            exclude: vec![unknown_field_pattern()],
+        };
+        let fine = ExpectedSide::Patterns {
+            include: vec![],
+            exclude: vec![],
+        };
+        let e = contrast("P012", &v, &v, &fine, &bad).expect_err("faulty side");
+        assert_eq!(
+            (e.card_id.as_str(), e.entry.as_str(), e.detail),
+            (
+                "P012",
+                "expected.b.exclude[0].colour",
+                "unknown_pattern_field"
+            )
+        );
+    }
+
+    #[test]
+    fn verdict_that_does_not_fit_the_key_is_an_error_not_a_grade() {
+        let d_key = AnswerKey::Decision {
+            acceptable: BTreeSet::new(),
+            severe: BTreeSet::new(),
+        };
+        let e =
+            grade("D-will_execution-003", &empty_grudge_verdict(), &d_key).expect_err("mismatch");
+        assert_eq!(e.card_id, "D-will_execution-003");
+        let s_key = key_with(vec![], vec![], vec![]);
+        let opt = Verdict::Decision {
+            option: OptionId::new("heed").expect("id"),
+        };
+        assert!(grade("S-grudge_detection-003", &opt, &s_key).is_err());
+        // A verdict for another schema does not fit either.
+        let debt_verdict = Verdict::Synthesis {
+            answer: SynthesisAnswer::DebtChain(Vec::new()),
+            missing_persons: Vec::new(),
+            missing_events: Vec::new(),
+        };
+        assert!(grade("S-grudge_detection-003", &debt_verdict, &s_key).is_err());
+    }
+
+    #[test]
+    fn card_parser_rejects_faulty_pattern_entries_with_their_path() {
+        let unknown_in_gold = grudge_card(r#"[{"from":1},{"colour":"red"}]"#, "[]", "[]", "[]");
+        let e = parse_card(&unknown_in_gold, 7).expect_err("rejected");
+        assert_eq!(e.kind, CardErrorKind::AnswerKey);
+        assert_eq!(e.detail, "unknown_pattern_field");
+        assert_eq!(e.line, 7);
+        assert!(e.path.ends_with("must_include[1].colour"), "{}", e.path);
+
+        let sp = r#"[{"condition":"contradicts_fact","pattern":{"colour":"red"}}]"#;
+        let unknown_in_sp = grudge_card("[]", "[]", r#"["contradicts_fact"]"#, sp);
+        let e = parse_card(&unknown_in_sp, 3).expect_err("rejected");
+        assert_eq!(
+            (e.kind, e.detail.as_str()),
+            (CardErrorKind::AnswerKey, "unknown_pattern_field")
+        );
+        assert!(
+            e.path.starts_with(&format!("{SEVERE_PATTERNS}[0]")) && e.path.ends_with(".colour"),
+            "{}",
+            e.path
+        );
+
+        let bad_cond = grudge_card("[]", "[]", r#"["made_up"]"#, "[]");
+        let e = parse_card(&bad_cond, 1).expect_err("rejected");
+        assert_eq!(
+            (e.kind, e.detail.as_str()),
+            (CardErrorKind::AnswerKey, "unknown_severe_condition")
+        );
+        assert!(e.path.starts_with("severe_conditions[0]"), "{}", e.path);
+    }
+
+    #[test]
+    fn missing_reference_lists_come_from_the_validator() {
+        // Guards the link between the validator and the automatic conditions.
+        let line = grudge_card("[]", "[]", "[]", "[]");
+        match verdict(&line, &g(&[grudge(9, 2, "low", &["e99"])])) {
+            Verdict::Synthesis {
+                answer,
+                missing_persons,
+                missing_events,
+            } => {
+                assert_eq!(missing_persons, vec![9]);
+                assert_eq!(missing_events, vec!["e99".to_owned()]);
+                assert!(matches!(answer, SynthesisAnswer::Grudge(_)));
+            }
+            other => panic!("{other:?}"),
+        }
+    }
+}

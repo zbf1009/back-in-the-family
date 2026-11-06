@@ -647,3 +647,13 @@ Synced `design.md` with what tasks 1–8 actually built and made task 9's single
   - The Unit_Tests gate is wired in task 6, and its injection waits for task 9.
 - Optional sub-tasks: only 6.8 (pnpm-check unit test) and 16.13 (Intel memory via i915 or `intel_gpu_top`).
 - `validate_spec_format` reports no issues. No code written; nothing committed.
+
+### Spec: llm-probe — task 3.8 fault injection: Grader ignores must_not_include (2026-11-06)
+
+- Gate under test: `cargo test --workspace` in `scripts/gates.sh`, specifically the Property 8 test (`s_grades_agree_with_the_reference_model`) and the Grader examples.
+- Injected fault: in `crates/sim-core/src/llm/grade.rs`, `satisfies` stopped checking the `exclude` (`must_not_include`) patterns.
+- First attempt: my one-line edit was not rustfmt-clean, so the run stopped earlier at `gate failed: cargo fmt --check` (exit 1). I reformatted the injection and ran again.
+- Result of the second run: `cargo test --workspace` failed in the `llm_examples` binary (3 example tests: `synthesis_acceptable_needs_every_include_and_no_exclude`, `synthesis_contrast_pair_uses_include_and_exclude_patterns`, `relationship_shift_pattern_matches_only_with_a_and_b_swapped`), then `gate failed: cargo test --workspace`, exit code 101. Cargo stops after the first failing test binary, so Property 8 did not run inside the gate.
+- Property 8 check: running `cargo test -p sim-core --test llm_properties` by hand with the same fault failed `s_grades_agree_with_the_reference_model` (and `contrast_decisions_follow_the_expected_subsets`) with a minimal failing input listing a non-empty `must_not_include`. It wrote `llm_properties.proptest-regressions`, which I deleted.
+- Revert: restored `grade.rs` from a backup copy; `grep` finds no injection and `satisfies` again has the `!exclude.iter().any(...)` line.
+- Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0.

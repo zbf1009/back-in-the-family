@@ -17,9 +17,12 @@ use proptest::prelude::*;
 use proptest::strategy::{Strategy, ValueTree};
 use proptest::test_runner::TestRunner;
 use sim_core::llm::card::{CardErrorKind, ParsedCard, parse_card};
+use sim_core::llm::grade::{grade, identity};
 use sim_core::llm::json::{self, Json};
 use sim_core::llm::validate::validate_raw;
-use sim_core::llm::{AnswerKey, FrozenContext, IllegalReason, Task, TaskSpec, Verdict};
+use sim_core::llm::{
+    AnswerKey, FrozenContext, IdentityValue, IllegalReason, Task, TaskSpec, Verdict,
+};
 
 /// Panics with a message when `ctx` breaks a structural rule of the card schema.
 fn check_context(ctx: &FrozenContext) {
@@ -1088,5 +1091,1294 @@ proptest! {
             _ => legal.text.clone(),
         };
         prop_assert_eq!(&parse_synthesis(&ctx, &wrapped)?, &first);
+    }
+}
+
+const ALL_ILLEGAL_REASONS: [IllegalReason; 14] = [
+    IllegalReason::ParseFailure,
+    IllegalReason::OutOfSetOption,
+    IllegalReason::MissingRequiredField,
+    IllegalReason::UnknownField,
+    IllegalReason::IllegalEnumValue,
+    IllegalReason::NonInteger,
+    IllegalReason::IntegerOutOfRange,
+    IllegalReason::EmptyEvidence,
+    IllegalReason::DuplicateEvidence,
+    IllegalReason::MalformedEventId,
+    IllegalReason::WrongType,
+    IllegalReason::WrongSchemaConst,
+    IllegalReason::Timeout,
+    IllegalReason::RuntimeError,
+];
+
+proptest! {
+    // Feature: llm-probe, Property 7: D and Illegal grades follow set membership
+    // **Validates: Requirements 5.3, 5.4, 8.5**
+    #[test]
+    fn d_grades_follow_set_membership(
+        (ctx, key, pick) in arb_decision_case().prop_flat_map(|(ctx, key)| {
+            let n = match &ctx.spec {
+                TaskSpec::Decision { options } => options.len(),
+                TaskSpec::Synthesis { .. } => unreachable!("decision case"),
+            };
+            (Just(ctx), Just(key), 0..n)
+        })
+    ) {
+        let (TaskSpec::Decision { options }, AnswerKey::Decision { acceptable, severe }) =
+            (&ctx.spec, &key)
+        else {
+            return Err(TestCaseError::fail("expected a decision case"));
+        };
+        let option = options[pick].id.clone();
+        let verdict = Verdict::Decision { option: option.clone() };
+        let g = grade("p7", &verdict, &key).map_err(|e| TestCaseError::fail(e.to_string()))?;
+        prop_assert_eq!(g.acceptable, acceptable.contains(&option));
+        prop_assert_eq!(g.severe, severe.contains(&option));
+        prop_assert!(!g.illegal);
+        prop_assert!(g.severe_conditions.is_empty());
+    }
+
+    // Feature: llm-probe, Property 7: D and Illegal grades follow set membership
+    // **Validates: Requirements 5.3, 5.4, 8.5**
+    #[test]
+    fn illegal_grades_are_never_acceptable_or_severe(
+        (_ctx, key) in arb_case(),
+        reason_ix in 0..ALL_ILLEGAL_REASONS.len(),
+        path in proptest::option::of("[a-z_.\\[\\]0-9]{0,12}"),
+    ) {
+        let verdict = Verdict::Illegal { reason: ALL_ILLEGAL_REASONS[reason_ix], path };
+        let g = grade("p7", &verdict, &key).map_err(|e| TestCaseError::fail(e.to_string()))?;
+        prop_assert!(!g.acceptable);
+        prop_assert!(!g.severe);
+        prop_assert!(g.illegal);
+        prop_assert!(g.severe_conditions.is_empty());
+        prop_assert_eq!(identity(&verdict), IdentityValue::Invalid);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Property 8
+// ---------------------------------------------------------------------------
+
+use sim_core::llm::grade::GradeError;
+use sim_core::llm::{
+    EventId, Grade, OutputSchema, Pattern, PatternValue, Scalar, SevereCondition, SynthesisAnswer,
+};
+
+/// All seven severe conditions in the declared order, written out here on purpose.
+const REF_CONDITIONS: [SevereCondition; 7] = [
+    SevereCondition::InventedEventId,
+    SevereCondition::InventedPerson,
+    SevereCondition::SelfReference,
+    SevereCondition::ReversedDirection,
+    SevereCondition::DeadPersonAsActorAfterDeath,
+    SevereCondition::ContradictsFact,
+    SevereCondition::WrongDebtHolder,
+];
+
+/// One answer item as the reference model sees it: field name and value pairs, the
+/// evidence IDs as text, and the two person fields.
+struct RefItem {
+    fields: Vec<(&'static str, Scalar)>,
+    evidence: Vec<String>,
+    people: (i64, i64),
+}
+
+fn ref_ids(ids: &[EventId]) -> Vec<String> {
+    ids.iter().map(|e| e.as_str().to_owned()).collect()
+}
+
+fn ref_event(e: &EventId) -> Scalar {
+    Scalar::Str(e.as_str().to_owned())
+}
+
+fn ref_items(answer: &SynthesisAnswer) -> Vec<RefItem> {
+    let s = |t: &str| Scalar::Str(t.to_owned());
+    match answer {
+        SynthesisAnswer::Grudge(v) => v
+            .iter()
+            .map(|i| RefItem {
+                fields: vec![
+                    ("from", Scalar::Int(i.from)),
+                    ("to", Scalar::Int(i.to)),
+                    ("level", s(level_name(i.level))),
+                ],
+                evidence: ref_ids(&i.evidence),
+                people: (i.from, i.to),
+            })
+            .collect(),
+        SynthesisAnswer::DebtChain(v) => v
+            .iter()
+            .map(|i| RefItem {
+                fields: vec![
+                    ("debtor", Scalar::Int(i.debtor)),
+                    ("creditor", Scalar::Int(i.creditor)),
+                    ("amount", Scalar::Int(i.amount)),
+                    ("status", s(debt_status_name(i.status))),
+                    ("origin_event", ref_event(&i.origin_event)),
+                    (
+                        "transferred_from",
+                        match i.transferred_from {
+                            Some(p) => Scalar::Int(p),
+                            None => Scalar::Null,
+                        },
+                    ),
+                ],
+                evidence: ref_ids(&i.evidence),
+                people: (i.debtor, i.creditor),
+            })
+            .collect(),
+        SynthesisAnswer::BrokenPromise(v) => v
+            .iter()
+            .map(|i| RefItem {
+                fields: vec![
+                    ("promisor", Scalar::Int(i.promisor)),
+                    ("promisee", Scalar::Int(i.promisee)),
+                    ("promise_event", ref_event(&i.promise_event)),
+                    ("status", s(promise_status_name(i.status))),
+                ],
+                evidence: ref_ids(&i.evidence),
+                people: (i.promisor, i.promisee),
+            })
+            .collect(),
+        SynthesisAnswer::RelationshipShift(v) => v
+            .iter()
+            .map(|i| RefItem {
+                fields: vec![
+                    ("a", Scalar::Int(i.a)),
+                    ("b", Scalar::Int(i.b)),
+                    ("direction", s(direction_name(i.direction))),
+                    (
+                        "turning_point",
+                        match &i.turning_point {
+                            Some(e) => ref_event(e),
+                            None => Scalar::Null,
+                        },
+                    ),
+                ],
+                evidence: ref_ids(&i.evidence),
+                people: (i.a, i.b),
+            })
+            .collect(),
+    }
+}
+
+/// The pattern fields each schema allows (README of the cards).
+fn ref_allowed(schema: OutputSchema) -> &'static [&'static str] {
+    match schema {
+        OutputSchema::GrudgeV1 => &["from", "to", "level"],
+        OutputSchema::DebtChainV1 => &[
+            "debtor",
+            "creditor",
+            "amount",
+            "status",
+            "origin_event",
+            "transferred_from",
+        ],
+        OutputSchema::BrokenPromiseV1 => &["promisor", "promisee", "promise_event", "status"],
+        OutputSchema::RelationshipShiftV1 => &["a", "b", "direction", "turning_point"],
+    }
+}
+
+fn ref_value_ok(want: &PatternValue, got: &Scalar) -> bool {
+    match want {
+        PatternValue::Exact(x) => x == got,
+        PatternValue::AnyOf(list) => list.iter().any(|x| x == got),
+    }
+}
+
+/// Whether the pattern, with its keys read as given or with `a` and `b` exchanged,
+/// holds on the item's fields.
+fn ref_fields_hold(p: &Pattern, item: &RefItem, exchange_a_b: bool) -> bool {
+    p.fields.iter().all(|(key, want)| {
+        let key = match (exchange_a_b, key.as_str()) {
+            (true, "a") => "b",
+            (true, "b") => "a",
+            (_, k) => k,
+        };
+        item.fields
+            .iter()
+            .any(|(name, got)| *name == key && ref_value_ok(want, got))
+    })
+}
+
+/// Pattern_Match; `allow_swap` is the relationship_shift_v1 rule.
+fn ref_matches(p: &Pattern, item: &RefItem, allow_swap: bool) -> bool {
+    let evidence_ok = match &p.evidence_any {
+        None => true,
+        Some(set) => item
+            .evidence
+            .iter()
+            .any(|e| set.iter().any(|w| w.as_str() == e)),
+    };
+    evidence_ok
+        && (ref_fields_hold(p, item, false) || (allow_swap && ref_fields_hold(p, item, true)))
+}
+
+fn ref_any(p: &Pattern, items: &[RefItem], allow_swap: bool) -> bool {
+    items.iter().any(|i| ref_matches(p, i, allow_swap))
+}
+
+fn ref_acceptable(include: &[Pattern], exclude: &[Pattern], items: &[RefItem], swap: bool) -> bool {
+    let mut ok = true;
+    for p in include {
+        ok &= ref_any(p, items, swap);
+    }
+    for p in exclude {
+        ok &= !ref_any(p, items, swap);
+    }
+    ok
+}
+
+/// The reference grade of a synthesis verdict, or the entry of the first faulty
+/// pattern field.
+fn ref_grade(
+    schema: OutputSchema,
+    answer: &SynthesisAnswer,
+    missing_persons: &[i64],
+    missing_events: &[String],
+    key: &AnswerKey,
+) -> Result<Grade, String> {
+    let AnswerKey::Synthesis {
+        must_include,
+        must_not_include,
+        severe_conditions,
+        severe_patterns,
+        ..
+    } = key
+    else {
+        return Err("not a synthesis key".to_owned());
+    };
+    let allowed = ref_allowed(schema);
+    let lists: [(&str, Vec<&Pattern>); 3] = [
+        ("must_include", must_include.iter().collect()),
+        ("must_not_include", must_not_include.iter().collect()),
+        (
+            "severe_patterns",
+            severe_patterns.iter().map(|(_, p)| p).collect(),
+        ),
+    ];
+    for (name, list) in &lists {
+        for (i, p) in list.iter().enumerate() {
+            if let Some(k) = p.fields.keys().find(|k| !allowed.contains(&k.as_str())) {
+                return Err(format!("{name}[{i}].{k}"));
+            }
+        }
+    }
+    let swap = schema == OutputSchema::RelationshipShiftV1;
+    let items = ref_items(answer);
+    let raised: Vec<SevereCondition> = REF_CONDITIONS
+        .iter()
+        .copied()
+        .filter(|c| {
+            let automatic = match c {
+                SevereCondition::InventedEventId => !missing_events.is_empty(),
+                SevereCondition::InventedPerson => !missing_persons.is_empty(),
+                SevereCondition::SelfReference => items.iter().any(|i| i.people.0 == i.people.1),
+                _ => false,
+            };
+            let by_pattern = severe_patterns
+                .iter()
+                .any(|(sc, p)| sc == c && ref_any(p, &items, swap));
+            severe_conditions.contains(c) && (automatic || by_pattern)
+        })
+        .collect();
+    Ok(Grade {
+        acceptable: ref_acceptable(must_include, must_not_include, &items, swap),
+        severe: !raised.is_empty(),
+        illegal: false,
+        severe_conditions: raised,
+    })
+}
+
+/// Raw draw for one pattern derived from an item of the answer:
+/// (target list, condition pick, item pick, field mask, perturbation, swap a/b,
+/// evidence mode, evidence pick).
+type DerivedRaw = (u8, usize, usize, [bool; 6], u8, bool, u8, usize);
+
+fn derived_raw() -> impl Strategy<Value = DerivedRaw> {
+    (
+        0u8..3,
+        0usize..7,
+        0usize..8,
+        prop::array::uniform6(any::<bool>()),
+        prop_oneof![4 => Just(0u8), 1 => Just(1u8), 1 => Just(2u8), 1 => Just(3u8)],
+        any::<bool>(),
+        prop_oneof![3 => Just(0u8), 1 => Just(1u8), 1 => Just(2u8)],
+        0usize..8,
+    )
+}
+
+fn other_scalar(v: &Scalar, step: i64, tag: &str) -> Scalar {
+    match v {
+        Scalar::Int(n) => Scalar::Int(n + step),
+        Scalar::Str(s) => Scalar::Str(format!("{s}{tag}")),
+        Scalar::Null => Scalar::Int(step - 1),
+    }
+}
+
+/// A pattern read off `item`, then possibly bent: a changed value, a "one of" list with
+/// or without the real value, `a` and `b` exchanged, an `evidence_any` that does or
+/// does not meet the item's evidence.
+fn derive_pattern(ctx: &FrozenContext, item: &RefItem, raw: &DerivedRaw) -> Pattern {
+    let (_, _, _, mask, perturb, swap, ev_mode, pick) = raw;
+    let mut chosen: Vec<(String, PatternValue)> = item
+        .fields
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| mask[i % mask.len()])
+        .map(|(_, (n, v))| ((*n).to_owned(), PatternValue::Exact(v.clone())))
+        .collect();
+    if chosen.is_empty()
+        && let Some((n, v)) = item.fields.first()
+    {
+        chosen.push(((*n).to_owned(), PatternValue::Exact(v.clone())));
+    }
+    if let Some((name, value)) = chosen.first().cloned() {
+        let PatternValue::Exact(real) = value else {
+            unreachable!("derived values start exact");
+        };
+        let new_value = match perturb {
+            1 => PatternValue::Exact(other_scalar(&real, 1, "x")),
+            2 => PatternValue::AnyOf(vec![other_scalar(&real, 1, "x"), real.clone()]),
+            3 => PatternValue::AnyOf(vec![
+                other_scalar(&real, 1, "x"),
+                other_scalar(&real, 2, "y"),
+            ]),
+            _ => PatternValue::Exact(real),
+        };
+        chosen[0] = (name, new_value);
+    }
+    let rename = |k: String| match (*swap, k.as_str()) {
+        (true, "a") => "b".to_owned(),
+        (true, "b") => "a".to_owned(),
+        _ => k,
+    };
+    let fields = chosen.into_iter().map(|(k, v)| (rename(k), v)).collect();
+    let evidence_any = match ev_mode {
+        1 if !item.evidence.is_empty() => {
+            let id = &item.evidence[pick % item.evidence.len()];
+            EventId::new(id).map(|e| [e].into_iter().collect())
+        }
+        2 => {
+            let outside: Vec<&EventId> = ctx
+                .events
+                .iter()
+                .map(|e| &e.id)
+                .filter(|e| !item.evidence.iter().any(|x| x == e.as_str()))
+                .collect();
+            if outside.is_empty() {
+                EventId::new("e10").map(|e| [e].into_iter().collect())
+            } else {
+                Some(
+                    [outside[pick % outside.len()].clone()]
+                        .into_iter()
+                        .collect(),
+                )
+            }
+        }
+        _ => None,
+    };
+    Pattern {
+        fields,
+        evidence_any,
+    }
+}
+
+/// An S verdict and its answer key, ready to grade.
+#[derive(Debug, Clone)]
+struct SCase {
+    schema: OutputSchema,
+    answer: SynthesisAnswer,
+    missing_persons: Vec<i64>,
+    missing_events: Vec<String>,
+    key: AnswerKey,
+}
+
+impl SCase {
+    fn verdict(&self) -> Verdict {
+        Verdict::Synthesis {
+            answer: self.answer.clone(),
+            missing_persons: self.missing_persons.clone(),
+            missing_events: self.missing_events.clone(),
+        }
+    }
+}
+
+/// Makes item `idx` name the same person twice (the second person field copies the first).
+fn make_self_reference(answer: &mut SynthesisAnswer, idx: usize) {
+    match answer {
+        SynthesisAnswer::Grudge(v) => v.iter_mut().skip(idx).take(1).for_each(|i| i.to = i.from),
+        SynthesisAnswer::DebtChain(v) => v
+            .iter_mut()
+            .skip(idx)
+            .take(1)
+            .for_each(|i| i.creditor = i.debtor),
+        SynthesisAnswer::BrokenPromise(v) => v
+            .iter_mut()
+            .skip(idx)
+            .take(1)
+            .for_each(|i| i.promisee = i.promisor),
+        SynthesisAnswer::RelationshipShift(v) => {
+            v.iter_mut().skip(idx).take(1).for_each(|i| i.b = i.a)
+        }
+    }
+}
+
+type SCaseRaw = (
+    FrozenContext,
+    LegalAnswer,
+    AnswerKey,
+    Vec<DerivedRaw>,
+    Vec<bool>,
+    Vec<i64>,
+    Vec<u8>,
+    bool,
+);
+
+fn build_s_case(raw: SCaseRaw) -> SCase {
+    let (ctx, legal, mut key, derived, self_ref, miss_p, miss_e, keep_random) = raw;
+    let TaskSpec::Synthesis { schema } = &ctx.spec else {
+        unreachable!("synthesis context");
+    };
+    let Expected::Items(mut answer) = legal.expected else {
+        unreachable!("synthesis answer");
+    };
+    for (i, on) in self_ref.iter().enumerate() {
+        if *on {
+            make_self_reference(&mut answer, i);
+        }
+    }
+    let mut missing_persons = miss_p;
+    missing_persons.sort_unstable();
+    missing_persons.dedup();
+    let mut missing_events: Vec<String> = miss_e
+        .iter()
+        .map(|n| format!("e{}", 9000 + u32::from(*n)))
+        .collect();
+    missing_events.sort();
+    missing_events.dedup();
+
+    if let AnswerKey::Synthesis {
+        must_include,
+        must_not_include,
+        severe_conditions,
+        severe_patterns,
+        ..
+    } = &mut key
+    {
+        if !keep_random {
+            must_include.clear();
+            must_not_include.clear();
+            severe_patterns.clear();
+        }
+        let items = ref_items(&answer);
+        let listed: Vec<SevereCondition> = severe_conditions.iter().copied().collect();
+        if !items.is_empty() {
+            for d in &derived {
+                let p = derive_pattern(&ctx, &items[d.2 % items.len()], d);
+                match d.0 {
+                    0 => must_include.push(p),
+                    1 => must_not_include.push(p),
+                    _ if !listed.is_empty() => {
+                        severe_patterns.push((listed[d.1 % listed.len()], p))
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+    SCase {
+        schema: *schema,
+        answer,
+        missing_persons,
+        missing_events,
+        key,
+    }
+}
+
+fn arb_s_case() -> BoxedStrategy<SCase> {
+    arb_synthesis_context()
+        .prop_flat_map(|ctx| {
+            let legal = arb_legal_synthesis_answer(&ctx);
+            let key = arb_key(&ctx);
+            (
+                Just(ctx),
+                legal,
+                key,
+                prop::collection::vec(derived_raw(), 0..=5),
+                prop::collection::vec(prop_oneof![4 => Just(false), 1 => Just(true)], 0..=4),
+                prop_oneof![4 => Just(Vec::new()), 1 => prop::collection::vec(100i64..=103, 1..=2)],
+                prop_oneof![4 => Just(Vec::new()), 1 => prop::collection::vec(0u8..3, 1..=2)],
+                prop_oneof![1 => Just(true), 3 => Just(false)],
+            )
+        })
+        .prop_map(build_s_case)
+        .boxed()
+}
+
+proptest! {
+    // Feature: llm-probe, Property 8: S grades agree with a reference model
+    // **Validates: Requirements 5.5, 5.6, 5.7, 5.8, 5.11**
+    #[test]
+    fn s_grades_agree_with_the_reference_model(case in arb_s_case()) {
+        let got = grade("p8", &case.verdict(), &case.key)
+            .map_err(|e| TestCaseError::fail(e.to_string()))?;
+        let want = ref_grade(
+            case.schema,
+            &case.answer,
+            &case.missing_persons,
+            &case.missing_events,
+            &case.key,
+        )
+        .map_err(TestCaseError::fail)?;
+        prop_assert_eq!(&got, &want);
+        // The condition list is in SevereCondition order, each condition once.
+        prop_assert!(got.severe_conditions.windows(2).all(|w| w[0] < w[1]));
+        prop_assert_eq!(got.severe, !got.severe_conditions.is_empty());
+    }
+
+    // Feature: llm-probe, Property 8: S grades agree with a reference model
+    // **Validates: Requirements 5.5, 5.6, 5.7, 5.8, 5.11**
+    #[test]
+    fn a_pattern_field_outside_the_schema_is_an_error_naming_card_and_entry(
+        case in arb_s_case(),
+        target in 0u8..3,
+        entry_pick in 0usize..4,
+        name_pick in 0usize..6,
+    ) {
+        const STRANGERS: [&str; 6] = ["colour", "debtor", "level", "a", "evidence", "reason"];
+        let allowed = ref_allowed(case.schema);
+        let mut case = case;
+        let stranger = (0..STRANGERS.len())
+            .map(|k| STRANGERS[(name_pick + k) % STRANGERS.len()])
+            .find(|n| !allowed.contains(n))
+            .unwrap_or("colour");
+        let bad = Pattern {
+            fields: [(stranger.to_owned(), PatternValue::Exact(Scalar::Int(1)))]
+                .into_iter()
+                .collect(),
+            evidence_any: None,
+        };
+        let AnswerKey::Synthesis { must_include, must_not_include, severe_conditions, severe_patterns, .. } =
+            &mut case.key
+        else {
+            return Err(TestCaseError::fail("synthesis key"));
+        };
+        let at = match target {
+            0 => {
+                must_include.push(bad.clone());
+                entry_pick % must_include.len()
+            }
+            1 => {
+                must_not_include.push(bad.clone());
+                entry_pick % must_not_include.len()
+            }
+            _ => {
+                severe_conditions.insert(SevereCondition::ContradictsFact);
+                severe_patterns.push((SevereCondition::ContradictsFact, bad.clone()));
+                entry_pick % severe_patterns.len()
+            }
+        };
+        // Put the faulty pattern at the chosen position of its list.
+        let last_ix = match target {
+            0 => must_include.len() - 1,
+            1 => must_not_include.len() - 1,
+            _ => severe_patterns.len() - 1,
+        };
+        match target {
+            0 => must_include.swap(at, last_ix),
+            1 => must_not_include.swap(at, last_ix),
+            _ => severe_patterns.swap(at, last_ix),
+        }
+        let want = match ref_grade(case.schema, &case.answer, &case.missing_persons, &case.missing_events, &case.key) {
+            Err(entry) => entry,
+            Ok(g) => return Err(TestCaseError::fail(format!("reference accepted a faulty key: {g:?}"))),
+        };
+        let got = grade("p8-err", &case.verdict(), &case.key);
+        match got {
+            Err(GradeError { card_id, entry, .. }) => {
+                prop_assert_eq!(card_id, "p8-err".to_owned());
+                prop_assert_eq!(entry, want);
+            }
+            Ok(g) => prop_assert!(false, "a faulty key gave a Grade: {:?}", g),
+        }
+    }
+}
+
+/// The generator reaches the cases the property is about: `must_not_include` that fires
+/// and flips `acceptable`, that is present but quiet, swapped `a`/`b` matches,
+/// `evidence_any` meeting and missing the evidence, and every automatic and pattern
+/// severe condition.
+#[test]
+fn s_case_generator_covers_the_grading_rules() {
+    let mut runner = TestRunner::deterministic();
+    let strategy = arb_s_case();
+    let (mut flips, mut quiet, mut swapped_only, mut ev_hit, mut ev_miss) = (0, 0, 0, 0, 0);
+    let (mut by_pattern, mut auto_invented, mut auto_self, mut unlisted) = (0, 0, 0, 0);
+    let mut condition_lists = BTreeSet::new();
+    for _ in 0..1500 {
+        let case = strategy.new_tree(&mut runner).expect("tree").current();
+        let AnswerKey::Synthesis {
+            must_include,
+            must_not_include,
+            severe_conditions,
+            severe_patterns,
+            ..
+        } = &case.key
+        else {
+            panic!("synthesis key");
+        };
+        let items = ref_items(&case.answer);
+        let swap = case.schema == OutputSchema::RelationshipShiftV1;
+        let full = ref_acceptable(must_include, must_not_include, &items, swap);
+        let without = ref_acceptable(must_include, &[], &items, swap);
+        flips += usize::from(without && !full);
+        quiet += usize::from(
+            full && !must_not_include.is_empty()
+                && !must_not_include.iter().any(|p| ref_any(p, &items, swap)),
+        );
+        swapped_only += usize::from(
+            swap && must_include
+                .iter()
+                .any(|p| ref_any(p, &items, true) && !ref_any(p, &items, false)),
+        );
+        for p in must_include.iter().chain(must_not_include) {
+            if let Some(set) = &p.evidence_any {
+                let hit = items.iter().any(|i| {
+                    i.evidence
+                        .iter()
+                        .any(|e| set.iter().any(|w| w.as_str() == e))
+                });
+                ev_hit += usize::from(hit);
+                ev_miss += usize::from(!hit);
+            }
+        }
+        let g = ref_grade(
+            case.schema,
+            &case.answer,
+            &case.missing_persons,
+            &case.missing_events,
+            &case.key,
+        )
+        .expect("generated keys are well formed");
+        condition_lists.extend(g.severe_conditions.iter().copied());
+        by_pattern += usize::from(
+            severe_patterns
+                .iter()
+                .any(|(_, p)| ref_any(p, &items, swap)),
+        );
+        auto_invented += usize::from(
+            !case.missing_events.is_empty()
+                && severe_conditions.contains(&SevereCondition::InventedEventId),
+        );
+        auto_self += usize::from(
+            items.iter().any(|i| i.people.0 == i.people.1)
+                && severe_conditions.contains(&SevereCondition::SelfReference),
+        );
+        unlisted += usize::from(
+            items.iter().any(|i| i.people.0 == i.people.1)
+                && !severe_conditions.contains(&SevereCondition::SelfReference),
+        );
+    }
+    for (name, n) in [
+        ("must_not_include flips acceptable", flips),
+        ("must_not_include present but quiet", quiet),
+        ("a/b swapped match only", swapped_only),
+        ("evidence_any meets", ev_hit),
+        ("evidence_any misses", ev_miss),
+        ("severe pattern matches", by_pattern),
+        ("invented event listed", auto_invented),
+        ("self reference listed", auto_self),
+        ("self reference not listed", unlisted),
+    ] {
+        assert!(n >= 10, "{name}: only {n} of 1500 cases");
+    }
+    assert!(
+        condition_lists.len() >= 3,
+        "raised conditions seen: {condition_lists:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Property 9
+// ---------------------------------------------------------------------------
+
+/// Reorders `v` by sorting on `keys` (cycled), ties kept in place: a permutation of `v`.
+fn permute<T>(v: &mut Vec<T>, keys: &[u32]) {
+    if keys.is_empty() {
+        return;
+    }
+    let mut tagged: Vec<(u32, usize, T)> = std::mem::take(v)
+        .into_iter()
+        .enumerate()
+        .map(|(i, x)| (keys[i % keys.len()], i, x))
+        .collect();
+    tagged.sort_by_key(|t| (t.0, t.1));
+    v.extend(tagged.into_iter().map(|t| t.2));
+}
+
+/// Reorders the items (and each item's evidence), optionally exchanges `a` and `b` of
+/// relationship_shift items, and optionally appends a copy of one item.
+fn scramble(
+    answer: &mut SynthesisAnswer,
+    item_keys: &[u32],
+    ev_keys: &[u32],
+    swap_ab: bool,
+    dup: Option<usize>,
+) {
+    fn go<T: Clone>(
+        v: &mut Vec<T>,
+        item_keys: &[u32],
+        dup: Option<usize>,
+        mut each: impl FnMut(&mut T),
+    ) {
+        v.iter_mut().for_each(&mut each);
+        if let Some(d) = dup
+            && !v.is_empty()
+        {
+            let copy = v[d % v.len()].clone();
+            v.push(copy);
+        }
+        permute(v, item_keys);
+    }
+    match answer {
+        SynthesisAnswer::Grudge(v) => go(v, item_keys, dup, |i| permute(&mut i.evidence, ev_keys)),
+        SynthesisAnswer::DebtChain(v) => {
+            go(v, item_keys, dup, |i| permute(&mut i.evidence, ev_keys))
+        }
+        SynthesisAnswer::BrokenPromise(v) => {
+            go(v, item_keys, dup, |i| permute(&mut i.evidence, ev_keys))
+        }
+        SynthesisAnswer::RelationshipShift(v) => go(v, item_keys, dup, |i| {
+            permute(&mut i.evidence, ev_keys);
+            if swap_ab {
+                std::mem::swap(&mut i.a, &mut i.b);
+            }
+        }),
+    }
+}
+
+proptest! {
+    // Feature: llm-probe, Property 9: Order of items and evidence does not matter
+    // **Validates: Requirements 5.10, 5.12**
+    #[test]
+    fn item_and_evidence_order_and_duplicates_do_not_change_grade_or_identity(
+        case in arb_s_case(),
+        item_keys in prop::collection::vec(any::<u32>(), 1..=12),
+        ev_keys in prop::collection::vec(any::<u32>(), 1..=12),
+        swap_ab in any::<bool>(),
+        dup in prop::option::of(0usize..12),
+    ) {
+        let before = case.verdict();
+        let want_grade = grade("p9", &before, &case.key)
+            .map_err(|e| TestCaseError::fail(e.to_string()))?;
+        let want_identity = identity(&before);
+
+        let mut moved = case.clone();
+        scramble(&mut moved.answer, &item_keys, &ev_keys, swap_ab, dup);
+        let after = moved.verdict();
+        let got_grade = grade("p9", &after, &case.key)
+            .map_err(|e| TestCaseError::fail(e.to_string()))?;
+        prop_assert_eq!(&got_grade, &want_grade);
+        prop_assert_eq!(identity(&after), want_identity);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Property 10
+// ---------------------------------------------------------------------------
+
+use sim_core::llm::card::ExpectedSide;
+
+/// One side of a contrast pair: the base verdict, the subset the pair expects for it,
+/// and what the reference rule says about membership.
+type Side = (Verdict, ExpectedSide, bool);
+
+/// A D side: a legal option against a non-empty subset of the options.
+fn arb_d_side() -> BoxedStrategy<Side> {
+    arb_decision_context()
+        .prop_flat_map(|ctx| {
+            let n = match &ctx.spec {
+                TaskSpec::Decision { options } => options.len(),
+                TaskSpec::Synthesis { .. } => unreachable!("decision context"),
+            };
+            (
+                Just(ctx),
+                0..n,
+                prop::collection::vec(any::<bool>(), 5..=5),
+                0..n,
+            )
+        })
+        .prop_map(|(ctx, pick, mask, fallback)| {
+            let TaskSpec::Decision { options } = &ctx.spec else {
+                unreachable!("decision context");
+            };
+            let mut set: BTreeSet<_> = options
+                .iter()
+                .enumerate()
+                .filter(|(i, _)| mask[*i])
+                .map(|(_, o)| o.id.clone())
+                .collect();
+            if set.is_empty() {
+                set.insert(options[fallback].id.clone());
+            }
+            let option = options[pick].id.clone();
+            let want = set.contains(&option);
+            (
+                Verdict::Decision { option },
+                ExpectedSide::Options(set),
+                want,
+            )
+        })
+        .boxed()
+}
+
+/// An S side: a legal answer against include/exclude lists, judged by the Property 8
+/// reference matcher (every include matched, no exclude matched).
+fn arb_s_side() -> BoxedStrategy<Side> {
+    arb_s_case()
+        .prop_map(|case| {
+            let AnswerKey::Synthesis {
+                must_include,
+                must_not_include,
+                ..
+            } = &case.key
+            else {
+                unreachable!("synthesis key");
+            };
+            let swap = case.schema == OutputSchema::RelationshipShiftV1;
+            let want = ref_acceptable(
+                must_include,
+                must_not_include,
+                &ref_items(&case.answer),
+                swap,
+            );
+            let expected = ExpectedSide::Patterns {
+                include: must_include.clone(),
+                exclude: must_not_include.clone(),
+            };
+            (case.verdict(), expected, want)
+        })
+        .boxed()
+}
+
+/// An Illegal side: never in the subset, whatever the subset is (an empty pattern pair
+/// would hold for any legal answer; a full option set holds for every option).
+fn arb_illegal_side() -> BoxedStrategy<Side> {
+    (
+        0..ALL_ILLEGAL_REASONS.len(),
+        proptest::option::of("[a-z_.\\[\\]0-9]{0,12}"),
+        arb_d_side(),
+        any::<bool>(),
+    )
+        .prop_map(|(reason_ix, path, (_, d_expected, _), empty_patterns)| {
+            let expected = if empty_patterns {
+                ExpectedSide::Patterns {
+                    include: Vec::new(),
+                    exclude: Vec::new(),
+                }
+            } else {
+                d_expected
+            };
+            let verdict = Verdict::Illegal {
+                reason: ALL_ILLEGAL_REASONS[reason_ix],
+                path,
+            };
+            (verdict, expected, false)
+        })
+        .boxed()
+}
+
+fn arb_side() -> BoxedStrategy<Side> {
+    prop_oneof![
+        3 => arb_d_side(),
+        3 => arb_s_side(),
+        2 => arb_illegal_side(),
+    ]
+    .boxed()
+}
+
+/// A D-or-Illegal / S-or-Illegal pair of sides: valid/illegal combinations of both
+/// task types, including the mixed case where the two cards are of different tasks.
+fn arb_pair() -> BoxedStrategy<(Side, Side)> {
+    (arb_side(), arb_side()).boxed()
+}
+
+proptest! {
+    // Feature: llm-probe, Property 10: Contrast decisions follow the expected subsets
+    // **Validates: Requirements 5.9, 13.3**
+    #[test]
+    fn contrast_decisions_follow_the_expected_subsets(
+        (a, b) in arb_pair(),
+        pair_id in "[a-z]{1,6}-[0-9]{1,3}",
+    ) {
+        let (verdict_a, expected_a, want_a) = a;
+        let (verdict_b, expected_b, want_b) = b;
+        let got = sim_core::llm::grade::contrast(
+            &pair_id, &verdict_a, &verdict_b, &expected_a, &expected_b,
+        )
+        .map_err(|e| TestCaseError::fail(e.to_string()))?;
+        prop_assert_eq!(got.a_in_expected, want_a);
+        prop_assert_eq!(got.b_in_expected, want_b);
+        prop_assert_eq!(got.consistent, want_a && want_b);
+        // An Illegal base on either card is never consistent.
+        if matches!(verdict_a, Verdict::Illegal { .. }) {
+            prop_assert!(!got.a_in_expected && !got.consistent);
+        }
+        if matches!(verdict_b, Verdict::Illegal { .. }) {
+            prop_assert!(!got.b_in_expected && !got.consistent);
+        }
+    }
+}
+
+/// The pair generator reaches every combination the property is about.
+#[test]
+fn contrast_pair_generator_covers_valid_and_illegal_combinations() {
+    let mut runner = TestRunner::deterministic();
+    let strategy = arb_pair();
+    // [a valid, b valid] x [a in subset, b in subset], plus illegal on a / on b / on both.
+    let (mut both_in, mut a_only, mut b_only, mut neither) = (0, 0, 0, 0);
+    let (mut ill_a, mut ill_b, mut ill_both) = (0, 0, 0);
+    let (mut d_and_s, mut s_s) = (0, 0);
+    for _ in 0..1500 {
+        let ((va, _, wa), (vb, _, wb)) = strategy.new_tree(&mut runner).expect("tree").current();
+        let (ia, ib) = (
+            matches!(va, Verdict::Illegal { .. }),
+            matches!(vb, Verdict::Illegal { .. }),
+        );
+        ill_a += usize::from(ia && !ib);
+        ill_b += usize::from(ib && !ia);
+        ill_both += usize::from(ia && ib);
+        if !ia && !ib {
+            both_in += usize::from(wa && wb);
+            a_only += usize::from(wa && !wb);
+            b_only += usize::from(!wa && wb);
+            neither += usize::from(!wa && !wb);
+            let (sa, sb) = (
+                matches!(va, Verdict::Synthesis { .. }),
+                matches!(vb, Verdict::Synthesis { .. }),
+            );
+            d_and_s += usize::from(sa != sb);
+            s_s += usize::from(sa && sb);
+        }
+    }
+    for (name, n) in [
+        ("both in subset", both_in),
+        ("only a in subset", a_only),
+        ("only b in subset", b_only),
+        ("neither in subset", neither),
+        ("illegal on a only", ill_a),
+        ("illegal on b only", ill_b),
+        ("illegal on both", ill_both),
+        ("one D one S", d_and_s),
+        ("both S", s_s),
+    ] {
+        assert!(n >= 10, "{name}: only {n} of 1500 pairs");
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Property 11
+// ---------------------------------------------------------------------------
+//
+// Scope: all 34 Dev_Cards, including the four unscored Sanity cards (their keys are
+// graded like any other, so they are covered, not skipped).
+
+mod gold {
+    use std::collections::BTreeMap;
+
+    use sim_core::llm::card::ParsedCard;
+    use sim_core::llm::json::Json;
+    use sim_core::llm::{
+        AnswerKey, EventId, FrozenContext, OutputSchema, Pattern, PatternValue, Scalar, TaskSpec,
+    };
+
+    use super::schema_name_of;
+
+    fn scalar_json(s: &Scalar) -> Json {
+        match s {
+            Scalar::Int(n) => Json::int(*n),
+            Scalar::Str(t) => Json::Str(t.clone()),
+            Scalar::Null => Json::Null,
+        }
+    }
+
+    fn json_scalar(j: &Json) -> Scalar {
+        match j {
+            Json::Number(n) => Scalar::Int(n.parse().unwrap_or(i64::MIN)),
+            Json::Str(s) => Scalar::Str(s.clone()),
+            _ => Scalar::Null,
+        }
+    }
+
+    /// An allowed value of a pattern field; `choice` picks among a list.
+    fn allowed(v: &PatternValue, choice: usize) -> Scalar {
+        match v {
+            PatternValue::Exact(s) => s.clone(),
+            PatternValue::AnyOf(l) => l
+                .get(choice % l.len().max(1))
+                .cloned()
+                .unwrap_or(Scalar::Null),
+        }
+    }
+
+    fn value_ok(want: &PatternValue, got: &Scalar) -> bool {
+        match want {
+            PatternValue::Exact(s) => s == got,
+            PatternValue::AnyOf(l) => l.contains(got),
+        }
+    }
+
+    /// Independent pattern matcher over a built item (the `a`/`b` swap for shifts).
+    fn item_matches(schema: OutputSchema, p: &Pattern, item: &BTreeMap<String, Json>) -> bool {
+        let ev_ok = p
+            .evidence_any
+            .as_ref()
+            .is_none_or(|any| match item.get("evidence") {
+                Some(Json::Array(ev)) => ev
+                    .iter()
+                    .any(|e| matches!(e, Json::Str(s) if any.iter().any(|x| x.as_str() == s))),
+                _ => false,
+            });
+        let direct = |swap: bool| {
+            p.fields.iter().all(|(k, want)| {
+                let key = match (swap, k.as_str()) {
+                    (true, "a") => "b",
+                    (true, "b") => "a",
+                    _ => k.as_str(),
+                };
+                item.get(key)
+                    .is_some_and(|got| value_ok(want, &json_scalar(got)))
+            })
+        };
+        ev_ok && (direct(false) || (schema == OutputSchema::RelationshipShiftV1 && direct(true)))
+    }
+
+    const LEVELS: [&str; 3] = ["low", "medium", "high"];
+    const DEBT: [&str; 4] = ["open", "repaid", "transferred", "forgiven"];
+    const PROMISE: [&str; 3] = ["broken", "pending", "kept"];
+    const DIRS: [&str; 4] = ["warmer", "colder", "unchanged", "reversed"];
+
+    /// Builds one item satisfying `p`. Free fields take values from `free`, a rotation
+    /// offset; the caller retries other offsets when the item hits an exclusion.
+    fn build_item(
+        ctx: &FrozenContext,
+        schema: OutputSchema,
+        p: &Pattern,
+        choice: usize,
+        free: usize,
+    ) -> BTreeMap<String, Json> {
+        let people: Vec<i64> = ctx.people.iter().map(|x| x.id.0).collect();
+        let events: Vec<&EventId> = ctx.events.iter().map(|e| &e.id).collect();
+        let pick_enum =
+            |names: &[&str], salt: usize| Json::Str(names[(free + salt) % names.len()].to_owned());
+        let pick_event =
+            |salt: usize| Json::Str(events[(free + salt) % events.len()].as_str().to_owned());
+        let fixed = |name: &str| p.fields.get(name).map(|v| scalar_json(&allowed(v, choice)));
+        // Person fields: pattern value when given; otherwise rotate, avoiding the
+        // partner so the item never refers to a person twice.
+        let (p1, p2) = match schema {
+            OutputSchema::GrudgeV1 => ("from", "to"),
+            OutputSchema::DebtChainV1 => ("debtor", "creditor"),
+            OutputSchema::BrokenPromiseV1 => ("promisor", "promisee"),
+            OutputSchema::RelationshipShiftV1 => ("a", "b"),
+        };
+        let first = match fixed(p1) {
+            Some(Json::Number(n)) => n.parse().unwrap_or(0),
+            _ => people[free % people.len()],
+        };
+        let second = match fixed(p2) {
+            Some(Json::Number(n)) => n.parse().unwrap_or(0),
+            _ => {
+                let others: Vec<i64> = people.iter().copied().filter(|x| *x != first).collect();
+                others[(free / people.len().max(1)) % others.len().max(1)]
+            }
+        };
+        let mut m: BTreeMap<String, Json> = BTreeMap::new();
+        m.insert(p1.to_owned(), Json::int(first));
+        m.insert(p2.to_owned(), Json::int(second));
+        let evidence = match &p.evidence_any {
+            Some(any) => {
+                let ids: Vec<&EventId> = any.iter().collect();
+                vec![ids[choice % ids.len()].as_str().to_owned()]
+            }
+            None => vec![events[free % events.len()].as_str().to_owned()],
+        };
+        m.insert(
+            "evidence".to_owned(),
+            Json::Array(evidence.into_iter().map(Json::Str).collect()),
+        );
+        m.insert("reason".to_owned(), Json::Str("gold".to_owned()));
+        match schema {
+            OutputSchema::GrudgeV1 => {
+                m.insert(
+                    "level".to_owned(),
+                    fixed("level").unwrap_or_else(|| pick_enum(&LEVELS, 0)),
+                );
+            }
+            OutputSchema::DebtChainV1 => {
+                m.insert(
+                    "amount".to_owned(),
+                    fixed("amount").unwrap_or_else(|| Json::int([0, 1, 40, 500][free % 4])),
+                );
+                m.insert(
+                    "status".to_owned(),
+                    fixed("status").unwrap_or_else(|| pick_enum(&DEBT, 0)),
+                );
+                m.insert(
+                    "origin_event".to_owned(),
+                    fixed("origin_event").unwrap_or_else(|| pick_event(1)),
+                );
+                m.insert(
+                    "transferred_from".to_owned(),
+                    fixed("transferred_from").unwrap_or(Json::Null),
+                );
+            }
+            OutputSchema::BrokenPromiseV1 => {
+                m.insert(
+                    "promise_event".to_owned(),
+                    fixed("promise_event").unwrap_or_else(|| pick_event(1)),
+                );
+                m.insert(
+                    "status".to_owned(),
+                    fixed("status").unwrap_or_else(|| pick_enum(&PROMISE, 0)),
+                );
+            }
+            OutputSchema::RelationshipShiftV1 => {
+                m.insert(
+                    "direction".to_owned(),
+                    fixed("direction").unwrap_or_else(|| pick_enum(&DIRS, 0)),
+                );
+                m.insert(
+                    "turning_point".to_owned(),
+                    fixed("turning_point").unwrap_or_else(|| {
+                        if free.is_multiple_of(2) {
+                            Json::Null
+                        } else {
+                            pick_event(2)
+                        }
+                    }),
+                );
+            }
+        }
+        m
+    }
+
+    /// A schema-valid answer text with one item per `must_include` pattern, taken from
+    /// the card's own people and events, matching no `must_not_include` or severe pattern.
+    /// `None` when no variant avoids every exclusion (a card whose key cannot be met).
+    pub fn gold_answer(card: &ParsedCard, choice: usize, extra: usize) -> Option<String> {
+        let (_, ctx, key, _) = card;
+        let (
+            TaskSpec::Synthesis { .. },
+            AnswerKey::Synthesis {
+                schema,
+                must_include,
+                must_not_include,
+                severe_patterns,
+                ..
+            },
+        ) = (&ctx.spec, key)
+        else {
+            return None;
+        };
+        let banned: Vec<&Pattern> = must_not_include
+            .iter()
+            .chain(severe_patterns.iter().map(|(_, p)| p))
+            .collect();
+        let mut items = Vec::new();
+        for (i, p) in must_include.iter().enumerate() {
+            let item = (0..200usize)
+                .map(|k| build_item(ctx, *schema, p, choice + i, extra + k))
+                .find(|m| banned.iter().all(|b| !item_matches(*schema, b, m)))?;
+            items.push(Json::Object(item));
+        }
+        let mut root = BTreeMap::new();
+        root.insert("schema".to_owned(), Json::Str(schema_name_of(*schema)));
+        root.insert("items".to_owned(), Json::Array(items));
+        Some(sim_core::llm::json::write(&Json::Object(root)))
+    }
+}
+
+fn schema_name_of(s: sim_core::llm::OutputSchema) -> String {
+    schema_name(s).to_owned()
+}
+
+fn assert_gold_card(card: &ParsedCard, choice: usize, extra: usize) -> Result<(), TestCaseError> {
+    let (meta, ctx, key, _) = card;
+    let want = |g: &sim_core::llm::Grade| g.acceptable && !g.severe && !g.illegal;
+    match key {
+        AnswerKey::Decision { acceptable, severe } => {
+            for option in acceptable.difference(severe) {
+                let raw = format!("{{\"option\":\"{}\"}}", option.as_str());
+                let verdict = validate_raw(ctx, &raw);
+                let g = grade(&meta.id, &verdict, key)
+                    .map_err(|e| TestCaseError::fail(e.to_string()))?;
+                prop_assert!(
+                    want(&g),
+                    "{}: option {} graded {:?}",
+                    meta.id,
+                    option.as_str(),
+                    g
+                );
+            }
+        }
+        AnswerKey::Synthesis { .. } => {
+            let Some(raw) = gold::gold_answer(card, choice, extra) else {
+                return Err(TestCaseError::fail(format!(
+                    "{}: no gold answer avoids every exclusion",
+                    meta.id
+                )));
+            };
+            let verdict = validate_raw(ctx, &raw);
+            match &verdict {
+                Verdict::Synthesis {
+                    missing_persons,
+                    missing_events,
+                    ..
+                } => prop_assert!(
+                    missing_persons.is_empty() && missing_events.is_empty(),
+                    "{}: {}",
+                    meta.id,
+                    raw
+                ),
+                other => prop_assert!(false, "{}: {:?} for {}", meta.id, other, raw),
+            }
+            let g =
+                grade(&meta.id, &verdict, key).map_err(|e| TestCaseError::fail(e.to_string()))?;
+            prop_assert!(want(&g), "{}: graded {:?} for {}", meta.id, g, raw);
+        }
+    }
+    Ok(())
+}
+
+proptest! {
+    // Feature: llm-probe, Property 11: Gold answers grade as acceptable on every Dev_Card
+    // **Validates: Requirements 5.13, 5.14**
+    #[test]
+    fn gold_answers_grade_acceptable_on_a_dev_card(
+        card in arb_dev_card(),
+        choice in 0usize..8,
+        extra in 0usize..64,
+    ) {
+        assert_gold_card(&card, choice, extra)?;
+    }
+}
+
+// Feature: llm-probe, Property 11: Gold answers grade as acceptable on every Dev_Card
+// **Validates: Requirements 5.13, 5.14**
+#[test]
+fn gold_answers_grade_acceptable_on_every_dev_card_for_every_choice() {
+    let cards = dev_cards();
+    assert_eq!(cards.len(), 34);
+    for card in &cards {
+        for choice in 0..4 {
+            for extra in [0, 1, 7] {
+                if let Err(e) = assert_gold_card(card, choice, extra) {
+                    panic!("{} (choice {choice}, extra {extra}): {e}", card.0.id);
+                }
+            }
+        }
     }
 }

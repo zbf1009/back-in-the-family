@@ -529,7 +529,7 @@ fn is_decision_family(family: Family) -> bool {
 }
 
 /// Item fields a pattern may name for each output schema (besides `evidence_any`).
-fn pattern_fields(schema: OutputSchema) -> &'static [&'static str] {
+pub(super) fn pattern_fields(schema: OutputSchema) -> &'static [&'static str] {
     match schema {
         OutputSchema::GrudgeV1 => &["from", "to", "level"],
         OutputSchema::DebtChainV1 => &[

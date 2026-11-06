@@ -87,7 +87,7 @@ pub fn schema_of(answer: &SynthesisAnswer) -> OutputSchema {
     }
 }
 
-fn level_str(v: Level) -> &'static str {
+pub(super) fn level_str(v: Level) -> &'static str {
     match v {
         Level::Low => "low",
         Level::Medium => "medium",
@@ -95,7 +95,7 @@ fn level_str(v: Level) -> &'static str {
     }
 }
 
-fn debt_status_str(v: DebtStatus) -> &'static str {
+pub(super) fn debt_status_str(v: DebtStatus) -> &'static str {
     match v {
         DebtStatus::Open => "open",
         DebtStatus::Repaid => "repaid",
@@ -104,7 +104,7 @@ fn debt_status_str(v: DebtStatus) -> &'static str {
     }
 }
 
-fn promise_status_str(v: PromiseStatus) -> &'static str {
+pub(super) fn promise_status_str(v: PromiseStatus) -> &'static str {
     match v {
         PromiseStatus::Broken => "broken",
         PromiseStatus::Pending => "pending",
@@ -112,7 +112,7 @@ fn promise_status_str(v: PromiseStatus) -> &'static str {
     }
 }
 
-fn direction_str(v: Direction) -> &'static str {
+pub(super) fn direction_str(v: Direction) -> &'static str {
     match v {
         Direction::Warmer => "warmer",
         Direction::Colder => "colder",
