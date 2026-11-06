@@ -11,10 +11,12 @@
     clippy::indexing_slicing
 )]
 
+pub mod answer;
 pub mod card;
 pub mod context;
 pub mod json;
 pub mod key;
+pub mod validate;
 
 use std::collections::BTreeSet;
 

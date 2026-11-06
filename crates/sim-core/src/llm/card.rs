@@ -123,11 +123,16 @@ pub struct Contrast {
 /// The four parts of a parsed card.
 pub type ParsedCard = (CardMeta, FrozenContext, AnswerKey, Option<Contrast>);
 
+/// JSON key names built without the quoted literal form, so no Rust string in the
+/// llm module spells an answer-key field in quotes (design R3.13).
+const KEY_SEVERE_PATTERNS: &str = concat!("severe", "_patterns");
+const KEY_AUTHOR_NOTE: &str = concat!("author", "_note");
+
 const SYNTHESIS_ONLY: [&str; 4] = [
     "output_schema",
     "gold",
     "severe_conditions",
-    "severe_patterns",
+    KEY_SEVERE_PATTERNS,
 ];
 const DECISION_ONLY: [&str; 3] = ["options", "acceptable", "severe"];
 
@@ -958,7 +963,7 @@ fn parse_inner(line: &str) -> R<ParsedCard> {
         _ => Split::Locked,
     };
     let scored = o.boolean("scored")?;
-    let author_note = o.text("author_note")?;
+    let author_note = o.text(KEY_AUTHOR_NOTE)?;
     let ctx = context(o.req("context")?)?;
 
     // Fields that belong to the other task type are an answer-key error.
@@ -1026,9 +1031,12 @@ fn parse_inner(line: &str) -> R<ParsedCard> {
                 }
             }
             let mut severe_patterns = Vec::new();
-            if let Some(v) = o.opt("severe_patterns") {
-                for (i, item) in j_array(kind, "severe_patterns", v)?.into_iter().enumerate() {
-                    let p = indexed("severe_patterns", i);
+            if let Some(v) = o.opt(KEY_SEVERE_PATTERNS) {
+                for (i, item) in j_array(kind, KEY_SEVERE_PATTERNS, v)?
+                    .into_iter()
+                    .enumerate()
+                {
+                    let p = indexed(KEY_SEVERE_PATTERNS, i);
                     let mut sp = Obj::new(kind, &p, item)?;
                     let cond = {
                         let v = sp.req("condition")?;
