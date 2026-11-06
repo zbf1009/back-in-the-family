@@ -197,7 +197,7 @@ Execution notes for the orchestrator:
     - Gates green; one conventional commit for task 9.
     - _Requirements: all_
 
-- [ ] 10. Enable deploy (author approval required at each step)
+- [x] 10. Enable deploy (author approval required at each step)
   - [x] 10.1 Stop and ask before pushing `main`
     - The remote `origin` (`zbf1009/back-in-the-family`, public) already exists; do not create another. Ask the author whether to push `main`, which carries the commits of tasks 1 to 9 and the new workflow. Do nothing until the author approves in that moment. With deploy still disabled, this push only runs the gates in CI; report the run's result and any CI-only difference (for example Chrome or mise behaviour on the runner) and log it.
     - _Requirements: 11.2, 11.4, 11.7, 11.8_

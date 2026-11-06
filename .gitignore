@@ -29,3 +29,6 @@ web/test-results/
 .vscode/
 
 # NOTE: .kiro/ must stay tracked (hackathon requirement). Do not add it here.
+
+# Wrangler local state (wrangler dev / deploy temp files)
+.wrangler/

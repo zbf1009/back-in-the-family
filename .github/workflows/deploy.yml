@@ -3,9 +3,10 @@
 # Author with the two Cloudflare secrets present, deploys the Deploy_Directory
 # (web/dist, built and checked by the gates in this same run) to the Cloudflare_Target.
 #
-# Deploy is DISABLED until task 10: `vars.DEPLOY_ENABLED` is unset and no secrets
-# exist, so the "Check deploy configuration" step prints the not-configured message
-# and the deploy step is skipped. Until then this workflow only runs the gates in CI.
+# Deploy is ENABLED (web-shell task 10, 2026-11-05): `vars.DEPLOY_ENABLED` is `true`
+# and both secrets are set, so every green push to `main` deploys. If either secret
+# is removed or the variable is unset, the "Check deploy configuration" step prints
+# the not-configured message and the deploy step is skipped (gates still run).
 name: deploy
 
 on:

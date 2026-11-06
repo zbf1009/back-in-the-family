@@ -25,7 +25,7 @@ One new question came up during design: where the web unit and property tests ru
 - Latest npm versions observed on 2026-11-05 from the npm registry `dist-tags` endpoints: `svelte` 5.57.3, `vite` 8.3.5, `@sveltejs/vite-plugin-svelte` 7.3.1 (peer `svelte ^5.46.4`, `vite ^8`), `svelte-check` 4.7.8 (peer `typescript ^5 || ^6`), `typescript` 7.0.2 latest, `@playwright/test` 1.64.1, `wrangler` 4.157.0, `fast-check` 4.10.2, `pnpm` 12.16.1 latest with `10.34.9` the latest 10.x. Two registry endpoints returned different "latest" values for `vite` and `pnpm` during the same session, so every version is to be confirmed when the lockfile is created. Because `svelte-check` does not accept TypeScript 7 as a peer, the project pins the latest TypeScript 6.x. Sources: [svelte-check](https://registry.npmjs.org/svelte-check/4.7.8), [vite-plugin-svelte](https://registry.npmjs.org/@sveltejs/vite-plugin-svelte/7.3.1), [typescript dist-tags](https://registry.npmjs.org/-/package/typescript/dist-tags), [pnpm dist-tags](https://registry.npmjs.org/-/package/pnpm/dist-tags).
 - Cloudflare Static Assets: a Worker config with `name`, `compatibility_date` and `assets.directory` and no `main` serves only assets; a request that matches no file returns 404 when no Worker script exists ([Static Assets](https://developers.cloudflare.com/workers/static-assets/)). Custom headers go in a `_headers` file in the assets directory; the file itself is not served, and its rules apply only to asset responses ([Headers](https://developers.cloudflare.com/workers/static-assets/headers/)).
 - The `cf` CLI (beta) has no `assets.directory` field in `cloudflare.config.ts`; for Vite projects the assets are the output of its own Vite client build, and CI deploys a Build Output made by `cf build` ([cf configuration](https://developers.cloudflare.com/cf/projects/cloudflare-config/), [cf in CI](https://developers.cloudflare.com/cf/ci/)). Wrangler deploys from `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` and has the official `cloudflare/wrangler-action` ([GitHub Actions](https://developers.cloudflare.com/workers/ci-cd/external-cicd/github-actions/)).
-- API token: Cloudflare's "Edit Cloudflare Workers" template includes the zone-level permission "Workers Routes" and KV, R2 and Tail permissions ([templates](https://developers.cloudflare.com/fundamentals/api/reference/template/)), so it breaks R11.6. A custom token with only **Account → Workers Scripts → Edit** on one account is the starting point; whether Wrangler additionally needs **Account Settings → Read** when the account ID is set is confirmed during the first deploy (see [Error Handling](#deploy-workflow)).
+- API token: Cloudflare's "Edit Cloudflare Workers" template includes the zone-level permission "Workers Routes" and KV, R2 and Tail permissions ([templates](https://developers.cloudflare.com/fundamentals/api/reference/template/)), so it breaks R11.6. A custom token with only **Account → Workers Scripts → Edit** on one account is the starting point; whether Wrangler additionally needs **Account Settings → Read** when the account ID is set is confirmed during the first deploy (see [Error Handling](#deploy-workflow)). As built (2026-11-06): not needed. The first deploy succeeded with only Account → Workers Scripts → Edit; on 2026-11-06 the Author rotated to an account API token from the Worker panel's CI/CD option, scoped to editing only the Worker `back-in-the-family`, and a re-run deployed with it without a missing-permission error. Account tokens are verified at `/accounts/<account_id>/tokens/verify`, not `/user/tokens/verify`.
 - GitHub runner image `ubuntu-24.04` (image 20261026) ships Google Chrome 156, rustup 1.29.2 and Node 22 ([runner image readme](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md)). The same readme announces that `ubuntu-latest` moves to Ubuntu 26.04 in November 2026, so the workflow pins `ubuntu-24.04`.
 
 ## Architecture
@@ -94,6 +94,9 @@ web/
   tsconfig.node.json      # configs, scripts, tests (Node types)
   index.html
   public/                 # copied into dist as is (empty now; spec 3 adds _headers)
+                          # As built (2026-11-06): the empty web/public/ and its .gitkeep were removed,
+                          # so web/dist no longer ships an empty .gitkeep; the directory is recreated
+                          # when the first public file (e.g. _headers) is added.
   src/
     main.ts               # mounts App, installs harness when ?harness=1
     App.svelte            # fields, controls, status, error area
@@ -660,7 +663,7 @@ R10.1 lists the new gates and does not mention web unit tests, but Properties 1�
 
 ### Notes that do not need a decision
 
-- API token: a custom account token with only Account → Workers Scripts → Edit for the one account (R11.6). The author creates it and the two GitHub secrets after approving (R11.8).
+- API token: a custom account token with only Account → Workers Scripts → Edit for the one account (R11.6). The author creates it and the two GitHub secrets after approving (R11.8). (As built 2026-11-06: replaced by a token scoped to the single Worker; see the research note above.)
 - `compatibility_date` is set to the implementation date.
 - The Worker name `back-in-the-family` gives `back-in-the-family.<account-subdomain>.workers.dev`; the author can choose another name before the first deploy.
 
@@ -727,3 +730,5 @@ DA-1 A was taken: `wrangler` is a `web/` dev dependency. Accepted cost observed 
 ### Deploy enablement deferred to task 10
 
 R11.6 (the custom API token), R11.8 (the author creating the token and the two GitHub secrets) and R11.9 (the first deploy and `workers.dev` subdomain registration) are deferred to task 10, pending the author's approval. The Deploy_Workflow's live CI behavior — the gates running on a GitHub runner and the deploy step — is therefore **unverified until the first push to `main`**. The workflow was validated by read-through and local `scripts/gates.sh` runs only (see the task 8 log entry).
+
+**As built (2026-11-06).** Task 10 completed on 2026-11-05. `main` was pushed; CI run `41992180587` on `ubuntu-24.04` ran the gates green with deploy disabled and logged the not-configured message. The Author then created the two GitHub secrets and set `DEPLOY_ENABLED=true`. The first deploy served commit `76ab0bb` at <https://back-in-the-family.2290698778.workers.dev> (Cloudflare Version ID `eb14eb1e-9f35-44e3-ba8d-467f09d3e0a0`), and every green push to `main` now deploys. The live CI behaviour is therefore verified on the happy path; the gate-failure, deploy-failure and concurrency-ordering branches remain verified by inspection only.

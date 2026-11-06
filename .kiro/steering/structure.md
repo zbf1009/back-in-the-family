@@ -50,7 +50,7 @@ back-in-the-family/
   rust-toolchain.toml  # pinned Rust version, components and wasm32 target
   mise.toml       # pinned project tools: wasm-bindgen-cli, Node
   .kiro/
-    steering/  specs/  agents/
+    steering/  specs/
 ```
 
 ## Modules and boundaries

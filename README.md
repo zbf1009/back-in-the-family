@@ -4,9 +4,9 @@
 
 A reincarnation life-sim set in a small American town where, after a Halloween clerical error at the local branch of the underworld, everyone who dies in town can only be reborn into the town's own newborns.
 
-Built for Kiroween 2026 (Frankenstein category). Development is done with Kiro CLI; the `.kiro/` directory (steering, specs, agents) is part of this repository.
+Built for Kiroween 2026 (Frankenstein category). Development is done with Kiro CLI; the `.kiro/` directory (steering, specs) is part of this repository.
 
-Status: the deterministic simulation skeleton (`sim-core`, with the native runner `sim-cli` and the browser bindings `sim-wasm`) is built and checked, and the web shell (`web/`) is now built — a Svelte 5 + Vite page that loads the WASM in a dedicated Web Worker and shows the tick, checksum and ticks-per-second, together with the Web_Build (into `web/dist`), the Type_Check, Unit_Tests and Smoke_Test gates, and the Cloudflare deploy workflow (the deploy step is not yet enabled). There is no playable game yet. The next spec is `llm-probe`.
+Status: the deterministic simulation skeleton (`sim-core`, with the native runner `sim-cli` and the browser bindings `sim-wasm`) is built and checked, and the web shell (`web/`) is now built — a Svelte 5 + Vite page that loads the WASM in a dedicated Web Worker and shows the tick, checksum and ticks-per-second, together with the Web_Build (into `web/dist`), the Type_Check, Unit_Tests and Smoke_Test gates, and the Cloudflare deploy workflow (enabled: every green push to `main` deploys to <https://back-in-the-family.2290698778.workers.dev>). There is no playable game yet. The next spec is `llm-probe`.
 
 ## Build and test
 

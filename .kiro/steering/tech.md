@@ -13,7 +13,7 @@ inclusion: always
 | Headless runner | Native Rust binary | Seed batches, replay checks, metrics |
 | Frontend | Svelte 5 + Vite, all TypeScript (`web/`) | Chosen in the web-shell spec. The vertical slice adds the DOM + Canvas town view and scenes on top |
 | Web package manager | pnpm, one exact version | Pinned in both `mise.toml` and `web/package.json` `packageManager`; the two must match (a gate enforces it). Install uses `--frozen-lockfile` |
-| Hosting | Cloudflare Workers Static Assets (assets only, no Worker script), on a `*.workers.dev` subdomain | Deployed by the GitHub Actions Deploy_Workflow (`.github/workflows/deploy.yml`) on push to `main`, only after the gates pass. **Ask before any deploy** — the deploy step stays disabled until the author enables it (web-shell task 10) |
+| Hosting | Cloudflare Workers Static Assets (assets only, no Worker script), on a `*.workers.dev` subdomain | Deployed by the GitHub Actions Deploy_Workflow (`.github/workflows/deploy.yml`) on push to `main`, only after the gates pass. Deploy is enabled (web-shell task 10): every green push to `main` deploys automatically, so merge to `main` deliberately. **Ask before any manual or out-of-band deploy** |
 | LLM runtime | Decided by the W1 probe | Candidates: in-browser (WebLLM or transformers.js) and server-side (Cloudflare Workers AI). Rules default is always the last fallback |
 | Property-based tests | `proptest` (Rust), `fast-check` on the TS side | fast-check is wired into the web Unit_Tests gate with Node's test runner |
 
