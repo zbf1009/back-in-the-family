@@ -205,7 +205,7 @@ Execution notes for the orchestrator:
     - One conventional commit for task 7.
     - _Requirements: 1.4, 1.6, 16.1, 16.3, 16.6, 16.7, 16.10, 17.7_
 
-- [ ] 8. Results, ledger, budget and approvals storage with redaction
+- [x] 8. Results, ledger, budget and approvals storage with redaction
   - [x] 8.1 Write `sink.ts`, `redact.ts` and `env.ts`
     - `env.ts` reads only the root `env` file, only when a Workers AI Combination starts; parses `KEY=value` lines without echoing; returns the token and account ID as opaque values whose `toString()`/`toJSON()` give `[redacted]`; a missing file, missing or empty variable exits non-zero naming only the file or variable. `redact.ts` replaces both secret strings with `[redacted]`. `sink.ts` is the only writer to files and console streams; every writer goes through it.
     - _Requirements: 11.2, 11.3, 11.4_
@@ -232,152 +232,152 @@ Execution notes for the orchestrator:
     - **Property 28: Budget accounting is exact**
     - Plus the example: a counter file with a missing `neurons` field is refused and left byte-identical.
     - **Validates: Requirements 11.5, 11.6, 11.11, 11.12, 11.13, 11.14**
-  - [-] 8.9 Write `approvals.ts` and commit
+  - [x] 8.9 Write `approvals.ts` and commit
     - `git status --porcelain -- eval/probe/approvals.json` must print nothing and the content comes from `git show HEAD:eval/probe/approvals.json`, both through `execFile` with fixed arguments; any failure means not approved, with the reason printed. Create `eval/probe/approvals.json` with an empty `approvals` list (`llm-probe-approvals-v1`).
     - Unit tests on a temporary git repository in four states: committed and clean → accepted; modified, staged, untracked → not approved.
     - Gates green; one conventional commit for task 8.
     - _Requirements: 11.8, 11.20_
 
-- [ ] 9. Metrics and statistics
-  - [~] 9.1 Write `metrics.ts`
+- [x] 9. Metrics and statistics
+  - [x] 9.1 Write `metrics.ts`
     - Per Combination and Task_Type over base outputs of non-void Scored_Cards: acceptable rate and illegal rate with the full denominator (every non-void Scored_Card of the Task_Type, output or not), severe count, flip rate (Illegal permutation flips unless the base is `invalid`), contrast consistency with both counts, Random_Baseline from the cards only, integer Threshold tests, zero denominator → not computable and not passing, `excluded` list, Sanity_Cards apart, "quality without timeout" figures with the same denominators, `engine_fault` and `rebuild_failed` records outside every numerator.
     - _Requirements: 2.8, 8.5, 8.13, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.10, 13.12_
-  - [~] 9.2 Write `stats.ts`
+  - [x] 9.2 Write `stats.ts`
     - Wilson 95% interval; SplitMix64 (`BigInt`, seed 20261104) cluster bootstrap over scenario groups and pair bootstrap over Contrast_Pairs, 10,000 resamples, resample values kept as exact fractions, nearest-rank bounds at indices 249 and 9,749; weak-evidence labels by integer cross-multiplication; intra-group correlation (one-way ANOVA estimator, "not estimable" cases); latency p50/p95 with index `floor((p·n + 99) / 100) − 1` over `text` outcomes only, plus covered, timeout and error counts and "no data".
     - _Requirements: 13.7, 13.8, 13.9, 14.1, 14.2, 14.3_
-  - [~] 9.3 Write property test for void and sanity cards
+  - [x] 9.3 Write property test for void and sanity cards
     - **Property 18: Void and sanity cards never move a Metric**
     - **Validates: Requirements 2.8, 13.10**
-  - [~] 9.4 Write property test for Metric definitions
+  - [x] 9.4 Write property test for Metric definitions
     - **Property 19: Metrics match their definitions**
     - **Validates: Requirements 8.5, 13.1, 13.2, 13.3, 13.5, 13.12**
-  - [~] 9.5 Write property test for integer Thresholds and labels
+  - [x] 9.5 Write property test for integer Thresholds and labels
     - **Property 20: Thresholds compare integers exactly**
     - **Validates: Requirements 13.4, 13.9**
-  - [~] 9.6 Write property test for intervals
+  - [x] 9.6 Write property test for intervals
     - **Property 21: Intervals are well formed and reproducible**
     - **Validates: Requirements 13.7, 13.8**
-  - [~] 9.7 Write property test for the Random_Baseline
+  - [x] 9.7 Write property test for the Random_Baseline
     - **Property 22: The Random_Baseline depends only on the cards**
     - **Validates: Requirements 13.6**
-  - [~] 9.8 Write property test for latency percentiles
+  - [x] 9.8 Write property test for latency percentiles
     - **Property 23: Latency percentiles use returned text only**
     - **Validates: Requirements 14.1, 14.2, 14.3**
-  - [~] 9.9 Write the Wilson and Metric example tests
+  - [x] 9.9 Write the Wilson and Metric example tests
     - Wilson 8 of 10 ≈ [0.4902, 0.9433], 0 of 10 lower 0, 10 of 10 upper 1, each within 0.0005; hand-computed Metrics with an Illegal output, a Void_Card, a Sanity_Card and a zero denominator.
     - _Requirements: 13.11_
-  - [~] 9.10 Write the percentile and label example tests
+  - [x] 9.10 Write the percentile and label example tests
     - Percentiles for n = 60 (indices 29 and 56) and n = 10,000 (4,999 and 9,499) on hand-built lists; labels at a lower bound exactly at the Threshold ("pass"), exactly 10 points under ("pass (interval overlaps threshold)") and one resample step more than 10 points under ("pass with weak evidence").
     - _Requirements: 13.13_
-  - [~] 9.11 Write the dev Random_Baseline example test
+  - [x] 9.11 Write the dev Random_Baseline example test
     - The dev split's Random_Baseline equals 55.6% as recorded in `LOCK.md`.
     - _Requirements: 13.6_
-  - [~] 9.12 Fault injection for the Probe Unit_Tests, then commit
+  - [x] 9.12 Fault injection for the Probe Unit_Tests, then commit
     - Inject: Wilson `z` set to 1.0. Expect the Wilson example test to fail and `gate failed: mise exec -- pnpm --dir eval/probe run test:unit`. Revert, green, log.
     - One conventional commit for task 9.
     - _Requirements: 16.1, 16.3, 16.6, 16.7_
 
-- [ ] 10. Phase gate and Report generator
-  - [~] 10.1 Write `phase.ts` and the `phase-status` and `ledger` commands
+- [x] 10. Phase gate and Report generator
+  - [x] 10.1 Write `phase.ts` and the `phase-status` and `ledger` commands
     - `allowWorkersAi(kind, combo, task_subset, state)` and `browserPass(combo, task, state)` from the ledger, `failures.jsonl`, `exclusions.jsonl`, smoke shape checks, `combinations.json` and approvals from `HEAD`: Phase_1 ends when every `phase1_locked` Combination has a `complete` D-and-S entry, a failure record or an Exclusion_Record; Phase_1 and branch A allow Smoke_Calls only; branch B allows `dev` and `locked` only for the one model and the failing Task_Type_Subset named in the `phase2` entry, with a matching `dev` or `locked` approval and an `ok` Response_Shape check; a branch recomputed differently from the `phase2` entry refuses every non-smoke run naming both values. `phase-status` prints per Task_Type the pass result with ledger entry IDs and the branch that follows; `ledger` lists entries with subset and derived status.
     - Example tests: `phase-status` on fixture ledgers for both branches and with an Exclusion_Record. (Property 38 is written in task 13, once `run.ts` exists.)
     - _Requirements: 9.17, 11.8, 11.19, 18.1, 18.2, 18.3, 18.4_
-  - [~] 10.2 Write `report.ts` and the `report` command
+  - [x] 10.2 Write `report.ts` and the `report` command
     - Writes `docs/llm-probe.md` through `sink.ts` with the eleven sections of the design in order, the "Dev_Run figures (not used for the recommendation)" section and the "quality without timeout" section. Reads `locked.jsonl` only for grading and statistics (`llm_parse_card`, `llm_grade`, `llm_identity`, `llm_contrast`; never `llm_render_prompt` on a locked card) and emits no card content other than Card IDs, `pair_id`s and scenario group IDs. Uses the same `browserPass` as `phase.ts`.
     - _Requirements: 3.1, 3.8, 9.2, 9.3, 9.10, 9.11, 9.17, 10.10, 13.9, 13.10, 13.12, 14.4, 14.5, 14.6, 14.7, 14.8, 14.10, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 18.6, 18.7, 18.8_
-  - [~] 10.3 Write property test for support marks
+  - [x] 10.3 Write property test for support marks
     - **Property 37: Support marks follow completed passing runs**
     - **Validates: Requirements 3.8, 9.17, 15.4, 15.5, 18.6**
-  - [~] 10.4 Write the Report example tests, then commit
+  - [x] 10.4 Write the Report example tests, then commit
     - Against a fixture ledger and fixture Results: Phase_2 branch and approval date; "not measured (browser passed)" with Smoke_Call counts; LFM line as custom, not OSI, accepted 2026-11-06; `Qwen3.5-2B-ONNX` citing the base model's license; NVIDIA and Intel memory in separate columns with the Intel quantity named; "not pure-WebGPU results" note on a CPU-flagged Combination; the "Risks" line only when a CPU-flagged Combination is recommended; rebuild-failure and `runtime_stuck` entries in section 10; re-runs listed as "re-run, not used"; Rules_Default alone when nothing passes.
     - Gates green; one conventional commit for task 10.
     - _Requirements: 3.8, 14.7, 15.4, 15.5, 15.6, 15.7, 15.11, 15.12, 18.6, 18.8_
 
-- [ ] 11. Deploy_Directory leak checks and the `web/`-imports-`eval/` gate
-  - [~] 11.1 Extend `web/scripts/check-deploy.ts` with checks 4 and 5
+- [x] 11. Deploy_Directory leak checks and the `web/`-imports-`eval/` gate
+  - [x] 11.1 Extend `web/scripts/check-deploy.ts` with checks 4 and 5
     - Check 4 (token reference): any file in `web/dist` containing `WORKERS_AI_TOKEN` or `api.cloudflare.com`. Check 5 (Card and Results markers): `"author_note"`, `"severe_patterns"` or `llm-probe-`. Each prints every matching path; both run after the existing checks. Confirm the current `web/dist`, including the game's `.wasm` with the `llm_*` exports, passes.
     - _Requirements: 3.13, 11.10, 16.2_
-  - [~] 11.2 Write `check-web-imports.ts` and the `check-web-imports` command
+  - [x] 11.2 Write `check-web-imports.ts` and the `check-web-imports` command
     - Scan every `.ts`, `.js`, `.svelte`, `.html` and config file under `web/` (excluding `web/node_modules` and `web/dist`) for `import … from`, `export … from`, `import(…)` and `new URL(…, import.meta.url)` specifiers; strip any `?query`; resolve relative and root-relative paths; fail on any path under `<repo>/eval/`, printing the importing file and the imported path. Imports nothing that reads `env`.
     - _Requirements: 3.16_
-  - [~] 11.3 Write property test for the leak checks
+  - [x] 11.3 Write property test for the leak checks
     - **Property 35: The deploy leak checks find every marker and every `eval/` import**
     - The Deploy_Directory half lives in `web/tests/unit/check-deploy.test.ts` next to the web-shell Property 10, because `check-deploy.ts` is in `web/`; the import half in `eval/probe/tests/unit/`. Record this placement for the design sync in task 26.5.
     - **Validates: Requirements 3.13, 3.16, 11.10, 16.2**
-  - [~] 11.4 Wire the import gate and run the leak-check fault injections
+  - [x] 11.4 Wire the import gate and run the leak-check fault injections
     - `scripts/gates.sh`: `run mise exec -- pnpm --dir eval/probe run probe check-web-imports` after the Probe Unit_Tests.
     - Injection 1 (R16.11): add `import cardsReadme from '../../../eval/cards/README.md?raw';` to a file under `web/src/`; expect the importing file and imported path and `gate failed: mise exec -- pnpm --dir eval/probe run probe check-web-imports`. Revert, green, log.
     - Injections 2 to 4, one full gates run each: `web/public/leak.txt` containing `WORKERS_AI_TOKEN`; then one containing `"author_note"`; then one containing `llm-probe-result-v1`. Each expects the path, `web-build: step 'check-deploy' failed` and `gate failed: scripts/web-build.sh`. Delete, green, log each.
     - _Requirements: 3.13, 3.16, 11.10, 16.1, 16.2, 16.3, 16.6, 16.7, 16.11_
-  - [~] 11.5 Confirm unchanged web behaviour, then commit
+  - [x] 11.5 Confirm unchanged web behaviour, then commit
     - The existing Smoke_Test files and the parity fixture checksums are unchanged and pass; the game page has no control that opens the Probe_Page.
     - One conventional commit for task 11.
     - _Requirements: 10.7, 10.9, 16.9_
 
-- [ ] 12. Adapter_Interface, timing state machine and fallback chain (fake Runtime)
-  - [~] 12.1 Write `adapters/interface.ts` and `adapters/fake.ts`
+- [x] 12. Adapter_Interface, timing state machine and fallback chain (fake Runtime)
+  - [x] 12.1 Write `adapters/interface.ts` and `adapters/fake.ts`
     - The design's types (`Prompt`, `OutputConstraint`, `SamplingParams`, `RequestOptions`, `AdapterErrorCode`, `Usage`, `LateAnswer`, `AdapterResult`, `RuntimeIdentity`, `RuntimeAdapter`), transport-neutral; identity fields `unknown` when not determinable. `fake.ts`: a scriptable fake engine (completion time, tokens per second, interrupt behaviour, idle delay, create and warm-up failures) and a fake clock.
     - _Requirements: 8.1, 8.10, 8.11_
-  - [~] 12.2 Write `adapters/timing.ts`
+  - [x] 12.2 Write `adapters/timing.ts`
     - The timing state machine: Timeout result within 500 ms of `t0 + T` from a racing timer, never that request's text; Late_Answer if complete by `t0 + T + 60 s`; interrupt at the Generation_Cap; `none (idle_cap)` and state `stuck` at `t0 + T + 90 s`; `runtime_stuck` refusals until rebuild; next request only when idle; latency `Math.ceil` of `performance.now()` differences from `t0`.
     - _Requirements: 8.1, 8.2, 8.12, 8.13_
-  - [~] 12.3 Write property test for timing
+  - [x] 12.3 Write property test for timing
     - **Property 29: Timeouts are prompt and final; late answers follow the caps**
     - **Validates: Requirements 8.1, 8.2, 8.12, 8.13, 9.12, 12.10**
-  - [~] 12.4 Write `chain.ts`
+  - [x] 12.4 Write `chain.ts`
     - Links `[inBrowser, server, rulesDefault]`; each text result goes through `llm_validate`; stop at the first non-Illegal verdict; record the producing link and `{ link, kind, code? }` for every tried link; the Rules_Default returns a caller-supplied default.
     - _Requirements: 8.7, 8.8_
-  - [~] 12.5 Write property test for the fallback chain
+  - [x] 12.5 Write property test for the fallback chain
     - **Property 31: The fallback chain stops at the first valid link**
     - **Validates: Requirements 8.7, 8.8**
-  - [~] 12.6 Write the adapter and chain example tests, then commit
+  - [x] 12.6 Write the adapter and chain example tests, then commit
     - With a fake Runtime and no network: a Timeout, an error, Illegal output text, a Runtime that cannot accept a request, a valid answer from each of the first two links, all model links failing and the Rules_Default used; an engine create and a rebuild each send the D and S Warm_Up_Prompts before the first Card prompt, and the Results writer receives no record for them.
     - Gates green; one conventional commit for task 12.
     - _Requirements: 8.6, 8.9, 9.12, 9.13_
 
-- [ ] 13. Run flow, ingest and re-grade (fake Runtime)
-  - [~] 13.1 Write the initial Prompt_Templates, Warm_Up_Prompts and `combinations.json`
+- [x] 13. Run flow, ingest and re-grade (fake Runtime)
+  - [x] 13.1 Write the initial Prompt_Templates, Warm_Up_Prompts and `combinations.json`
     - `eval/probe/templates/decision.v1.txt` and `synthesis.v1.txt` (both with `Today is day {{tick}}.`; D asks for `{"option":"<id>"}`, S for the family object), `eval/probe/warmup/decision.txt` and `synthesis.txt` (a short invented scene whose IDs are not in the Card_Set), Template_Hash and warm-up hashes as sha256 of the exact bytes.
     - **Template content rules (Author steering, 2026-11-07).** Both templates' system text SHALL state these facts, and a unit test SHALL check that each statement is present in the committed template files: (1) relation direction: `#1 -> #2 ... tags parent` means #2 is #1's parent, not the other way round (tags say what the `to` person is to the `from` person; `from` is the person who feels it); (2) `magnitude` units: dollars for money events, joss paper sheet counts for offerings, intensity 1 to 100 for social events; (3) for underworld officials `alive` means in office, not living; (4) one tick is one day, the current day is `{{tick}}`; (5) event actor order: lender before borrower, promisor before promisee (other event types follow `eval/cards/README.md` "Event"). Verified against `eval/cards/README.md` lines 79, 101, 112-113 before recording. Task 20 tunes wording on Dev_Cards only and must keep all five statements.
     - `eval/probe/combinations.json` with the five NVIDIA in-browser Combinations (`phase1_locked: true`), the Workers AI candidates (`phase1_locked: false`, `response_shape`, `max_output_param`, integer `prices` with source and date, `revision: "server-side, not pinnable"`) and license objects as in the design. In-browser `revision` and `model_lib_url` are filled in task 16.11; until then `screen` would exclude them as `unpinned`.
     - _Requirements: 7.7, 9.12, 9.15, 11.15, 15.6_
-  - [~] 13.2 Write `run.ts` and the `dev-run` and `locked-run` commands
+  - [x] 13.2 Write `run.ts` and the `dev-run` and `locked-run` commands
     - Dev_Run over `dev.jsonl` for the Task_Type_Subset (`--task D|S|DS`, default `DS`); Timeout validation (positive safe integer, default 10,000); render errors recorded as `not_run` (`render_error`) in a Dev_Run.
     - Locked run flow steps 1 to 11 of the design: Manifest_Check and loading, phase gate and approval, once-only check, Dev_Run precondition per Task_Type with matching template hashes, pre-render of every Card × Permutation (any error: print every Card ID and reason, exit, nothing written), Fresh_Profile hook (filled in task 16), ledger `start` with `fsync` before any Runtime request, printed `docs/kiro-log.md` entry text without card content, requests only for missing outputs, grading through Sim_Wasm, `complete` or `abort`. `--resume <entry-id>` and `--rerun-reason`.
     - Outcome mapping table of the design (Illegal, `not_run`, failure records, `engine_fault`); before each request check the adapter `state()` and rebuild on `stuck` (page reload, engine create, both Warm_Up_Prompts); a failed rebuild writes one `rebuild_failed` failure record, an `abort` event and `not_run` (`rebuild_failed`) for the rest.
     - The locked-run logger has no method that accepts prompt or output text; progress lines are counts only (`D 120/244 S 40/164`).
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.9, 3.10, 3.11, 3.12, 3.14, 3.15, 7.7, 7.9, 8.3, 8.4, 8.5, 8.13, 9.4, 12.1, 12.9, 12.10, 17.6_
-  - [~] 13.3 Write property test for the once-only rule
+  - [x] 13.3 Write property test for the once-only rule
     - **Property 25: The once-only rule follows the Model_Key**
     - **Validates: Requirements 3.6, 3.7, 3.8, 3.10, 3.12, 3.15, 18.5**
-  - [~] 13.4 Write property test for the Timeout setting
+  - [x] 13.4 Write property test for the Timeout setting
     - **Property 30: Only positive whole Timeouts start a run**
     - **Validates: Requirements 8.3, 8.4**
-  - [~] 13.5 Write property test for the phase gate and the Task_Type_Subset
+  - [x] 13.5 Write property test for the phase gate and the Task_Type_Subset
     - **Property 38: The phase gate and the Task_Type_Subset bound every request**
     - **Validates: Requirements 3.14, 11.19, 18.1, 18.2, 18.3, 18.4**
-  - [~] 13.6 Write property test for engine faults
+  - [x] 13.6 Write property test for engine faults
     - **Property 40: Engine faults never reach a Metric**
     - **Validates: Requirements 8.5, 8.13, 15.7**
-  - [~] 13.7 Write `ingest.ts` and the `page-bundle`, `ingest` and `regrade` commands
+  - [x] 13.7 Write `ingest.ts` and the `page-bundle`, `ingest` and `regrade` commands
     - `page-bundle --combo --split --task` writes `eval/results/bundles/<run-id>.json` (`llm-probe-bundle-v1`); for `--split locked` it follows the locked run flow up to the ledger start entry. `ingest` checks an `llm-probe-page-export-v1` file (schema, unknown, missing or duplicate Card × Permutation, Template_Hash and Pinned_Manifest_Hash), rejects the whole file on the first failure naming the entry and reason, otherwise stores the export under `eval/results/ingest/`, writes Results records with the same fields as a headless run (latency above the Timeout or a timeout/error marker → Illegal) and grades them. `regrade` re-validates and re-grades stored Results with zero adapter calls and requires byte-equal grades lines and identical Metrics and intervals.
     - _Requirements: 3.1, 10.3, 10.4, 10.5, 10.11, 12.5, 12.6, 12.7_
-  - [~] 13.8 Write property test for re-grading
+  - [x] 13.8 Write property test for re-grading
     - **Property 33: Re-grading reproduces every Grade and Metric**
     - **Validates: Requirements 12.6**
-  - [~] 13.9 Write property test for ingest
+  - [x] 13.9 Write property test for ingest
     - **Property 34: Ingest accepts only complete, consistent exports**
     - **Validates: Requirements 10.3, 10.4, 10.5, 12.5**
-  - [~] 13.10 Write property test for silent locked runs
+  - [x] 13.10 Write property test for silent locked runs
     - **Property 26: Locked runs print no card content**
     - Covers a fake locked run, `ingest`, `regrade` and `report` over locked-shaped fixtures built in the test (never the real `locked.jsonl`), and counts `llm_render_prompt` calls on locked cards in `ingest`, `regrade` and `report` (must be zero).
     - **Validates: Requirements 3.1, 3.11**
-  - [~] 13.11 Write the run-flow example tests, then commit
+  - [x] 13.11 Write the run-flow example tests, then commit
     - Ledger `start` is written before the first request of any kind (warm-ups included); a ledger write failure sends nothing and exits non-zero; the start entry carries `task_subset`, `model_key`, fingerprint and template hashes; Idle_Cap with a fake engine that stays busy: Timeout (Illegal), rebuild with both Warm_Up_Prompts before the next Card prompt, no `runtime_stuck` record; rebuild failure: exactly one `rebuild_failed` failure record, an `abort` event, `not_run` for the rest, no per-card Illegal grade; a forced `runtime_stuck` refusal is an `engine_fault` with no grade line and no Metric change; a refused Workers AI Locked_Run writes no ledger entry.
     - Gates green; one conventional commit for task 13.
     - _Requirements: 3.3, 3.4, 8.5, 8.13, 18.1_
 
-- [~] 14. Checkpoint - Ensure all tests pass
+- [x] 14. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 15. Pre-run verification (V1 to V8 of the design)
@@ -413,49 +413,49 @@ Execution notes for the orchestrator:
     - Runs: during the first WebLLM Dev_Runs (tasks 20.2 and 20.4), from the Dev_Run perf record, compared with the `probe screen` sum at the Pinned_Revision.
     - If over 1,536 MiB: handled by the exclusion rule (screen) or the over-limit mark at Locked_Run start (R9.11); record the figures.
     - _Requirements: 9.3, 9.11, 14.5_
-  - [~] 15.8 V8: re-read the WebLLM interfaces at the `v0.2.87` tag
+  - [x] 15.8 V8: re-read the WebLLM interfaces at the `v0.2.87` tag
     - Runs: after task 14 and before task 16 (the WebLLM adapter).
     - Re-read at the `v0.2.87` tag (not `main`): `cleanModelUrl` in `src/support.ts` (keeps a `/resolve/<ref>/` URL), `extra_body.enable_thinking` and `ignore_eos` in `src/openai_api_protocols/chat_completion.ts`, `response_format` with a schema, `interruptGenerate`, `CreateMLCEngine` with a custom `appConfig.model_list`, and `vram_required_MB` of the two Qwen3.5 `q4f32_1` entries in `src/config.ts`. Use Exa first, official GitHub sources.
     - If anything differs: update the design's In-browser adapters section and Research findings with a dated note before writing the adapter; log the result either way.
     - _Requirements: 9.2, 9.14, 9.15_
 
-- [ ] 16. In-browser adapters, Probe_Page and browser driver
-  - [~] 16.1 Add the in-browser dependencies
+- [x] 16. In-browser adapters, Probe_Page and browser driver
+  - [x] 16.1 Add the in-browser dependencies
     - Exact versions in `eval/probe/package.json`: `@mlc-ai/web-llm` 0.2.87, `@huggingface/transformers` 4.3.2, `vite`, `@playwright/test` (system Chrome only; `PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`). Check whether a structured-output package for transformers.js is published on npm (DA-6) and record the result; add it only if published, pinned and licensed. Add `tsconfig.page.json` and extend `typecheck` to it. README rows with versions and SPDX licenses. If pnpm reports ignored build scripts, record which and allow one only if required, with the reason.
     - _Requirements: 9.1, 16.8_
-  - [~] 16.2 Write `gpu.ts`, `placement.ts`, `screen.ts` and the pinned-fetch check
+  - [x] 16.2 Write `gpu.ts`, `placement.ts`, `screen.ts` and the pinned-fetch check
     - `gpu.ts`: request the adapter with the Combination's `powerPreference`, record `vendor`, `architecture`, `device`, `description` as reported; `gpu_unavailable` for no `navigator.gpu` or a `null` adapter, `software_adapter` for `google`/`swiftshader` or `isFallbackAdapter`. `placement.ts`: parse ONNX Runtime "Node placements" log lines into `cpu_nodes: [{ op_type, count }]`, and the WebLLM record `{ method: "webllm_model_lib", cpu_nodes: [] }`. `screen.ts`: In_Browser_Size_Limits (VRAM ≤ 2,600 MiB, params ≤ 2,300,000,000, published download ≤ 1,536 MiB at the Pinned_Revision, 40-hex `revision`, commit-pinned `model_lib_url` for WebLLM), one Exclusion_Record per failing Combination naming the first failed check and its value or "unknown"; the Hugging Face tree fetch is injected so tests stay offline. Pinned-fetch check: every `huggingface.co` request contains `/resolve/<revision>/`, every model-library request equals `model_lib_url`.
     - _Requirements: 9.1, 9.3, 9.5, 9.6, 9.8, 9.15, 9.17, 10.6_
-  - [~] 16.3 Write property test for hardware WebGPU and screening
+  - [x] 16.3 Write property test for hardware WebGPU and screening
     - **Property 36: Only hardware WebGPU and fitting models run**
     - **Validates: Requirements 9.3, 9.6, 9.8, 9.10, 9.11, 9.15, 9.17, 10.6**
-  - [~] 16.4 Write the placement-parser example tests
+  - [x] 16.4 Write the placement-parser example tests
     - Parse ONNX Runtime log samples (from the ONNX Runtime sources or docs at first; task 15.6 adds a real sample); no placement block → `placement_not_logged`; all nodes on another provider → `backend_not_webgpu`.
     - _Requirements: 9.1, 10.6_
-  - [~] 16.5 Write the WebLLM adapter (`adapters/webllm.ts`)
+  - [x] 16.5 Write the WebLLM adapter (`adapters/webllm.ts`)
     - As in the design, using the interfaces confirmed in task 15.8: custom `appConfig.model_list` entry with the pinned `resolve/<revision>/` URL and `model_lib_url`; `chat.completions.create` with `temperature: 0`, `max_tokens`, `seed: 20261104`, `response_format` (D: the one card-independent schema; S: the family schema without `pattern`), `extra_body: { enable_thinking: false }`; interrupt with `interruptGenerate()` at the Generation_Cap; warm-up after every create or rebuild; identity and fingerprint fields (`chat_template_kwargs: { enable_thinking: false, add_generation_prompt: true }`, seed).
     - Unit test with a fake engine: request bodies carry `enable_thinking: false` and the schemas; the fingerprint records `chat_template_kwargs` and `seed`.
     - _Requirements: 4.15, 9.1, 9.7, 9.12, 9.14, 9.15, 12.12_
-  - [~] 16.6 Write the transformers.js adapter (`adapters/transformers.ts`)
+  - [x] 16.6 Write the transformers.js adapter (`adapters/transformers.ts`)
     - `from_pretrained(modelId, { revision, device: 'webgpu', dtype: 'q4', session_options: { executionProviders: ['webgpu'], logSeverityLevel: 0, logVerbosityLevel: 0 } })` with `env.backends.onnx.logLevel = 'verbose'`; text path only for the multimodal Qwen3.5 exports; prompt via `apply_chat_template(messages, { add_generation_prompt: true, enable_thinking: false, tokenize: false })` (LFM2.5 without `enable_thinking`); `do_sample: false`, `max_new_tokens`; an interruptable stopping criterion set by the timing timer; `seed: null` in the fingerprint; constraint `none` unless 16.1 pinned a structured-output package.
     - Unit test with a fake pipeline: chat-template options, `seed: null`, `chat_template_kwargs` recorded, no `min_new_tokens` on any Dev_Run or Locked_Run request.
     - _Requirements: 9.1, 9.7, 9.12, 9.14, 9.16, 12.12_
-  - [~] 16.7 Write the Probe_Page and `page-serve`
+  - [x] 16.7 Write the Probe_Page and `page-serve`
     - `eval/probe/page/index.html` and `page/main.ts` exposing `window.__probe` (adapter check, engine create, `coldStart()`, run one prompt, run a bundle, export); `eval/probe/vite.config.ts` building to `eval/probe/dist` (never `web/dist`); engines on the page's main thread; no COOP/COEP, no `web/public/_headers`. Headed mode loads a bundle and downloads one `llm-probe-page-export-v1` file; it reads no file under `eval/cards/`. `page-serve` builds and serves on `http://localhost:4318`, creates and prints a new empty `--user-data-dir` for the Author's headed Chrome (the Fresh_Profile) and the command to delete it. Do not start it as a long-running process from the agent.
     - _Requirements: 9.7, 10.2, 10.3, 10.7, 10.11, 14.4_
-  - [~] 16.8 Write the browser driver, profile and perf code
+  - [x] 16.8 Write the browser driver, profile and perf code
     - `browser/driver.ts`, `server.ts`, `profile.ts`, `perf.ts` as in the design: `HEADLESS_LAUNCH_FLAGS` = exactly `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan`; `chromium.launchPersistentContext(mkdtemp dir, { channel: 'chrome', headless: true, args })`; byte counting by host from `requestfinished` (model, runtime, local); pinned-fetch check on `request`; placement capture on `console`; adapter check; storage quota check against `size.expected_download_bytes` before any download (failure `model_load_failed`, reason `quota`); ledger start hook for Locked_Runs; empty-cache cold start, `page.reload()`, warm-cache cold start; `nvidia-smi` sampler every 250 ms (peak minus idle baseline) for NVIDIA and `VmHWM` of the Chrome GPU process for Intel, each with its named quantity; network conditions; page-crash failure records; Fresh_Profile deleted in `finally`. Wire it into `run.ts` for in-browser Combinations.
     - _Requirements: 9.4, 9.5, 9.6, 10.1, 10.6, 14.4, 14.5, 14.7, 14.8, 14.9, 14.10_
-  - [~] 16.9 Write `preflight.ts` and the `preflight` and `screen` commands
+  - [x] 16.9 Write `preflight.ts` and the `preflight` and `screen` commands
     - Synthetic Frozen_Context with at least 8 events and 6 persons (IDs not in the Card_Set), padded to `L = max(8,000, 2 × longest rendered Dev_Card prompt over all Permutations)` bytes (Dev_Cards only); `max_new_tokens: 1024` and `min_new_tokens: 1024` here only; NVIDIA sampler peak; `eval/results/preflight/<combo>.json` (`llm-probe-preflight-v1`) with `prompt_bytes`, `event_count`, `person_count`, `new_tokens`, `eos_disabled: true`, `peak_vram_mib`, `loaded_on_webgpu`, `placement`, adapter info, versions and revision; no Results record; Exclusion_Record on load failure, `loaded_on_webgpu: false` or peak above 2,600 MiB. `screen` reads Hugging Face API trees at each Pinned_Revision and writes `size.expected_download_bytes`.
     - _Requirements: 9.3, 9.9, 9.10, 9.16, 9.17_
-  - [~] 16.10 Write the preflight, quota and driver example tests
+  - [x] 16.10 Write the preflight, quota and driver example tests
     - Preflight with a fake adapter: no card prompt, no Results record, prompt length and synthetic-context counts, 1,024 tokens with `min_new_tokens` 1,024, all record fields; quota check with a fake `navigator.storage.estimate()` below, equal to and above the expected download; byte classification by host.
     - _Requirements: 9.9, 9.16, 14.5, 14.9_
-  - [~] 16.11 Pin the in-browser Combinations
+  - [x] 16.11 Pin the in-browser Combinations
     - Look up on the Hugging Face API the 40-hex commit sha of each in-browser model repository, and the commit of `mlc-ai/binary-mlc-llm-libs` for each WebLLM model library under `web-llm-models/v0_2_87/`; fill `revision`, `model_lib_url`, `size` sources and licenses in `combinations.json` (`declared_by: "base_model"` for repositories without a license tag; LFM custom license with `accepted: "2026-11-06"`). Read-only API requests; no weights downloaded.
     - _Requirements: 9.2, 9.15, 15.6_
-  - [~] 16.12 Check the boundaries, then commit
+  - [x] 16.12 Check the boundaries, then commit
     - Gates green and offline (no unit test starts a browser, makes a network request or reads `env`); `web/` gains no dependency and no import of `eval/`; `web/dist` gains no file from `eval/probe/`; the game page has no Probe_Page control. **[Target_Machine]** One manual check, not a gate: run the driver's adapter check only (no engine create, no download) with `high-performance` and `low-power`, confirm the NVIDIA and Intel hardware adapters, log.
     - One conventional commit for task 16.
     - _Requirements: 9.7, 10.1, 10.7, 10.8, 16.4, 16.5_
@@ -463,20 +463,20 @@ Execution notes for the orchestrator:
     - Only if it works without root on the day; otherwise the named RSS quantity stays. Optional: R14.7 is met by the named RSS quantity or "not measured".
     - _Requirements: 14.7_
 
-- [ ] 17. Workers AI adapter and Smoke_Calls
-  - [~] 17.1 Write the Workers AI adapter (`adapters/workers-ai.ts`)
+- [x] 17. Workers AI adapter and Smoke_Calls
+  - [x] 17.1 Write the Workers AI adapter (`adapters/workers-ai.ts`)
     - In the Node process; URL `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${model}`; body with `temperature: 0`, `seed: 20261104`, `[max_output_param]`, `response_format` where the Smoke_Calls confirm it, `chat_template_kwargs` from the Combination; raw text only from the declared Response_Shape's content field (`chat`: `truncated` checked first, then `empty_content`, `non_text_response`; `text`: `response`, truncation by `completion_tokens ≥ max_tokens`), never `JSON.stringify` of model output, no reasoning field; usage mapping; HTTP error or rate limit → `error` with status and first API error code, no headers, no token, no retry; abort at the Timeout (`late = none (aborted)`); `model.revision = "server-side, not pinnable"`. No change to `web/wrangler.jsonc` or the deploy workflow.
     - _Requirements: 8.6, 11.1, 11.9, 11.11, 11.15, 11.16, 11.17, 11.18, 11.21_
-  - [~] 17.2 Write property test for Workers AI responses
+  - [x] 17.2 Write property test for Workers AI responses
     - **Property 39: Workers AI responses yield content text or a named error**
     - **Validates: Requirements 11.15, 11.16, 11.17, 11.18, 11.19**
-  - [~] 17.3 Write the Workers AI example tests and extend the redaction property
+  - [x] 17.3 Write the Workers AI example tests and extend the redaction property
     - Fake `fetch` and fake env reader: chat success, text-shape success, HTTP 400, 429, timeout with `late = none (aborted)`, `content: null`, `finish_reason: "length"`, parsed-object `response` → `non_text_response`, a reasoning field that must not reach the text. Extend Property 27's run with this adapter in the loop.
     - _Requirements: 11.3, 11.9, 11.11, 11.16, 11.18_
-  - [~] 17.4 Write the `smoke` command and wire budget, approvals and the phase gate
+  - [x] 17.4 Write the `smoke` command and wire budget, approvals and the phase gate
     - `smoke --combo --count N`: Smoke_Calls on Dev_Cards within the remaining daily smoke allowance, each through `budget.ts` and checked against the declared Response_Shape; records under `eval/results/smoke/<day>.jsonl` (`llm-probe-smoke-v1`, verdict, `shape_check`, `declared_shape`, HTTP status), never in a Dev_Run or Locked_Run file. Workers AI `dev-run` and `locked-run` go through `allowWorkersAi`, `--approval` matching combination, kind and subset, `max_requests`, and the Response_Shape gate; refused runs follow R11.8.
     - _Requirements: 11.5, 11.6, 11.7, 11.8, 11.19, 11.20, 18.1, 18.3, 18.4, 18.6_
-  - [~] 17.5 Check the boundaries, then commit
+  - [x] 17.5 Check the boundaries, then commit
     - `git diff` of `web/wrangler.jsonc` and `.github/workflows/deploy.yml` is empty; gates green with no `env` read; no request sent by any test.
     - One conventional commit for task 17.
     - _Requirements: 11.1, 16.4, 16.5_
