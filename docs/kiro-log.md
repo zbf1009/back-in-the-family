@@ -872,3 +872,18 @@ Smoke_Calls used today: 10 of 10 (allowance exhausted for the UTC day). Three gr
 - The approval covers the V5-corrected expected costs per candidate model and Task_Type_Subset (DA-8 "Revised 2026-11-07 (V5)") and the branch-B schedule (default gemma-4-26b-a4b-it; alternatives glm-4.7-flash, granite-4.0-h-micro).
 - Approval note added to DA-8 in design.md.
 - Phase 2 runs still need their own approvals: each Workers AI Dev_Run and Locked_Run needs a separate named approval (R11.8, R18.4). No API request was made for this task.
+
+### Spec: llm-probe — screen run (2026-11-07)
+
+- Task 19.1: the Author approved the `probe screen` Hugging Face API reads (GET tree listings only, no weights) on 2026-11-07 (reply: "批准，继续").
+- Task 19.2: ran `probe screen` (dry run, exit 0), then `probe screen --write` (exit 0). All five Phase_1 Combinations passed (text-path sizes):
+
+| Combination | Revision | Download | Result |
+|---|---|---|---|
+| webllm/qwen3.5-0.8b-q4f32/nvidia | 4ed01771 | 426.5 MiB | ok |
+| webllm/qwen3.5-2b-q4f32/nvidia | d835e5c4 | 1032.4 MiB | ok |
+| transformers.js/qwen3.5-0.8b-q4/nvidia | 8fe9dbe3 | 637.5 MiB | ok |
+| transformers.js/qwen3.5-2b-q4/nvidia | 315216e8 | 1483.0 MiB | ok |
+| transformers.js/lfm2.5-1.2b-instruct-q4/nvidia | 10f72e70 | 814.0 MiB | ok |
+
+- Written: `size.expected_download_bytes` for 5 Combinations in `eval/probe/combinations.json` (only that field). 0 Exclusion_Records appended; `eval/results/exclusions.jsonl` was not created. No limits were changed.
