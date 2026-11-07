@@ -39,6 +39,11 @@ const COMMANDS: Record<string, () => Promise<void>> = {
     const { reportCommand, reportPaths } = await import('./report-command.ts');
     process.exitCode = await reportCommand(reportPaths(REPO_DIR));
   },
+  // Reads no cards and no env, so no Manifest_Check (R3.16).
+  'check-web-imports': async () => {
+    const { checkWebImportsCommand } = await import('./check-web-imports.ts');
+    process.exitCode = checkWebImportsCommand(REPO_DIR);
+  },
   ledger: async () => {
     const { ledgerCommand, defaultPaths } = await import('./phase-commands.ts');
     process.exitCode = ledgerCommand(defaultPaths(REPO_DIR));

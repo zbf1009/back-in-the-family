@@ -21,6 +21,9 @@ import {
   SIZE_LIMIT,
   sizeOffenders,
   classifyBundle,
+  tokenReferenceOffenders,
+  cardResultsMarkerOffenders,
+  type ByteFile,
   type FileEntry,
   type JsFile,
 } from '../../scripts/check-deploy.ts';
@@ -192,5 +195,154 @@ test('classifyBundle reports two worker chunks as a chunk-count offender', () =>
   assert.deepEqual(
     result.offenders.slice(1).map((o) => o.path),
     ['assets/worker-a.js', 'assets/worker-b.js'],
+  );
+});
+
+// Checks 4 and 5 (llm-probe R3.13, R11.10, R16.2): example tests.
+const bytesOf = (path: string, text: string): ByteFile => ({
+  path,
+  bytes: new TextEncoder().encode(text),
+});
+
+test('tokenReferenceOffenders lists every file naming the token or API host', () => {
+  const files = [
+    bytesOf('a.js', 'x WORKERS_AI_TOKEN y'),
+    bytesOf('b.txt', 'clean'),
+    bytesOf('c/d.html', 'https://api.cloudflare.com/client'),
+  ];
+  assert.deepEqual(tokenReferenceOffenders(files), ['a.js', 'c/d.html']);
+  assert.deepEqual(tokenReferenceOffenders([files[1]!]), []);
+});
+
+test('tokenReferenceOffenders finds a string inside binary bytes', () => {
+  const needle = new TextEncoder().encode('WORKERS_AI_TOKEN');
+  const bytes = new Uint8Array([0, 255, 1, ...needle, 0, 9]);
+  assert.deepEqual(tokenReferenceOffenders([{ path: 'g.wasm', bytes }]), ['g.wasm']);
+});
+
+test('cardResultsMarkerOffenders flags quoted markers and the schema prefix only', () => {
+  const files = [
+    bytesOf('a.json', '{"author_note": 1}'),
+    bytesOf('b.json', '{"severe_patterns": []}'),
+    bytesOf('c.json', '{"schema":"llm-probe-report-v1"}'),
+    bytesOf('d.js', 'author_note severe_patterns llm-probe'),
+  ];
+  assert.deepEqual(cardResultsMarkerOffenders(files), ['a.json', 'b.json', 'c.json']);
+});
+
+// ---------------------------------------------------------------------------
+// Feature: llm-probe, Property 35 (Deploy_Directory half): the leak checks find
+// every marker. The import half lives in eval/probe/tests/unit/
+// check-web-imports.property.test.ts.
+// **Validates: Requirements 3.13, 3.16, 11.10, 16.2**
+//
+// Markers are built at runtime so no test source carries a quoted marker literal.
+// ---------------------------------------------------------------------------
+
+const Q = '"';
+const TOKEN_MARKERS: readonly string[] = ['WORKERS_AI_' + 'TOKEN', 'api.cloudflare' + '.com'];
+const CARD_MARKERS: readonly string[] = [
+  Q + 'author_' + 'note' + Q,
+  Q + 'severe_' + 'patterns' + Q,
+  'llm-' + 'probe-',
+];
+const LEAK_RUNS = 200;
+
+/** Reference: does the latin1 view of the bytes contain a needle (exact bytes)? */
+function hasAny(bytes: Uint8Array, needles: readonly string[]): boolean {
+  const s = Buffer.from(bytes).toString('latin1');
+  return needles.some((n) => s.includes(n));
+}
+
+const enc = (s: string): Uint8Array => new TextEncoder().encode(s);
+
+/** Random bytes (binary included) with an optional marker spliced in at a random offset. */
+function fileArb(markers: readonly string[]): fc.Arbitrary<{ bytes: Uint8Array; planted: boolean }> {
+  return fc
+    .record({
+      before: fc.uint8Array({ maxLength: 64 }),
+      after: fc.uint8Array({ maxLength: 64 }),
+      plant: fc.boolean(),
+      marker: fc.constantFrom(...markers),
+    })
+    .map(({ before, after, plant, marker }) => {
+      const mid = plant ? enc(marker) : new Uint8Array(0);
+      const bytes = new Uint8Array(before.length + mid.length + after.length);
+      bytes.set(before, 0);
+      bytes.set(mid, before.length);
+      bytes.set(after, before.length + mid.length);
+      return { bytes, planted: plant };
+    });
+}
+
+function fileSetArb(
+  markers: readonly string[],
+): fc.Arbitrary<{ files: ByteFile[]; planted: string[] }> {
+  return fc
+    .uniqueArray(pathArb, { maxLength: 12 })
+    .chain((paths) =>
+      fc.tuple(...paths.map((p) => fileArb(markers).map((f) => ({ p, ...f })))).map((entries) => ({
+        files: entries.map((e) => ({ path: e.p, bytes: e.bytes })),
+        planted: entries.filter((e) => e.planted).map((e) => e.p),
+      })),
+    );
+}
+
+function checkAgainstReference(
+  check: (files: readonly ByteFile[]) => string[],
+  markers: readonly string[],
+): void {
+  fc.assert(
+    fc.property(fileSetArb(markers), ({ files, planted }) => {
+      const got = check(files);
+      const expected = files.filter((f) => hasAny(f.bytes, markers)).map((f) => f.path);
+      assert.deepEqual(got, expected);
+      // Every planted file is reported; only paths are returned (strings, no content).
+      for (const p of planted) assert.ok(got.includes(p));
+      if (expected.length === 0) assert.deepEqual(got, []);
+    }),
+    { numRuns: LEAK_RUNS },
+  );
+}
+
+test('Property 35: tokenReferenceOffenders reports exactly the files containing a token marker', () => {
+  checkAgainstReference(tokenReferenceOffenders, TOKEN_MARKERS);
+});
+
+test('Property 35: cardResultsMarkerOffenders reports exactly the files containing a card marker', () => {
+  checkAgainstReference(cardResultsMarkerOffenders, CARD_MARKERS);
+});
+
+// Matching is on exact bytes: a different case, a marker split by a gap, or one byte
+// changed never matches, and a marker straddling any boundary of random filler still does.
+test('Property 35: near-miss variants of a marker are not reported', () => {
+  const all = [...TOKEN_MARKERS, ...CARD_MARKERS];
+  fc.assert(
+    fc.property(
+      fc.constantFrom(...all),
+      fc.nat(),
+      fc.uint8Array({ maxLength: 16 }),
+      (marker, cut, filler) => {
+        // Letter-only variants so the case change really differs.
+        const flipped = marker.replace(/[A-Za-z]/, (c) =>
+          c === c.toUpperCase() ? c.toLowerCase() : c.toUpperCase(),
+        );
+        const at = 1 + (cut % (marker.length - 1));
+        const split = marker.slice(0, at) + '\u0001' + marker.slice(at);
+        for (const near of [flipped, split]) {
+          const f = { path: 'x', bytes: Uint8Array.from([...filler, ...enc(near)]) };
+          const expected = hasAny(f.bytes, all) ? ['x'] : [];
+          assert.deepEqual(tokenReferenceOffenders([f]), hasAny(f.bytes, TOKEN_MARKERS) ? ['x'] : []);
+          assert.deepEqual(cardResultsMarkerOffenders([f]), hasAny(f.bytes, CARD_MARKERS) ? ['x'] : []);
+          void expected;
+        }
+        // Straddling: the marker preceded and followed by arbitrary bytes still matches.
+        const hit = { path: 'y', bytes: Uint8Array.from([...filler, ...enc(marker), ...filler]) };
+        const tokenHit = TOKEN_MARKERS.includes(marker);
+        assert.deepEqual(tokenReferenceOffenders([hit]), tokenHit ? ['y'] : []);
+        assert.deepEqual(cardResultsMarkerOffenders([hit]), tokenHit ? [] : ['y']);
+      },
+    ),
+    { numRuns: LEAK_RUNS },
   );
 });

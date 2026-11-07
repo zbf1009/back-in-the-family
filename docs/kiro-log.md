@@ -726,3 +726,40 @@ Synced `design.md` with what tasks 1–8 actually built and made task 9's single
 - Result: the full `scripts/gates.sh` ran the Rust gates green, then the probe unit tests reported `ℹ tests 157`, `ℹ pass 155`, `ℹ fail 2`. The failures were `Wilson 8 of 10 is about [0.4902, 0.9433], both bounds` (stats.examples.test.ts) and `Wilson 8 of 10, 0 of 10, 10 of 10` (stats.test.ts). Every Property test passed, including Property 21's Wilson brackets, since a narrower interval still brackets the rate. The script then printed `gate failed: mise exec -- pnpm --dir eval/probe run test:unit`, exit 1.
 - Revert: restored `stats.ts` from a backup outside the repo; `sha256sum -c` matched.
 - Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0 (Smoke_Test 2 passed).
+
+### Spec: llm-probe — Property 35 test placement (2026-11-07)
+
+- Property 35 (leak checks) is split by where the code lives. The Deploy_Directory half (checks 4 and 5) is in `web/tests/unit/check-deploy.test.ts`, next to web-shell Property 10, because `check-deploy.ts` is in `web/`. The `eval/` import half is in `eval/probe/tests/unit/check-web-imports.property.test.ts`. Task 26.5 (design sync) should record this placement in design.md.
+
+### Spec: llm-probe — task 11.4 fault injection 1: web import gate (2026-11-07)
+
+- Gate under test: `mise exec -- pnpm --dir eval/probe run probe check-web-imports` in `scripts/gates.sh`, added in this task right after the Probe Unit_Tests (R16.11).
+- First attempt was invalid: the line `import cardsReadme from '../../../eval/cards/README.md?raw';` added to `web/src/main.ts` resolves to `/home/kaiki/projects/eval/cards/README.md`, outside the repository, so the gate correctly did not flag it, and the full `scripts/gates.sh` printed `All gates passed.`, exit 0. Note: Type_Check and Web_Build also passed with that unused, unresolvable `?raw` import. Reverted (`sha256sum -c` matched).
+- Injected fault: the same line added to `web/src/main/sim-client.ts`, where `../../../` resolves to the repo root.
+- Result: the full `scripts/gates.sh` printed `probe: web-imports: web/src/main/sim-client.ts imports eval/cards/README.md`, then `gate failed: mise exec -- pnpm --dir eval/probe run probe check-web-imports`, exit 1.
+- Revert: restored `sim-client.ts` from a backup outside the repo; `sha256sum -c` matched.
+- Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0.
+
+### Spec: llm-probe — task 11.4 fault injection 2: Deploy_Directory token reference (2026-11-07)
+
+- Gate under test: check 4 of `web/scripts/check-deploy.ts`, the `check-deploy` step of `scripts/web-build.sh` (R16.6).
+- Injected fault: created `web/public/leak.txt` containing `WORKERS_AI_TOKEN`.
+- Result: the full `scripts/gates.sh` printed `token reference (check 4): leak.txt`, `web-build: step 'check-deploy' failed`, `gate failed: scripts/web-build.sh`, exit 1.
+- Revert: deleted `leak.txt` and the empty `web/public/`; `git status --short web/` showed only the task 11.1/11.3 edits.
+- Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0; `web/dist` no longer contained `leak.txt`.
+
+### Spec: llm-probe — task 11.4 fault injection 3: Deploy_Directory card field marker (2026-11-07)
+
+- Gate under test: check 5 of `web/scripts/check-deploy.ts` (R16.7).
+- Injected fault: created `web/public/leak.txt` containing `{"author_note": "x"}`.
+- Result: the full `scripts/gates.sh` printed `card/results marker (check 5): leak.txt`, `web-build: step 'check-deploy' failed`, `gate failed: scripts/web-build.sh`, exit 1.
+- Revert: deleted `leak.txt` and the empty `web/public/`; `git status --short web/` as before.
+- Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0.
+
+### Spec: llm-probe — task 11.4 fault injection 4: Deploy_Directory results schema marker (2026-11-07)
+
+- Gate under test: check 5 of `web/scripts/check-deploy.ts` (R16.7).
+- Injected fault: created `web/public/leak.txt` containing `llm-probe-result-v1`.
+- Result: the full `scripts/gates.sh` printed `card/results marker (check 5): leak.txt`, `web-build: step 'check-deploy' failed`, `gate failed: scripts/web-build.sh`, exit 1.
+- Revert: deleted `leak.txt` and the empty `web/public/`; `git status --short web/` as before.
+- Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0 (Smoke_Test 2 passed). `git diff --stat -- eval/cards` is empty.

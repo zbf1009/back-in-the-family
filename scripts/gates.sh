@@ -60,9 +60,11 @@ run mise exec -- pnpm --dir web run test:unit
 # Probe gates (R16.1): Type_Check then Unit_Tests for eval/probe. They need
 # target/wasm-pkg (built by the wasm-build.sh step above) and the probe frozen install,
 # so they sit right after the web Unit_Tests. The Manifest_Check runs earlier, right after
-# the probe install.
+# the probe install. The import gate (R16.11) runs right after the Probe Unit_Tests: no
+# file under web/src may import anything from eval/.
 run mise exec -- pnpm --dir eval/probe run typecheck
 run mise exec -- pnpm --dir eval/probe run test:unit
+run mise exec -- pnpm --dir eval/probe run probe check-web-imports
 # Web_Build gate (R7, R10.1): build Sim_Wasm and the Web_App into the Deploy_Directory
 # (web/dist) and check every file against the Size_Limit and the deploy boundary. Runs
 # after the Unit_Tests gate and before the Smoke_Test gate.

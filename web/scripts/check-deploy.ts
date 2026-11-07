@@ -3,7 +3,8 @@
 //
 // Three checks run over `web/dist`, IN THIS ORDER. Each check prints ALL of its
 // offenders (not just the first), then the script exits 1 if ANY check failed,
-// and exits 0 only when all three pass:
+// and exits 0 only when all five pass (checks 4 and 5, the llm-probe leak
+// checks, are described below the pure functions that implement them):
 //
 //   1. Size (R7.4, R7.5): every file at any subdirectory depth must be at or
 //      below the Size_Limit of 26,214,400 bytes. A file of exactly 26,214,400
@@ -134,6 +135,54 @@ export function classifyBundle(files: readonly JsFile[]): BundleClassification {
 }
 
 // ---------------------------------------------------------------------------
+// Checks 4 and 5 (llm-probe R3.13, R11.10, R16.2): leak checks over every file
+// in the Deploy_Directory, binary `.wasm` included. They run after checks 1-3,
+// match raw bytes, and print only paths, never matching content.
+// ---------------------------------------------------------------------------
+
+/** Check 4 strings: a reference to the Workers AI token or API host. */
+export const TOKEN_REFERENCE_STRINGS: readonly string[] = [
+  'WORKERS_AI_TOKEN',
+  'api.cloudflare.com',
+];
+
+/** Check 5 strings: Card markers and the Results Schema_Prefix. */
+export const CARD_RESULTS_MARKERS: readonly string[] = [
+  '"author_note"',
+  '"severe_patterns"',
+  'llm-probe-',
+];
+
+/** One file's path (relative to `dist`) and bytes, as seen by checks 4 and 5. */
+export interface ByteFile {
+  path: string;
+  bytes: Uint8Array;
+}
+
+function containsAny(bytes: Uint8Array, needles: readonly string[]): boolean {
+  const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return needles.some((needle) => buf.includes(needle));
+}
+
+/** PURE: paths of files containing any of `needles`, in input order. */
+export function filesContaining(
+  files: readonly ByteFile[],
+  needles: readonly string[],
+): string[] {
+  return files.filter((f) => containsAny(f.bytes, needles)).map((f) => f.path);
+}
+
+/** PURE check 4 (R3.13, R11.10): files that reference the token or API host. */
+export function tokenReferenceOffenders(files: readonly ByteFile[]): string[] {
+  return filesContaining(files, TOKEN_REFERENCE_STRINGS);
+}
+
+/** PURE check 5 (R16.2): files that carry a Card or Results marker. */
+export function cardResultsMarkerOffenders(files: readonly ByteFile[]): string[] {
+  return filesContaining(files, CARD_RESULTS_MARKERS);
+}
+
+// ---------------------------------------------------------------------------
 // Directory walk and real-dist run below. Everything above is pure and tested
 // by task 4.3; everything below reads the filesystem and prints/exits.
 // ---------------------------------------------------------------------------
@@ -225,6 +274,26 @@ function main(): void {
     console.error(`main-bundle boundary: ${offender.path}: ${offender.reason}`);
   }
   if (bundle.offenders.length > 0) {
+    failed = true;
+  }
+
+  // --- Checks 4 and 5: leak checks over all files (paths only). ---
+  const byteFiles: ByteFile[] = entries.map((e) => ({
+    path: e.path,
+    bytes: readFileSync(join(distDir, ...e.path.split('/'))),
+  }));
+  const tokenRefs = tokenReferenceOffenders(byteFiles);
+  for (const path of tokenRefs) {
+    console.error(`token reference (check 4): ${path}`);
+  }
+  if (tokenRefs.length > 0) {
+    failed = true;
+  }
+  const markerHits = cardResultsMarkerOffenders(byteFiles);
+  for (const path of markerHits) {
+    console.error(`card/results marker (check 5): ${path}`);
+  }
+  if (markerHits.length > 0) {
     failed = true;
   }
 
