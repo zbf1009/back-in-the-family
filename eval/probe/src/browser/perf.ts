@@ -114,12 +114,31 @@ export interface MemoryRecord extends JsonObject {
   reason: string | null;
 }
 
+/** Idle-baseline and absolute-peak detail of the NVIDIA reading (hybrid laptops start with a non-zero baseline). */
+export interface NvidiaMemoryDetail {
+  baseline_mib: number;
+  idle_min_mib: number;
+  idle_max_mib: number;
+  idle_samples: number;
+  /** Lowest reading while the model was loaded and running (other processes freeing memory shows up here). */
+  run_min_mib: number | null;
+  /** Highest absolute memory.used reading, not minus the baseline. */
+  absolute_peak_mib: number;
+}
+
 export const unmeasuredMemory = (gpu: MemoryRecord['gpu'], quantity: string | null, reason: string): MemoryRecord => ({ gpu, quantity, peak_mib: null, reason });
 
 /** Peak minus idle baseline, rounded up to whole MiB, never negative. `null` when there is nothing to compare. */
 export function peakDeltaMib(baselineMib: number | null, samplesMib: readonly number[]): number | null {
   if (baselineMib === null || samplesMib.length === 0) return null;
   return Math.max(0, Math.ceil(Math.max(...samplesMib) - baselineMib));
+}
+
+/** Median of a non-empty list; an even count takes the mean of the two middle values rounded up. */
+export function medianMib(values: readonly number[]): number {
+  const v = [...values].sort((a, b) => a - b);
+  const mid = v.length >> 1;
+  return v.length % 2 === 1 ? (v[mid] as number) : Math.ceil(((v[mid - 1] as number) + (v[mid] as number)) / 2);
 }
 
 /** One reading of a memory figure in MiB; `null` when it cannot be read right now. */
@@ -154,6 +173,7 @@ export interface MemoryMeasurement {
  */
 export class NvidiaPeakSampler implements MemoryMeasurement {
   private baseline: number | null = null;
+  private idle: number[] = [];
   private readonly samples: number[] = [];
   private stopTimer: (() => void) | null = null;
   private reading = false;
@@ -161,11 +181,25 @@ export class NvidiaPeakSampler implements MemoryMeasurement {
   private readonly reader: MemoryReader;
   private readonly scheduler: IntervalScheduler;
   private readonly intervalMs: number;
+  private readonly idleReads: number;
+  private readonly idleWait: (ms: number) => Promise<void>;
 
-  constructor(reader: MemoryReader, scheduler: IntervalScheduler, intervalMs: number = SAMPLE_INTERVAL_MS) {
+  /**
+   * `idleReads` (default 1) readings `intervalMs` apart before the engine is created; the baseline is their median
+   * (one reading: that reading). `idleWait` sleeps between idle readings.
+   */
+  constructor(
+    reader: MemoryReader,
+    scheduler: IntervalScheduler,
+    intervalMs: number = SAMPLE_INTERVAL_MS,
+    idleReads = 1,
+    idleWait: (ms: number) => Promise<void> = async () => undefined,
+  ) {
     this.reader = reader;
     this.scheduler = scheduler;
     this.intervalMs = intervalMs;
+    this.idleReads = Math.max(1, Math.floor(idleReads));
+    this.idleWait = idleWait;
   }
 
   private async sample(): Promise<void> {
@@ -182,11 +216,17 @@ export class NvidiaPeakSampler implements MemoryMeasurement {
   }
 
   async start(): Promise<void> {
-    try {
-      this.baseline = await this.reader.read();
-    } catch {
-      this.baseline = null;
+    this.idle = [];
+    for (let i = 0; i < this.idleReads; i++) {
+      if (i > 0) await this.idleWait(this.intervalMs);
+      try {
+        const v = await this.reader.read();
+        if (v !== null) this.idle.push(v);
+      } catch {
+        // a missing idle reading
+      }
     }
+    this.baseline = this.idle.length === 0 ? null : medianMib(this.idle);
     this.stopTimer = this.scheduler.every(this.intervalMs, () => void this.sample());
   }
 
@@ -194,7 +234,15 @@ export class NvidiaPeakSampler implements MemoryMeasurement {
     if (this.baseline === null) return unmeasuredMemory('nvidia', NVIDIA_MEMORY_QUANTITY, 'nvidia-smi gave no idle baseline reading');
     const peak = peakDeltaMib(this.baseline, this.samples);
     if (peak === null) return unmeasuredMemory('nvidia', NVIDIA_MEMORY_QUANTITY, 'nvidia-smi gave no reading during the run');
-    return { gpu: 'nvidia', quantity: NVIDIA_MEMORY_QUANTITY, peak_mib: peak, reason: null };
+    const detail: NvidiaMemoryDetail = {
+      baseline_mib: this.baseline,
+      idle_min_mib: Math.min(...this.idle),
+      idle_max_mib: Math.max(...this.idle),
+      idle_samples: this.idle.length,
+      run_min_mib: this.samples.length === 0 ? null : Math.min(...this.samples),
+      absolute_peak_mib: Math.max(...this.samples),
+    };
+    return { gpu: 'nvidia', quantity: NVIDIA_MEMORY_QUANTITY, peak_mib: peak, reason: null, ...detail };
   }
 
   async snapshot(): Promise<MemoryRecord> {
@@ -217,6 +265,34 @@ export function parseNvidiaSmiMemoryUsed(output: string): number | null {
     if (/^\d+(\.\d+)?$/.test(t)) return Number(t);
   }
   return null;
+}
+
+/** One process line of `nvidia-smi` (plain table or `--query-compute-apps` CSV). Name and memory only: no command lines. */
+export interface GpuProcess {
+  pid: number;
+  type: string | null;
+  name: string;
+  mib: number | null;
+}
+
+/** `--query-compute-apps=pid,process_name,used_memory --format=csv,noheader,nounits` -> processes. */
+export function parseComputeApps(output: string): GpuProcess[] {
+  const out: GpuProcess[] = [];
+  for (const line of output.split(/\r?\n/)) {
+    const m = /^\s*(\d+)\s*,\s*(.*?)\s*,\s*(\d+)\s*(?:MiB)?\s*$/.exec(line);
+    if (m !== null) out.push({ pid: Number(m[1]), type: 'C', name: m[2] as string, mib: Number(m[3]) });
+  }
+  return out;
+}
+
+/** Process rows of the plain `nvidia-smi` table: `|    0   N/A  N/A   1234   G   /usr/lib/Xorg   120MiB |`. */
+export function parseNvidiaSmiTable(output: string): GpuProcess[] {
+  const out: GpuProcess[] = [];
+  for (const line of output.split(/\r?\n/)) {
+    const m = /^\|\s+\d+\s+\S+\s+\S+\s+(\d+)\s+([CG]|C\+G)\s+(.+?)\s+(\d+)MiB\s*\|\s*$/.exec(line);
+    if (m !== null) out.push({ pid: Number(m[1]), type: m[2] as string, name: m[3] as string, mib: Number(m[4]) });
+  }
+  return out;
 }
 
 export const NVIDIA_SMI_ARGS: readonly string[] = ['--query-gpu=memory.used', '--format=csv,noheader,nounits'];
@@ -328,10 +404,17 @@ export class NoMemoryMeasurement implements MemoryMeasurement {
 /** Picks the measurement from the adapter vendor string the browser reported (`nvidia`, `intel`). */
 export function memoryMeasurementFor(
   vendor: string,
-  deps: { readonly reader: MemoryReader; readonly scheduler: IntervalScheduler; readonly proc: ProcFs; readonly profileDir: string },
+  deps: {
+    readonly reader: MemoryReader;
+    readonly scheduler: IntervalScheduler;
+    readonly proc: ProcFs;
+    readonly profileDir: string;
+    /** NVIDIA idle series: number of readings and the sleep between them. Default: one reading. */
+    readonly idle?: { readonly reads: number; readonly wait: (ms: number) => Promise<void> };
+  },
 ): MemoryMeasurement {
   const v = vendor.toLowerCase();
-  if (v === 'nvidia') return new NvidiaPeakSampler(deps.reader, deps.scheduler);
+  if (v === 'nvidia') return new NvidiaPeakSampler(deps.reader, deps.scheduler, SAMPLE_INTERVAL_MS, deps.idle?.reads ?? 1, deps.idle?.wait);
   if (v === 'intel') return new IntelGpuProcessPeak(deps.proc, deps.profileDir);
   return new NoMemoryMeasurement(`no memory measurement for adapter vendor "${vendor}"`);
 }

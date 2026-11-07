@@ -25,3 +25,13 @@ test('a model-library request that differs from model_lib_url fails', () => {
   assert.equal(r.ok, false);
   assert.equal(checkPinnedFetch([LIB], { revision: REV, model_lib_url: null }).ok, false);
 });
+
+test('a same-host resolve-cache redirect target passes only with the pinned commit in its path (real form, 2026-11-07)', () => {
+  const rc = (sha: string, q: string) => `https://huggingface.co/api/resolve-cache/models/org/M-ONNX/${sha}/tokenizer_config.json?%2Forg%2FM-ONNX%2Fresolve%2F${q}%2Ftokenizer_config.json=&etag=%221a%22`;
+  assert.deepEqual(checkPinnedFetch([rc(REV, REV)], pin), { ok: true });
+  const other = rc('c'.repeat(40), 'main');
+  assert.equal(checkPinnedFetch([other], pin).ok, false);
+  // `/resolve/<rev>/` only counts in the path, not in an encoded query
+  const q = `https://huggingface.co/api/models/x?u=/resolve/${REV}/`;
+  assert.equal(checkPinnedFetch([q], pin).ok, false);
+});
