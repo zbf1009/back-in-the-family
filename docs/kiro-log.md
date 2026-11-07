@@ -772,3 +772,21 @@ Four decisions made while implementing task 13 that later tasks must honour:
 - (b) Ingest does not write an `llm-probe-perf` record. The Report must read cold-start figures from `eval/results/ingest/<run-id>.json`, or task 16 must make the driver/ingest also write the perf records. Task 16 decides.
 - (c) `cards.ts`: an unknown void ID is an error only when both splits are loaded. With one split loaded, a void ID that is not in it is not treated as an error.
 - (d) The `RuntimeAdapter` interface has `identity`, `state` and `complete` only. Lifecycle (create, rebuild, warm-up) sits on the engine and in `adapters/lifecycle.ts`.
+
+### Spec: llm-probe — V8: WebLLM interfaces re-read at v0.2.87 (2026-11-07)
+
+Task 15.8. The design note ("Re-read at the `v0.2.87` tag" in Research findings, plus the revised WebLLM bullet in "In-browser adapters") was written by a first attempt that timed out before logging and committing. A second attempt finished here: it spot-checked the note against the tag with `gh api` and found no wrong claim, so the note was left unchanged.
+
+Verified at the tag (no change needed):
+- `cleanModelUrl` (`src/support.ts:92-98`) keeps a URL that matches `/resolve/<ref>/`, so a pinned-commit URL is fetched at that commit.
+- `extra_body.enable_thinking` and `ignore_eos` exist in `chat_completion.ts`.
+- `vram_required_MB` is 1894.19 (`Qwen3.5-0.8B-q4f32_1-MLC`) and 2591.55 (`Qwen3.5-2B-q4f32_1-MLC`), as written.
+
+Differs from the earlier design wording (now fixed in the design):
+1. `response_format.schema` is a JSON-encoded string, accepted only with `type: "json_object"`.
+2. Prebuilt Qwen3.5 entries carry `overrides` (`context_window_size: 4096`, `max_history_size: 1`, `conv_config.stop_token_ids: [248046, 248044]`) that a custom entry must repeat.
+3. `vram_required_MB` is metadata only; the VRAM_Preflight is the only size check.
+4. An interrupt applies only to the running request and ends with `finish_reason: "abort"`.
+5. `ModelRecord` has new optional `integrity` and `model_manifest` fields, unused here.
+
+Only items 1, 2 and the numbers above were re-checked in this attempt. The line references for items 3 to 5 come from the first attempt and were not re-checked.
