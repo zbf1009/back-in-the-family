@@ -48,6 +48,9 @@ run scripts/check-pnpm-version.sh
 run mise exec -- pnpm --dir web install --frozen-lockfile
 # Same for the LLM probe package (R16.1, R16.9).
 run mise exec -- pnpm --dir eval/probe install --frozen-lockfile
+# Manifest_Check gate (R1.4, R16.3): the eval/cards Manifest must hash to the pinned value.
+# Local only: no network, GPU or token, and it never reads the root `env` file.
+run mise exec -- pnpm --dir eval/probe run probe check-manifest
 # Type_Check gate (R8, R10.1): svelte-check + tsc over every first-party .ts and
 # .svelte file, checked against the wasm-bindgen declarations produced by the
 # wasm-build.sh step above. Runs between the frozen install and the Unit_Tests.
@@ -56,8 +59,8 @@ run mise exec -- pnpm --dir web run typecheck
 run mise exec -- pnpm --dir web run test:unit
 # Probe gates (R16.1): Type_Check then Unit_Tests for eval/probe. They need
 # target/wasm-pkg (built by the wasm-build.sh step above) and the probe frozen install,
-# so they sit right after the web Unit_Tests. Task 7 inserts the Manifest_Check between
-# the probe install and this Type_Check.
+# so they sit right after the web Unit_Tests. The Manifest_Check runs earlier, right after
+# the probe install.
 run mise exec -- pnpm --dir eval/probe run typecheck
 run mise exec -- pnpm --dir eval/probe run test:unit
 # Web_Build gate (R7, R10.1): build Sim_Wasm and the Web_App into the Deploy_Directory

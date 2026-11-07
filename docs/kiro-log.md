@@ -702,3 +702,15 @@ Synced `design.md` with what tasks 1–8 actually built and made task 9's single
 - Result: the full `scripts/gates.sh` printed `src/simwasm.ts(21,14): error TS2322: Type 'string' is not assignable to type 'number'.`, `Probe Type_Check found errors.`, then `gate failed: mise exec -- pnpm --dir eval/probe run typecheck`, exit 1.
 - Revert: restored `simwasm.ts` from a backup outside the repo; `sha256sum -c` matched.
 - Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0.
+
+### Spec: llm-probe — task 7.6 fault injection: Manifest_Check (2026-11-06)
+
+- Gate under test: `mise exec -- pnpm --dir eval/probe run probe check-manifest` in `scripts/gates.sh`, right after the probe frozen install.
+- Injected fault: in `eval/probe/src/manifest.ts`, the first hex digit of `PINNED_MANIFEST_HASH` changed from `9` to `8`.
+- Result: the full `scripts/gates.sh` printed `probe: manifest: MANIFEST.sha256 hash differs: expected 8322729c727a8c975dc3273fb7cc2f239e8790ea66e1745493179aea6815b34f, actual 9322729c727a8c975dc3273fb7cc2f239e8790ea66e1745493179aea6815b34f`, then `gate failed: mise exec -- pnpm --dir eval/probe run probe check-manifest`, exit 1.
+- Revert: restored `manifest.ts` from a backup outside the repo; sha256 matched the pre-injection value.
+- Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0 (Smoke_Test 2 passed). `git diff --stat 091d1d7 -- eval/cards` is empty.
+
+### Spec: llm-probe — note on unknown void IDs in cards.ts (2026-11-06)
+
+- `eval/probe/src/cards.ts` treats an unknown void ID as an error only when both splits are loaded; a Dev_Run (one split) lists it in `unverifiedVoidIds` instead. This deliberately deviates from R2.7's wording for Dev_Runs; a later requirements sync should record it.

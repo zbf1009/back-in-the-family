@@ -1,8 +1,37 @@
-// PLACEHOLDER (task 6.1): replaced by the real Probe_Runner CLI in task 7.1.
-// Its only job now is to give `probe` and `typecheck` something to run, and to
-// prove that the generated wasm-bindgen declarations resolve.
-import type { llm_validate } from 'sim-wasm/sim_wasm.d.ts';
+// Probe_Runner CLI (llm-probe task 7.1). Run as `pnpm --dir eval/probe run probe <command>`.
+//
+// Every command that touches cards runs the Manifest_Check first, on every invocation, and
+// never reuses an earlier outcome (R1.1). A failure prints `probe: manifest: ...` and exits
+// non-zero before any Results file, ledger write or request.
+//
+// `check-manifest` must not read `env` (R1.6). So this file imports only manifest.ts
+// (node built-ins) statically; commands that need more (cards, adapters, env) load their
+// modules with dynamic `import()` after the Manifest_Check has passed.
+import { fileURLToPath } from 'node:url';
+import { checkManifest, formatManifestResult, PINNED_MANIFEST_HASH } from './manifest.ts';
 
-export type LlmValidate = typeof llm_validate;
+const CARDS_DIR = fileURLToPath(new URL('../../cards/', import.meta.url));
 
-console.log('probe: placeholder CLI (no commands yet)');
+/** Runs the Manifest_Check against the real Card_Set; exits non-zero on failure. */
+export async function requireManifest(): Promise<void> {
+  const result = await checkManifest({ cardsDir: CARDS_DIR, pinnedHash: PINNED_MANIFEST_HASH });
+  const lines = formatManifestResult(result, PINNED_MANIFEST_HASH);
+  if (!result.ok) {
+    for (const line of lines) console.error(line);
+    process.exit(1);
+  }
+  for (const line of lines) console.log(line);
+}
+
+const COMMANDS: Record<string, () => Promise<void>> = {
+  'check-manifest': requireManifest,
+};
+
+const command = process.argv[2];
+const run = command === undefined ? undefined : COMMANDS[command];
+if (run === undefined) {
+  console.error(`probe: unknown or missing command${command === undefined ? '' : ` "${command}"`}`);
+  console.error(`probe: commands: ${Object.keys(COMMANDS).join(', ')}`);
+  process.exit(2);
+}
+await run();
