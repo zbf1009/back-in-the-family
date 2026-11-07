@@ -1448,6 +1448,8 @@ Does it fit one UTC day under the 9,000 Neuron_Cap (gemma-4-26b)?
 
 Schedule for branch B: run the Smoke_Calls and the Dev_Run on day 1 and start the Locked_Run at the next 00:00 UTC on day 2. A Locked_Run alone then fits one day for D only (4,862) and S only (7,562) at the upper bound; only a D-and-S Locked_Run at the upper bound (12,424) spills, and its resume runs first on day 3. Requests stay within the daily cap of 600 on every day (at most 104 + 10 on day 1, 408 on day 2).
 
+**Approved by the Author 2026-11-07 (task 18.1)** (reply: "批准，继续"). Values approved, unchanged from the code: per-run cap 410 requests; daily cap 600 requests per UTC day; 10 Smoke_Calls per UTC day without approval; Neuron_Cap 9,000 estimated neurons per UTC day. The approval covers the V5-corrected expected costs per candidate model and Task_Type_Subset (table "Revised 2026-11-07 (V5)") and the branch-B schedule (default gemma-4-26b-a4b-it; alternatives glm-4.7-flash, granite-4.0-h-micro). This approves the budget values only; each Workers AI Dev_Run and Locked_Run in Phase 2 still needs its own named approval (R11.8, R18.4).
+
 ### DA-9: Percentile method, bootstrap PRNG and rotation direction (Q-open-9)
 
 Decided: A for percentiles, PRNG and rotation (Author, 2026-11-06).

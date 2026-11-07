@@ -864,3 +864,11 @@ Smoke_Calls used today: 10 of 10 (allowance exhausted for the UTC day). Three gr
 - Caveat: S output is a single sample per model (160 / 85 / 18 tokens). With S output at the typical 350 tokens the settled gemma D-and-S Locked_Run is 5,232 and glm 4,336: still one UTC day.
 - Smoke_Calls: the counter shows 10 of 10 used for 2026-11-07, so no further Smoke_Call is possible that UTC day.
 - Design: DA-8 gets a "Revised 2026-11-07 (V5)" note with the observed-cost table, the projection table and the fit analysis. No code changed. Proposed budget values for the Author's approval (task 18): keep per-run 410, daily 600, Neuron_Cap 9,000, smoke 10; follow-up optional (fractional/milli-neuron settlement).
+
+### Spec: llm-probe — budget approved (2026-11-07)
+
+- Task 18.1: the Author approved the Request_Budget and Neuron_Cap in the conversation on 2026-11-07 (reply: "批准，继续").
+- Values: per-run cap 410 requests, daily cap 600 requests per UTC day, 10 Smoke_Calls per UTC day without approval, Neuron_Cap 9,000 estimated neurons per UTC day. No value changed, so no code change.
+- The approval covers the V5-corrected expected costs per candidate model and Task_Type_Subset (DA-8 "Revised 2026-11-07 (V5)") and the branch-B schedule (default gemma-4-26b-a4b-it; alternatives glm-4.7-flash, granite-4.0-h-micro).
+- Approval note added to DA-8 in design.md.
+- Phase 2 runs still need their own approvals: each Workers AI Dev_Run and Locked_Run needs a separate named approval (R11.8, R18.4). No API request was made for this task.
