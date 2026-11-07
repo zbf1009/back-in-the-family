@@ -6,8 +6,8 @@
 //   locked-run --resume <entry-id> [--timeout-ms N] [--approval <id>]
 //
 // In-browser Combinations (webllm, transformers.js) run through the headless browser driver (task 16.8).
-// The Workers AI adapter arrives in task 17; until then its default factory refuses with a clear message,
-// before anything is written.
+// The Workers AI adapter (adapters/workers-ai.ts) is the default factory for every other Runtime; it reads
+// the credentials only when a Workers AI Combination starts.
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
@@ -21,6 +21,7 @@ import { DEFAULT_CARDS_DIR } from './cards.ts';
 import { createBrowserRuntime, isInBrowser, type EngineVersions } from './browser/factory.ts';
 import { realSessionDeps } from './browser/driver.ts';
 import { printErrorLine } from './sink.ts';
+import { createWorkersAiRuntime } from './adapters/workers-ai.ts';
 
 const REPO_DIR = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -37,9 +38,9 @@ export function defaultRunPaths(repoDir: string = REPO_DIR): RunDeps['paths'] {
   };
 }
 
-/** Until tasks 16 and 17 add the real adapters, no Runtime can be created. */
+/** Retained for tests: a factory that refuses every Runtime. */
 export const noRuntimeYet: RuntimeFactory = (ctx) =>
-  Promise.reject(new Error(`no Runtime adapter for "${ctx.combo.runtime}" yet (tasks 16 and 17)`));
+  Promise.reject(new Error(`no Runtime adapter for "${ctx.combo.runtime}"`));
 
 /** Exact engine versions from package.json (the same pins the Probe_Page build bakes in). */
 export function readEngineVersions(repoDir: string = REPO_DIR): EngineVersions {
@@ -51,7 +52,7 @@ export function readEngineVersions(repoDir: string = REPO_DIR): EngineVersions {
  * In-browser Combinations get the headless browser driver and its Fresh_Profile hook; any other Runtime
  * falls through to `fallback` (the Workers AI adapter, task 17).
  */
-export function defaultBrowserWiring(repoDir: string = REPO_DIR, fallback: RuntimeFactory = noRuntimeYet): Pick<RunDeps, 'createRuntime' | 'freshProfile'> {
+export function defaultBrowserWiring(repoDir: string = REPO_DIR, fallback: RuntimeFactory = createWorkersAiRuntime()): Pick<RunDeps, 'createRuntime' | 'freshProfile'> {
   const browser = createBrowserRuntime({
     sessionDeps: () => realSessionDeps(path.join(repoDir, 'eval/probe/dist')),
     engineVersions: readEngineVersions(repoDir),

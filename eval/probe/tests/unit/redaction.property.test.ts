@@ -9,7 +9,21 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, test } from 'node:test';
 import { inspect } from 'node:util';
 import fc from 'fast-check';
+import { createFakeClock } from '../../src/adapters/fake.ts';
+import type { Prompt, RequestOptions } from '../../src/adapters/interface.ts';
+import {
+  createWorkersAiRuntime,
+  toBudgetUsage,
+  WORKERS_AI_REVISION,
+  workersAiPrices,
+  type FetchLike,
+  type FetchResponseLike,
+} from '../../src/adapters/workers-ai.ts';
+import { BudgetSession, isRefusal } from '../../src/budget.ts';
 import { ACCOUNT_VARIABLE, EnvError, loadWorkersAiEnv, TOKEN_VARIABLE } from '../../src/env.ts';
+import { appendAbort, appendResume, appendStart } from '../../src/ledger.ts';
+import type { Combination } from '../../src/phase.ts';
+import { appendFailure, ResultsWriter, SCHEMA, type Late, type Outcome, type Usage as ResultUsage } from '../../src/results.ts';
 import { REDACTED, Secret, secretVariants } from '../../src/redact.ts';
 import {
   appendTextFile,
@@ -135,6 +149,192 @@ describe('Property 27: redaction at the sink', () => {
         clearSecrets();
       }),
       { numRuns: 100 },
+    );
+  });
+});
+
+// ---------------------------------------------------------------- task 17.3: the real Workers AI adapter in the loop
+
+type Scenario =
+  | 'ok_text'
+  | 'http_400'
+  | 'http_429'
+  | 'http_500_html'
+  | 'invalid_json'
+  | 'network_reject'
+  | 'non_error_throw'
+  | 'sync_throw'
+  | 'text_reject'
+  | 'echo_url'
+  | 'timeout';
+const scenarioArb = fc.constantFrom<Scenario>(
+  'ok_text', 'http_400', 'http_429', 'http_500_html', 'invalid_json', 'network_reject', 'non_error_throw', 'sync_throw', 'text_reject', 'echo_url', 'timeout',
+);
+
+const WAI_COMBO = {
+  id: 'wai-redaction',
+  runtime: 'workers-ai',
+  model_id: '@cf/fake/model',
+  quantization: 'n/a',
+  revision: WORKERS_AI_REVISION,
+  phase1_locked: false,
+  response_shape: 'chat',
+  max_output_param: { name: 'max_tokens', source: 'x' },
+  prices: { input: 100, output: 200, source: 'x', read_on: '2026-11-06' },
+} as unknown as Combination;
+const WAI_OPTS: RequestOptions = {
+  timeoutMs: 5000,
+  sampling: { temperature: 0, topP: null, maxOutputTokens: 64, seed: null, chatTemplateKwargs: null, constraint: { kind: 'none' } },
+};
+const WAI_PROMPT: Prompt = { system: 'sys', user: 'usr' };
+
+/** A fake fetch whose responses and failures echo the URL (account ID), the header (token) and generated remote text. */
+function leakyFetch(scenario: Scenario, text: string): FetchLike {
+  return (url, init) => {
+    const echoed = `${text} ${url} ${init.headers['Authorization'] ?? ''}`;
+    const respond = (status: number, body: string): Promise<FetchResponseLike> => Promise.resolve({ status, text: () => Promise.resolve(body) });
+    const errors = (code: unknown) => JSON.stringify({ success: false, errors: [{ code, message: echoed }] });
+    switch (scenario) {
+      case 'ok_text':
+        return respond(200, JSON.stringify({ success: true, result: { choices: [{ message: { content: echoed }, finish_reason: 'stop' }], usage: { prompt_tokens: 20, completion_tokens: 6 } } }));
+      case 'http_400':
+        return respond(400, errors(echoed));
+      case 'http_429':
+        return respond(429, errors(1234));
+      case 'http_500_html':
+        return respond(500, `<html>${echoed}</html>`);
+      case 'invalid_json':
+        return respond(200, `{"result": ${echoed}`);
+      case 'network_reject':
+        return Promise.reject(Object.assign(new Error(echoed), { name: echoed.replace(/\s/g, '_') }));
+      case 'non_error_throw':
+        return Promise.reject(echoed);
+      case 'sync_throw':
+        throw new Error(echoed);
+      case 'text_reject':
+        return Promise.resolve({ status: 200, text: () => Promise.reject(new Error(echoed)) });
+      case 'echo_url':
+        return respond(403, errors(url));
+      case 'timeout':
+        return new Promise((_resolve, reject) => {
+          init.signal.addEventListener('abort', () => reject(new Error(echoed)));
+        });
+    }
+  };
+}
+
+function listFiles(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((d) => (d.isDirectory() ? listFiles(path.join(dir, d.name)) : [path.join(dir, d.name)]));
+}
+
+describe('Property 27: the real Workers AI adapter and factory in the loop (task 17.3)', () => {
+  test('stdout, stderr, Results, ledger, budget counter, failure records and thrown messages hold neither secret', async () => {
+    await fc.assert(
+      fc.asyncProperty(
+        pairArb.filter(([t, a]) => [t, a].every((v) => !/['"#\\]/.test(v))),
+        fc.array(fc.tuple(scenarioArb, SAFE, formArb, formArb), { minLength: 1, maxLength: 4 }),
+        async ([token, account], scenarios) => {
+          out.length = 0;
+          err.length = 0;
+          clearSecrets();
+          const thrown: string[] = [];
+          const dir = fs.mkdtempSync(path.join(tmp, 'w-'));
+          const mk = (file: string) => path.join(dir, file);
+          const makeEnv = () => loadWorkersAiEnv({ readFile: () => `${TOKEN_VARIABLE}=${token}\n${ACCOUNT_VARIABLE}=${account}\n`, envPath: '/fake/env' });
+          const probeEnv = makeEnv();
+          fc.pre(probeEnv.token.reveal() === token && probeEnv.accountId.reveal() === account);
+
+          const ledgerFile = mk('ledger.jsonl');
+          const budget = BudgetSession.open({ file: mk('budget.json'), now: () => Date.UTC(2026, 10, 7, 9) });
+          let writer: ResultsWriter | null = null;
+          let started = false;
+
+          for (const [i, [scenario, safe, fa, fb]] of scenarios.entries()) {
+            const clock = createFakeClock();
+            const factory = createWorkersAiRuntime({ loadEnv: makeEnv, fetch: leakyFetch(scenario, `${safe}${shape(account, fa)} ${shape(token, fb)}`), clock });
+            const handle = await factory({ combo: WAI_COMBO, kind: 'dev', resume: false, timeoutMs: 5000 } as never);
+            const fingerprint = handle.fingerprint ?? {};
+            if (writer === null) {
+              writer = ResultsWriter.create(dir, {
+                schema: SCHEMA.header, run_id: 'wai', split: 'dev', combination: WAI_COMBO.id,
+                model_key: { runtime: 'workers-ai', model_id: WAI_COMBO.model_id, quantization: 'n/a', revision: WORKERS_AI_REVISION },
+                task_subset: 'D', fingerprint, template_hashes: { 'decision.v1': 'ab' }, timeout_ms: 5000, placement: null,
+              });
+            }
+            if (!started) {
+              appendStart(ledgerFile, {
+                entry_id: 'E1', model_key: writer.header.model_key, combination: WAI_COMBO.id, task_subset: 'D', fingerprint,
+                template_hashes: { 'decision.v1': 'ab' }, started_at: '2026-11-07T09:00:00.000Z', approval: null, planned: { decision: 4 },
+              });
+              started = true;
+            }
+            const reservation = budget.reserve({ smoke: false, estimate: 50 });
+            assert.ok(!isRefusal(reservation));
+
+            const pending = handle.adapter.complete(WAI_PROMPT, WAI_OPTS);
+            if (scenario === 'timeout') await clock.advance(WAI_OPTS.timeoutMs);
+            const res = await pending;
+            if (!isRefusal(reservation)) budget.settle(reservation, res.kind === 'text' || res.kind === 'error' ? toBudgetUsage(res.usage ?? { inputTokens: 1, outputTokens: 1, reasoningTokens: null }) : null, workersAiPrices(WAI_COMBO));
+
+            let outcome: Outcome;
+            let late: Late | null = null;
+            let usage: ResultUsage | null = null;
+            let latency: number;
+            if (res.kind === 'text') {
+              outcome = { kind: 'text', text: res.text };
+              latency = res.latencyMs;
+              usage = res.usage === null ? null : { input_tokens: res.usage.inputTokens, output_tokens: res.usage.outputTokens, reasoning_tokens: res.usage.reasoningTokens };
+            } else if (res.kind === 'error') {
+              outcome = { kind: 'error', code: res.code, detail: res.detail, remote: res.remote !== null };
+              latency = res.elapsedMs;
+              printErrorLine(`${res.code}: ${res.detail} ${JSON.stringify(res.remote)}`);
+              appendFailure(mk('failures.jsonl'), { schema: SCHEMA.failure, combination: WAI_COMBO.id, kind: res.code, detail: res.detail, remote: JSON.stringify(res.remote) });
+              appendAbort(ledgerFile, 'E1', '2026-11-07T09:10:00.000Z', `${res.code}: ${res.detail}`);
+              appendResume(ledgerFile, 'E1', '2026-11-07T09:11:00.000Z', {
+                model_key: writer.header.model_key, fingerprint, template_hashes: { 'decision.v1': 'ab' },
+              });
+            } else {
+              assert.deepEqual(await res.late, { kind: 'none', reason: 'aborted' });
+              outcome = { kind: 'timeout' };
+              late = { kind: 'none', reason: 'aborted' };
+              latency = res.elapsedMs;
+            }
+            printLine(JSON.stringify(outcome));
+            writer.append({
+              schema: SCHEMA.result, run_id: 'wai', split: 'dev', card_id: `D-x-${String(i).padStart(3, '0')}`, permutation: 'base', outcome, latency_ms: latency,
+              timeout_ms: 5000, requested_at: '2026-11-07T09:00:00.000Z', template_hash: 'ab', fingerprint_id: writer.fingerprintId, usage, late, source: 'node',
+            });
+            // A record that fails validation throws; its message must be clean too.
+            try {
+              writer.append({
+                schema: SCHEMA.result, run_id: 'wai', split: 'dev', card_id: 'D-x-999', permutation: 'base', outcome: { kind: 'text', text: JSON.stringify(res) }, latency_ms: 1,
+                timeout_ms: 5000, requested_at: '2026-11-07T09:00:00.000Z', template_hash: 'ab', fingerprint_id: writer.fingerprintId, usage: null,
+                late: { kind: 'none', reason: 'aborted' }, source: 'node',
+              });
+            } catch (e) {
+              thrown.push(e instanceof Error ? e.message : String(e));
+            }
+          }
+
+          // A run with a missing variable prints only the variable name.
+          clearSecrets();
+          const missingToken = createWorkersAiRuntime({
+            loadEnv: () => loadWorkersAiEnv({ readFile: () => `# ${token}\n${ACCOUNT_VARIABLE}=${account}\n`, envPath: '/fake/env' }),
+          });
+          await assert.rejects(missingToken({ combo: WAI_COMBO, kind: 'dev', resume: false, timeoutMs: 5000 } as never), (e: unknown) => {
+            assert.ok(e instanceof EnvError);
+            thrown.push(e.message);
+            return true;
+          });
+          const missingMsg = err.join('');
+          assert.ok(missingMsg.includes(TOKEN_VARIABLE));
+
+          const all = [...out, ...err, ...thrown, ...listFiles(dir).map((f) => fs.readFileSync(f, 'utf8'))];
+          for (const s of all) assert.equal(leaks(s, [token, account]), false);
+          assert.ok(listFiles(dir).some((f) => f.endsWith('budget.json')));
+        },
+      ),
+      { numRuns: 40 },
     );
   });
 });

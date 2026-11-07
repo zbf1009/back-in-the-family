@@ -64,6 +64,8 @@ export type AdapterResult =
       detail: string;
       elapsedMs: number;
       remote: { status: number; code: string | null } | null;
+      /** Token usage when the Runtime reported it despite the error (for example `truncated`); lets the run flow settle the budget. */
+      usage?: Usage | null;
     };
 
 export interface RuntimeIdentity {

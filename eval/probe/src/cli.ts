@@ -53,6 +53,11 @@ const COMMANDS: Record<string, () => Promise<void>> = {
     const { lockedRunCommand, defaultRunDeps } = await import('./run-command.ts');
     process.exitCode = await lockedRunCommand(process.argv.slice(3), defaultRunDeps(REPO_DIR));
   },
+  // Workers AI Smoke_Calls on Dev_Cards only; does its own Manifest_Check, reads `env` only after every other check passed.
+  smoke: async () => {
+    const { smokeCommand, defaultSmokeDeps } = await import('./smoke.ts');
+    process.exitCode = await smokeCommand(process.argv.slice(3), defaultSmokeDeps(REPO_DIR));
+  },
   // These three read the Card_Set (page-bundle to render, ingest and regrade to grade only, R3.1) and do
   // their own Manifest_Check before any card is read (R1.1).
   'page-bundle': async () => {

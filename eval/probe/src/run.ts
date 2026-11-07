@@ -716,10 +716,11 @@ async function sendMissing(c: Exec, existing: readonly ResultRecord[]): Promise<
 
     const requestedAt = nowOf(c.deps);
     const result = await c.handle.adapter.complete(item.prompt, { timeoutMs: c.timeoutMs, sampling: item.sampling });
-    if (reservation !== null && c.budget !== null && prices !== null && result.kind === 'text' && result.usage !== null) {
+    const reported = result.kind === 'text' || result.kind === 'error' ? (result.usage ?? null) : null;
+    if (reservation !== null && c.budget !== null && prices !== null && reported !== null) {
       c.budget.settle(
         reservation,
-        { promptTokens: result.usage.inputTokens, completionTokens: result.usage.outputTokens, reasoningTokens: result.usage.reasoningTokens },
+        { promptTokens: reported.inputTokens, completionTokens: reported.outputTokens, reasoningTokens: reported.reasoningTokens },
         { inputPrice: prices.input, outputPrice: prices.output },
       );
     }
