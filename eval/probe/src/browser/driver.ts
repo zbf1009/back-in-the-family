@@ -27,6 +27,9 @@ import {
   memoryMeasurementFor,
   nodeScheduler,
   nvidiaSmiReader,
+  parseComputeApps,
+  parseNvidiaSmiTable,
+  type GpuProcess,
   type ExecFn,
   type IntervalScheduler,
   type MemoryMeasurement,
@@ -162,8 +165,22 @@ export interface PreflightMeasurement {
   readonly placement: Placement;
   /** NVIDIA sampler figure: peak minus the idle baseline, from before the engine is created to the end of the request. */
   readonly memory: MemoryRecord;
+  /** Processes `nvidia-smi` listed on the card before the engine was created (names and MiB; hybrid-GPU context). */
+  readonly otherProcesses?: OtherProcesses;
   readonly run: { readonly ok: true; readonly view: PreflightRunView } | { readonly ok: false; readonly error: string };
 }
+
+export interface OtherProcesses {
+  /** `--query-compute-apps` rows. May be empty even when graphics processes use the card. */
+  readonly compute_apps: readonly GpuProcess[];
+  /** Rows of the plain `nvidia-smi` process table (graphics and compute). */
+  readonly table: readonly GpuProcess[];
+  /** Whole-card `memory.used,memory.total` line before the idle series. */
+  readonly card: string | null;
+}
+
+/** Idle series for the preflight: 9 readings 250 ms apart (about 2 s). */
+export const PREFLIGHT_IDLE_READS = 9;
 
 export interface WarmUpView {
   readonly task: 'decision' | 'synthesis';
@@ -171,7 +188,23 @@ export interface WarmUpView {
   readonly latencyMs: number;
 }
 
-export const OOM = /out of memory|\boom\b|device (?:was )?lost|memory allocation failed|ErrorOutOfMemory|exceeds the maximum/i;
+export const OOM =
+  /out of memory|\boom\b|device (?:was )?lost|memory allocation failed|ErrorOutOfMemory|exceeds the maximum|OUT_OF_DEVICE_MEMORY|OUT_OF_HOST_MEMORY|Failed to allocate memory/i;
+
+const ANSI = /\u001b\[[0-9;]*m/g;
+
+/**
+ * The first console line that names an out-of-memory or device-lost condition (Dawn / Vulkan / ORT), ANSI colours
+ * removed and cut to 300 characters; `null` when there is none. The page error after such a condition often says
+ * only "Invalid Buffer ... previous error", so the preflight judge also looks here (Author, 2026-11-07).
+ */
+export function consoleOomLine(lines: readonly string[]): string | null {
+  for (const l of lines) {
+    const t = l.replace(ANSI, '').trim();
+    if (OOM.test(t)) return t.slice(0, 300);
+  }
+  return null;
+}
 
 export const powerPreferenceOf = (combo: Combination): 'high-performance' | 'low-power' => (combo['power_preference'] === 'low-power' ? 'low-power' : 'high-performance');
 
@@ -434,17 +467,27 @@ export class BrowserSession {
       throw new BrowserLoadError('gpu_unavailable', `the VRAM_Preflight is measured on the NVIDIA adapter; the browser gave "${adapter.vendor}" (check power_preference and the Headless_Launch_Flags)`);
     }
     const profile = this.profile as FreshProfile;
+    // Two-session placement method (design: Placement detection, 2026-11-07): the verbose placement-only session
+    // is created and released BEFORE the sampler starts, so its memory never counts; the peak is the quiet session's.
+    if (this.combo.runtime === 'transformers.js') await this.evalLoad<void>(page, 'window.__probe.probePlacement()');
+    this.assertPinned();
+    const placement = this.placementOf(this.consoleLines);
+    this.placementValue = placement;
+    const otherProcesses = await this.readOtherProcesses();
     this.memory = memoryMeasurementFor(adapter.vendor, {
       reader: nvidiaSmiReader(this.deps.exec),
       scheduler: this.deps.scheduler,
       proc: this.deps.proc,
       profileDir: profile.dir,
+      idle: { reads: PREFLIGHT_IDLE_READS, wait: (ms) => new Promise<void>((r) => setTimeout(r, ms)) },
     });
     await this.memory.start();
     await this.evalLoad<WarmUpView[]>(page, 'window.__probe.createEngine()');
     this.assertPinned();
-    const placement = this.placementOf(this.consoleLines);
-    this.placementValue = placement;
+    // The page's runtime now reports the placement check (probe and measured key hashes and files).
+    const extras = await page.evaluate<unknown>('window.__probe.fingerprintExtras()').catch(() => null);
+    if (typeof extras === 'object' && extras !== null && !Array.isArray(extras)) this.extras = extras as JsonObject;
+    const runConsoleStart = this.consoleLines.length;
     const args = `${JSON.stringify(prompt)}, ${JSON.stringify({ maxNewTokens: o.maxNewTokens, minNewTokens: o.minNewTokens, timeoutMs: o.timeoutMs })}`;
     let run: PreflightMeasurement['run'];
     try {
@@ -453,7 +496,22 @@ export class BrowserSession {
       run = { ok: false, error: this.crashed ? `the page crashed: ${message(e)}` : message(e) };
     }
     const memory = await this.memory.stop();
-    return { adapter, placement, memory, run };
+    const oomLine = consoleOomLine(this.consoleLines.slice(runConsoleStart));
+    if (oomLine !== null) {
+      const before = run.ok ? `generation ended (${run.view.outcome.kind})` : run.error;
+      run = { ok: false, error: `${before}; console: ${oomLine}` };
+    }
+    return { adapter, placement, memory, otherProcesses, run };
+  }
+
+  private async readOtherProcesses(): Promise<OtherProcesses> {
+    const run = async (args: readonly string[]): Promise<string> => this.deps.exec('nvidia-smi', args).catch(() => '');
+    const [apps, table, card] = await Promise.all([
+      run(['--query-compute-apps=pid,process_name,used_memory', '--format=csv,noheader,nounits']),
+      run([]),
+      run(['--query-gpu=memory.used,memory.total', '--format=csv,noheader']),
+    ]);
+    return { compute_apps: parseComputeApps(apps), table: parseNvidiaSmiTable(table), card: card.trim() === '' ? null : card.trim() };
   }
 
   // ---------------------------------------------------------------- inference and rebuild

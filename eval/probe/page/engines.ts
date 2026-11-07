@@ -6,7 +6,15 @@
 // Nothing here can run offline: the unit tests cover the adapters (src/adapters/*) and the page
 // logic (probe-core.ts) with fakes. These two wrappers are exercised for the first time by the
 // VRAM_Preflight (transformers.js) and the first Dev_Run (WebLLM); see the task 16.7 report.
-import { createTransformersRuntime, type TransformersGenerateParams, type TransformersLoadConfig, type TransformersLoaded, type TransformersLoader } from '../src/adapters/transformers.ts';
+import {
+  createTransformersRuntime,
+  pinHubUrl,
+  type TransformersGenerateParams,
+  type TransformersLoadConfig,
+  type TransformersLoaded,
+  type TransformersLoader,
+  type TransformersPlacementProbe,
+} from '../src/adapters/transformers.ts';
 import { createWebLlmRuntime, type WebLlmEngineFactory, type WebLlmEngineLike } from '../src/adapters/webllm.ts';
 import type { Combination } from '../src/phase.ts';
 import type { PageRuntime } from './probe-core.ts';
@@ -41,23 +49,53 @@ export const webLlmFactory: WebLlmEngineFactory = async (modelId, config) => {
 
 // ---------------------------------------------------------------- transformers.js
 
-/**
- * `from_pretrained` for tokenizer and model. Sets ONNX Runtime's log level to verbose BEFORE the first
- * `from_pretrained`, so ORT prints its "Node placements" block to the console, where the driver reads it
- * (design: Placement detection). The block is whatever ORT-web prints; it is not re-logged here.
- */
-export const transformersLoader: TransformersLoader = async (modelId: string, config: TransformersLoadConfig): Promise<TransformersLoaded> => {
+type Tf = typeof import('@huggingface/transformers');
+
+/** Global ONNX Runtime setup before any session: verbose env log level, revision-pinned `env.fetch`. */
+async function setUp(modelId: string, config: TransformersLoadConfig): Promise<Tf> {
   const tf = await import('@huggingface/transformers');
   tf.env.backends.onnx.logLevel = config.onnxLogLevel;
-  const tokenizer = await tf.AutoTokenizer.from_pretrained(modelId, { revision: config.revision });
+  // Pin the library's revision-less metadata probes to the pinned revision (see pinHubUrl).
+  const baseFetch = globalThis.fetch.bind(globalThis);
+  tf.env.fetch = (input: string | URL, init?: RequestInit) => baseFetch(pinHubUrl(String(input), modelId, config.revision), init);
+  return tf;
+}
+
+/** `from_pretrained` of the model with the given session options; collects the files it read (progress callback). */
+async function loadModel(tf: Tf, modelId: string, config: TransformersLoadConfig, sessionOptions: TransformersLoadConfig['session_options']) {
+  const files = new Set<string>();
   // The design says "the model class named on the model card"; AutoModelForCausalLM maps the text path
-  // of each candidate (confirmed by the VRAM_Preflight, the first run that loads one).
+  // of each candidate (the VRAM_Preflight records the files it read).
   const model = await tf.AutoModelForCausalLM.from_pretrained(modelId, {
     revision: config.revision,
     device: config.device,
     dtype: config.dtype,
-    session_options: config.session_options as never, // plain numbers; the d.ts wants the 0..4 literal union
-  });
+    session_options: sessionOptions as never, // plain numbers; the d.ts wants the 0..4 literal union
+    progress_callback: (p: { status?: string; file?: string }) => {
+      if ((p.status === 'initiate' || p.status === 'done') && typeof p.file === 'string') files.add(p.file);
+    },
+  } as never);
+  return { model, files: [...files].sort() };
+}
+
+/**
+ * Step 1 of the two-session method (design: Placement detection, 2026-11-07): create the model's sessions with
+ * `placement_session_options` (severity 0), so ONNX Runtime prints its "Node placements" block to the console where
+ * the driver reads it; run nothing; release the sessions.
+ */
+export const transformersPlacementProbe: TransformersPlacementProbe = async (modelId, config) => {
+  const tf = await setUp(modelId, config);
+  const { model, files } = await loadModel(tf, modelId, config, config.placement_session_options);
+  await model.dispose();
+  console.log(`[probe] placement session released (${files.length} files)`);
+  return { files };
+};
+
+/** Step 2: tokenizer and the measured model (quiet `session_options`), from the browser cache after step 1. */
+export const transformersLoader: TransformersLoader = async (modelId: string, config: TransformersLoadConfig): Promise<TransformersLoaded> => {
+  const tf = await setUp(modelId, config);
+  const tokenizer = await tf.AutoTokenizer.from_pretrained(modelId, { revision: config.revision });
+  const { model, files } = await loadModel(tf, modelId, config, config.session_options);
   const stopping = new tf.InterruptableStoppingCriteria();
 
   return {
@@ -65,6 +103,7 @@ export const transformersLoader: TransformersLoader = async (modelId: string, co
       apply_chat_template: (messages, options) => tokenizer.apply_chat_template(messages, options) as unknown as string,
     },
     stoppingCriteria: stopping,
+    facts: { files },
     async generate(text: string, params: TransformersGenerateParams) {
       // The template text already carries the special tokens, so none are added.
       const inputs = tokenizer(text, { add_special_tokens: false }) as { input_ids: { dims: number[] } };
@@ -118,6 +157,7 @@ export const makeRuntime =
       const kwargs = asStringRecord(combo['chat_template_kwargs']);
       return createTransformersRuntime({
         loader: transformersLoader,
+        placementProbe: transformersPlacementProbe,
         model: {
           modelId: combo.model_id,
           revision: combo.revision,

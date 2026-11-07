@@ -105,12 +105,12 @@ test('the length rule: prompt_bytes >= max(8,000, 2 x the longest Dev_Card promp
 
 // ---------------------------------------------------------------- no Results record
 
-test('a preflight writes only preflight/<combo>.json: no Results, no ledger, no exclusion, no budget entry', async () => {
+test('a preflight writes only preflight/<combo>.json and preflight/attempts.jsonl: no Results, no ledger, no exclusion, no budget entry', async () => {
   const { deps, root } = setup(measured(1800));
   assert.equal((await capture(() => preflightRun(deps, { combo: TF.id }))).value, 0);
   const results = path.join(root, 'eval/results');
   assert.deepEqual(fs.readdirSync(results).sort(), ['preflight']);
-  assert.deepEqual(fs.readdirSync(path.join(results, 'preflight')), [path.basename(preflightPath(deps.paths.resultsDir, TF.id))]);
+  assert.deepEqual(fs.readdirSync(path.join(results, 'preflight')).sort(), ['attempts.jsonl', path.basename(preflightPath(deps.paths.resultsDir, TF.id))].sort());
   assert.ok(!fs.existsSync(deps.paths.ledger) && !fs.existsSync(deps.paths.exclusions));
 });
 

@@ -5,6 +5,9 @@ import type { Prompt, SamplingParams } from '../../src/adapters/interface.ts';
 import {
   buildGenerateParams,
   createTransformersRuntime,
+  partitionOptions,
+  pinHubUrl,
+  placementKeyHash,
   type ChatTemplateOptions,
   type InterruptableLike,
   type TransformersGenerateParams,
@@ -32,6 +35,8 @@ interface Script {
   durationMs?: number;
   hangUntilInterrupt?: boolean;
 }
+
+const fakeFiles = { probe: ['config.json', 'onnx/model_q4.onnx'], measured: ['config.json', 'onnx/model_q4.onnx'] };
 
 function makeFake(clock: FakeClock, script: () => Script = () => ({})) {
   const events: string[] = [];
@@ -73,6 +78,7 @@ function makeFake(clock: FakeClock, script: () => Script = () => ({})) {
         });
       },
       stoppingCriteria: stopping,
+      facts: { files: fakeFiles.measured },
       async dispose() {
         disposes++;
         events.push('dispose');
@@ -99,7 +105,7 @@ function runtime(
   });
 }
 
-test('from_pretrained config: revision, webgpu, q4, session options, verbose ORT log', async () => {
+test('from_pretrained config: revision, webgpu, q4, quiet measured session, verbose placement session', async () => {
   const clock = createFakeClock();
   const fake = makeFake(clock);
   await runtime(clock, fake).load();
@@ -108,7 +114,8 @@ test('from_pretrained config: revision, webgpu, q4, session options, verbose ORT
     revision: REV,
     device: 'webgpu',
     dtype: 'q4',
-    session_options: { executionProviders: ['webgpu'], logSeverityLevel: 0, logVerbosityLevel: 0 },
+    session_options: { executionProviders: ['webgpu'], logSeverityLevel: 2, logVerbosityLevel: 0 },
+    placement_session_options: { executionProviders: ['webgpu'], logSeverityLevel: 0, logVerbosityLevel: 0 },
     onnxLogLevel: 'verbose',
   });
   assert.throws(
@@ -259,4 +266,57 @@ test('structured output is opt-in: used only for json_schema requests, pattern s
   // a none request with the factory present stays unconstrained
   await rt.adapter.complete(card, { timeoutMs: 1000, sampling: samplingD });
   assert.equal('logits_processor' in (fake.generateCalls.at(-1)?.params ?? {}), false);
+});
+
+test('pinHubUrl rewrites only this repo\'s /resolve/main/ URLs to the pinned revision', () => {
+  const m = 'onnx-community/X-ONNX';
+  assert.equal(pinHubUrl(`https://huggingface.co/${m}/resolve/main/tokenizer_config.json`, m, REV), `https://huggingface.co/${m}/resolve/${REV}/tokenizer_config.json`);
+  for (const u of [`https://huggingface.co/${m}/resolve/${REV}/onnx/a.onnx`, 'https://huggingface.co/other/repo/resolve/main/x.json', 'http://localhost:1/x']) {
+    assert.equal(pinHubUrl(u, m, REV), u);
+  }
+});
+
+test('two-session placement: probe first, same key hash passes and is fingerprinted; different files fail', async () => {
+  const clock = createFakeClock();
+  const fake = makeFake(clock);
+  const probeCalls: TransformersLoadConfig[] = [];
+  const make = () =>
+    createTransformersRuntime({
+      loader: fake.loader,
+      placementProbe: async (_m, config) => (probeCalls.push(config), { files: [...fakeFiles.probe] }),
+      model: { modelId: 'onnx-community/Qwen3.5-0.8B-ONNX', revision: REV, enableThinkingArg: true, runtimeVersion: '4.3.2' },
+      clock,
+      warmups,
+      samplings: { decision: samplingD, synthesis: samplingS },
+    });
+  const rt = make();
+  await rt.probePlacement();
+  assert.equal(probeCalls[0]?.placement_session_options.logSeverityLevel, 0);
+  await rt.load();
+  const pc = rt.fingerprint()['placement_check'] as Record<string, unknown>;
+  assert.match(String(pc['probe_sha256']), /^[0-9a-f]{64}$/);
+  assert.equal(pc['probe_sha256'], pc['measured_sha256']);
+  // the two option sets differ only in the log fields
+  const c = rt.loadConfig();
+  assert.deepEqual(partitionOptions(c.session_options), partitionOptions(c.placement_session_options));
+  assert.notDeepEqual(c.session_options, c.placement_session_options);
+
+  fakeFiles.measured = ['config.json', 'onnx/model_fp16.onnx'];
+  try {
+    const bad = make();
+    await bad.probePlacement();
+    await assert.rejects(bad.load(), /placement_session_mismatch/);
+  } finally {
+    fakeFiles.measured = [...fakeFiles.probe];
+  }
+});
+
+test('the placement key hash ignores the log fields and file order, and sees every other option', async () => {
+  const base = { modelId: 'm', revision: REV, device: 'webgpu', dtype: 'q4', files: ['b', 'a'] };
+  const quiet = await placementKeyHash({ ...base, options: { executionProviders: ['webgpu'], logSeverityLevel: 2, logVerbosityLevel: 0 } });
+  const loud = await placementKeyHash({ ...base, files: ['a', 'b'], options: { executionProviders: ['webgpu'], logSeverityLevel: 0, logVerbosityLevel: 0 } });
+  assert.equal(quiet, loud);
+  const other = await placementKeyHash({ ...base, options: { executionProviders: ['webgpu', 'wasm'], logSeverityLevel: 2, logVerbosityLevel: 0 } });
+  assert.notEqual(quiet, other);
+  assert.notEqual(quiet, await placementKeyHash({ ...base, revision: 'e'.repeat(40), options: { executionProviders: ['webgpu'], logSeverityLevel: 2, logVerbosityLevel: 0 } }));
 });

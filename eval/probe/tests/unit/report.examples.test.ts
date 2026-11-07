@@ -256,7 +256,7 @@ test('the "Risks" line appears only when a CPU-flagged Combination is recommende
   const cpu = combo('webllm/cpu/nvidia');
   const clean = combo('webllm/clean/nvidia');
   const recommended = build([{ id: 'L-cpu', c: cpu, task: 'decision', good: true, cpu: 2 }], [cpu, WAI]);
-  assert.match(section(recommended, 9), /\*\*Risks:\*\* this Combination places 2 nodes on the CPU \(Gather ×2\); its latency figures are not pure-WebGPU results\./);
+  assert.match(section(recommended, 9), /\*\*Risks:\*\* this Combination places 2 nodes on the CPU \(shape computation \(cheap, placed on the CPU on purpose\): Gather ×2\); its latency figures are not pure-WebGPU results\./);
 
   // The CPU-flagged Combination fails, so it is not recommended: the note stays in section 6 only.
   const notRecommended = build(

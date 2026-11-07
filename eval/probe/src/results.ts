@@ -514,6 +514,7 @@ export function parsePreflightRecord(v: unknown): PreflightRecord {
   return freeRecord<PreflightRecord>(v, SCHEMA.preflight, (o) => {
     for (const k of ['prompt_bytes', 'event_count', 'person_count', 'new_tokens']) int(o[k], `record.${k}`);
     if (o.eos_disabled !== true) fault('record.eos_disabled must be true');
+    if (o.verdict !== undefined) oneOf(o.verdict, ['pass', 'excluded', 'no_verdict'] as const, 'record.verdict');
   });
 }
 
@@ -728,6 +729,11 @@ export function appendExclusionOnce(file: string, r: ExclusionRecord): boolean {
   appendExclusion(file, r);
   return true;
 }
+export const appendPreflightAttempt = (file: string, r: PreflightRecord): void => {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  appendChecked(file, parsePreflightRecord, r, 'preflight attempt');
+};
+export const readPreflightAttempts = (file: string): PreflightRecord[] => readJsonLines(file, (v) => parsePreflightRecord(v));
 export const appendSmoke = (file: string, r: SmokeRecord): void => appendChecked(file, parseSmokeRecord, r, 'smoke record');
 
 /** Writes a one-object JSON file (perf, preflight), refusing to replace an existing file. */

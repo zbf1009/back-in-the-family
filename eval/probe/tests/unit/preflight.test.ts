@@ -128,23 +128,28 @@ test('a peak above 2,600 MiB excludes; exactly 2,600 does not', () => {
   assert.equal(at.kind === 'record' ? at.exclusion : 'x', null);
 });
 
-test('a load failure excludes with preflight_load; a missing GPU or NVIDIA reading records nothing', () => {
+test('a load failure excludes with preflight_load; a missing GPU or NVIDIA reading is a no_verdict record', () => {
   const lf = judge({ kind: 'load_failed', code: 'model_load_failed', message: 'weights missing' });
   assert.equal(lf.kind === 'record' ? lf.exclusion?.check : null, 'preflight_load');
   assert.equal(lf.kind === 'record' ? lf.record['loaded_on_webgpu'] : null, false);
   const nw = judge({ kind: 'load_failed', code: 'backend_not_webgpu', message: 'cpu only' });
   assert.equal(nw.kind === 'record' ? nw.exclusion?.check : null, 'preflight_load');
-  assert.equal(judge({ kind: 'load_failed', code: 'software_adapter', message: 'swiftshader' }).kind, 'no_record');
-  assert.equal(judge({ kind: 'measured', measurement: measurement({ peak: null }) }).kind, 'no_record');
+  const sw = judge({ kind: 'load_failed', code: 'software_adapter', message: 'swiftshader' });
+  assert.deepEqual([sw.verdict, sw.exclusion], ['no_verdict', null]);
+  assert.equal(judge({ kind: 'measured', measurement: measurement({ peak: null }) }).verdict, 'no_verdict');
 });
 
-test('generation that stops early or fails: out of memory excludes, anything else records nothing', () => {
+test('generation that stops early or fails: out of memory excludes, anything else is a no_verdict record with the raw error', () => {
   const early = measurement({ run: { ok: true, view: { outcome: { kind: 'text', text: 'x' }, latency_ms: 5, reached_limit: false } } });
-  assert.equal(judge({ kind: 'measured', measurement: early }).kind, 'no_record');
+  assert.equal(judge({ kind: 'measured', measurement: early }).verdict, 'no_verdict');
   const oom = measurement({ run: { ok: false, error: 'GPUOutOfMemoryError: out of memory' } });
   const v = judge({ kind: 'measured', measurement: oom });
   assert.equal(v.kind === 'record' ? v.exclusion?.check : null, 'preflight_vram');
-  assert.equal(judge({ kind: 'measured', measurement: measurement({ run: { ok: false, error: 'page closed' } }) }).kind, 'no_record');
+  const closed = judge({ kind: 'measured', measurement: measurement({ run: { ok: false, error: 'page closed' } }) });
+  assert.deepEqual([closed.verdict, closed.exclusion, closed.record['error']], ['no_verdict', null, 'page closed']);
+  // the real 2026-11-07 case: the page error does not say OOM, the console line the driver appends does
+  const vk = measurement({ run: { ok: false, error: "runtime_error: Invalid Buffer is invalid due to a previous error; console: [E:onnxruntime:Default, webgpu_context.cc:171 operator()] WebGPU device error(3): vkAllocateMemory failed with VK_ERROR_OUT_OF_DEVICE_MEMORY" } });
+  assert.equal(judge({ kind: 'measured', measurement: vk }).exclusion?.check, 'preflight_vram');
 });
 
 // ---------------------------------------------------------------- the command with a fake session

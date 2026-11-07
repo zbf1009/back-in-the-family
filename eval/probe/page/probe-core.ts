@@ -289,6 +289,8 @@ export interface PageRuntime {
   /** transformers.js only: the VRAM_Preflight request, the one place `min_new_tokens` is sent (R9.16). */
   readonly preflight?: { complete(prompt: Prompt, options: RequestOptions, minNewTokens: number): Promise<AdapterResult> };
   load(): Promise<WarmUpResult[]>;
+  /** transformers.js only: the placement-only session (verbose, no inference, released) before `load()`. */
+  probePlacement?(): Promise<void>;
   fingerprint(): JsonObject;
   close(): void;
 }
@@ -343,6 +345,12 @@ export interface ProbeApi {
   selectCombination(id: string): void;
   /** Requests the WebGPU adapter with the Combination's powerPreference (R9.5, R9.6). */
   checkAdapter(): Promise<AdapterCheck>;
+  /**
+   * transformers.js, step 1 of the two-session placement method: creates the model sessions verbose so ONNX Runtime
+   * logs "Node placements", runs nothing, releases them. Starts the model download. The next `createEngine()`
+   * keeps this runtime and checks that its session matches.
+   */
+  probePlacement(): Promise<void>;
   /** Creates the engine and runs both Warm_Up_Prompts. Starts the model download. Not recorded as cold start. */
   createEngine(): Promise<WarmUpResult[]>;
   /** Download start -> complete raw text of the first Warm_Up answer, in whole ms (R14.4). Leaves the engine ready. */
@@ -376,6 +384,8 @@ export function createProbeController(deps: PageDeps): ProbeApi {
   let bundle: Bundle | null = null;
   let entries: ExportEntry[] = [];
   let error: string | null = null;
+  /** A runtime whose placement probe ran; `load()` keeps it instead of making a new one. */
+  let probed: PageRuntime | null = null;
 
   const need = (): Combination => {
     if (combo === null) throw new Error('no Combination selected: call selectCombination(id) first');
@@ -399,6 +409,7 @@ export function createProbeController(deps: PageDeps): ProbeApi {
     if (combo === c) return;
     runtime?.close();
     runtime = null;
+    probed = null;
     engine = 'none';
     adapterCheck = null;
     entries = [];
@@ -417,8 +428,12 @@ export function createProbeController(deps: PageDeps): ProbeApi {
     const c = need();
     const gate = adapterCheck ?? (await check());
     if (!gate.ok) throw new Error(`${gate.code}: ${gate.detail}`);
-    runtime?.close();
-    runtime = deps.makeRuntime(c, deps.warmups, warmupSamplings(c));
+    if (probed !== null && probed === runtime) {
+      probed = null; // the probed runtime is used once, for the session it was probed for
+    } else {
+      runtime?.close();
+      runtime = deps.makeRuntime(c, deps.warmups, warmupSamplings(c));
+    }
     engine = 'loading';
     error = null;
     const t0 = deps.clock.now();
@@ -443,6 +458,23 @@ export function createProbeController(deps: PageDeps): ProbeApi {
     listCombinations: () => deps.combinations.map((c) => c.id),
     selectCombination: select,
     checkAdapter: check,
+    async probePlacement() {
+      const c = need();
+      const gate = adapterCheck ?? (await check());
+      if (!gate.ok) throw new Error(`${gate.code}: ${gate.detail}`);
+      runtime?.close();
+      const rt = deps.makeRuntime(c, deps.warmups, warmupSamplings(c));
+      if (rt.probePlacement === undefined) throw new Error(`the ${c.runtime} runtime has no placement probe`);
+      runtime = rt;
+      engine = 'none';
+      try {
+        await rt.probePlacement();
+      } catch (e) {
+        engine = 'failed';
+        return fail(e);
+      }
+      probed = rt;
+    },
     async createEngine() {
       return (await load()).records;
     },
@@ -459,6 +491,8 @@ export function createProbeController(deps: PageDeps): ProbeApi {
     },
     fingerprintExtras() {
       const c = need();
+      // After a placement probe or a load, the current runtime knows the placement check; report it.
+      if (runtime !== null) return runtime.fingerprint();
       // A runtime that is created and never loaded starts no download; it is dropped without a close.
       return deps.makeRuntime(c, deps.warmups, warmupSamplings(c)).fingerprint();
     },

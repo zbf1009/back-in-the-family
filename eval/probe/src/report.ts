@@ -9,6 +9,7 @@
 // Nothing in this module renders a prompt; the card objects it reads are `MetricCard`s (parsed
 // facts such as `task`, `scored`, `void`, `pair_id`), and every output comes from stored Results
 // and grades files.
+import { splitCpuNodes } from './adapters/placement.ts';
 import type { TaskType } from './cards.ts';
 import { chooseReportEntries, subsetTaskTypes, type LedgerEntry } from './ledger.ts';
 import { computeMetrics, THRESHOLDS, type FaultRecord, type MetricCard, type Ratio, type SanityResult, type TaskMetrics, type Verdict } from './metrics.ts';
@@ -348,7 +349,15 @@ function perfView(perf: PerfRecord | null): PerfView | null {
 }
 
 const cpuNodeCount = (run: RunAnalysis | undefined): number => (run?.header.placement?.cpu_nodes ?? []).reduce((s, n) => s + n.count, 0);
-const cpuNodeList = (run: RunAnalysis): string => (run.header.placement?.cpu_nodes ?? []).map((n) => `${n.op_type} ×${n.count}`).join(', ');
+const nodeText = (nodes: readonly { op_type: string; count: number }[]): string => nodes.map((n) => `${n.op_type} ×${n.count}`).join(', ');
+/** CPU-placed nodes in two groups (Author, 2026-11-07): compute operators first, then shape computation. */
+const cpuNodeList = (run: RunAnalysis): string => {
+  const { shape, compute } = splitCpuNodes(run.header.placement?.cpu_nodes ?? []);
+  const parts: string[] = [];
+  if (compute.length > 0) parts.push(`compute operators (affect latency): ${nodeText(compute)}`);
+  if (shape.length > 0) parts.push(`shape computation (cheap, placed on the CPU on purpose): ${nodeText(shape)}`);
+  return parts.join('; ');
+};
 
 function gpuLabel(run: RunAnalysis, workers: boolean): string {
   if (workers) return 'not applicable (server side)';

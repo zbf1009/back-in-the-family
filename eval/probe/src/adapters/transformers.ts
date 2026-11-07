@@ -27,20 +27,63 @@ import { stripPattern } from './webllm.ts';
 
 // ---------------------------------------------------------------- structural transformers.js view
 
-/** `session_options` exactly as the design fixes them (placement logging, WebGPU only). */
-export const TRANSFORMERS_SESSION_OPTIONS = Object.freeze({
+/**
+ * Placement detection with two sessions (task 19.3 / V6, Author 2026-11-07). At `logSeverityLevel` 0 ONNX Runtime
+ * prints its "Node placements" block, but the session logger also logs every WebGPU dispatch ("Starting program",
+ * info level), which flooded the console (~848k lines in 14 min) and stalled generation. So the model is first
+ * created with the PLACEMENT options only to log the placement, released without any inference, then created
+ * again with the MEASURED options. The two differ ONLY in the two log fields.
+ */
+export const TRANSFORMERS_PLACEMENT_SESSION_OPTIONS = Object.freeze({
   executionProviders: Object.freeze(['webgpu']) as readonly string[],
   logSeverityLevel: 0,
   logVerbosityLevel: 0,
 });
+/** The session that is warmed up, generates and is measured: warnings and errors only. */
+export const TRANSFORMERS_SESSION_OPTIONS = Object.freeze({
+  executionProviders: Object.freeze(['webgpu']) as readonly string[],
+  logSeverityLevel: 2,
+  logVerbosityLevel: 0,
+});
+
+export type SessionOptions = { executionProviders: string[]; logSeverityLevel: number; logVerbosityLevel: number };
 
 export interface TransformersLoadConfig {
   revision: string;
   device: 'webgpu';
   dtype: 'q4';
-  session_options: { executionProviders: string[]; logSeverityLevel: number; logVerbosityLevel: number };
-  /** The loader sets `env.backends.onnx.logLevel` to this before `from_pretrained`. */
+  /** The measured session. */
+  session_options: SessionOptions;
+  /** The placement-only session: `session_options` with the log fields at verbose. */
+  placement_session_options: SessionOptions;
+  /** The loader sets `env.backends.onnx.logLevel` to this before the first `from_pretrained`. */
   onnxLogLevel: 'verbose';
+}
+
+/** Everything that decides the graph partition, i.e. the session options without the two log fields. */
+export function partitionOptions(o: SessionOptions): JsonObject {
+  const { logSeverityLevel: _s, logVerbosityLevel: _v, ...rest } = o;
+  return JSON.parse(JSON.stringify(rest)) as JsonObject;
+}
+
+/** What one `from_pretrained` of the model actually loaded (files from the progress callback). */
+export interface ModelLoadFacts {
+  /** Model files (`onnx/...`, `config.json` ...) the load read, sorted, without duplicates. */
+  files: string[];
+}
+
+/**
+ * The hash the two sessions are compared by: model, revision, device, dtype, partition-relevant session options
+ * and the files loaded. sha256 hex of the canonical JSON (keys sorted).
+ */
+export async function placementKeyHash(i: { modelId: string; revision: string; device: string; dtype: string; options: SessionOptions; files: readonly string[] }): Promise<string> {
+  const canon = (v: unknown): string =>
+    Array.isArray(v) ? `[${v.map(canon).join(',')}]`
+    : v !== null && typeof v === 'object' ? `{${Object.keys(v).sort().map((k) => `${JSON.stringify(k)}:${canon((v as Record<string, unknown>)[k])}`).join(',')}}`
+    : JSON.stringify(v);
+  const text = canon({ model_id: i.modelId, revision: i.revision, device: i.device, dtype: i.dtype, session_options: partitionOptions(i.options), files: [...new Set(i.files)].sort() });
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }
 
 export interface ChatTemplateOptions {
@@ -75,8 +118,13 @@ export interface TransformersLoaded {
   /** Tokenizes `text`, runs `model.generate`, decodes only the new tokens. */
   generate(text: string, params: TransformersGenerateParams): Promise<{ text: string; inputTokens: number; outputTokens: number }>;
   stoppingCriteria: InterruptableLike;
+  /** What the model load read. */
+  facts: ModelLoadFacts;
   dispose(): void | Promise<void>;
 }
+
+/** Creates the model's sessions with `placement_session_options`, runs nothing, releases them. */
+export type TransformersPlacementProbe = (modelId: string, config: TransformersLoadConfig) => Promise<ModelLoadFacts>;
 
 /** The page entry implements this with `from_pretrained` for tokenizer and model. */
 export type TransformersLoader = (modelId: string, config: TransformersLoadConfig) => Promise<TransformersLoaded>;
@@ -85,6 +133,17 @@ export type TransformersLoader = (modelId: string, config: TransformersLoadConfi
 export type StructuredOutputFactory = (schema: unknown) => unknown;
 
 export const TRANSFORMERS_QUANTIZATION = 'q4';
+
+/**
+ * transformers.js 4.3.2 probes `tokenizer_config.json` (and the image processor config) with a Range request that
+ * ignores `revision` and goes to `/resolve/main/` (`get_tokenizer_files`, `get_processor_files`). The page's
+ * `env.fetch` passes every URL through this, so those probes ask for the pinned revision too (R9.15). Only
+ * `huggingface.co/<modelId>/resolve/main/` URLs change.
+ */
+export function pinHubUrl(url: string, modelId: string, revision: string): string {
+  const prefix = `https://huggingface.co/${modelId}/resolve/main/`;
+  return url.startsWith(prefix) ? `https://huggingface.co/${modelId}/resolve/${revision}/${url.slice(prefix.length)}` : url;
+}
 
 export function buildLoadConfig(revision: string): TransformersLoadConfig {
   if (!/^[0-9a-f]{40}$/.test(revision)) throw new Error(`transformers: revision must be a 40-hex commit sha, got "${revision}"`);
@@ -96,6 +155,11 @@ export function buildLoadConfig(revision: string): TransformersLoadConfig {
       executionProviders: [...TRANSFORMERS_SESSION_OPTIONS.executionProviders],
       logSeverityLevel: TRANSFORMERS_SESSION_OPTIONS.logSeverityLevel,
       logVerbosityLevel: TRANSFORMERS_SESSION_OPTIONS.logVerbosityLevel,
+    },
+    placement_session_options: {
+      executionProviders: [...TRANSFORMERS_PLACEMENT_SESSION_OPTIONS.executionProviders],
+      logSeverityLevel: TRANSFORMERS_PLACEMENT_SESSION_OPTIONS.logSeverityLevel,
+      logVerbosityLevel: TRANSFORMERS_PLACEMENT_SESSION_OPTIONS.logVerbosityLevel,
     },
     onnxLogLevel: 'verbose',
   };
@@ -140,6 +204,8 @@ export interface TransformersModelSpec {
 
 export interface TransformersDeps {
   loader: TransformersLoader;
+  /** The placement-only session (two-session method). Absent: `probePlacement()` fails. */
+  placementProbe?: TransformersPlacementProbe;
   model: TransformersModelSpec;
   clock: TimingClock;
   warmups: WarmUpPrompts;
@@ -164,6 +230,11 @@ export interface TransformersRuntime {
   readonly lifecycle: { readonly engine: LifecycleEngine; readonly onReady: () => void };
   /** Only the VRAM_Preflight (16.9) uses this; it is the one place `min_new_tokens` is sent. */
   readonly preflight: { complete(prompt: Prompt, options: RequestOptions, minNewTokens: number): Promise<AdapterResult> };
+  /**
+   * Step 1 of the two-session method: the placement-only session (verbose, no inference, released). Must run
+   * before `load()`; `load()` then checks that the measured session has the same placement key hash.
+   */
+  probePlacement(): Promise<void>;
   fingerprint(): JsonObject;
   loadConfig(): TransformersLoadConfig;
   close(): void;
@@ -177,6 +248,10 @@ export function createTransformersRuntime(deps: TransformersDeps): TransformersR
   let lastTruncated = false;
   let preflightMin: number | null = null;
   let warmRecords: TransformersWarmUpRecord[] | null = null;
+  let placementCheck: { probe_sha256: string; measured_sha256: string | null; probe_files: string[]; measured_files: string[] | null } | null = null;
+
+  const keyHash = (options: SessionOptions, files: readonly string[]): Promise<string> =>
+    placementKeyHash({ modelId: deps.model.modelId, revision: deps.model.revision, device: loadConfig.device, dtype: loadConfig.dtype, options, files });
 
   /** What the request actually uses: json_schema only with a factory, else none. */
   const effectiveConstraint = (s: SamplingParams): 'json_schema' | 'none' =>
@@ -210,7 +285,18 @@ export function createTransformersRuntime(deps: TransformersDeps): TransformersR
 
   const lifecycleEngine: LifecycleEngine = {
     async create() {
-      loaded = await deps.loader(deps.model.modelId, buildLoadConfig(deps.model.revision));
+      const m = await deps.loader(deps.model.modelId, buildLoadConfig(deps.model.revision));
+      if (placementCheck !== null) {
+        const measured = await keyHash(loadConfig.session_options, m.facts.files);
+        placementCheck = { ...placementCheck, measured_sha256: measured, measured_files: [...new Set(m.facts.files)].sort() };
+        if (measured !== placementCheck.probe_sha256) {
+          await Promise.resolve(m.dispose()).catch(() => undefined);
+          throw new Error(
+            `placement_session_mismatch: the measured session differs from the placement session (probe ${placementCheck.probe_sha256.slice(0, 12)}, measured ${measured.slice(0, 12)}; files ${placementCheck.probe_files.join(',')} vs ${placementCheck.measured_files?.join(',')})`,
+          );
+        }
+      }
+      loaded = m;
     },
     async generate(prompt, sampling) {
       const t0 = deps.clock.now();
@@ -315,6 +401,12 @@ export function createTransformersRuntime(deps: TransformersDeps): TransformersR
         }
       },
     },
+    async probePlacement() {
+      if (deps.placementProbe === undefined) throw new Error('transformers: no placement probe configured');
+      if (loaded !== null) throw new Error('transformers: the placement probe runs before the measured session is created');
+      const facts = await deps.placementProbe(deps.model.modelId, buildLoadConfig(deps.model.revision));
+      placementCheck = { probe_sha256: await keyHash(loadConfig.placement_session_options, facts.files), measured_sha256: null, probe_files: [...new Set(facts.files)].sort(), measured_files: null };
+    },
     fingerprint: () => {
       const so = deps.structuredOutput;
       return {
@@ -323,6 +415,8 @@ export function createTransformersRuntime(deps: TransformersDeps): TransformersR
         device: loadConfig.device,
         dtype: loadConfig.dtype,
         session_options: JSON.parse(JSON.stringify(loadConfig.session_options)) as JsonObject,
+        placement_session_options: JSON.parse(JSON.stringify(loadConfig.placement_session_options)) as JsonObject,
+        placement_check: placementCheck === null ? null : (JSON.parse(JSON.stringify(placementCheck)) as JsonObject),
         // The constraint each task actually used, not the one requested (R9.14).
         constraint_used: { decision: effectiveConstraint(deps.samplings.decision), synthesis: effectiveConstraint(deps.samplings.synthesis) },
         structured_output_package: so === undefined ? null : `${so.packageName}@${so.packageVersion}`,

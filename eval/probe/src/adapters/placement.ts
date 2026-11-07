@@ -11,8 +11,8 @@
 //
 // Each line may carry ORT's own prefix, e.g. `[V:onnxruntime:, session_state.cc:1598 ...] `.
 // The per-node op-type lines exist only in the multi-provider form, which is also the only form
-// in which CPU-placed nodes can appear next to WebGPU nodes. This parser was written from those
-// sources and has not yet seen a real browser capture (task 15.6 / the VRAM_Preflight will).
+// in which CPU-placed nodes can appear next to WebGPU nodes. Confirmed against a real capture on
+// 2026-11-07 (task 15.6 / V6, transformers.js 4.3.2, Chrome 155): tests/unit/fixtures/ort-placement-qwen3.5-0.8b.txt.
 
 export type PlacementMethod = 'webllm_model_lib' | 'onnxruntime_node_placements';
 
@@ -33,6 +33,20 @@ export type PlacementResult =
 
 /** WebLLM: the forward pass is a TVM-compiled WebGPU module with no CPU kernels. */
 export const WEBLLM_PLACEMENT: Placement = Object.freeze({ method: 'webllm_model_lib', cpu_nodes: Object.freeze([]) as readonly CpuNode[] });
+
+/**
+ * Shape and index computation (Author, 2026-11-07): operators ONNX Runtime places on the CPU on purpose for small
+ * shape/index tensors. Cheap; listed apart in the Report. Classified by operator type only.
+ */
+export const SHAPE_OPS: ReadonlySet<string> = new Set([
+  'Shape', 'Size', 'Gather', 'Unsqueeze', 'Squeeze', 'Cast', 'Concat', 'Slice', 'Range', 'Reshape', 'Expand',
+  'ConstantOfShape', 'Equal', 'Less', 'Greater', 'Where', 'Neg', 'Sub', 'Add', 'Mul', 'Div', 'Min', 'Max',
+]);
+
+/** Splits CPU-placed nodes into shape computation and compute operators (e.g. `Scan`), keeping the sort order. */
+export function splitCpuNodes(nodes: readonly CpuNode[]): { readonly shape: readonly CpuNode[]; readonly compute: readonly CpuNode[] } {
+  return { shape: nodes.filter((n) => SHAPE_OPS.has(n.op_type)), compute: nodes.filter((n) => !SHAPE_OPS.has(n.op_type)) };
+}
 
 export const isWebGpuProvider = (provider: string): boolean => provider === 'WebGpuExecutionProvider' || provider === 'JsExecutionProvider';
 export const isCpuProvider = (provider: string): boolean => provider === 'CPUExecutionProvider';

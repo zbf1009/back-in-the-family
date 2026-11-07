@@ -22,7 +22,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import type { AdapterInfo } from './adapters/gpu.ts';
 import type { Prompt } from './adapters/interface.ts';
-import type { Placement } from './adapters/placement.ts';
+import { splitCpuNodes, type Placement } from './adapters/placement.ts';
 import { loadCards } from './cards.ts';
 import { BrowserLoadError, BrowserSession, OOM, type LoadFailureCode, type PrepareResult, type PreflightMeasurement } from './browser/driver.ts';
 import { fingerprintOf } from './browser/factory.ts';
@@ -31,6 +31,7 @@ import { REVISION_RE, VRAM_LIMIT_MIB } from './screen.ts';
 import {
   SCHEMA,
   appendExclusionOnce,
+  appendPreflightAttempt,
   writePreflight,
   type ExclusionRecord,
   type JsonObject,
@@ -51,6 +52,43 @@ export const PREFLIGHT_LENGTH_FLOOR_BYTES = 8000;
 export const PREFLIGHT_LENGTH_FACTOR = 2;
 /** 1,024 tokens at a few tokens a second on a laptop GPU take minutes; this is the page timer, not a result. */
 export const PREFLIGHT_TIMEOUT_MS = 900_000;
+/** Total memory of the Target_Machine's NVIDIA card, and the headroom below which the absolute peak is flagged. */
+export const CARD_TOTAL_MIB = 4096;
+export const LOW_HEADROOM_MIB = 300;
+/** An idle spread or run-time dip larger than this means other processes were moving memory: repeat once. */
+export const NOISE_MIB = 150;
+
+/**
+ * The hybrid-GPU facts of one measurement: baseline and idle spread, absolute peak against the card, and the
+ * other processes on the card. `flags` names every condition worth a line in the log.
+ */
+export function memoryDetail(m: PreflightMeasurement): JsonObject {
+  const mem = m.memory as Record<string, unknown>;
+  const num = (k: string): number | null => (typeof mem[k] === 'number' ? (mem[k] as number) : null);
+  const baseline = num('baseline_mib');
+  const idleMin = num('idle_min_mib');
+  const idleMax = num('idle_max_mib');
+  const runMin = num('run_min_mib');
+  const abs = num('absolute_peak_mib');
+  const flags: string[] = [];
+  if (abs !== null && abs > CARD_TOTAL_MIB) flags.push(`absolute peak ${abs} MiB exceeds the card's ${CARD_TOTAL_MIB} MiB`);
+  else if (abs !== null && CARD_TOTAL_MIB - abs < LOW_HEADROOM_MIB) flags.push(`absolute peak ${abs} MiB leaves ${CARD_TOTAL_MIB - abs} MiB headroom (< ${LOW_HEADROOM_MIB})`);
+  if (idleMin !== null && idleMax !== null && idleMax - idleMin > NOISE_MIB) flags.push(`idle baseline drifted ${idleMax - idleMin} MiB (> ${NOISE_MIB})`);
+  if (baseline !== null && runMin !== null && baseline - runMin > NOISE_MIB) flags.push(`memory.used fell ${baseline - runMin} MiB below the baseline during the run (> ${NOISE_MIB}): other processes freed memory, so the delta may be understated`);
+  const o = m.otherProcesses;
+  const proc = (p: { pid: number; type: string | null; name: string; mib: number | null }): JsonObject => ({ pid: p.pid, type: p.type, name: p.name, mib: p.mib });
+  return {
+    baseline_mib: baseline,
+    idle_min_mib: idleMin,
+    idle_max_mib: idleMax,
+    idle_samples: num('idle_samples'),
+    run_min_mib: runMin,
+    absolute_peak_mib: abs,
+    card_total_mib: CARD_TOTAL_MIB,
+    other_processes: o === undefined ? null : { card_before: o.card, compute_apps: o.compute_apps.map(proc), table: o.table.map(proc) },
+    memory_flags: flags,
+  };
+}
 
 // ---------------------------------------------------------------- the prompt
 
@@ -195,7 +233,9 @@ export function buildPreflightPrompt(a: {
 
 export type PreflightAttempt =
   | { readonly kind: 'load_failed'; readonly code: LoadFailureCode; readonly message: string }
-  | { readonly kind: 'measured'; readonly measurement: PreflightMeasurement };
+  | { readonly kind: 'measured'; readonly measurement: PreflightMeasurement }
+  /** The session could not start, or the browser step threw something that is not a load failure. */
+  | { readonly kind: 'session_failed'; readonly message: string };
 
 export interface JudgeInput {
   readonly combo: Combination;
@@ -210,21 +250,48 @@ export interface JudgeInput {
   readonly adapter: AdapterInfo | null;
 }
 
-export type PreflightVerdict =
-  | { readonly kind: 'record'; readonly record: PreflightRecord; readonly exclusion: ExclusionRecord | null }
-  /** Nothing is recorded: the environment failed or the measurement is unusable, not the model. */
-  | { readonly kind: 'no_record'; readonly reason: string };
+/**
+ * `pass` and `excluded` are verdicts on the model; `no_verdict` means the attempt says nothing about the model
+ * (environment failure, no NVIDIA reading, a generation failure that is not out of memory). Every attempt yields
+ * a record (Author, 2026-11-07): nothing is silent.
+ */
+export type PreflightVerdictKind = 'pass' | 'excluded' | 'no_verdict';
+
+export interface PreflightVerdict {
+  readonly kind: 'record';
+  readonly verdict: PreflightVerdictKind;
+  readonly record: PreflightRecord;
+  readonly exclusion: ExclusionRecord | null;
+}
 
 const ENVIRONMENT_CODES: readonly LoadFailureCode[] = ['gpu_unavailable', 'software_adapter'];
 
 const placementJson = (p: Placement | null): JsonValue =>
   p === null ? null : { method: p.method, cpu_nodes: p.cpu_nodes.map((n) => ({ op_type: n.op_type, count: n.count })) };
 
+/** The full CPU-node list in two classes (Author, 2026-11-07): shape computation vs compute operators such as `Scan`. */
+function cpuClasses(p: Placement | null): JsonObject {
+  if (p === null) return {};
+  const { shape, compute } = splitCpuNodes(p.cpu_nodes);
+  const j = (ns: readonly { op_type: string; count: number }[]): JsonValue => ns.map((n) => ({ op_type: n.op_type, count: n.count }));
+  return { cpu_nodes_shape: j(shape), cpu_nodes_compute: j(compute) };
+}
+
+/** Hash of the session options shared by the placement and measured sessions, from the page's placement check. */
+function placementCheckFacts(facts: JsonObject): JsonObject {
+  const c = facts['placement_check'];
+  if (typeof c !== 'object' || c === null || Array.isArray(c)) return { placement_options_sha256: null, placement_options_match: null };
+  const o = c as JsonObject;
+  const probe = typeof o['probe_sha256'] === 'string' ? o['probe_sha256'] : null;
+  const measured = typeof o['measured_sha256'] === 'string' ? o['measured_sha256'] : null;
+  return { placement_options_sha256: probe, placement_options_match: probe !== null && measured !== null ? probe === measured : null };
+}
+
 /**
  * Decides what one attempt records. Exclusion (R9.10): the model did not load on WebGPU (load failure, not on the
- * WebGPU provider, or no placement log), the peak is above 2,600 MiB, or generation failed by running out of memory.
- * A failure that says nothing about the model (no hardware GPU, no NVIDIA reading, a generation that stopped early
- * for another reason) records nothing, so a rerun is possible and the screen does not see a half result.
+ * WebGPU provider, or no placement log), the peak is above 2,600 MiB, or generation failed by running out of memory
+ * (the page error or a console line matching `OOM`). Anything else that fails is a `no_verdict` record with the
+ * raw error text, so a rerun is possible and nothing is lost.
  */
 export function judgePreflight(i: JudgeInput): PreflightVerdict {
   const exclusion = (check: ExclusionRecord['check'], value: number | string, limit: number | string | null): ExclusionRecord => ({
@@ -257,27 +324,24 @@ export function judgePreflight(i: JudgeInput): PreflightVerdict {
     adapter_facts: i.adapterFacts,
     at: i.at,
   };
+  const out = (verdict: PreflightVerdictKind, rec: typeof base & { new_tokens: number } & JsonObject, ex: ExclusionRecord | null): PreflightVerdict => ({
+    kind: 'record',
+    verdict,
+    record: { ...rec, verdict } satisfies PreflightRecord,
+    exclusion: ex,
+  });
+  const notStarted = { ...base, new_tokens: 0, peak_vram_mib: null, loaded_on_webgpu: false, placement: null, generation: 'not_started' };
 
   const a = i.attempt;
+  if (a.kind === 'session_failed') return out('no_verdict', { ...notStarted, error: `session_failed: ${a.message}` }, null);
   if (a.kind === 'load_failed') {
-    if (ENVIRONMENT_CODES.includes(a.code)) return { kind: 'no_record', reason: `${a.code}: ${a.message}` };
-    const record: PreflightRecord = {
-      ...base,
-      new_tokens: 0,
-      peak_vram_mib: null,
-      loaded_on_webgpu: false,
-      placement: null,
-      generation: 'not_started',
-      error: `${a.code}: ${a.message}`,
-    };
-    return { kind: 'record', record, exclusion: exclusion('preflight_load', a.code, 'loaded on WebGPU') };
+    const rec = { ...notStarted, error: `${a.code}: ${a.message}` };
+    if (ENVIRONMENT_CODES.includes(a.code)) return out('no_verdict', rec, null);
+    return out('excluded', rec, exclusion('preflight_load', a.code, 'loaded on WebGPU'));
   }
 
   const m = a.measurement;
   const peak = m.memory.gpu === 'nvidia' ? m.memory.peak_mib : null;
-  if (peak === null) {
-    return { kind: 'no_record', reason: `no NVIDIA memory reading (${m.memory.reason ?? 'unknown reason'}); the peak cannot be established` };
-  }
   let generationError: string | null = null;
   if (!m.run.ok) generationError = m.run.error;
   else if (!m.run.view.reached_limit) {
@@ -288,27 +352,25 @@ export function judgePreflight(i: JudgeInput): PreflightVerdict {
     ...base,
     peak_vram_mib: peak,
     memory_quantity: m.memory.quantity,
+    ...memoryDetail(m),
     loaded_on_webgpu: true,
     placement: placementJson(m.placement),
+    ...cpuClasses(m.placement),
+    ...placementCheckFacts(i.adapterFacts),
   };
+  if (peak === null) {
+    const why = `no NVIDIA memory reading (${m.memory.reason ?? 'unknown reason'}); the peak cannot be established`;
+    return out('no_verdict', { ...common, new_tokens: 0, generation: generationError === null ? 'completed' : 'failed', error: generationError === null ? why : `${why}; ${generationError}` }, null);
+  }
   if (generationError !== null) {
     const oom = OOM.test(generationError);
-    if (!oom && peak <= VRAM_LIMIT_MIB) return { kind: 'no_record', reason: `generation did not complete: ${generationError}` };
-    const record: PreflightRecord = { ...common, new_tokens: 0, generation: 'failed', error: generationError };
-    return {
-      kind: 'record',
-      record,
-      exclusion: exclusion('preflight_vram', peak > VRAM_LIMIT_MIB ? peak : `out of memory during generation (peak ${peak} MiB so far)`, VRAM_LIMIT_MIB),
-    };
+    // The raw text stays in `error`; `failure_class` says which kind it was (a console OOM line is part of the text).
+    const rec = { ...common, new_tokens: 0, generation: 'failed', error: generationError, failure_class: oom ? 'out_of_memory' : 'runtime_error' };
+    if (!oom && peak <= VRAM_LIMIT_MIB) return out('no_verdict', rec, null);
+    return out('excluded', rec, exclusion('preflight_vram', peak > VRAM_LIMIT_MIB ? peak : `out of memory during generation (peak ${peak} MiB so far)`, VRAM_LIMIT_MIB));
   }
-  const record: PreflightRecord = {
-    ...common,
-    new_tokens: PREFLIGHT_MAX_NEW_TOKENS,
-    generation: 'completed',
-    error: null,
-    latency_ms: m.run.ok ? m.run.view.latency_ms : null,
-  };
-  return { kind: 'record', record, exclusion: peak > VRAM_LIMIT_MIB ? exclusion('preflight_vram', peak, VRAM_LIMIT_MIB) : null };
+  const rec = { ...common, new_tokens: PREFLIGHT_MAX_NEW_TOKENS, generation: 'completed', error: null, latency_ms: m.run.ok ? m.run.view.latency_ms : null };
+  return peak > VRAM_LIMIT_MIB ? out('excluded', rec, exclusion('preflight_vram', peak, VRAM_LIMIT_MIB)) : out('pass', rec, null);
 }
 
 // ---------------------------------------------------------------- the command
@@ -337,6 +399,8 @@ export interface PreflightDeps extends Pick<RunDeps, 'paths' | 'pinnedManifestHa
 /** `eval/results/preflight/<combo>.json`; `/` in the Combination ID becomes `__`. */
 export const preflightFileName = (comboId: string): string => `${comboId.replace(/[^A-Za-z0-9._-]/g, '__')}.json`;
 export const preflightPath = (resultsDir: string, comboId: string): string => path.join(resultsDir, 'preflight', preflightFileName(comboId));
+/** Every attempt, with its verdict (`pass`, `excluded`, `no_verdict`); the report reads only `<combo>.json`. */
+export const attemptsPath = (resultsDir: string): string => path.join(resultsDir, 'preflight', 'attempts.jsonl');
 
 export interface PreflightOptions {
   readonly combo: string;
@@ -397,15 +461,16 @@ export async function preflightRun(deps: PreflightDeps, opts: PreflightOptions):
 
     session = await deps.openSession(combo);
     const prepared = await session.prepare();
-    if (!prepared.ok) return fail(`the browser session could not start: ${prepared.failure.reason}: ${prepared.failure.detail}`);
 
     let attempt: PreflightAttempt;
-    try {
-      const measurement = await session.preflight(prompt.prompt, { maxNewTokens: PREFLIGHT_MAX_NEW_TOKENS, minNewTokens: PREFLIGHT_MIN_NEW_TOKENS, timeoutMs: PREFLIGHT_TIMEOUT_MS });
-      attempt = { kind: 'measured', measurement };
-    } catch (e) {
-      if (!(e instanceof BrowserLoadError)) throw e;
-      attempt = { kind: 'load_failed', code: e.code, message: e.message };
+    if (!prepared.ok) attempt = { kind: 'session_failed', message: `the browser session could not start: ${prepared.failure.reason}: ${prepared.failure.detail}` };
+    else {
+      try {
+        const measurement = await session.preflight(prompt.prompt, { maxNewTokens: PREFLIGHT_MAX_NEW_TOKENS, minNewTokens: PREFLIGHT_MIN_NEW_TOKENS, timeoutMs: PREFLIGHT_TIMEOUT_MS });
+        attempt = { kind: 'measured', measurement };
+      } catch (e) {
+        attempt = e instanceof BrowserLoadError ? { kind: 'load_failed', code: e.code, message: e.message } : { kind: 'session_failed', message: e instanceof Error ? e.message : String(e) };
+      }
     }
 
     const fp = fingerprintOf(session, combo);
@@ -425,11 +490,21 @@ export async function preflightRun(deps: PreflightDeps, opts: PreflightOptions):
       adapter: session.adapterInfo,
     });
 
-    if (verdict.kind === 'no_record') return fail(`nothing recorded: ${verdict.reason}`);
-    writePreflight(file, verdict.record, opts.force === true);
+    // Every attempt is appended to preflight/attempts.jsonl; only a verdict on the model gets the <combo>.json file.
+    const attempts = attemptsPath(deps.paths.resultsDir);
+    appendPreflightAttempt(attempts, verdict.record);
     const r = verdict.record;
+    if (verdict.verdict === 'no_verdict') {
+      return fail(`no verdict on the model, attempt recorded in ${path.relative(deps.paths.repoDir, attempts)}: ${String(r['error'])}`);
+    }
+    writePreflight(file, verdict.record, opts.force === true);
     printLine(
       `probe: preflight: ${combo.id}: loaded on WebGPU ${r['loaded_on_webgpu'] === true ? 'yes' : 'no'}, peak VRAM ${r['peak_vram_mib'] ?? 'unknown'} MiB (limit ${VRAM_LIMIT_MIB}), written ${path.relative(deps.paths.repoDir, file)}`,
+    );
+    const flags = r['memory_flags'];
+    if (Array.isArray(flags)) for (const f of flags) printErrorLine(`probe: preflight: ${combo.id}: NOTE ${String(f)}`);
+    printLine(
+      `probe: preflight: ${combo.id}: baseline ${r['baseline_mib'] ?? '?'} MiB (idle ${r['idle_min_mib'] ?? '?'}..${r['idle_max_mib'] ?? '?'}), absolute peak ${r['absolute_peak_mib'] ?? '?'} MiB of ${CARD_TOTAL_MIB}`,
     );
     if (verdict.exclusion !== null) {
       const wrote = appendExclusionOnce(deps.paths.exclusions, verdict.exclusion);
