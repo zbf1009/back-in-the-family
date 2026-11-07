@@ -1407,6 +1407,39 @@ Neurons for one Dev_Run plus one Locked_Run, per Task_Type_Subset (typical / upp
 
 Rounding note (Author review 1): each part in parentheses is rounded on its own, so a sum of parts can differ by one neuron from a figure computed in one step. The gemma S-only typical figure is the sum of its parts, 614 + 3,355 = 3,969 (it was printed as 3,968 before). The gemma D-and-S typical figure, 7,576, is computed from the whole-run figures 1,453 + 6,123; the sum of the D-only and S-only figures is 3,608 + 3,969 = 7,577, and the whole-run Dev_Run figure 1,453 is one less than its D and S parts 840 + 614 = 1,454. These one-neuron differences do not change any fit-in-one-day conclusion below. The glm and granite rows were not recomputed in this revision.
 
+**Revised 2026-11-07 (V5).** The glm and granite rows were recomputed offline (no API request) from the stated prices and assumptions, and all three rows were set against the nine usable Smoke_Calls of `eval/results/smoke/2026-11-07.jsonl`. Result: the upper-bound and typical rows above are arithmetically correct, including the glm and granite rows (glm D only 2,284 / 4,239 and S only 3,752 / 9,365; granite D only 640 / 1,187 and S only 1,049 / 2,616 reproduce from the formula). They are too high by a large factor, because real prompts are shorter than assumed and real answers much shorter than the cap. The gemma-4 rows are not invalidated in the other direction: no Smoke_Call showed `reasoning_tokens` (all `null`), and `output_tokens` stayed far below the cap, so reasoning tokens are not billed beyond the cap and the upper bound still holds.
+
+Observed cost per request (response `usage` and the API-reported `neurons`; the reported `neurons` equals `(prompt_tokens × in + completion_tokens × out) / 1,000,000` to six digits, so it carries no extra information beyond the tokens):
+
+| Model | D tokens in / out | D neurons | S tokens in / out | S neurons | Reserved estimate D / S (the Neuron_Cap counter's pre-send value) | Estimate ÷ observed D / S |
+|---|---|---|---|---|---|---|
+| gemma-4-26b-a4b-it | 826–827 / 8 | 7.73 | 1,142 / 160 | 14.75 | 31 / 65 | 4.0× / 4.4× |
+| glm-4.7-flash | 768 / 7 | 4.48 | 1,046 / 85 | 8.85 | 21 / 60 | 4.7× / 6.8× |
+| granite-4.0-h-micro | 775 / 5–7 | 1.27 | 1,053 / 18 | 1.81 | 6 / 17 | 4.7× / 9.4× |
+
+Basis and limits: one S card (`S-grudge_detection-001`) and one or two D cards per model, so S output length is a single sample; assumed 1,200 / 2,000 input tokens against 770–1,150 observed; assumed D output 16 / 64 against 5–8. The reserved estimate treats every prompt byte as a token (R11.13), but real prompts run about 3.3–3.8 bytes per token.
+
+Request counts, computed with the runner's own `buildPlan` over the Dev_Cards (dev only, throwaway script): decision 74, synthesis 30, total 104 (matches DA-8). Locked: the documented 244 D + 164 S = 408 (the locked cards were not opened for this recomputation).
+
+Projected neurons, D only / S only / D and S. "Observed" = observed per-request cost × request counts; "settled" = what the counter holds after `settle()` (each request rounded up to a whole neuron: gemma 8 / 15, glm 5 / 9, granite 2 / 2 per D / S); "S at 350" = the same with S output raised to the typical 350 tokens, as a guard against the single S sample; "estimate" = sum of the pre-send reservations (Dev_Run exact from the rendered Dev_Card prompts; Locked_Run extrapolated at the Dev_Run mean estimate per Task_Type, because the locked prompts were not rendered).
+
+| Model, run | Observed | Settled (ceil) | Settled, S at 350 | Estimate (reservation) |
+|---|---|---|---|---|
+| gemma-4, Dev_Run | 572 / 442 / 1,015 | 592 / 450 / 1,042 | 592 / 600 / 1,192 | 2,300 / 2,055 / 4,355 |
+| gemma-4, Locked_Run | 1,887 / 2,418 / 4,305 | 1,952 / 2,460 / 4,412 | 1,952 / 3,280 / 5,232 | 7,588 / 11,234 / 18,822 |
+| glm-4.7-flash, Dev_Run | 331 / 265 / 597 | 370 / 270 / 640 | 370 / 570 / 940 | 1,502 / 1,862 / 3,364 |
+| glm-4.7-flash, Locked_Run | 1,093 / 1,451 / 2,544 | 1,220 / 1,476 / 2,696 | 1,220 / 3,116 / 4,336 | 4,953 / 10,184 / 15,138 |
+| granite-4.0-h-micro, Dev_Run | 94 / 54 / 148 | 148 / 60 / 208 | 148 / 180 / 328 | 450 / 531 / 981 |
+| granite-4.0-h-micro, Locked_Run | 309 / 296 / 605 | 488 / 328 / 816 | 488 / 984 / 1,472 | 1,488 / 2,903 / 4,391 |
+
+Fit under the 9,000 Neuron_Cap in one UTC day (a Locked_Run alone; Dev_Run and Smoke_Calls on the day before, as in the branch-B schedule):
+
+- On the settled figures, which are what the counter holds after each response, every model and every Task_Type_Subset fits one UTC day, also with the Dev_Run on the same day (gemma-4 D and S settled, S at 350: 1,192 + 5,232 = 6,424).
+- On the reservation estimate alone (what the counter would hold if no response ever returned `usage`, for example after timeouts or errors): gemma-4 D only 7,588 fits, S only 11,234 and D and S 18,822 do not; glm D only 4,953 fits, S only 10,184 and D and S 15,138 do not; granite fits every subset (4,391 at most).
+- A D-only gemma-4 Locked_Run: 7,588 by estimate, 1,887 observed (1,952 settled). The estimate overstates real cost 4.0–9.8× (S on granite is the extreme; its real cost is dominated by the whole-neuron rounding).
+
+The Neuron_Cap counter checks `counted + next estimate`, where `counted` holds settled cost for answered requests and the full estimate only for requests without `usage`. The conservative estimate therefore only reserves headroom for the one request in flight, and the 9,000 cap stays safe against the real 10,000 limit.
+
 Does it fit one UTC day under the 9,000 Neuron_Cap (gemma-4-26b)?
 
 - D only: yes, both runs in one day at the typical estimate and at the upper bound (6,337 plus at most 461 of Smoke_Calls).
