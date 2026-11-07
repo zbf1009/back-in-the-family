@@ -843,3 +843,13 @@ V3 answers.
 (d) Neurons per call vs estimate: gemma D 7.73 and 7.74 (estimate 31), gemma S 14.75 (estimate 65), glm D 4.48 (estimate 21), glm S 8.85 (estimate 60). The estimates (built from prompt bytes and the max output cap) are 4-7x the reported cost. The budget counter reads `neurons` 175 for 7 requests: it includes 65 each for the two failed gemma S calls (no usage, estimate left reserved), so it over-counts real use by about 130.
 (e) Cause and fix of the S 400: above (`uniqueItems` in the response_format schema; stripped in the adapter).
 `combinations.json` was not changed.
+
+### Spec: llm-probe — V4: granite truncation basis (2026-11-07)
+
+Smoke_Calls used today: 10 of 10 (allowance exhausted for the UTC day). Three granite-4.0-h-micro calls with `--diagnose`.
+- Normal D call (declared shape `text`): HTTP 200, `shape_check` mismatch (`result.response missing`), outcome `empty_content`. The response keys were the chat shape: choice keys include `finish_reason` (value `stop`); message keys `content`, `reasoning`, `reasoning_content`, ...; usage 775 in / 7 out, API `neurons` 1.27 (estimate 6). So the premise of V4 is false: granite has `finish_reason`, and the documented `text` shape (`result.response`) is not what the live API returns.
+- Fix: `combinations.json` `response_shape` for granite changed `text` -> `chat`. Unit test added (chat envelope, `finish_reason` `length`, completion_tokens = max_tokens -> `truncated`); Property 39 real-combinations test now asserts granite is `chat`. Gates exit 0.
+- Truncation probe (`--max-tokens 5`, chat shape): HTTP 200, `finish_reason` `length`, `completion_tokens` 5 = `max_tokens`, outcome `truncated` (fired by the `finish_reason` check; the token-count rule was not the one used). neurons 1.25.
+- S call (json_schema `response_format`, uniqueItems stripped): HTTP 200, `finish_reason` `stop`, 1053 in / 18 out, verdict `synthesis` (Output_Validator accepted), 3169 ms, neurons 1.81 (estimate 17). So `json_schema` works for granite with the S schema. Not shown: answer quality (one call).
+- Not verified: whether the old `text` shape is ever returned by this model (other REST paths, other parameters); the `text` rule stays in the adapter as a defensive contract with its tests.
+- Design updated (Workers AI adapter section, Research findings line, model table, V4 row) with dated notes. Budget counter: requests 10, smoke 10, neurons 181 (includes 65 each reserved for the two failed gemma S calls).
