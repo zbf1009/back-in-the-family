@@ -5,8 +5,9 @@
 //   locked-run --combo <id> --task D|S|DS [--timeout-ms N] [--approval <id>] [--rerun-reason "..."]
 //   locked-run --resume <entry-id> [--timeout-ms N] [--approval <id>]
 //
-// The real Runtime adapters arrive in tasks 16 and 17. Until then the default factory refuses with
-// a clear message, before anything is written.
+// In-browser Combinations (webllm, transformers.js) run through the headless browser driver (task 16.8).
+// The Workers AI adapter arrives in task 17; until then its default factory refuses with a clear message,
+// before anything is written.
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
@@ -17,6 +18,8 @@ import { defaultPaths, loadPhaseState } from './phase-commands.ts';
 import type { TaskSubset } from './results.ts';
 import { devRun, lockedRun, type DevRunOptions, type LockedRunOptions, type RunDeps, type RuntimeFactory } from './run.ts';
 import { DEFAULT_CARDS_DIR } from './cards.ts';
+import { createBrowserRuntime, isInBrowser, type EngineVersions } from './browser/factory.ts';
+import { realSessionDeps } from './browser/driver.ts';
 import { printErrorLine } from './sink.ts';
 
 const REPO_DIR = fileURLToPath(new URL('../../../', import.meta.url));
@@ -38,13 +41,35 @@ export function defaultRunPaths(repoDir: string = REPO_DIR): RunDeps['paths'] {
 export const noRuntimeYet: RuntimeFactory = (ctx) =>
   Promise.reject(new Error(`no Runtime adapter for "${ctx.combo.runtime}" yet (tasks 16 and 17)`));
 
-export function defaultRunDeps(repoDir: string = REPO_DIR, createRuntime: RuntimeFactory = noRuntimeYet): RunDeps {
+/** Exact engine versions from package.json (the same pins the Probe_Page build bakes in). */
+export function readEngineVersions(repoDir: string = REPO_DIR): EngineVersions {
+  const pkg = JSON.parse(fs.readFileSync(path.join(repoDir, 'eval/probe/package.json'), 'utf8')) as { dependencies: Record<string, string> };
+  return { webllm: pkg.dependencies['@mlc-ai/web-llm'] ?? 'unknown', transformers: pkg.dependencies['@huggingface/transformers'] ?? 'unknown' };
+}
+
+/**
+ * In-browser Combinations get the headless browser driver and its Fresh_Profile hook; any other Runtime
+ * falls through to `fallback` (the Workers AI adapter, task 17).
+ */
+export function defaultBrowserWiring(repoDir: string = REPO_DIR, fallback: RuntimeFactory = noRuntimeYet): Pick<RunDeps, 'createRuntime' | 'freshProfile'> {
+  const browser = createBrowserRuntime({
+    sessionDeps: () => realSessionDeps(path.join(repoDir, 'eval/probe/dist')),
+    engineVersions: readEngineVersions(repoDir),
+  });
+  return {
+    createRuntime: (ctx) => (isInBrowser(ctx.combo) ? browser.createRuntime(ctx) : fallback(ctx)),
+    freshProfile: browser.freshProfile,
+  };
+}
+
+export function defaultRunDeps(repoDir: string = REPO_DIR, createRuntime?: RuntimeFactory): RunDeps {
   const paths = defaultRunPaths(repoDir);
+  const wiring = createRuntime === undefined ? defaultBrowserWiring(repoDir) : { createRuntime };
   return {
     paths,
     pinnedManifestHash: PINNED_MANIFEST_HASH,
     combinations: parseCombinations(fs.readFileSync(path.join(repoDir, 'eval/probe/combinations.json'), 'utf8')),
-    createRuntime,
+    ...wiring,
     phaseState: () => loadPhaseState(defaultPaths(repoDir)),
   };
 }

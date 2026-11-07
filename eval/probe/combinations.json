@@ -4,8 +4,8 @@
     "runtime": "webllm",
     "model_id": "Qwen3.5-0.8B-q4f32_1-MLC",
     "quantization": "q4f32_1",
-    "revision": "unpinned",
-    "model_lib_url": null,
+    "revision": "4ed017713f04c91ffe55a9dca8c7ac853c41314d",
+    "model_lib_url": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/146ed9cd4b4062e967b017fd2291f7106b50599f/web-llm-models/v0_2_87/base/Qwen3.5-0.8B-q4f32_1_cs1k-webgpu.wasm",
     "power_preference": "high-performance",
     "sampling": {
       "temperature": 0,
@@ -23,8 +23,8 @@
     "phase1_locked": true,
     "size": {
       "expected_download_bytes": null,
-      "download_source": "Hugging Face API tree at `revision`, summed by `probe screen` (not yet read); measured again at Locked_Run start (R14.5)",
-      "params": null,
+      "download_source": "Hugging Face API tree at `revision`, summed by `probe screen` (read on 2026-11-07); measured again at Locked_Run start (R14.5); tree listing https://huggingface.co/api/models/mlc-ai/Qwen3.5-0.8B-q4f32_1-MLC/tree/4ed017713f04c91ffe55a9dca8c7ac853c41314d",
+      "params": 873438784,
       "params_source": "https://huggingface.co/api/models/Qwen/Qwen3.5-0.8B",
       "vram_mib": 1894.19,
       "vram_source": "https://github.com/mlc-ai/web-llm/blob/main/src/config.ts"
@@ -33,7 +33,7 @@
       "name": "Apache-2.0",
       "osi": true,
       "url": "https://huggingface.co/Qwen/Qwen3.5-0.8B",
-      "declared_by": "model",
+      "declared_by": "base_model",
       "accepted": null
     }
   },
@@ -42,8 +42,8 @@
     "runtime": "webllm",
     "model_id": "Qwen3.5-2B-q4f32_1-MLC",
     "quantization": "q4f32_1",
-    "revision": "unpinned",
-    "model_lib_url": null,
+    "revision": "d835e5c41aa56174d915e8a3940cde599d3f5a30",
+    "model_lib_url": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/146ed9cd4b4062e967b017fd2291f7106b50599f/web-llm-models/v0_2_87/base/Qwen3.5-2B-q4f32_1_cs1k-webgpu.wasm",
     "power_preference": "high-performance",
     "sampling": {
       "temperature": 0,
@@ -61,7 +61,7 @@
     "phase1_locked": true,
     "size": {
       "expected_download_bytes": null,
-      "download_source": "Hugging Face API tree at `revision`, summed by `probe screen` (not yet read); measured again at Locked_Run start (R14.5)",
+      "download_source": "Hugging Face API tree at `revision`, summed by `probe screen` (read on 2026-11-07); measured again at Locked_Run start (R14.5); tree listing https://huggingface.co/api/models/mlc-ai/Qwen3.5-2B-q4f32_1-MLC/tree/d835e5c41aa56174d915e8a3940cde599d3f5a30",
       "params": 2274069824,
       "params_source": "https://huggingface.co/api/models/Qwen/Qwen3.5-2B",
       "vram_mib": 2591.55,
@@ -71,7 +71,7 @@
       "name": "Apache-2.0",
       "osi": true,
       "url": "https://huggingface.co/Qwen/Qwen3.5-2B",
-      "declared_by": "model",
+      "declared_by": "base_model",
       "accepted": null
     }
   },
@@ -80,7 +80,7 @@
     "runtime": "transformers.js",
     "model_id": "onnx-community/Qwen3.5-0.8B-ONNX",
     "quantization": "q4",
-    "revision": "unpinned",
+    "revision": "8fe9dbe3fb39fe902e18df9be84b6a0ac77ae0f6",
     "power_preference": "high-performance",
     "sampling": {
       "do_sample": false,
@@ -98,8 +98,8 @@
     "phase1_locked": true,
     "size": {
       "expected_download_bytes": null,
-      "download_source": "Hugging Face API tree at `revision`, q4 text path, summed by `probe screen` (design DA-1 read about 619 MiB on 2026-11-06); measured again at Locked_Run start (R14.5)",
-      "params": null,
+      "download_source": "Hugging Face API tree at `revision`, q4 text path, summed by `probe screen` (design DA-1 read about 619 MiB on 2026-11-06); measured again at Locked_Run start (R14.5); tree listing https://huggingface.co/api/models/onnx-community/Qwen3.5-0.8B-ONNX/tree/8fe9dbe3fb39fe902e18df9be84b6a0ac77ae0f6",
+      "params": 873438784,
       "params_source": "https://huggingface.co/api/models/Qwen/Qwen3.5-0.8B",
       "vram_mib": null,
       "vram_source": "measured by the VRAM_Preflight (R9.9); not yet run"
@@ -117,7 +117,7 @@
     "runtime": "transformers.js",
     "model_id": "onnx-community/Qwen3.5-2B-ONNX",
     "quantization": "q4",
-    "revision": "unpinned",
+    "revision": "315216e893038beefcc6eba41ac168913dd0d879",
     "power_preference": "high-performance",
     "sampling": {
       "do_sample": false,
@@ -135,7 +135,7 @@
     "phase1_locked": true,
     "size": {
       "expected_download_bytes": null,
-      "download_source": "Hugging Face API tree at `revision`, q4 text path, summed by `probe screen` (design DA-1 read about 1465 MiB on 2026-11-06); measured again at Locked_Run start (R14.5)",
+      "download_source": "Hugging Face API tree at `revision`, q4 text path, summed by `probe screen` (design DA-1 read about 1465 MiB on 2026-11-06); measured again at Locked_Run start (R14.5); tree listing https://huggingface.co/api/models/onnx-community/Qwen3.5-2B-ONNX/tree/315216e893038beefcc6eba41ac168913dd0d879",
       "params": 2274069824,
       "params_source": "https://huggingface.co/api/models/Qwen/Qwen3.5-2B",
       "vram_mib": null,
@@ -154,7 +154,7 @@
     "runtime": "transformers.js",
     "model_id": "LiquidAI/LFM2.5-1.2B-Instruct-ONNX",
     "quantization": "q4",
-    "revision": "unpinned",
+    "revision": "10f72e70abf67ac0fd7ebf15bc5854726891d864",
     "power_preference": "high-performance",
     "sampling": {
       "do_sample": false,
@@ -170,17 +170,17 @@
     "phase1_locked": true,
     "size": {
       "expected_download_bytes": null,
-      "download_source": "Hugging Face API tree at `revision`, q4 text path, summed by `probe screen` (design DA-1 read about 811 MiB on 2026-11-06); measured again at Locked_Run start (R14.5)",
-      "params": null,
-      "params_source": "https://huggingface.co/api/models/LiquidAI/LFM2.5-1.2B-Instruct-ONNX",
+      "download_source": "Hugging Face API tree at `revision`, q4 text path, summed by `probe screen` (design DA-1 read about 811 MiB on 2026-11-06); measured again at Locked_Run start (R14.5); tree listing https://huggingface.co/api/models/LiquidAI/LFM2.5-1.2B-Instruct-ONNX/tree/10f72e70abf67ac0fd7ebf15bc5854726891d864",
+      "params": 1170340608,
+      "params_source": "https://huggingface.co/api/models/LiquidAI/LFM2.5-1.2B-Instruct",
       "vram_mib": null,
       "vram_source": "measured by the VRAM_Preflight (R9.9); not yet run"
     },
     "license": {
       "name": "LFM Open License v1.0",
       "osi": false,
-      "url": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct/blob/main/LICENSE",
-      "declared_by": "base_model",
+      "url": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-ONNX/blob/main/LICENSE",
+      "declared_by": "model",
       "accepted": "2026-11-06"
     }
   },

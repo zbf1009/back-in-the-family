@@ -2,7 +2,7 @@
 //
 // Fails clearly when the wasm-bindgen declarations are missing, instead of letting
 // TypeScript report unresolved `sim-wasm/*` imports. Then runs
-// `tsc -p tsconfig.node.json --noEmit`. Task 16 adds tsconfig.page.json.
+// `tsc -p tsconfig.node.json --noEmit`. Also runs tsconfig.page.json (browser Probe_Page).
 // Run directly by Node (type-stripping).
 
 import { spawnSync } from 'node:child_process';
@@ -18,7 +18,7 @@ if (!existsSync(declFsPath)) {
   process.exit(1);
 }
 
-const projects = ['tsconfig.node.json'];
+const projects = ['tsconfig.node.json', 'tsconfig.page.json'];
 let failed = false;
 for (const project of projects) {
   console.log(`==> tsc -p ${project} --noEmit`);

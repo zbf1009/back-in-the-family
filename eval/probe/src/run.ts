@@ -127,6 +127,11 @@ export interface RuntimeHandle {
   load(opts: { readonly coldStart: boolean }): Promise<{ readonly perf?: PerfRecord } | void>;
   /** What a rebuild needs after an Idle_Cap hit (R8.13). Without it a stuck engine cannot be rebuilt. */
   readonly lifecycle?: { readonly engine: LifecycleEngine; readonly onReady?: () => void };
+  /**
+   * Called after the last Card request when `load` returned a perf record: returns the final record (for
+   * example with the memory peak taken up to the last Card, R14.7), which replaces the one written at load.
+   */
+  finish?(): Promise<{ readonly perf?: PerfRecord } | void>;
   close?(): Promise<void> | void;
 }
 
@@ -255,14 +260,14 @@ function wantsSchema(combo: Combination): boolean {
 
 const TEMPLATE_KEY: Readonly<Record<TaskType, string>> = { decision: 'decision', synthesis: 'synthesis' };
 
-interface Templates {
+export interface Templates {
   readonly texts: Record<TaskType, TextWithHash>;
   readonly hashes: Record<TaskType, string>;
   readonly warmupHashes: Record<TaskType, string>;
   readonly warmups: WarmUpPrompts;
 }
 
-function loadTemplates(paths: RunPaths): Templates {
+export function loadTemplates(paths: RunPaths): Templates {
   const tdir = paths.templatesDir ?? TEMPLATES_DIR;
   const wdir = paths.warmupDir ?? WARMUP_DIR;
   const texts = { decision: loadTemplate('decision', tdir), synthesis: loadTemplate('synthesis', tdir) };
@@ -316,7 +321,7 @@ function buildFingerprint(
 
 // ---------------------------------------------------------------- plan and pre-render
 
-interface PlanItem {
+export interface PlanItem {
   readonly card: LoadedCard;
   readonly facts: CardFacts;
   readonly task: TaskType;
@@ -333,7 +338,7 @@ function tasksOf(subset: TaskSubset): TaskType[] {
 }
 
 /** Every Card x Permutation of the subset: Scored_Cards in every kept permutation, Sanity_Cards in base only. */
-function buildPlan(cards: readonly LoadedCard[], tasks: readonly TaskType[]): PlanItem[] {
+export function buildPlan(cards: readonly LoadedCard[], tasks: readonly TaskType[]): PlanItem[] {
   const items: PlanItem[] = [];
   for (const task of tasks) {
     for (const card of cards.filter((c) => c.task === task)) {
@@ -365,12 +370,12 @@ function schemaFile(cardsDir: string, name: string): string {
   return path.join(cardsDir, 'schemas', `${name}.json`);
 }
 
-interface SchemaInfo {
+export interface SchemaInfo {
   readonly text: string;
   readonly json: JsonValue;
 }
 
-function loadSchemas(cardsDir: string, plan: readonly PlanItem[]): Map<string, SchemaInfo> {
+export function loadSchemas(cardsDir: string, plan: readonly PlanItem[]): Map<string, SchemaInfo> {
   const out = new Map<string, SchemaInfo>();
   for (const item of plan) {
     const name = item.facts.outputSchema;
@@ -387,14 +392,14 @@ function loadSchemas(cardsDir: string, plan: readonly PlanItem[]): Map<string, S
   return out;
 }
 
-interface RenderOutcome {
+export interface RenderOutcome {
   readonly rendererVersion: number | null;
   /** Items whose render returned an error, with the Rust message (kept internal; only a category is printed). */
   readonly errors: PlanItem[];
 }
 
 /** Renders every item once; sets `prompt` or `renderError`. */
-function renderPlan(plan: readonly PlanItem[], templates: Templates, schemas: ReadonlyMap<string, SchemaInfo>, combo: Combination): RenderOutcome {
+export function renderPlan(plan: readonly PlanItem[], templates: Templates, schemas: ReadonlyMap<string, SchemaInfo>, combo: Combination): RenderOutcome {
   let rendererVersion: number | null = null;
   const errors: PlanItem[] = [];
   const constraintD: OutputConstraint = wantsSchema(combo) ? { kind: 'json_schema', schema: DECISION_SCHEMA } : { kind: 'none' };
@@ -767,6 +772,13 @@ async function rebuild(c: Exec): Promise<void> {
 
 // ---------------------------------------------------------------- grades
 
+/** Replaces the perf record written at load with the handle's final one (memory peak up to the last Card). */
+async function finishPerf(handle: RuntimeHandle, file: string): Promise<void> {
+  if (handle.finish === undefined) return;
+  const done = await handle.finish();
+  if (done !== undefined && done.perf !== undefined) writePerf(file, done.perf, true);
+}
+
 const perfPathFor = (resultsFile: string): string => resultsFile.replace(/\.jsonl$/, '') + '.perf.json';
 
 /** Grades the run's records and writes the grades file. An identical existing file is accepted. */
@@ -903,17 +915,33 @@ export async function devRun(deps: RunDeps, opts: DevRunOptions): Promise<number
     }
 
     handle = await createHandle(deps, ctx);
+    // Fresh_Profile, WebGPU adapter and quota checks come before anything is written (no Runtime request is sent).
+    if (deps.freshProfile !== undefined) {
+      const fp = await deps.freshProfile(ctx, handle);
+      if (!fp.ok) {
+        appendFailure(deps.paths.failures, { ...fp.failure, schema: SCHEMA.failure, combination: combo.id, kind: typeof fp.failure['kind'] === 'string' ? (fp.failure['kind'] as string) : 'fresh_profile_failed' });
+        logger.failure('fresh_profile_failed', { combination: combo.id });
+        return 1;
+      }
+    }
     const fingerprint = buildFingerprint(deps, combo, handle, templates, tasks, rendered.rendererVersion);
-    const writer = ResultsWriter.create(deps.paths.resultsDir, header(runId, 'dev', combo, subset, fingerprint, templates, tasks, timeoutMs, handle.placement ?? null));
-    const base = recordBase(runId, 'dev', timeoutMs, writer.fingerprintId, handle.source ?? 'node', templates.hashes);
     const budget = openBudget(deps, combo, 0);
 
+    // Load first: the Results header records the placement, which an in-browser Runtime knows only after the
+    // session is created. The load sends no Card, so the header still precedes the first request.
+    const outcome = await loadFirst(handle, true);
+    const writer = ResultsWriter.create(deps.paths.resultsDir, header(runId, 'dev', combo, subset, fingerprint, templates, tasks, timeoutMs, handle.placement ?? null));
+    if (outcome.crash !== null) throw outcome.crash;
+    const base = recordBase(runId, 'dev', timeoutMs, writer.fingerprintId, handle.source ?? 'node', templates.hashes);
+
     let stop: Stop | null = null;
-    try {
-      const loadResult = await handle.load({ coldStart: true });
-      if (loadResult !== undefined && loadResult.perf !== undefined) writePerf(perfPathFor(writer.file), loadResult.perf);
-    } catch (e) {
-      if (!(e instanceof RuntimeLoadError)) throw e;
+    let perfWritten = false;
+    if (outcome.perf !== undefined) {
+      writePerf(perfPathFor(writer.file), outcome.perf);
+      perfWritten = true;
+    }
+    if (outcome.failure !== null) {
+      const e = outcome.failure;
       stop = loadStop(e);
       appendFailure(deps.paths.failures, failureRecord({ combo, kind: e.code, runKind: 'dev', runId, cardsAnswered: 0, detail: e.message, at: nowOf(deps), entryId: null }));
       for (const item of plan) writer.append(notRun(base, item, stop.notRun, stop.detail, nowOf(deps)));
@@ -922,6 +950,7 @@ export async function devRun(deps: RunDeps, opts: DevRunOptions): Promise<number
       const exec: Exec = { deps, logger, kind: 'dev', combo, tasks, timeoutMs, plan, handle, writer, base, budget, entryId: null, templates, samplings: ctx.samplings };
       stop = await sendMissing(exec, []);
     }
+    if (perfWritten) await finishPerf(handle, perfPathFor(writer.file));
     const records = readResultsFile(writer.file).records;
     writeGrades({ writer, cards, tasks });
     logger.status('results written', { count: records.length });
@@ -939,6 +968,24 @@ export async function devRun(deps: RunDeps, opts: DevRunOptions): Promise<number
 }
 
 // ---------------------------------------------------------------- helpers shared by both flows
+
+/** Result of `handle.load`: a load failure and an unexpected crash are kept apart so the caller can still write the header. */
+interface Loaded {
+  readonly perf: PerfRecord | undefined;
+  readonly failure: RuntimeLoadError | null;
+  /** A non-RuntimeLoadError: rethrown by the caller after the Results header exists. */
+  readonly crash: unknown;
+}
+
+async function loadFirst(handle: RuntimeHandle, coldStart: boolean): Promise<Loaded> {
+  try {
+    const r = await handle.load({ coldStart });
+    return { perf: r !== undefined ? r.perf : undefined, failure: null, crash: null };
+  } catch (e) {
+    if (e instanceof RuntimeLoadError) return { perf: undefined, failure: e, crash: null };
+    return { perf: undefined, failure: null, crash: e };
+  }
+}
 
 function placeholderHandle(combo: Combination): RuntimeHandle {
   const adapter: RuntimeAdapter = {
@@ -1123,7 +1170,6 @@ export async function lockedRun(deps: RunDeps, opts: LockedRunOptions): Promise<
     const ctx = runContext(prep, 'locked', entry !== null, templates);
     // page-bundle creates no Runtime and opens no Fresh_Profile: the Author's headed Chrome does both.
     handle = opts.pageBundle !== undefined ? { ...placeholderHandle(combo), fingerprint: { measurement: 'probe_page' } } : await createHandle(deps, ctx);
-    const fingerprint = buildFingerprint(deps, combo, handle, templates, tasks, rendered.rendererVersion);
     if (opts.pageBundle === undefined && deps.freshProfile !== undefined) {
       const fp = await deps.freshProfile(ctx, handle);
       if (!fp.ok) {
@@ -1132,6 +1178,8 @@ export async function lockedRun(deps: RunDeps, opts: LockedRunOptions): Promise<
         return 1;
       }
     }
+    // After the hook: the browser and adapter fields of the fingerprint are known only once Chrome has been asked.
+    const fingerprint = buildFingerprint(deps, combo, handle, templates, tasks, rendered.rendererVersion);
     const priorRecords = resumeFile === null ? [] : readResultsFile(resumeFile).records;
     const budget = openBudget(deps, combo, sentCount(priorRecords));
 
@@ -1196,6 +1244,13 @@ export async function lockedRun(deps: RunDeps, opts: LockedRunOptions): Promise<
       return 0;
     }
 
+    // Step 8: load the engine; cold start only when the entry has no perf record yet. The load sends no Card
+    // and comes BEFORE the Results header is written, because the header records the placement, which an
+    // in-browser Runtime knows only after its session exists. The ledger `start` (step 7) still precedes it.
+    const resultsFile = resumeFile ?? resultsPath(deps.paths.resultsDir, 'locked', entryId);
+    const perfFile = perfPathFor(resultsFile);
+    const outcome = await loadFirst(handle, !fs.existsSync(perfFile));
+
     let writer: ResultsWriter;
     try {
       writer =
@@ -1206,16 +1261,17 @@ export async function lockedRun(deps: RunDeps, opts: LockedRunOptions): Promise<
       abort('results_write_failed');
       throw new RunError('results_write_failed', { entryId });
     }
+    if (outcome.crash !== null) throw outcome.crash;
     const base = recordBase(entryId, 'locked', effectiveTimeout, writer.fingerprintId, handle.source ?? 'node', templates.hashes);
 
-    // Step 8: load the engine; cold start only when the entry has no perf record yet.
     let stop: Stop | null = null;
-    const perfFile = perfPathFor(writer.file);
-    try {
-      const loadResult = await handle.load({ coldStart: !fs.existsSync(perfFile) });
-      if (loadResult !== undefined && loadResult.perf !== undefined && !fs.existsSync(perfFile)) writePerf(perfFile, loadResult.perf);
-    } catch (e) {
-      if (!(e instanceof RuntimeLoadError)) throw e;
+    let perfWritten = false;
+    if (outcome.perf !== undefined && !fs.existsSync(perfFile)) {
+      writePerf(perfFile, outcome.perf);
+      perfWritten = true;
+    }
+    if (outcome.failure !== null) {
+      const e = outcome.failure;
       stop = loadStop(e);
       appendFailure(deps.paths.failures, failureRecord({ combo, kind: e.code, runKind: 'locked', runId: entryId, cardsAnswered: sentCount(priorRecords), detail: e.message, at: nowOf(deps), entryId }));
       const todo = missingRuns(planned, priorRecords);
@@ -1228,6 +1284,7 @@ export async function lockedRun(deps: RunDeps, opts: LockedRunOptions): Promise<
       const exec: Exec = { deps, logger, kind: 'locked', combo, tasks, timeoutMs: effectiveTimeout, plan, handle, writer, base, budget, entryId, templates, samplings: ctx.samplings };
       stop = await sendMissing(exec, priorRecords);
     }
+    if (perfWritten) await finishPerf(handle, perfFile);
 
     // Steps 10 and 11: grade, then `complete` only when every Card x Permutation has an output.
     const records = readResultsFile(writer.file).records;

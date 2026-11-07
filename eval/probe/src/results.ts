@@ -722,6 +722,12 @@ function appendChecked<T>(file: string, parse: (v: unknown) => T, record: unknow
 
 export const appendFailure = (file: string, r: FailureRecord): void => appendChecked(file, parseFailureRecord, r, 'failure record');
 export const appendExclusion = (file: string, r: ExclusionRecord): void => appendChecked(file, parseExclusionRecord, r, 'exclusion record');
+/** Appends an Exclusion_Record unless one for the same Combination and check is already there. Returns whether it wrote. */
+export function appendExclusionOnce(file: string, r: ExclusionRecord): boolean {
+  if (fs.existsSync(file) && readJsonLines(file, (v) => parseExclusionRecord(v)).some((x) => x.combination === r.combination && x.check === r.check)) return false;
+  appendExclusion(file, r);
+  return true;
+}
 export const appendSmoke = (file: string, r: SmokeRecord): void => appendChecked(file, parseSmokeRecord, r, 'smoke record');
 
 /** Writes a one-object JSON file (perf, preflight), refusing to replace an existing file. */
@@ -729,7 +735,7 @@ function writeSingle<T>(file: string, parse: (v: unknown) => T, record: unknown,
   if (!overwrite && fs.existsSync(file)) throw new Error(`${file} already exists`);
   writeTextFile(file, serializeLine(validated(parse, record, what)));
 }
-export const writePerf = (file: string, r: PerfRecord): void => writeSingle(file, parsePerfRecord, r, 'perf record', false);
+export const writePerf = (file: string, r: PerfRecord, overwrite = false): void => writeSingle(file, parsePerfRecord, r, 'perf record', overwrite);
 export const writePreflight = (file: string, r: PreflightRecord, overwrite = false): void =>
   writeSingle(file, parsePreflightRecord, r, 'preflight record', overwrite);
 

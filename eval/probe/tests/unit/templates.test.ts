@@ -80,7 +80,7 @@ test('combinations.json parses; five locked in-browser Combinations, three Worke
   assert.equal(list.length, 8);
   const locked = list.filter((c) => c.phase1_locked);
   assert.deepEqual(locked.map((c) => c.runtime).sort(), ['transformers.js', 'transformers.js', 'transformers.js', 'webllm', 'webllm']);
-  for (const c of locked) assert.equal(c.revision, 'unpinned');
+  for (const c of locked) assert.match(c.revision, /^[0-9a-f]{40}$/);
   const wai = list.filter((c) => c.runtime === 'workers-ai');
   assert.equal(wai.length, 3);
   for (const c of wai) {
@@ -90,6 +90,6 @@ test('combinations.json parses; five locked in-browser Combinations, three Worke
     assert.ok(c.max_output_param?.source.startsWith('https://'));
   }
   const lfm = list.find((c) => c.model_id.startsWith('LiquidAI/'))!;
-  assert.deepEqual(lfm.license, { name: 'LFM Open License v1.0', osi: false, url: 'https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct/blob/main/LICENSE', declared_by: 'base_model', accepted: '2026-11-06' });
+  assert.deepEqual(lfm.license, { name: 'LFM Open License v1.0', osi: false, url: 'https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct-ONNX/blob/main/LICENSE', declared_by: 'model', accepted: '2026-11-06' });
   assert.equal(list.find((c) => c.model_id === 'onnx-community/Qwen3.5-2B-ONNX')!.license?.declared_by, 'base_model');
 });

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>llm-probe Probe_Page</title>
+  </head>
+  <body>
+    <h1>llm-probe Probe_Page</h1>
+    <p>
+      Local measurement page. It runs prompts from a bundle written by <code>probe page-bundle</code> and downloads one
+      <code>llm-probe-page-export-v1</code> file for <code>probe ingest</code>. It reads no Card.
+    </p>
+    <ol>
+      <li><label>Combination <select id="combo"></select></label> <button id="check" type="button">Check WebGPU adapter</button></li>
+      <li><button id="cold" type="button">Cold start</button> (first time on a fresh profile = empty cache; reload the page, pick the bundle again, press again = warm cache)</li>
+      <li><label>Bundle <input id="bundle" type="file" accept="application/json,.json" /></label></li>
+      <li><button id="run" type="button">Run bundle</button></li>
+      <li><button id="download" type="button">Download export</button></li>
+    </ol>
+    <pre id="status" aria-live="polite"></pre>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

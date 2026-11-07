@@ -1,0 +1,21 @@
+{
+  // Browser Probe_Page code (eval/probe/page/**): DOM libs, no Node types.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
+    "types": [],
+    "strict": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    // The type-only imports from ../src reach simwasm.ts through run.ts; resolve its declarations as the node project does.
+    "paths": { "sim-wasm/*": ["../../target/wasm-pkg/*"] },
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["page/**/*.ts"]
+}

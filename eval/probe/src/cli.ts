@@ -70,6 +70,22 @@ const COMMANDS: Record<string, () => Promise<void>> = {
     const { defaultRunDeps } = await import('./run-command.ts');
     process.exitCode = await regradeCommand(process.argv.slice(3), defaultRunDeps(REPO_DIR));
   },
+  // Builds and serves the Probe_Page on localhost:4318 and prints a new empty Fresh_Profile directory.
+  // Reads no cards and no env, so no Manifest_Check. Long-running: stops on Ctrl-C.
+  'page-serve': async () => {
+    const { pageServeCommand } = await import('./page-serve.ts');
+    process.exitCode = await pageServeCommand();
+  },
+  // `screen` reads no card and no env, and touches the network only when the Author runs it. `preflight` reads
+  // the Dev_Cards (for the prompt length rule) and does its own Manifest_Check first (R1.1).
+  screen: async () => {
+    const { screenCommand, defaultScreenDeps } = await import('./screen-command.ts');
+    process.exitCode = await screenCommand(process.argv.slice(3), defaultScreenDeps(REPO_DIR));
+  },
+  preflight: async () => {
+    const { preflightCommand, defaultPreflightDeps } = await import('./preflight.ts');
+    process.exitCode = await preflightCommand(process.argv.slice(3), await defaultPreflightDeps(REPO_DIR));
+  },
   ledger: async () => {
     const { ledgerCommand, defaultPaths } = await import('./phase-commands.ts');
     process.exitCode = ledgerCommand(defaultPaths(REPO_DIR));

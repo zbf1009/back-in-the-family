@@ -189,13 +189,18 @@ Resolved versions are from the committed `web/pnpm-lock.yaml`; licenses are the 
 
 ### Probe_Runner (`eval/probe/`) dependencies
 
-Resolved versions are from the committed `eval/probe/pnpm-lock.yaml`; licenses are the SPDX identifiers on the npm registry. All three are dev dependencies, pinned to the same versions as `web/`. WebLLM, transformers.js, Vite and Playwright are added with the real adapters (task 16).
+Resolved versions are from the committed `eval/probe/pnpm-lock.yaml`; licenses are the SPDX identifiers on the npm registry. TypeScript, `@types/node`, `fast-check`, Vite and Playwright are dev dependencies pinned to the same versions as `web/`. The in-browser runtimes are used only by the Probe_Page and its adapters; none of these packages is in `web/`. Playwright drives the system Chrome and downloads no browser (`PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1`).
 
 | Name | Version | License | Used for |
 |---|---|---|---|
 | [`typescript`](https://www.npmjs.com/package/typescript) | 6.0.3 | Apache-2.0 | `tsc` type check of the Probe_Runner (dev/gate only) |
 | [`@types/node`](https://www.npmjs.com/package/@types/node) | 26.6.6 | MIT | Node type declarations for the Probe_Runner and its tests (dev/gate only) |
 | [`fast-check`](https://www.npmjs.com/package/fast-check) | 4.10.2 | MIT | Property-based testing in the Probe_Runner unit tests (dev/test only) |
+| [`@mlc-ai/web-llm`](https://www.npmjs.com/package/@mlc-ai/web-llm) | 0.2.87 | Apache-2.0 | WebLLM in-browser runtime for the Probe_Page |
+| [`@huggingface/transformers`](https://www.npmjs.com/package/@huggingface/transformers) | 4.3.2 | Apache-2.0 | transformers.js in-browser runtime for the Probe_Page |
+| [`@huggingface/transformers-structured-output`](https://www.npmjs.com/package/@huggingface/transformers-structured-output) | 4.3.2 | Apache-2.0 | Constrained (structured) generation for transformers.js (no dependencies) |
+| [`vite`](https://www.npmjs.com/package/vite) | 8.3.5 | MIT | Builds and serves the Probe_Page (dev only) |
+| [`@playwright/test`](https://www.npmjs.com/package/@playwright/test) | 1.64.1 | Apache-2.0 | Browser driver on the system Chrome (dev only) |
 
 Development tools (not linked into any build output): `wasm-bindgen-cli` 0.2.130 (MIT OR Apache-2.0), Node.js 26.7.0 (MIT) and `pnpm` 10.33.1 (MIT), all pinned in `mise.toml`.
 

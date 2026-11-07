@@ -10,7 +10,7 @@ import type { Approval } from '../../src/approvals.ts';
 import { readLedger } from '../../src/ledger.ts';
 import type { PhaseState } from '../../src/phase.ts';
 import { gradesPathFor, readFailures, readGradesFile, readResultsFile } from '../../src/results.ts';
-import { DEFAULT_TIMEOUT_MS, devRun, lockedRun, parseTimeoutMs, RunError, RuntimeLoadError } from '../../src/run.ts';
+import { DEFAULT_TIMEOUT_MS, devRun, lockedRun, parseTimeoutMs, RunError, RuntimeLoadError, type RuntimeFactory } from '../../src/run.ts';
 import { parseDevRunArgs, parseLockedRunArgs } from '../../src/run-command.ts';
 import { capture, createFakeRuntime, FAKE_COMBO, makeCardSet, makeEnv, REVISION, templatesCopy, WORKERS_COMBO } from './run.helpers.ts';
 
@@ -317,6 +317,41 @@ test('the Fresh_Profile hook runs before the ledger entry; a failure uses up no 
   assert.equal(readFailures(path.join(env.root, 'eval/results/failures.jsonl'))[0]?.reason, 'quota');
   // The same slot is still free.
   assert.equal((await capture(() => lockedRun(env.deps(rt), { combo: FAKE_COMBO.id, task: 'D' }))).value, 0);
+});
+
+test('the Results header is written after load, so it records the placement known only after load; the ledger start still comes first', async () => {
+  const placement = { method: 'onnxruntime_node_placements', cpu_nodes: [{ op_type: 'Shape', count: 3 }] };
+  const wrap = (base: ReturnType<typeof createFakeRuntime>, seen: { ledger: boolean; results: boolean }[], env: ReturnType<typeof makeEnv>): RuntimeFactory => async (ctx) => {
+    const h = await base.factory(ctx);
+    let loaded = false;
+    return {
+      ...h,
+      get placement() {
+        return loaded ? placement : null;
+      },
+      load: async (o) => {
+        const dir = path.join(env.root, 'eval/results', ctx.kind);
+        seen.push({ ledger: fs.existsSync(path.join(env.root, 'eval/results/ledger.jsonl')), results: fs.existsSync(dir) && fs.readdirSync(dir).length > 0 });
+        await h.load(o);
+        loaded = true;
+      },
+    };
+  };
+  const env = makeEnv(cardSet);
+  const seen: { ledger: boolean; results: boolean }[] = [];
+  const base = createFakeRuntime();
+  const deps = env.deps(base, { createRuntime: wrap(base, seen, env) });
+  assert.equal((await capture(() => devRun(deps, { combo: FAKE_COMBO.id, task: 'D' }))).value, 0);
+  assert.equal((await capture(() => lockedRun(deps, { combo: FAKE_COMBO.id, task: 'D' }))).value, 0);
+  assert.deepEqual(seen, [
+    { ledger: false, results: false }, // dev: nothing written before load
+    { ledger: true, results: false }, // locked: ledger `start` is on disk, the Results file is not yet
+  ]);
+  for (const sub of ['dev', 'locked']) {
+    const dir = path.join(env.root, 'eval/results', sub);
+    const file = fs.readdirSync(dir).find((f) => f.endsWith('.jsonl') && !f.endsWith('.grades.jsonl')) as string;
+    assert.deepEqual(readResultsFile(path.join(dir, file)).header.placement, placement);
+  }
 });
 
 // ------------------------------------------------------------ Workers AI gate and budget
