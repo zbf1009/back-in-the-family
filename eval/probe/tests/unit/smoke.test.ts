@@ -11,7 +11,7 @@ import { Secret } from '../../src/redact.ts';
 import { readSmoke } from '../../src/results.ts';
 import { renderPromptCalls } from '../../src/simwasm.ts';
 import { clearSecrets } from '../../src/sink.ts';
-import { checkResponseShape, finishReasonOf, parseSmokeArgs, responseKeysOf, smokeCommand, smokeFileOf, usageDetailOf, type SmokeDeps } from '../../src/smoke.ts';
+import { apiErrorOf, checkResponseShape, finishReasonOf, parseSmokeArgs, requestFactsOf, responseKeysOf, smokeCommand, smokeFileOf, usageDetailOf, type SmokeDeps } from '../../src/smoke.ts';
 import { FAKE_COMBO, capture, createFakeRuntime, defaultAnswer, makeEnv, WORKERS_COMBO } from './run.helpers.ts';
 
 afterEach(() => clearSecrets());
@@ -85,7 +85,10 @@ const records = (r: ReturnType<typeof rig>) => readSmoke(smokeFileOf(r.deps.path
 const counter = (r: ReturnType<typeof rig>) => JSON.parse(fs.readFileSync(r.deps.paths.budgetFile, 'utf8')) as { days: Record<string, { requests: number; smoke: number; neurons: number }> };
 
 test('parseSmokeArgs: defaults, bounds and the --max-tokens rule', () => {
-  assert.deepEqual(parseSmokeArgs(['--combo', 'x']), { ok: true, options: { combo: 'x', count: 1, diagnose: false, timeoutMs: undefined, maxTokens: null } });
+  assert.deepEqual(parseSmokeArgs(['--combo', 'x']), { ok: true, options: { combo: 'x', count: 1, task: null, diagnose: false, timeoutMs: undefined, maxTokens: null } });
+  assert.equal(parseSmokeArgs(['--combo', 'x', '--task', 'S']).ok, true);
+  assert.equal(parseSmokeArgs(['--combo', 'x', '--task', 'Q']).ok, false);
+  assert.equal(parseSmokeArgs(['--combo', 'x', '--task', 'S', '--max-tokens', '5']).ok, false);
   assert.equal(parseSmokeArgs([]).ok, false);
   assert.equal(parseSmokeArgs(['--combo', 'x', '--count', '0']).ok, false);
   assert.equal(parseSmokeArgs(['--combo', 'x', '--count', '1.5']).ok, false);
@@ -319,4 +322,52 @@ test('--diagnose adds response_keys and usage_detail to the smoke record; off by
   const [plain] = records(off);
   assert.equal('response_keys' in (plain ?? {}), false);
   assert.equal('usage_detail' in (plain ?? {}), false);
+});
+
+// ---------------------------------------------------------------- --diagnose on an HTTP error
+
+const ERR_BODY = JSON.stringify({ success: false, errors: [{ code: 5006, message: `bad schema ${'x'.repeat(400)} tok-SECRET-0001` }], messages: [], result: null });
+
+test('apiErrorOf: first code and message text of a non-2xx body, truncated; null for 2xx', () => {
+  const e = apiErrorOf(400, ERR_BODY);
+  assert.equal(e?.code, '5006');
+  assert.equal(e?.message?.length, 300);
+  assert.deepEqual(apiErrorOf(400, 'not json'), { code: null, message: null });
+  assert.deepEqual(apiErrorOf(400, JSON.stringify({ errors: [] })), { code: null, message: null });
+  assert.equal(apiErrorOf(200, ERR_BODY), null);
+  assert.equal(apiErrorOf(null, null), null);
+});
+
+test('requestFactsOf: names and numbers only, no prompt text', () => {
+  const body = JSON.stringify({ messages: [{ role: 'user', content: 'PROMPT-TEXT' }], max_completion_tokens: 1024, response_format: { type: 'json_schema', json_schema: { a: 1 } }, chat_template_kwargs: { enable_thinking: false } });
+  const f = requestFactsOf(body, 777);
+  assert.deepEqual(f, { response_format_sent: true, response_format_type: 'json_schema', chat_template_kwargs_sent: true, prompt_bytes: 777, max_tokens_param: 'max_completion_tokens', max_tokens_value: 1024 });
+  assert.equal(JSON.stringify(f).includes('PROMPT-TEXT'), false);
+  assert.deepEqual(requestFactsOf(JSON.stringify({ max_tokens: 5 }), 1), { response_format_sent: false, response_format_type: null, chat_template_kwargs_sent: false, prompt_bytes: 1, max_tokens_param: 'max_tokens', max_tokens_value: 5 });
+  assert.equal(requestFactsOf(null, 1), null);
+  assert.equal(requestFactsOf('nope', 1), null);
+});
+
+test('--diagnose records api_error (redacted, 300 chars) and request_facts on a 400; --task S sends exactly one S call', async () => {
+  const r = rig(() => ({ status: 400, body: ERR_BODY }));
+  await capture(() => smokeCommand(['--combo', CHAT.id, '--count', '1', '--task', 'S', '--diagnose'], r.deps));
+  assert.equal(r.sent.length, 1);
+  const [rec] = records(r);
+  assert.equal(rec?.['task'], 'synthesis');
+  assert.equal(rec?.['http_status'], 400);
+  const api = rec?.['api_error'] as { code: string; message: string };
+  assert.equal(api.code, '5006');
+  assert.ok(api.message.length <= 300);
+  const facts = rec?.['request_facts'] as Record<string, unknown>;
+  assert.equal(facts['response_format_sent'], true);
+  assert.equal(facts['response_format_type'], 'json_schema');
+  assert.equal(facts['max_tokens_value'], 1024);
+  assert.equal(facts['chat_template_kwargs_sent'], true);
+  assert.equal(typeof facts['prompt_bytes'], 'number');
+  const raw = fs.readFileSync(smokeFileOf(r.deps.paths, DAY), 'utf8');
+  assert.equal(raw.includes('tok-SECRET-0001'), false);
+
+  const off = rig(() => ({ status: 400, body: ERR_BODY }));
+  await capture(() => smokeCommand(['--combo', CHAT.id, '--count', '1', '--task', 'S'], off.deps));
+  assert.equal('api_error' in (records(off)[0] ?? {}), false);
 });

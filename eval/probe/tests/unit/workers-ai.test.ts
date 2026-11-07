@@ -87,6 +87,21 @@ test('request: no response_format unless asked, no kwargs for granite', () => {
   assert.equal(body['max_tokens'], 64);
 });
 
+test('request: response_format carries the schema without uniqueItems (API grammar rejects it); the input is not mutated', () => {
+  const schema = {
+    type: 'object',
+    properties: { uniqueItems: { type: 'string' }, evidence: { type: 'array', minItems: 1, uniqueItems: true, items: { type: 'string', pattern: '^e[0-9]+$' } } },
+  };
+  const before = JSON.stringify(schema);
+  const body = buildRequestBody(PROMPT, sampling({ constraint: { kind: 'json_schema', schema } }), 'max_completion_tokens') as unknown as { response_format: { type: string; json_schema: unknown } };
+  assert.equal(body.response_format.type, 'json_schema');
+  assert.deepEqual(body.response_format.json_schema, {
+    type: 'object',
+    properties: { uniqueItems: { type: 'string' }, evidence: { type: 'array', minItems: 1, items: { type: 'string', pattern: '^e[0-9]+$' } } },
+  });
+  assert.equal(JSON.stringify(schema), before);
+});
+
 test('chat shape: text, usage and reasoning tokens', async () => {
   const usage = { prompt_tokens: 12, completion_tokens: 7, completion_tokens_details: { reasoning_tokens: 3 } };
   const res = await adapter(reply(200, chatBody('hello', 'stop', usage))).complete(PROMPT, opts());

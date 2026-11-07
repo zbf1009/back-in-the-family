@@ -77,6 +77,26 @@ export interface RequestBody {
 }
 
 /**
+ * Schema keywords that the Workers AI grammar compiler rejects with HTTP 400 ("Grammar error: Unimplemented keys").
+ * Found by the gemma-4 synthesis Smoke_Call (V3): `uniqueItems`. They are removed from the copy sent as
+ * `response_format`; the Output_Validator still enforces them on the answer, and the prompt text still carries
+ * the original schema.
+ */
+export const UNSUPPORTED_SCHEMA_KEYS: readonly string[] = ['uniqueItems'];
+
+/** A deep copy of a JSON schema without the keywords in `UNSUPPORTED_SCHEMA_KEYS` (at any depth). Property NAMES are not touched. */
+export function stripUnsupportedSchemaKeys(schema: unknown, inPropertiesMap = false): unknown {
+  if (Array.isArray(schema)) return schema.map((v) => stripUnsupportedSchemaKeys(v));
+  if (typeof schema !== 'object' || schema === null) return schema;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(schema as Record<string, unknown>)) {
+    if (!inPropertiesMap && UNSUPPORTED_SCHEMA_KEYS.includes(k)) continue;
+    out[k] = stripUnsupportedSchemaKeys(v, !inPropertiesMap && k === 'properties');
+  }
+  return out;
+}
+
+/**
  * Body of one request (design: `{ messages, temperature: 0, seed: 20261104, [max_output_param], response_format?,
  * chat_template_kwargs? }`). `response_format` is sent only when the Combination asks for a JSON schema
  * (its `constraint` is `json_schema`, which the Smoke_Calls must have confirmed first); `chat_template_kwargs`
@@ -93,7 +113,7 @@ export function buildRequestBody(prompt: Prompt, sampling: SamplingParams, maxPa
     [maxParam]: sampling.maxOutputTokens,
   };
   if (sampling.topP !== null) body['top_p'] = sampling.topP;
-  if (sampling.constraint.kind === 'json_schema') body['response_format'] = { type: 'json_schema', json_schema: sampling.constraint.schema };
+  if (sampling.constraint.kind === 'json_schema') body['response_format'] = { type: 'json_schema', json_schema: stripUnsupportedSchemaKeys(sampling.constraint.schema) };
   if (sampling.chatTemplateKwargs !== null) body['chat_template_kwargs'] = sampling.chatTemplateKwargs;
   return body as unknown as RequestBody;
 }

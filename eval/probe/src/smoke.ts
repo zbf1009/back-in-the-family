@@ -142,11 +142,69 @@ export function usageDetailOf(bodyText: string | null): JsonObject | null {
   return out;
 }
 
+export const API_MESSAGE_MAX = 300;
+
+/**
+ * For a non-2xx response: the first API error `code` and the Cloudflare error `message` text only (never the request,
+ * never headers), truncated to 300 chars. The caller passes the message through the secret redaction. Null when the
+ * status is 2xx or missing, or the body has neither.
+ */
+export function apiErrorOf(status: number | null, bodyText: string | null): { code: string | null; message: string | null } | null {
+  if (status === null || bodyText === null || (status >= 200 && status <= 299)) return null;
+  let env: Record<string, unknown> | null = null;
+  try {
+    env = asObject(JSON.parse(bodyText));
+  } catch {
+    return { code: null, message: null };
+  }
+  const first = Array.isArray(env?.['errors']) ? asObject((env?.['errors'] as unknown[])[0]) : null;
+  const rawCode = first?.['code'];
+  const code = typeof rawCode === 'string' || typeof rawCode === 'number' ? String(rawCode) : null;
+  const rawMessage = first?.['message'] ?? env?.['message'] ?? env?.['error'];
+  const message = typeof rawMessage === 'string' ? rawMessage.slice(0, API_MESSAGE_MAX) : null;
+  return { code, message };
+}
+
+/**
+ * Request-side facts that could explain a 400, from the body that was sent: names and numbers only
+ * (whether `response_format` was sent and its `type`, which output-token parameter and its value, whether
+ * `chat_template_kwargs` was sent, the prompt byte length). No prompt text, no schema.
+ */
+export function requestFactsOf(requestBody: string | null, promptBytes: number): JsonObject | null {
+  if (requestBody === null) return null;
+  let body: Record<string, unknown> | null;
+  try {
+    body = asObject(JSON.parse(requestBody));
+  } catch {
+    return null;
+  }
+  if (body === null) return null;
+  const rf = asObject(body['response_format']);
+  const type = rf?.['type'];
+  const facts: JsonObject = {
+    response_format_sent: rf !== null,
+    response_format_type: typeof type === 'string' && KEY_NAME.test(type) ? type : null,
+    chat_template_kwargs_sent: asObject(body['chat_template_kwargs']) !== null,
+    prompt_bytes: promptBytes,
+  };
+  for (const name of ['max_completion_tokens', 'max_tokens']) {
+    if (typeof body[name] === 'number') {
+      facts['max_tokens_param'] = name;
+      facts['max_tokens_value'] = body[name] as number;
+    }
+  }
+  return facts;
+}
+
 // ---------------------------------------------------------------- arguments
+
+export type SmokeTask = 'D' | 'S';
 
 export interface SmokeOptions {
   readonly combo: string;
   readonly count: number;
+  /** Only this Task_Type (D = decision, S = synthesis); null keeps the alternating D, S, D, S order. */
+  readonly task: SmokeTask | null;
   readonly diagnose: boolean;
   readonly timeoutMs: number | string | undefined;
   readonly maxTokens: number | null;
@@ -164,7 +222,7 @@ export function parseSmokeArgs(argv: readonly string[]): ParsedSmokeArgs {
       args: [...argv],
       allowPositionals: true,
       strict: true,
-      options: { combo: { type: 'string' }, count: { type: 'string' }, 'timeout-ms': { type: 'string' }, 'max-tokens': { type: 'string' }, diagnose: { type: 'boolean' } },
+      options: { combo: { type: 'string' }, count: { type: 'string' }, 'timeout-ms': { type: 'string' }, 'max-tokens': { type: 'string' }, task: { type: 'string' }, diagnose: { type: 'boolean' } },
     });
     if (parsed.positionals.length > 0) return { ok: false, message: `unexpected argument "${parsed.positionals[0]}"` };
     values = parsed.values as Record<string, string | undefined>;
@@ -178,14 +236,18 @@ export function parseSmokeArgs(argv: readonly string[]): ParsedSmokeArgs {
   if (rawCount !== undefined && !DIGITS.test(rawCount)) return { ok: false, message: '--count must be a positive integer' };
   const count = rawCount === undefined ? 1 : Number(rawCount);
   if (!Number.isSafeInteger(count) || count < 1) return { ok: false, message: '--count must be a positive integer' };
+  const rawTask = values['task'];
+  if (rawTask !== undefined && rawTask !== 'D' && rawTask !== 'S') return { ok: false, message: '--task must be D or S' };
+  const task: SmokeTask | null = rawTask === undefined ? null : rawTask;
   const rawMax = values['max-tokens'];
   let maxTokens: number | null = null;
   if (rawMax !== undefined) {
     if (!DIGITS.test(rawMax) || !Number.isSafeInteger(Number(rawMax)) || Number(rawMax) < 1) return { ok: false, message: '--max-tokens must be a positive integer' };
     if (count !== 1) return { ok: false, message: '--max-tokens is allowed only with --count 1 (the granite truncation probe)' };
+    if (task === 'S') return { ok: false, message: '--max-tokens is for a D card; it cannot be combined with --task S' };
     maxTokens = Number(rawMax);
   }
-  return { ok: true, options: { combo, count, diagnose, timeoutMs: values['timeout-ms'], maxTokens } };
+  return { ok: true, options: { combo, count, task, diagnose, timeoutMs: values['timeout-ms'], maxTokens } };
 }
 
 // ---------------------------------------------------------------- card choice (pure)
@@ -195,9 +257,11 @@ export function parseSmokeArgs(argv: readonly string[]): ParsedSmokeArgs {
  * `plan` must already be in file order per Task_Type (buildPlan's order). Returns fewer than `count` when the
  * Dev_Cards run out; the caller refuses then.
  */
-export function pickSmokeItems(plan: readonly PlanItem[], count: number, dOnly: boolean): PlanItem[] {
+export function pickSmokeItems(plan: readonly PlanItem[], count: number, only: boolean | SmokeTask): PlanItem[] {
   const usable = plan.filter((p) => p.permutation === 'base' && !p.card.void);
-  const d = usable.filter((p) => p.task === 'decision');
+  const dOnly = only === true || only === 'D';
+  const sOnly = only === 'S';
+  const d = sOnly ? [] : usable.filter((p) => p.task === 'decision');
   const s = dOnly ? [] : usable.filter((p) => p.task === 'synthesis');
   const out: PlanItem[] = [];
   let i = 0;
@@ -296,7 +360,7 @@ export async function smokeCommand(argv: readonly string[], deps: SmokeDeps): Pr
     const loaded = loadCards({ cardsDir: deps.paths.cardsDir, splits: ['dev'] });
     templates = loadTemplates(deps.paths);
     const plan = buildPlan(loaded.cards.dev, ['decision', 'synthesis']);
-    items = pickSmokeItems(plan, count, maxTokens !== null);
+    items = pickSmokeItems(plan, count, maxTokens !== null ? 'D' : parsed.options.task ?? false);
     if (items.length < count) return fail(`only ${items.length} usable Dev_Card(s) for ${count} requested call(s); nothing sent`);
     const schemas = loadSchemas(deps.paths.cardsDir, items);
     const rendered = renderPlan(items, templates, schemas, combo);
@@ -316,9 +380,11 @@ export async function smokeCommand(argv: readonly string[], deps: SmokeDeps): Pr
 
   // Capture status and body text of each response, in memory only, for the shape check. Never written.
   let last: { status: number; body: string } | null = null;
+  let lastRequestBody: string | null = null;
   const inner: FetchLike = deps.fetch ?? ((url, init) => globalThis.fetch(url, init));
   const capturing: FetchLike = async (url, init) => {
     last = null;
+    lastRequestBody = init.body; // in memory only: --diagnose reads names and numbers from it
     const res = await inner(url, init);
     const body = await res.text();
     last = { status: res.status, body };
@@ -364,6 +430,7 @@ export async function smokeCommand(argv: readonly string[], deps: SmokeDeps): Pr
       printErrorLine(`probe: smoke: stopped after ${sent} call(s): ${reservation.message}`);
       return 1;
     }
+    lastRequestBody = null;
     const result = await handle.adapter.complete(prompt, { timeoutMs, sampling });
     sent += 1;
     const captured = last as { status: number; body: string } | null;
@@ -405,6 +472,12 @@ export async function smokeCommand(argv: readonly string[], deps: SmokeDeps): Pr
       const detail = usageDetailOf(captured?.body ?? null);
       record['response_keys'] = keys === null ? null : (JSON.parse(scrub(JSON.stringify(keys))) as JsonObject);
       record['usage_detail'] = detail === null ? null : (JSON.parse(scrub(JSON.stringify(detail))) as JsonObject);
+      const apiError = apiErrorOf(captured?.status ?? null, captured?.body ?? null);
+      if (apiError !== null) {
+        // Cloudflare's error message text only, redacted and truncated (apiErrorOf cuts at 300 chars; scrub may add a few).
+        record['api_error'] = { code: apiError.code, message: apiError.message === null ? null : scrub(apiError.message).slice(0, API_MESSAGE_MAX) };
+        record['request_facts'] = requestFactsOf(lastRequestBody as string | null, inputs.promptBytes);
+      }
     }
     appendSmoke(smokeFileOf(deps.paths, utcDay(at)), record as SmokeRecord);
     printLine(`probe: smoke: ${item.card.id} (${item.task === 'decision' ? 'D' : 'S'}) outcome=${outcomeLabel(result)} verdict=${verdict.kind} shape=${shapeResult.check} http=${captured?.status ?? 'none'}`);
