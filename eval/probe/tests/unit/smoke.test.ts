@@ -11,7 +11,7 @@ import { Secret } from '../../src/redact.ts';
 import { readSmoke } from '../../src/results.ts';
 import { renderPromptCalls } from '../../src/simwasm.ts';
 import { clearSecrets } from '../../src/sink.ts';
-import { checkResponseShape, finishReasonOf, parseSmokeArgs, smokeCommand, smokeFileOf, type SmokeDeps } from '../../src/smoke.ts';
+import { checkResponseShape, finishReasonOf, parseSmokeArgs, responseKeysOf, smokeCommand, smokeFileOf, usageDetailOf, type SmokeDeps } from '../../src/smoke.ts';
 import { FAKE_COMBO, capture, createFakeRuntime, defaultAnswer, makeEnv, WORKERS_COMBO } from './run.helpers.ts';
 
 afterEach(() => clearSecrets());
@@ -85,7 +85,7 @@ const records = (r: ReturnType<typeof rig>) => readSmoke(smokeFileOf(r.deps.path
 const counter = (r: ReturnType<typeof rig>) => JSON.parse(fs.readFileSync(r.deps.paths.budgetFile, 'utf8')) as { days: Record<string, { requests: number; smoke: number; neurons: number }> };
 
 test('parseSmokeArgs: defaults, bounds and the --max-tokens rule', () => {
-  assert.deepEqual(parseSmokeArgs(['--combo', 'x']), { ok: true, options: { combo: 'x', count: 1, timeoutMs: undefined, maxTokens: null } });
+  assert.deepEqual(parseSmokeArgs(['--combo', 'x']), { ok: true, options: { combo: 'x', count: 1, diagnose: false, timeoutMs: undefined, maxTokens: null } });
   assert.equal(parseSmokeArgs([]).ok, false);
   assert.equal(parseSmokeArgs(['--combo', 'x', '--count', '0']).ok, false);
   assert.equal(parseSmokeArgs(['--combo', 'x', '--count', '1.5']).ok, false);
@@ -282,4 +282,41 @@ test('the budget counter holds the usage-based neurons after a response with usa
   await capture(() => smokeCommand(['--combo', CHAT.id, '--count', '1'], r.deps));
   // usage 50 in + 8 out at 1000 / 2000 per million = ceil(66000 / 1e6) = 1
   assert.equal(counter(r).days[DAY]?.neurons, 1);
+});
+
+// ---------------------------------------------------------------- --diagnose (names and numbers only)
+
+const REASONING_BODY = JSON.stringify({
+  success: true,
+  errors: [],
+  result: {
+    choices: [{ message: { role: 'assistant', content: 'SECRET-TEXT-VALUE', reasoning_content: 'SECRET-THOUGHTS' }, finish_reason: 'stop' }],
+    usage: { prompt_tokens: 50, completion_tokens: 8, total_tokens: 58, completion_tokens_details: { reasoning_tokens: 3 }, note: 'not a number' },
+  },
+});
+
+test('responseKeysOf and usageDetailOf return key names and numbers, never values', () => {
+  const keys = responseKeysOf(REASONING_BODY);
+  assert.deepEqual(keys, { top: ['errors', 'result', 'success'], result: ['choices', 'usage'], choice: ['finish_reason', 'message'], message: ['content', 'reasoning_content', 'role'] });
+  assert.deepEqual(usageDetailOf(REASONING_BODY), { 'completion_tokens': 8, 'completion_tokens_details.reasoning_tokens': 3, 'prompt_tokens': 50, 'total_tokens': 58 });
+  assert.equal(JSON.stringify(keys).includes('SECRET'), false);
+  assert.equal(responseKeysOf('nope'), null);
+  assert.equal(usageDetailOf('{"result":{}}'), null);
+  assert.equal(responseKeysOf(null), null);
+});
+
+test('--diagnose adds response_keys and usage_detail to the smoke record; off by default', async () => {
+  const on = rig(() => ({ status: 200, body: REASONING_BODY }));
+  assert.equal((await capture(() => smokeCommand(['--combo', CHAT.id, '--count', '1', '--diagnose'], on.deps))).value, 0);
+  const [rec] = records(on);
+  assert.deepEqual(rec?.['response_keys'], { top: ['errors', 'result', 'success'], result: ['choices', 'usage'], choice: ['finish_reason', 'message'], message: ['content', 'reasoning_content', 'role'] });
+  assert.deepEqual(rec?.['usage_detail'], { 'completion_tokens': 8, 'completion_tokens_details.reasoning_tokens': 3, 'prompt_tokens': 50, 'total_tokens': 58 });
+  const raw = fs.readFileSync(smokeFileOf(on.deps.paths, DAY), 'utf8');
+  assert.equal(raw.includes('SECRET-TEXT-VALUE') || raw.includes('SECRET-THOUGHTS'), false);
+
+  const off = rig(() => ({ status: 200, body: REASONING_BODY }));
+  await capture(() => smokeCommand(['--combo', CHAT.id, '--count', '1'], off.deps));
+  const [plain] = records(off);
+  assert.equal('response_keys' in (plain ?? {}), false);
+  assert.equal('usage_detail' in (plain ?? {}), false);
 });

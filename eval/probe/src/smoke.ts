@@ -1,4 +1,4 @@
-// `smoke --combo <id> [--count N] [--timeout-ms N] [--max-tokens N]` (llm-probe task 17.4; R11.5-R11.8,
+// `smoke --combo <id> [--count N] [--timeout-ms N] [--max-tokens N] [--diagnose]` (llm-probe task 17.4; R11.5-R11.8,
 // R11.19, R11.20, R18.1, R18.3, R18.4, R18.6; design "Smoke_Call" and "Response_Shape check").
 //
 // A Smoke_Call is one Workers AI request on a Dev_Card. It confirms connectivity, the declared Response_Shape,
@@ -31,7 +31,7 @@ import { checkManifest, formatManifestResult, PINNED_MANIFEST_HASH } from './man
 import { isWorkersAi, parseCombinations, type Combination, type ResponseShape } from './phase.ts';
 import { SCHEMA, appendSmoke, type JsonObject, type JsonValue, type SmokeRecord } from './results.ts';
 import { buildPlan, loadSchemas, loadTemplates, parseTimeoutMs, renderPlan, samplingFor, RunError, type PlanItem, type RunPaths } from './run.ts';
-import { printErrorLine, printLine } from './sink.ts';
+import { printErrorLine, printLine, scrub } from './sink.ts';
 import { llmValidate } from './simwasm.ts';
 
 // ---------------------------------------------------------------- Response_Shape check (pure)
@@ -93,11 +93,61 @@ export function finishReasonOf(bodyText: string | null): string | null {
   }
 }
 
+// ---------------------------------------------------------------- --diagnose (dev only, names and numbers)
+
+const KEY_NAME = /^[A-Za-z0-9_.-]{1,60}$/;
+const safeKeys = (o: Record<string, unknown> | null): string[] => (o === null ? [] : Object.keys(o).filter((k) => KEY_NAME.test(k)).sort());
+
+/**
+ * The key NAMES of the response, level by level (envelope, result, choices[0], choices[0].message). Never a value.
+ * Returns null when the body is not a JSON object.
+ */
+export function responseKeysOf(bodyText: string | null): JsonObject | null {
+  if (bodyText === null) return null;
+  let body: unknown;
+  try {
+    body = JSON.parse(bodyText);
+  } catch {
+    return null;
+  }
+  const env = asObject(body);
+  if (env === null) return null;
+  const result = asObject(env['result']);
+  const choices = result?.['choices'];
+  const choice = Array.isArray(choices) ? asObject(choices[0]) : null;
+  const message = asObject(choice?.['message']);
+  return { top: safeKeys(env), result: safeKeys(result), choice: safeKeys(choice), message: safeKeys(message) };
+}
+
+/** Every numeric field of `result.usage`, nested objects flattened with dots (e.g. `completion_tokens_details.reasoning_tokens`). Numbers only. */
+export function usageDetailOf(bodyText: string | null): JsonObject | null {
+  if (bodyText === null) return null;
+  let usage: Record<string, unknown> | null;
+  try {
+    usage = asObject(asObject(asObject(JSON.parse(bodyText))?.['result'])?.['usage']);
+  } catch {
+    return null;
+  }
+  if (usage === null) return null;
+  const out: JsonObject = {};
+  const walk = (o: Record<string, unknown>, prefix: string, depth: number): void => {
+    for (const k of Object.keys(o).sort()) {
+      if (!KEY_NAME.test(k)) continue;
+      const v = o[k];
+      if (typeof v === 'number' && Number.isFinite(v)) out[`${prefix}${k}`] = v;
+      else if (depth < 2 && asObject(v) !== null) walk(v as Record<string, unknown>, `${prefix}${k}.`, depth + 1);
+    }
+  };
+  walk(usage, '', 0);
+  return out;
+}
+
 // ---------------------------------------------------------------- arguments
 
 export interface SmokeOptions {
   readonly combo: string;
   readonly count: number;
+  readonly diagnose: boolean;
   readonly timeoutMs: number | string | undefined;
   readonly maxTokens: number | null;
 }
@@ -108,15 +158,17 @@ const DIGITS = /^[0-9]+$/;
 
 export function parseSmokeArgs(argv: readonly string[]): ParsedSmokeArgs {
   let values: Record<string, string | undefined>;
+  let diagnose = false;
   try {
     const parsed = parseArgs({
       args: [...argv],
       allowPositionals: true,
       strict: true,
-      options: { combo: { type: 'string' }, count: { type: 'string' }, 'timeout-ms': { type: 'string' }, 'max-tokens': { type: 'string' } },
+      options: { combo: { type: 'string' }, count: { type: 'string' }, 'timeout-ms': { type: 'string' }, 'max-tokens': { type: 'string' }, diagnose: { type: 'boolean' } },
     });
     if (parsed.positionals.length > 0) return { ok: false, message: `unexpected argument "${parsed.positionals[0]}"` };
     values = parsed.values as Record<string, string | undefined>;
+    diagnose = parsed.values['diagnose'] === true;
   } catch (e) {
     return { ok: false, message: e instanceof Error ? e.message : String(e) };
   }
@@ -133,7 +185,7 @@ export function parseSmokeArgs(argv: readonly string[]): ParsedSmokeArgs {
     if (count !== 1) return { ok: false, message: '--max-tokens is allowed only with --count 1 (the granite truncation probe)' };
     maxTokens = Number(rawMax);
   }
-  return { ok: true, options: { combo, count, timeoutMs: values['timeout-ms'], maxTokens } };
+  return { ok: true, options: { combo, count, diagnose, timeoutMs: values['timeout-ms'], maxTokens } };
 }
 
 // ---------------------------------------------------------------- card choice (pure)
@@ -347,6 +399,13 @@ export async function smokeCommand(argv: readonly string[], deps: SmokeDeps): Pr
     };
     // `shape_check` is left out when no response body could be judged, so a 429 or a timeout never changes the gate.
     if (shapeResult.check !== 'not_checked') record['shape_check'] = shapeResult.check;
+    if (parsed.options.diagnose) {
+      // Names and numbers only; passed through scrub as well (a secret in a key name is impossible, but the rule holds).
+      const keys = responseKeysOf(captured?.body ?? null);
+      const detail = usageDetailOf(captured?.body ?? null);
+      record['response_keys'] = keys === null ? null : (JSON.parse(scrub(JSON.stringify(keys))) as JsonObject);
+      record['usage_detail'] = detail === null ? null : (JSON.parse(scrub(JSON.stringify(detail))) as JsonObject);
+    }
     appendSmoke(smokeFileOf(deps.paths, utcDay(at)), record as SmokeRecord);
     printLine(`probe: smoke: ${item.card.id} (${item.task === 'decision' ? 'D' : 'S'}) outcome=${outcomeLabel(result)} verdict=${verdict.kind} shape=${shapeResult.check} http=${captured?.status ?? 'none'}`);
   }
