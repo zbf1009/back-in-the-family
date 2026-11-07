@@ -6,6 +6,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { writeStderr } from './sink.ts';
 import type * as Glue from 'sim-wasm/sim_wasm.d.ts';
 
 const pkgDir = fileURLToPath(new URL('../../../target/wasm-pkg/', import.meta.url));
@@ -35,7 +36,7 @@ export function guard(
     return call();
   } catch (e) {
     if (e instanceof WebAssembly.RuntimeError) {
-      process.stderr.write(`${trapMessage(exportName, cardId)}: ${e.message}\n`);
+      writeStderr(`${trapMessage(exportName, cardId)}: ${e.message}\n`);
       return exit(TRAP_EXIT_STATUS);
     }
     throw e;

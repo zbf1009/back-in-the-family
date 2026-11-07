@@ -714,3 +714,7 @@ Synced `design.md` with what tasks 1–8 actually built and made task 9's single
 ### Spec: llm-probe — note on unknown void IDs in cards.ts (2026-11-06)
 
 - `eval/probe/src/cards.ts` treats an unknown void ID as an error only when both splits are loaded; a Dev_Run (one split) lists it in `unverifiedVoidIds` instead. This deliberately deviates from R2.7's wording for Dev_Runs; a later requirements sync should record it.
+
+### Spec: llm-probe — steering from the Author: prompt-template content rules (2026-11-07)
+- The Author sent five reminders while task 8.1 ran: relation direction (`#1 -> #2 tags parent` means #2 is #1's parent), `magnitude` units (dollars / joss paper sheets / social intensity 1..100), official `alive` = in office, 1 tick = 1 day with the current day as `{{tick}}`, and event actor order (lender before borrower, promisor before promisee). The 8.1 subagent saw the message and correctly did nothing (no templates in that task).
+- The orchestrator checked the claims against `eval/cards/README.md` (lines 79, 101, 112-113): consistent. Recorded the rules as a "Template content rules" bullet under task 13.1 in `tasks.md`, with a unit test requirement that every statement is present in the committed template files; task 20 (template tuning on Dev_Cards) must keep them. Note: the renderer (task 4.1) prints relations as `#1 -> #2 affinity A trust T tags ...`, so the template text, not the renderer, carries the direction explanation.

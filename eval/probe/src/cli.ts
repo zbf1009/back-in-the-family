@@ -8,6 +8,7 @@
 // (node built-ins) statically; commands that need more (cards, adapters, env) load their
 // modules with dynamic `import()` after the Manifest_Check has passed.
 import { fileURLToPath } from 'node:url';
+import { printErrorLine, printLine } from './sink.ts';
 import { checkManifest, formatManifestResult, PINNED_MANIFEST_HASH } from './manifest.ts';
 
 const CARDS_DIR = fileURLToPath(new URL('../../cards/', import.meta.url));
@@ -17,10 +18,10 @@ export async function requireManifest(): Promise<void> {
   const result = await checkManifest({ cardsDir: CARDS_DIR, pinnedHash: PINNED_MANIFEST_HASH });
   const lines = formatManifestResult(result, PINNED_MANIFEST_HASH);
   if (!result.ok) {
-    for (const line of lines) console.error(line);
+    for (const line of lines) printErrorLine(line);
     process.exit(1);
   }
-  for (const line of lines) console.log(line);
+  for (const line of lines) printLine(line);
 }
 
 const COMMANDS: Record<string, () => Promise<void>> = {
@@ -30,8 +31,8 @@ const COMMANDS: Record<string, () => Promise<void>> = {
 const command = process.argv[2];
 const run = command === undefined ? undefined : COMMANDS[command];
 if (run === undefined) {
-  console.error(`probe: unknown or missing command${command === undefined ? '' : ` "${command}"`}`);
-  console.error(`probe: commands: ${Object.keys(COMMANDS).join(', ')}`);
+  printErrorLine(`probe: unknown or missing command${command === undefined ? '' : ` "${command}"`}`);
+  printErrorLine(`probe: commands: ${Object.keys(COMMANDS).join(', ')}`);
   process.exit(2);
 }
 await run();
