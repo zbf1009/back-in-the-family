@@ -1,0 +1,857 @@
+// Report generator (llm-probe task 10.2; requirements 3.8, 9.2, 9.3, 9.10, 9.11, 9.17, 10.10,
+// 13.9, 13.10, 13.12, 14.4 to 14.8, 14.10, 15.1 to 15.7, 15.10 to 15.12, 18.6 to 18.8).
+//
+// `buildReport(input)` is a pure function: injected data in, Markdown text out. The Report calls
+// the very same `browserPass` as the phase gate (phase.ts), fed by pass results derived from the
+// Locked_Run analyses in this file, so the support marks and the phase gate cannot disagree.
+//
+// Card content: the Report prints Card IDs, Contrast_Pair IDs and scenario-group counts only.
+// Nothing in this module renders a prompt; the card objects it reads are `MetricCard`s (parsed
+// facts such as `task`, `scored`, `void`, `pair_id`), and every output comes from stored Results
+// and grades files.
+import type { TaskType } from './cards.ts';
+import { chooseReportEntries, subsetTaskTypes, type LedgerEntry } from './ledger.ts';
+import { computeMetrics, THRESHOLDS, type FaultRecord, type MetricCard, type Ratio, type SanityResult, type TaskMetrics, type Verdict } from './metrics.ts';
+import {
+  browserPassEntry,
+  describeBranch,
+  hasFailure,
+  isWorkersAi,
+  phaseStatus,
+  usedEntryId,
+  IN_BROWSER_DOWNLOAD_LIMIT_BYTES,
+  type Combination,
+  type EntryPasses,
+  type PhaseState,
+} from './phase.ts';
+import { canonicalJson } from './results.ts';
+import type { ExcludedLine, GradesFile, JsonObject, PerfRecord, PreflightRecord, ResultRecord, ResultsHeader, SmokeRecord } from './results.ts';
+import {
+  clusterBootstrapAcceptable,
+  clusterBootstrapIllegal,
+  groupUnits,
+  intraGroupCorrelation,
+  latencySummary,
+  pairBootstrap,
+  weakEvidenceLabel,
+  wilsonInterval,
+  type BootstrapInterval,
+  type Frac,
+  type IccResult,
+  type LatencySummary,
+  type PassLabel,
+  type WilsonInterval,
+} from './stats.ts';
+
+// ---------------------------------------------------------------- constants
+
+export const NVIDIA_MEMORY_COLUMN = 'NVIDIA device memory.used delta, MiB';
+export const INTEL_MEMORY_QUANTITY = 'Chrome GPU process peak RSS (excludes unmapped GEM buffers)';
+export const DEV_SECTION_TITLE = 'Dev_Run figures (not used for the recommendation)';
+export const QUALITY_WITHOUT_TIMEOUT_TITLE = 'Quality without timeout (not used for any mark, label or recommendation)';
+
+/** The Target_Machine of the glossary; the Report states it (R14.8). */
+export const TARGET_MACHINE =
+  'NVIDIA GeForce RTX 3050 Ti Laptop GPU (4,096 MiB VRAM, driver 615.78.08), Intel UHD Graphics (TigerLake-H GT1), Intel i7-11800H (16 threads), 15 GiB RAM, Linux, Chrome 155';
+
+// ---------------------------------------------------------------- analysis of one run
+
+export interface RateStats {
+  readonly cluster: BootstrapInterval | null;
+  readonly wilson: WilsonInterval | null;
+  readonly icc: IccResult;
+}
+
+/** Everything the Report prints for one Task_Type of one run. */
+export interface TaskAnalysis {
+  readonly metrics: TaskMetrics;
+  readonly acceptable: RateStats;
+  readonly illegal: RateStats;
+  readonly contrastInterval: BootstrapInterval | null;
+  readonly latency: LatencySummary;
+  /** R13.9 label, only when the acceptable rate passes. */
+  readonly acceptableLabel: PassLabel | null;
+  /** R13.9 label, only when contrast consistency passes. */
+  readonly contrastLabel: PassLabel | null;
+}
+
+export interface ExcludedPair {
+  readonly pairId: string;
+  readonly reason: string;
+}
+
+/** Result of analysing one Results file with its grades (a Locked_Run entry or a Dev_Run). */
+export interface RunAnalysis {
+  readonly kind: 'locked' | 'dev';
+  /** Ledger entry ID (locked) or run ID (dev). */
+  readonly id: string;
+  readonly combination: string;
+  readonly header: ResultsHeader;
+  readonly tasks: readonly TaskAnalysis[];
+  readonly sanity: readonly SanityResult[];
+  readonly excluded: ExcludedLine['excluded'];
+  readonly excludedPairs: readonly ExcludedPair[];
+  readonly faults: readonly FaultRecord[];
+  readonly combinationFailed: boolean;
+  /** Distinct `source` values of the records (`headless`, `probe_page`, `node`). */
+  readonly sources: readonly string[];
+  readonly perf: PerfRecord | null;
+}
+
+export interface RunInputs {
+  readonly kind: 'locked' | 'dev';
+  readonly id: string;
+  readonly cards: readonly MetricCard[];
+  readonly header: ResultsHeader;
+  readonly records: readonly ResultRecord[];
+  readonly grades: GradesFile;
+  readonly perf: PerfRecord | null;
+}
+
+function rateStats(r: Ratio, cluster: BootstrapInterval | null, perCard: TaskMetrics['perCard'], pick: (c: TaskMetrics['perCard'][number]) => boolean): RateStats {
+  return {
+    cluster,
+    wilson: wilsonInterval(r.num, r.den),
+    icc: intraGroupCorrelation(groupUnits(perCard, pick)),
+  };
+}
+
+/** Pairs left out of the contrast count, with a written reason (R15.7). */
+export function excludedPairsOf(cards: readonly MetricCard[], tasks: readonly TaskType[]): ExcludedPair[] {
+  const byPair = new Map<string, { a?: MetricCard; b?: MetricCard }>();
+  for (const c of cards) {
+    if (c.pairId === null || c.role === null) continue;
+    const slot = byPair.get(c.pairId) ?? {};
+    slot[c.role] = c;
+    byPair.set(c.pairId, slot);
+  }
+  const out: ExcludedPair[] = [];
+  for (const [pairId, { a, b }] of [...byPair].sort(([x], [y]) => (x < y ? -1 : x > y ? 1 : 0))) {
+    if (a === undefined || b === undefined || !tasks.includes(a.task)) continue;
+    const why: string[] = [];
+    for (const c of [a, b]) {
+      if (c.void) why.push(`card ${c.id} is a Void_Card`);
+      else if (!c.scored) why.push(`card ${c.id} is a Sanity_Card`);
+    }
+    if (why.length > 0) out.push({ pairId, reason: why.join('; ') });
+  }
+  return out;
+}
+
+/** Computes Metrics, intervals and latency of one run from loaded cards, Results and grades. */
+export function analyzeRun(input: RunInputs): RunAnalysis {
+  const tasks = subsetTaskTypes(input.header.task_subset);
+  const metrics = computeMetrics({ cards: input.cards, records: input.records, grades: input.grades.grades, contrasts: input.grades.contrasts, tasks });
+  const taskOfCard = new Map(input.cards.map((c) => [c.id, c.task] as const));
+  const analyses: TaskAnalysis[] = metrics.tasks.map((m) => {
+    const acceptable = rateStats(m.acceptable, clusterBootstrapAcceptable(m.perCard), m.perCard, (c) => c.acceptable);
+    const illegal = rateStats(m.illegal, clusterBootstrapIllegal(m.perCard), m.perCard, (c) => c.illegal);
+    const contrastInterval = pairBootstrap(m.pairs);
+    const latency = latencySummary(
+      input.records.filter((r) => taskOfCard.get(r.card_id) === m.task).map((r) => ({ outcome: r.outcome, latency_ms: r.latency_ms })),
+    );
+    return {
+      metrics: m,
+      acceptable,
+      illegal,
+      contrastInterval,
+      latency,
+      acceptableLabel: m.acceptable.verdict === 'pass' && acceptable.cluster !== null ? weakEvidenceLabel(acceptable.cluster.lower, THRESHOLDS.acceptablePct) : null,
+      contrastLabel: m.contrast.verdict === 'pass' && contrastInterval !== null ? weakEvidenceLabel(contrastInterval.lower, THRESHOLDS.contrastPct) : null,
+    };
+  });
+  return {
+    kind: input.kind,
+    id: input.id,
+    combination: input.header.combination,
+    header: input.header,
+    tasks: analyses,
+    sanity: metrics.sanity,
+    excluded: metrics.excluded,
+    excludedPairs: excludedPairsOf(input.cards, tasks),
+    faults: metrics.faults,
+    combinationFailed: metrics.combinationFailed,
+    sources: [...new Set(input.records.map((r) => r.source))].sort(),
+    perf: input.perf,
+  };
+}
+
+/** Engine faults and rebuild failures in a Results file, for entries that are not analysed (R8.5, R8.13). */
+export function scanFaults(records: readonly ResultRecord[]): FaultRecord[] {
+  const out: FaultRecord[] = [];
+  for (const r of records) {
+    if (r.outcome.kind === 'engine_fault') out.push({ cardId: r.card_id, permutation: r.permutation, kind: 'engine_fault' });
+    else if (r.outcome.kind === 'not_run' && r.outcome.reason === 'rebuild_failed') out.push({ cardId: r.card_id, permutation: r.permutation, kind: 'rebuild_failed' });
+  }
+  return out;
+}
+
+/** Pass per Task_Type for each analysed Locked_Run, the shape `browserPass` reads. */
+export function entryPassesFrom(runs: readonly RunAnalysis[]): Map<string, EntryPasses> {
+  const out = new Map<string, EntryPasses>();
+  for (const run of runs) {
+    if (run.kind !== 'locked') continue;
+    const p: { decision?: boolean; synthesis?: boolean } = {};
+    for (const t of run.tasks) p[t.metrics.task] = t.metrics.passes && t.metrics.usableForMark;
+    out.set(run.id, p);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- Report input
+
+export type ReportState = Omit<PhaseState, 'passes' | 'overLimit'>;
+
+export interface RuntimeLibrary {
+  readonly name: string;
+  readonly version: string;
+  readonly license: string;
+  readonly url: string;
+}
+
+export interface ReportInput {
+  /** `YYYY-MM-DD`; supplied by the caller so the output is a function of the input. */
+  readonly generated_on: string;
+  readonly environment: { readonly targetMachine: string; readonly workersEndpoint: string | null };
+  /** Ledger, failure and Exclusion_Records, Smoke_Calls, Combinations, approvals from `HEAD`. */
+  readonly state: ReportState;
+  /** Analyses of the `complete` Locked_Run entries (one per entry ID). */
+  readonly lockedRuns: readonly RunAnalysis[];
+  /** Faults found in Results of entries that are not analysed (incomplete entries), by entry ID. */
+  readonly incompleteFaults: ReadonlyMap<string, readonly FaultRecord[]>;
+  readonly devRuns: readonly RunAnalysis[];
+  /** VRAM_Preflight results by Combination ID. */
+  readonly preflights: ReadonlyMap<string, PreflightRecord>;
+  readonly runtimeLibraries: readonly RuntimeLibrary[];
+}
+
+// ---------------------------------------------------------------- small helpers
+
+type Rec = Record<string, unknown>;
+const asRec = (v: unknown): Rec | null => (typeof v === 'object' && v !== null && !Array.isArray(v) ? (v as Rec) : null);
+const asNum = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+const asStr = (v: unknown): string | null => (typeof v === 'string' && v !== '' ? v : null);
+const dig = (v: unknown, ...path: string[]): unknown => path.reduce<unknown>((acc, k) => asRec(acc)?.[k], v);
+
+const cell = (s: string): string => s.replace(/\|/g, '\\|').replace(/\r?\n/g, ' ');
+
+function table(head: readonly string[], rows: readonly (readonly string[])[]): string[] {
+  if (rows.length === 0) return [];
+  return [`| ${head.map(cell).join(' | ')} |`, `| ${head.map(() => '---').join(' | ')} |`, ...rows.map((r) => `| ${r.map(cell).join(' | ')} |`), ''];
+}
+
+/** `n.d%` rounded half up from integers; "not computable" for a zero denominator. */
+function pct(num: number, den: number): string {
+  if (den <= 0) return 'not computable';
+  const t = Math.floor((num * 2000 + den) / (2 * den));
+  return `${Math.floor(t / 10)}.${t % 10}%`;
+}
+const fracPct = (f: Frac): string => pct(f.k, f.m);
+const ratioText = (r: Ratio): string => (r.den === 0 ? `${r.num}/${r.den} (not computable)` : `${r.num}/${r.den}`);
+const ratioPct = (r: Ratio): string => pct(r.num, r.den);
+
+function mib(bytes: number): string {
+  const t = Math.floor((bytes * 10 + 524288) / 1048576);
+  return `${Math.floor(t / 10)}.${t % 10}`;
+}
+
+const taskLetter = (t: TaskType): string => (t === 'decision' ? 'D' : 'S');
+const taskTitle = (t: TaskType): string => `Task_Type ${taskLetter(t)} (${t})`;
+const TASKS: readonly TaskType[] = ['decision', 'synthesis'];
+
+const verdictText = (v: Verdict): string => (v === 'not_computable' ? 'not computable' : v);
+const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
+
+function bootText(b: BootstrapInterval | null): string {
+  return b === null ? 'not computable' : `${fracPct(b.lower)} to ${fracPct(b.upper)}`;
+}
+function wilsonText(w: WilsonInterval | null): string {
+  return w === null ? 'not computable' : `${(w.lower * 100).toFixed(1)}% to ${(w.upper * 100).toFixed(1)}%`;
+}
+function iccText(i: IccResult): string {
+  return i.kind === 'estimable' ? i.value.toFixed(3) : `not estimable (${i.reason.replace(/_/g, ' ')})`;
+}
+function latencyText(v: number | 'no data'): string {
+  return v === 'no data' ? 'no data' : `${v}`;
+}
+
+/** Marks of one Task_Type (R13.4, R13.9). */
+function marks(t: TaskAnalysis): { acceptable: string; severe: string; flip: string; contrast: string; overall: string } {
+  const m = t.metrics;
+  return {
+    acceptable: m.acceptable.verdict === 'pass' ? (t.acceptableLabel ?? 'pass') : verdictText(m.acceptable.verdict),
+    severe: verdictText(m.severe.verdict),
+    flip: verdictText(m.flip.verdict),
+    contrast: m.contrast.verdict === 'pass' ? (t.contrastLabel ?? 'pass') : verdictText(m.contrast.verdict),
+    overall: !m.usableForMark ? 'not used for a mark (missing outputs or engine faults)' : m.passes ? 'pass' : 'fail',
+  };
+}
+
+/** The Thresholds a Task_Type failed, in words (R15.5). */
+export function failedThresholds(m: TaskMetrics): string[] {
+  const out: string[] = [];
+  if (m.acceptable.verdict === 'not_computable') out.push('acceptable rate not computable (denominator 0)');
+  else if (m.acceptable.verdict === 'fail') out.push(`acceptable rate ${ratioText(m.acceptable)} = ${ratioPct(m.acceptable)}, below ${THRESHOLDS.acceptablePct}%`);
+  if (m.severe.verdict === 'not_computable') out.push('severe count not computable (denominator 0)');
+  else if (m.severe.verdict === 'fail') out.push(`severe count ${m.severe.count}, above ${THRESHOLDS.severeMax}`);
+  if (m.flip.verdict === 'not_computable') out.push('flip rate not computable (denominator 0)');
+  else if (m.flip.verdict === 'fail') out.push(`flip rate ${ratioText(m.flip)} = ${ratioPct(m.flip)}, above ${THRESHOLDS.flipPct}%`);
+  if (m.contrast.verdict === 'not_computable') out.push('contrast consistency not computable (denominator 0)');
+  else if (m.contrast.verdict === 'fail') out.push(`contrast consistency ${ratioText(m.contrast)} = ${ratioPct(m.contrast)}, below ${THRESHOLDS.contrastPct}%`);
+  if (!m.usableForMark) out.push('entry has missing base outputs or engine faults, so no mark is given');
+  return out;
+}
+
+/** Smoke_Call counts: records sent and records whose output the Output_Validator accepted (R18.6). */
+export function smokeSummary(records: readonly SmokeRecord[]): { sent: number; accepted: number } {
+  let accepted = 0;
+  for (const r of records) {
+    const kind = asRec(r['verdict'])?.['kind'];
+    if (kind === 'decision' || kind === 'synthesis') accepted++;
+  }
+  return { sent: records.length, accepted };
+}
+
+// ---------------------------------------------------------------- perf record view
+
+interface PerfView {
+  readonly coldEmpty: number | null;
+  readonly coldWarm: number | null;
+  readonly modelBytes: number | null;
+  readonly runtimeBytes: number | null;
+  readonly localBytes: number | null;
+  readonly memGpu: string | null;
+  readonly memQuantity: string | null;
+  readonly memPeak: number | null;
+  readonly memReason: string | null;
+  readonly connection: string | null;
+  readonly throttling: string | null;
+  readonly mbit: number | null;
+}
+
+function perfView(perf: PerfRecord | null): PerfView | null {
+  if (perf === null) return null;
+  return {
+    coldEmpty: asNum(dig(perf, 'cold_start', 'empty_cache_ms')),
+    coldWarm: asNum(dig(perf, 'cold_start', 'warm_cache_ms')),
+    modelBytes: asNum(dig(perf, 'download', 'model_bytes')),
+    runtimeBytes: asNum(dig(perf, 'download', 'runtime_bytes')),
+    localBytes: asNum(dig(perf, 'download', 'local_bytes')),
+    memGpu: asStr(dig(perf, 'memory', 'gpu')),
+    memQuantity: asStr(dig(perf, 'memory', 'quantity')),
+    memPeak: asNum(dig(perf, 'memory', 'peak_mib')),
+    memReason: asStr(dig(perf, 'memory', 'reason')),
+    connection: asStr(dig(perf, 'network', 'connection')),
+    throttling: asStr(dig(perf, 'network', 'throttling')),
+    mbit: asNum(dig(perf, 'network', 'measured_mbit_s')),
+  };
+}
+
+const cpuNodeCount = (run: RunAnalysis | undefined): number => (run?.header.placement?.cpu_nodes ?? []).reduce((s, n) => s + n.count, 0);
+const cpuNodeList = (run: RunAnalysis): string => (run.header.placement?.cpu_nodes ?? []).map((n) => `${n.op_type} ×${n.count}`).join(', ');
+
+function gpuLabel(run: RunAnalysis, workers: boolean): string {
+  if (workers) return 'not applicable (server side)';
+  const vendor = asStr(dig(run.header.fingerprint, 'webgpu', 'vendor')) ?? asStr(perfView(run.perf)?.memGpu);
+  if (vendor === 'nvidia') return 'NVIDIA discrete GPU';
+  if (vendor === 'intel') return 'Intel integrated GPU';
+  return vendor ?? 'unknown';
+}
+
+function memoryCells(run: RunAnalysis, workers: boolean): { nvidia: string; intel: string } {
+  if (workers) return { nvidia: 'not applicable', intel: 'not applicable' };
+  const p = perfView(run.perf);
+  if (p === null) return { nvidia: 'not measured: no perf record', intel: 'not measured: no perf record' };
+  const unmeasured = `not measured: ${p.memReason ?? 'no reason recorded'}`;
+  if (p.memGpu === 'nvidia') return { nvidia: p.memPeak !== null ? `${p.memPeak}` : unmeasured, intel: '—' };
+  if (p.memGpu === 'intel') return { nvidia: '—', intel: p.memPeak !== null ? `${p.memPeak} — ${p.memQuantity ?? 'quantity not named'}` : unmeasured };
+  return { nvidia: unmeasured, intel: unmeasured };
+}
+
+const msText = (v: number | null): string => (v === null ? 'not measured' : `${v}`);
+const bytesText = (v: number | null): string => (v === null ? 'not measured' : `${v} B (${mib(v)} MiB)`);
+
+// ---------------------------------------------------------------- license text
+
+function licenseText(c: Combination): string {
+  const l = c.license;
+  if (l === undefined) return 'license not recorded';
+  const parts: string[] = [l.osi ? `${l.name} (OSI-approved)` : `${l.name} — custom license, not OSI-approved`, l.url];
+  if (!l.osi) parts.push(l.accepted !== null ? `accepted by the Author on ${l.accepted}` : 'no Author acceptance recorded');
+  if (l.declared_by === 'base_model') parts.push(`this is the base model's license; the conversion repository ${c.model_id} declares no license`);
+  return parts.join('; ');
+}
+
+const EXCLUSION_WHAT: Record<string, string> = {
+  vram: 'VRAM need (MiB)',
+  download: 'published download (bytes)',
+  params: 'parameter count',
+  unpinned: 'no Pinned_Revision or unpinned model library URL',
+  preflight_load: 'VRAM_Preflight did not load the model on WebGPU',
+  preflight_vram: 'VRAM_Preflight peak VRAM (MiB)',
+};
+
+// ---------------------------------------------------------------- buildReport
+
+export function buildReport(input: ReportInput): string {
+  const lockedRuns = input.lockedRuns.filter((r) => r.kind === 'locked');
+  const runById = new Map(lockedRuns.map((r) => [r.id, r] as const));
+  const overLimit = new Set<string>();
+  for (const r of lockedRuns) {
+    const bytes = perfView(r.perf)?.modelBytes;
+    if (bytes !== null && bytes !== undefined && bytes > IN_BROWSER_DOWNLOAD_LIMIT_BYTES) overLimit.add(r.combination);
+  }
+  const state: PhaseState = { ...input.state, passes: entryPassesFrom(lockedRuns), overLimit };
+  const entryById = new Map(state.entries.map((e) => [e.entry_id, e] as const));
+  const comboById = new Map(state.combinations.map((c) => [c.id, c] as const));
+  const choices = chooseReportEntries(state.entries);
+  const status = phaseStatus(state);
+  const smoke = smokeSummary(state.smoke);
+  const taskAnalysis = (entryId: string | null, task: TaskType): TaskAnalysis | undefined =>
+    entryId === null ? undefined : runById.get(entryId)?.tasks.find((t) => t.metrics.task === task);
+
+  /** The used entry of each (Combination, Task_Type) that has a completed Locked_Run. */
+  const usedRuns: { run: RunAnalysis; task: TaskType; analysis: TaskAnalysis }[] = [];
+  for (const choice of choices) {
+    if (choice.used === null) continue;
+    const run = runById.get(choice.used);
+    const analysis = run?.tasks.find((t) => t.metrics.task === choice.task);
+    if (run !== undefined && analysis !== undefined) usedRuns.push({ run, task: choice.task, analysis });
+  }
+  const usedEntries = [...new Map(usedRuns.map((u) => [u.run.id, u.run] as const)).values()];
+
+  const out: string[] = [];
+  const h2 = (t: string): void => void out.push(`## ${t}`, '');
+  const h3 = (t: string): void => void out.push(`### ${t}`, '');
+  const para = (...lines: string[]): void => void out.push(...lines, '');
+
+  out.push('# LLM probe report', '');
+  para(
+    `Generated on ${input.generated_on} by \`probe report\` from the ledger, the Locked_Run Results and grades, the performance records, the failure, preflight, Exclusion and Smoke_Call records, \`combinations.json\` and the approvals on \`HEAD\`.`,
+    'The Report recommends; it does not decide. Every Metric, interval and performance figure behind a mark or a recommendation comes from Locked_Run Results only (R15.2). This file names Card IDs, Contrast_Pair IDs and scenario-group counts only, and no card content.',
+  );
+
+  // ---- 1. Target_Machine, browser, network (R14.8, R9.5, R10.10)
+  h2('1. Target_Machine, browser version and network conditions');
+  para(`Target_Machine: ${input.environment.targetMachine}.`);
+  out.push(
+    ...table(
+      ['Combination', 'Ledger entry', 'GPU used', 'WebGPU adapter (vendor / architecture / device / description)', 'Browser version', 'Measurement source'],
+      usedEntries.map((r) => {
+        const workers = isWorkersAi(comboById.get(r.combination) ?? ({ runtime: '' } as Combination));
+        const fp = r.header.fingerprint;
+        const adapter = [dig(fp, 'webgpu', 'vendor'), dig(fp, 'webgpu', 'architecture'), dig(fp, 'webgpu', 'device'), dig(fp, 'webgpu', 'description')].map((v) => (typeof v === 'string' && v !== '' ? v : 'unknown'));
+        return [
+          r.combination,
+          r.id,
+          gpuLabel(r, workers),
+          workers ? 'not applicable' : adapter.join(' / '),
+          workers ? 'not applicable' : (asStr(dig(fp, 'browser', 'version')) ?? 'unknown'),
+          workers ? 'REST API from the local Probe_Runner' : (asStr(dig(fp, 'measurement')) ?? (r.sources.join(', ') || 'unknown')),
+        ];
+      }),
+    ),
+  );
+  const networks = usedEntries.flatMap((r) => {
+    const p = perfView(r.perf);
+    if (p === null || isWorkersAi(comboById.get(r.combination) ?? ({ runtime: '' } as Combination))) return [];
+    return [`- ${r.combination} (${r.id}): connection ${p.connection ?? 'not recorded'}; throttling ${p.throttling ?? 'not recorded'}; ${p.mbit === null ? 'bandwidth not recorded' : `measured download bandwidth ${p.mbit} Mbit/s`}.`];
+  });
+  out.push(...(networks.length > 0 ? networks : ['- Network conditions: no in-browser Locked_Run perf record yet.']), '');
+  para(`Workers AI region or endpoint: ${input.environment.workersEndpoint ?? 'not reported by the API'}.`);
+
+  // ---- 2. Measurement plan (R18.8)
+  h2('2. Measurement plan');
+  para(
+    `Phase_1 (in-browser Combinations): ${status.ended ? 'ended' : 'in progress'}.` +
+      (status.pending.length > 0 ? ` Waiting for: ${status.pending.map((p) => p.combination).join(', ')}.` : ''),
+  );
+  for (const t of status.tasks) {
+    out.push(`- ${taskTitle(t.task)}: ${t.pass ? `a Combination passed in the browser (${t.passingEntries.map((e) => `${e.combination}, ${e.entry_id}`).join('; ')})` : 'no Combination passed in the browser'}.`);
+  }
+  out.push('');
+  if (status.branch === null) para('Phase_2 branch: not decided (Phase_1 in progress).');
+  else if (status.branch === 'A') para(`Phase_2 branch taken: **A** (both Task_Types passed in the browser): Smoke_Calls only, no Workers AI Dev_Run or Locked_Run. Smoke_Calls sent: ${smoke.sent}; accepted by the Output_Validator: ${smoke.accepted}.`);
+  else para(`Phase_2 branch taken: **B** (Task_Type_Subset ${status.subset ?? 'none'}): exactly one Workers AI model is measured, for the Task_Types with no passing in-browser Combination.`);
+  const p2 = status.phase2;
+  if (p2 === null) para(`Author's Phase_2 approval: none recorded${status.ended ? '; Phase_2 has not started' : ''}.`);
+  else {
+    para(
+      `Author's Phase_2 approval: ${p2.id}, approved on ${p2.approved_on}, branch ${p2.branch ?? 'unknown'}` +
+        (p2.branch === 'B' ? `, approved model ${p2.model ?? 'unknown'}, Task_Type_Subset ${p2.task_subset ?? 'unknown'}` : '') +
+        '.',
+    );
+  }
+  if (status.mismatch !== null) para(`**Branch mismatch:** ${status.mismatch}.`);
+  if (status.approvalsProblem !== null) para(`Approvals could not be read from \`HEAD\`: ${status.approvalsProblem}.`);
+
+  // ---- 3. Candidate table (R9.2, R9.3, R9.10, R9.17, R15.6)
+  h2('3. Candidates, size limits, pinned revisions and licenses');
+  const candidateRows = state.combinations.map((c) => {
+    const size = c.size;
+    const preflight = input.preflights.get(c.id);
+    const preflightPeak = preflight === undefined ? null : asNum(preflight['peak_vram_mib']);
+    const vram =
+      isWorkersAi(c) ? 'not applicable'
+      : size?.vram_mib !== null && size?.vram_mib !== undefined ? `${size.vram_mib}`
+      : preflightPeak !== null ? `${preflightPeak} (VRAM_Preflight peak)`
+      : 'unknown';
+    const measured = perfView(runById.get(usedEntries.find((r) => r.combination === c.id)?.id ?? '')?.perf ?? null)?.modelBytes ?? null;
+    const download = isWorkersAi(c) ? 'not applicable' : `${size?.expected_download_bytes === null || size?.expected_download_bytes === undefined ? 'unknown' : `${mib(size.expected_download_bytes)} MiB (published)`}${measured === null ? '' : `; measured ${mib(measured)} MiB`}`;
+    const excl = state.exclusions.filter((x) => x.combination === c.id);
+    const fail = state.failures.filter((f) => f.combination === c.id);
+    const statusText =
+      excl.length > 0 ? `excluded (${excl.map((x) => x.check).join(', ')})`
+      : overLimit.has(c.id) ? 'over the In_Browser_Size_Limits (measured download); not recommended'
+      : fail.length > 0 ? `failed (${fail.map((f) => f.kind).join(', ')})`
+      : usedEntries.some((r) => r.combination === c.id) ? 'measured'
+      : 'not run';
+    return [c.id, `${c.runtime} / ${c.model_id}${c.quantization === '' ? '' : ` / ${c.quantization}`}`, c.revision, download, size?.params === null || size?.params === undefined ? (isWorkersAi(c) ? 'not applicable' : 'unknown') : `${size.params}`, vram, licenseText(c), statusText];
+  });
+  out.push(...table(['Combination', 'Runtime / model / quantization', 'Pinned_Revision', 'Download', 'Parameters', 'VRAM need, MiB', 'License', 'Status'], candidateRows));
+  out.push('Sources of the figures above:', '');
+  for (const c of state.combinations) {
+    if (isWorkersAi(c)) {
+      out.push(`- ${c.id}: Workers AI model, license ${licenseText(c)}${c.prices ? `; prices ${c.prices.input}/${c.prices.output} neurons per million tokens (${c.prices.source}, read on ${c.prices.read_on})` : ''}.`);
+      continue;
+    }
+    const preflight = input.preflights.get(c.id);
+    const vramSource = c.size?.vram_mib !== null && c.size?.vram_mib !== undefined ? c.size.vram_source : preflight !== undefined ? 'VRAM_Preflight on the Target_Machine' : 'no source (unknown)';
+    out.push(`- ${c.id}: download source ${c.size?.download_source ?? 'not recorded'}; parameters source ${c.size?.params_source ?? 'not recorded'}; VRAM source ${vramSource}; GPU ${c.id.endsWith('/intel') ? 'Intel integrated GPU' : c.id.endsWith('/nvidia') ? 'NVIDIA discrete GPU' : 'see section 1'}.`);
+  }
+  out.push('');
+  para('Runtime libraries:');
+  out.push(...(input.runtimeLibraries.length > 0 ? input.runtimeLibraries.map((l) => `- ${l.name} ${l.version}: ${l.license} (${l.url})`) : ['- none recorded']), '');
+  h3('Excluded candidates');
+  if (state.exclusions.length === 0) para('No Exclusion_Record.');
+  else {
+    for (const x of state.exclusions) {
+      out.push(`- ${x.combination} (${x.model}): ${EXCLUSION_WHAT[x.check] ?? x.check}: value ${x.value === 'unknown' ? 'unknown' : String(x.value)}${x.limit === null ? '' : `, limit ${String(x.limit)}`} (${x.at}). A terminal Phase_1 state; never a passing in-browser Combination.`);
+    }
+    out.push('');
+  }
+
+  // ---- 4. Metrics per Combination and Task_Type (R15.1, R13)
+  h2('4. Locked_Run Metrics per Combination and Task_Type');
+  if (usedRuns.length === 0) para('No completed Locked_Run yet.');
+  for (const { run, task, analysis } of usedRuns) {
+    const m = analysis.metrics;
+    const mk = marks(analysis);
+    h3(`${run.combination}, ${taskTitle(task)}, entry ${run.id}`);
+    para(`Mark: **${mk.overall}**. Scenario groups: ${groupUnits(m.perCard, () => false).length}. Scored non-void cards: ${m.cards}.`);
+    const baseline = m.randomBaseline === null ? null : pct(m.randomBaseline.num, m.randomBaseline.den);
+    out.push(
+      ...table(
+        ['Metric', 'Numerator / denominator', 'Value', 'Threshold', 'Mark'],
+        [
+          ['Acceptable rate', ratioText(m.acceptable), `${ratioPct(m.acceptable)}${baseline === null ? '' : ` (Random_Baseline ${baseline})`}`, `at least ${THRESHOLDS.acceptablePct}%`, mk.acceptable],
+          ['Severe count', `${m.severe.count} of ${m.severe.den} cards`, `${m.severe.count}`, `at most ${THRESHOLDS.severeMax}`, mk.severe],
+          ['Flip rate', ratioText(m.flip), ratioPct(m.flip), `at most ${THRESHOLDS.flipPct}%`, mk.flip],
+          ['Contrast consistency', `${ratioText(m.contrast)} pairs`, ratioPct(m.contrast), `at least ${THRESHOLDS.contrastPct}%`, mk.contrast],
+          ['Illegal rate', ratioText(m.illegal), ratioPct(m.illegal), 'none (no verdict)', 'reported only'],
+        ],
+      ),
+    );
+    out.push(
+      ...table(
+        ['Quantity', 'Cluster_Bootstrap 95% (10,000 resamples, seed 20261104)', 'Wilson 95%', 'Intra-group correlation'],
+        [
+          ['Acceptable rate', bootText(analysis.acceptable.cluster), wilsonText(analysis.acceptable.wilson), iccText(analysis.acceptable.icc)],
+          ['Illegal rate', bootText(analysis.illegal.cluster), wilsonText(analysis.illegal.wilson), iccText(analysis.illegal.icc)],
+          ['Contrast consistency (pair bootstrap)', bootText(analysis.contrastInterval), 'not reported', 'not applicable'],
+        ],
+      ),
+    );
+    if (task === 'decision') para(`Random_Baseline next to the D acceptable rate: ${baseline ?? 'not computable'}.`);
+    const nodes = cpuNodeList(run);
+    para(`CPU-placed nodes (placement detection: ${run.header.placement?.method ?? 'not applicable'}): ${nodes === '' ? 'none' : nodes}.`);
+  }
+
+  // ---- 5. Sanity results, apart (R13.10)
+  h2('5. Sanity results (apart from every Metric)');
+  const sanityRows = usedEntries.flatMap((r) =>
+    r.sanity.map((s) => [r.combination, r.id, s.cardId, taskLetter(s.task), s.outcome, s.grade === null ? 'no output' : `acceptable ${s.grade.acceptable}, severe ${s.grade.severe}, illegal ${s.grade.illegal}`]),
+  );
+  if (sanityRows.length === 0) para('No Sanity_Card results.');
+  else out.push(...table(['Combination', 'Ledger entry', 'Card ID', 'Task', 'Base outcome', 'Grade'], sanityRows));
+
+  // ---- 6. Performance (R14, R10.10, R9.11, R15.11)
+  h2('6. Performance');
+  para('All figures come from the Locked_Run perf record of the entry (R14.10). Latency covers every request that returned raw text, including outputs later graded Illegal; Timeouts and runtime errors are counted apart.');
+  out.push(
+    ...table(
+      ['Combination', 'Task', 'p50, ms', 'p95, ms', 'Requests covered', 'Timeouts', 'Runtime errors', 'Notes'],
+      usedRuns.map(({ run, task, analysis }) => {
+        const n = cpuNodeCount(run);
+        return [run.combination, taskLetter(task), latencyText(analysis.latency.p50), latencyText(analysis.latency.p95), `${analysis.latency.covered}`, `${analysis.latency.timeouts}`, `${analysis.latency.errors}`, n > 0 ? `not pure-WebGPU results: ${n} nodes placed on the CPU` : ''];
+      }),
+    ),
+  );
+  out.push(
+    ...table(
+      ['Combination', 'Ledger entry', 'Source', 'Cold start, empty cache, ms', 'Cold start, warm cache, ms', 'Model download', 'Runtime download', NVIDIA_MEMORY_COLUMN, 'Intel iGPU peak memory, MiB (quantity named)', 'Limits'],
+      usedEntries.map((r) => {
+        const workers = isWorkersAi(comboById.get(r.combination) ?? ({ runtime: '' } as Combination));
+        const p = perfView(r.perf);
+        const mem = memoryCells(r, workers);
+        const source = workers ? 'REST API (local Probe_Runner)' : (asStr(dig(r.header.fingerprint, 'measurement')) ?? (r.sources.join(', ') || 'unknown'));
+        return [
+          r.combination,
+          r.id,
+          source,
+          workers ? 'not applicable' : msText(p?.coldEmpty ?? null),
+          workers ? 'not applicable' : msText(p?.coldWarm ?? null),
+          workers ? 'not applicable' : bytesText(p?.modelBytes ?? null),
+          workers ? 'not applicable' : bytesText(p?.runtimeBytes ?? null),
+          mem.nvidia,
+          mem.intel,
+          overLimit.has(r.combination) ? 'over the In_Browser_Size_Limits' : 'within',
+        ];
+      }),
+    ),
+  );
+  para(`Intel iGPU figures are never put in the NVIDIA column. The Intel quantity is either "${INTEL_MEMORY_QUANTITY}" or the i915 debugfs / \`intel_gpu_top\` source, and it is named in the cell.`);
+
+  // ---- 7. Ledger entries (R3.8)
+  h2('7. Ledger entries per Model_Key and Task_Type');
+  const ledgerRows: string[][] = [];
+  const metricsText = (e: LedgerEntry, task: TaskType): string => {
+    const t = taskAnalysis(e.entry_id, task);
+    if (t === undefined) return e.status === 'complete' ? 'not available' : 'not computed (entry incomplete)';
+    const m = t.metrics;
+    return `acceptable ${ratioText(m.acceptable)} (${ratioPct(m.acceptable)}), severe ${m.severe.count}, flips ${ratioText(m.flip)}, contrast ${ratioText(m.contrast)}; ${marks(t).overall}`;
+  };
+  for (const c of choices) {
+    const keyText = `${c.model_key.runtime} / ${c.model_key.model_id}${c.model_key.quantization === '' ? '' : ` / ${c.model_key.quantization}`} / ${c.model_key.revision.slice(0, 12)}`;
+    if (c.used === null) ledgerRows.push([keyText, taskLetter(c.task), '—', 'none', 'no complete entry', '—']);
+    else {
+      const e = entryById.get(c.used);
+      if (e !== undefined) ledgerRows.push([keyText, taskLetter(c.task), e.entry_id, e.status, 'used for marks and recommendation', metricsText(e, c.task)]);
+    }
+    for (const o of c.others) {
+      const e = entryById.get(o.entry_id);
+      if (e !== undefined) ledgerRows.push([keyText, taskLetter(c.task), e.entry_id, e.status, o.label === 'rerun, not used' ? 're-run, not used' : 'incomplete', metricsText(e, c.task)]);
+    }
+  }
+  if (ledgerRows.length === 0) para('The ledger has no entries.');
+  else out.push(...table(['Model_Key', 'Task', 'Entry', 'Status', 'Role', 'Metrics'], ledgerRows));
+
+  // ---- 8. Support marks (R15.4, R18.6)
+  h2('8. Support marks per link of the fallback chain');
+  const inBrowser = state.combinations.filter((c) => !isWorkersAi(c) && c.phase1_locked);
+  const workersCombos = state.combinations.filter(isWorkersAi);
+  const runtimes = [...new Set(inBrowser.map((c) => c.runtime))].sort(cmp);
+  const whyNot = (c: Combination, task: TaskType): string => {
+    const used = usedEntryId(c, task, state);
+    const ex = state.exclusions.find((x) => x.combination === c.id);
+    if (ex !== undefined) return `${c.id}: Exclusion_Record (${ex.check})${used === null ? '' : `, entry ${used}`}`;
+    if (overLimit.has(c.id)) return `${c.id}: over the In_Browser_Size_Limits${used === null ? '' : `, entry ${used}`}`;
+    if (used !== null) return `${c.id}: entry ${used} did not pass`;
+    if (hasFailure(c, state)) return `${c.id}: failure record (${state.failures.filter((f) => f.combination === c.id).map((f) => f.kind).join(', ')}), no completed entry`;
+    return `${c.id}: no completed Locked_Run for this Task_Type`;
+  };
+  const workersPass = (c: Combination, task: TaskType): string | null => {
+    const used = usedEntryId(c, task, state);
+    return used !== null && state.passes.get(used)?.[task] === true ? used : null;
+  };
+  const supportRows: string[][] = [];
+  const browserPassing = (task: TaskType): { combo: Combination; entry: string }[] =>
+    inBrowser.flatMap((c) => {
+      const e = browserPassEntry(c, task, state);
+      return e === null ? [] : [{ combo: c, entry: e }];
+    });
+  for (const task of TASKS) {
+    for (const rt of runtimes) {
+      const combos = inBrowser.filter((c) => c.runtime === rt);
+      const passing = browserPassing(task).filter((p) => p.combo.runtime === rt);
+      supportRows.push(
+        passing.length > 0
+          ? [taskLetter(task), `In-browser: ${rt}`, 'supported', passing.map((p) => `${p.combo.id}: entry ${p.entry}`).join('; ')]
+          : [taskLetter(task), `In-browser: ${rt}`, 'not supported', combos.map((c) => whyNot(c, task)).join('; ')],
+      );
+    }
+    const wp = workersCombos.flatMap((c) => {
+      const e = workersPass(c, task);
+      return e === null ? [] : [{ c, e }];
+    });
+    const wUsed = workersCombos.flatMap((c) => {
+      const e = usedEntryId(c, task, state);
+      return e === null ? [] : [{ c, e }];
+    });
+    const bp = browserPassing(task);
+    if (wp.length > 0) supportRows.push([taskLetter(task), 'Workers AI', 'supported', wp.map((p) => `${p.c.id}: entry ${p.e}`).join('; ')]);
+    else if (wUsed.length > 0) supportRows.push([taskLetter(task), 'Workers AI', 'not supported', wUsed.map((p) => `${p.c.id}: entry ${p.e} did not pass`).join('; ')]);
+    else if (bp.length > 0) {
+      supportRows.push([taskLetter(task), 'Workers AI', 'not measured (browser passed)', `passing in-browser entries: ${bp.map((p) => `${p.combo.id}: ${p.entry}`).join('; ')}; Smoke_Calls sent: ${smoke.sent}; accepted by the Output_Validator: ${smoke.accepted}`]);
+    } else supportRows.push([taskLetter(task), 'Workers AI', 'not measured', 'no passing in-browser Combination, and no Workers AI Locked_Run for this Task_Type yet']);
+    supportRows.push([taskLetter(task), 'Rules_Default', 'supported', 'always supported']);
+  }
+  out.push(...table(['Task', 'Link', 'Mark', 'Evidence (ledger entry IDs)'], supportRows));
+  para('Smoke_Call outputs appear only in this section; they never enter a Metric, a pass or fail mark or an interval (R18.6).');
+
+  // ---- 9. Recommendations (R15.3, R15.5, R15.6, R15.12, R18.7)
+  h2('9. Recommendation per Task_Type');
+  const better = (a: { combo: Combination; entry: string }, b: { combo: Combination; entry: string }, task: TaskType): number => {
+    const ma = taskAnalysis(a.entry, task);
+    const mb = taskAnalysis(b.entry, task);
+    if (ma !== undefined && mb !== undefined) {
+      const l = ma.metrics.acceptable.num * mb.metrics.acceptable.den;
+      const r = mb.metrics.acceptable.num * ma.metrics.acceptable.den;
+      if (l !== r) return l > r ? -1 : 1;
+      if (ma.metrics.severe.count !== mb.metrics.severe.count) return ma.metrics.severe.count - mb.metrics.severe.count;
+      const pa = ma.latency.p95;
+      const pb = mb.latency.p95;
+      if (pa !== pb) return pa === 'no data' ? 1 : pb === 'no data' ? -1 : pa - pb;
+    }
+    return cmp(a.combo.id, b.combo.id);
+  };
+  para('Selection among passing Combinations of a link: highest acceptable rate, then fewest severe outputs, then lowest p95 latency, then Combination ID.');
+  for (const task of TASKS) {
+    h3(taskTitle(task));
+    const bp = [...browserPassing(task)].sort((a, b) => better(a, b, task));
+    const wp = workersCombos
+      .flatMap((c) => {
+        const e = workersPass(c, task);
+        return e === null ? [] : [{ combo: c, entry: e }];
+      })
+      .sort((a, b) => better(a, b, task));
+    const pick = bp[0];
+    const wpick = wp[0];
+    const describe = (p: { combo: Combination; entry: string }): string => {
+      const t = taskAnalysis(p.entry, task);
+      return t === undefined ? `${p.combo.id} (entry ${p.entry})` : `${p.combo.id} (entry ${p.entry}; acceptable ${ratioPct(t.metrics.acceptable)} [${marks(t).acceptable}], p95 ${latencyText(t.latency.p95)} ms)`;
+    };
+    out.push(`- In-browser Runtime: ${pick === undefined ? 'no recommended Combination' : `**${describe(pick)}**`}`);
+    const workersLine = wpick !== undefined ? `**${describe(wpick)}**`
+      : workersCombos.some((c) => usedEntryId(c, task, state) !== null) ? 'no recommended Combination (measured, did not pass)'
+      : bp.length > 0 ? 'not measured (browser passed)'
+      : 'no recommended Combination (not measured)';
+    out.push(`- Workers AI: ${workersLine}`);
+    out.push('- Rules_Default: last link, always supported', '');
+    if (pick === undefined && wpick === undefined) {
+      para(`Recommendation for ${taskLetter(task)}: **Rules_Default alone.** Thresholds failed, per Combination run:`);
+      const lines: string[] = [];
+      for (const c of [...inBrowser, ...workersCombos]) {
+        const used = usedEntryId(c, task, state);
+        const t = taskAnalysis(used, task);
+        if (t !== undefined) lines.push(`- ${c.id} (entry ${used}): ${failedThresholds(t.metrics).join('; ') || 'passed the Thresholds but is not a browser pass (Exclusion_Record or over the limits)'}`);
+        else if (!isWorkersAi(c) || usedEntryId(c, task, state) !== null) lines.push(`- ${c.id}: ${whyNot(c, task).slice(c.id.length + 2)}`);
+      }
+      out.push(...(lines.length > 0 ? lines : ['- no Combination was run for this Task_Type']), '');
+    } else {
+      para(`Recommended chain for ${taskLetter(task)}: ${pick === undefined ? '(no in-browser Combination)' : `in-browser ${pick.combo.id}`} → ${wpick === undefined ? `Workers AI ${bp.length > 0 && !workersCombos.some((c) => usedEntryId(c, task, state) !== null) ? 'not measured (browser passed)' : 'none'}` : `Workers AI ${wpick.combo.id}`} → Rules_Default.`);
+    }
+    for (const p of [pick, wpick]) {
+      if (p === undefined) continue;
+      const run = runById.get(p.entry);
+      para(`Model_Fingerprint of ${p.combo.id} (entry ${p.entry}):`);
+      out.push('```json', run === undefined ? '{}' : canonicalJson(run.header.fingerprint as JsonObject), '```', '');
+      if (run !== undefined && cpuNodeCount(run) > 0) para(`**Risks:** this Combination places ${cpuNodeCount(run)} nodes on the CPU (${cpuNodeList(run)}); its latency figures are not pure-WebGPU results.`);
+    }
+  }
+
+  // ---- 10. Voids, exclusions, failures, faults, re-runs, incomplete entries (R15.7)
+  h2('10. Void cards, left-out pairs, failures, engine faults, re-runs and incomplete entries');
+  const allRuns = [...lockedRuns];
+  const voidIds = [...new Set(allRuns.flatMap((r) => r.excluded.filter((x) => x.reason === 'void').map((x) => x.id)))].sort(cmp);
+  h3('Void cards');
+  out.push(...(voidIds.length > 0 ? voidIds.map((id) => `- ${id}: Void_Card (named in the LOCK.md "Voided cards" table); left out of every Metric, interval and the Random_Baseline`) : ['- none']), '');
+  h3('Contrast pairs left out of the consistency count');
+  const pairLeft = new Map<string, string>();
+  for (const r of allRuns) for (const p of r.excludedPairs) pairLeft.set(p.pairId, p.reason);
+  out.push(...(pairLeft.size > 0 ? [...pairLeft].sort(([a], [b]) => cmp(a, b)).map(([id, why]) => `- ${id}: ${why}`) : ['- none']), '');
+  h3('Failed Combinations');
+  const failedLines: string[] = [];
+  for (const f of state.failures) {
+    const bits = ['message', 'reason', 'phase', 'cards_answered', 'quota', 'expected'].flatMap((k) => (f[k] === undefined || f[k] === null ? [] : [`${k}: ${typeof f[k] === 'string' ? f[k] : JSON.stringify(f[k])}`]));
+    failedLines.push(`- ${f.combination}: failure record ${f.kind}${bits.length > 0 ? ` (${bits.join('; ')})` : ''}`);
+  }
+  for (const { run, task, analysis } of usedRuns) {
+    if (!analysis.metrics.passes || !analysis.metrics.usableForMark) failedLines.push(`- ${run.combination}, ${taskLetter(task)} (entry ${run.id}): failed Thresholds: ${failedThresholds(analysis.metrics).join('; ')}`);
+  }
+  for (const x of state.exclusions) failedLines.push(`- ${x.combination}: excluded, see section 3 (${x.check})`);
+  for (const id of overLimit) failedLines.push(`- ${id}: measured model download over 1,536 MiB, over the In_Browser_Size_Limits`);
+  out.push(...(failedLines.length > 0 ? failedLines : ['- none']), '');
+  h3('Engine faults (runtime_stuck) and engine rebuild failures (rebuild_failed)');
+  const faultLines: string[] = [];
+  for (const e of [...state.entries].sort((a, b) => a.order - b.order)) {
+    const faults = runById.get(e.entry_id)?.faults ?? input.incompleteFaults.get(e.entry_id) ?? [];
+    for (const kind of ['engine_fault', 'rebuild_failed'] as const) {
+      const of = faults.filter((f) => f.kind === kind);
+      if (of.length === 0) continue;
+      const ids = of.slice(0, 10).map((f) => `${f.cardId}/${f.permutation}`).join(', ');
+      faultLines.push(
+        kind === 'engine_fault'
+          ? `- ${e.start.combination} (entry ${e.entry_id}): runtime_stuck engine fault on ${of.length} request(s): ${ids}${of.length > 10 ? `, and ${of.length - 10} more` : ''}; not graded, in no numerator`
+          : `- ${e.start.combination} (entry ${e.entry_id}): engine rebuild failed (rebuild_failed) for ${of.length} request(s): ${ids}${of.length > 10 ? `, and ${of.length - 10} more` : ''}; the Combination is reported as failed, not scored card by card`,
+      );
+    }
+  }
+  out.push(...(faultLines.length > 0 ? faultLines : ['- none']), '');
+  h3('Re-runs');
+  const usedIds = new Set(choices.flatMap((c) => (c.used === null ? [] : [c.used])));
+  const rerunLines = [...state.entries]
+    .sort((a, b) => a.order - b.order)
+    .filter((e) => e.start.rerun_of !== null)
+    .map((e) => `- ${e.entry_id}: re-run of ${e.start.rerun_of}${e.start.rerun_reason === null ? '' : ` (reason: ${e.start.rerun_reason})`}; ${usedIds.has(e.entry_id) ? 'used for the marks' : e.status === 'complete' ? 're-run, not used' : 'incomplete'}`);
+  out.push(...(rerunLines.length > 0 ? rerunLines : ['- none']), '');
+  h3('Incomplete ledger entries');
+  const incompleteLines = [...state.entries]
+    .sort((a, b) => a.order - b.order)
+    .filter((e) => e.status === 'incomplete')
+    .map((e) => `- ${e.entry_id} (${e.start.combination}, subset ${e.start.task_subset}): incomplete, ${e.abort_reason !== null ? `aborted: ${e.abort_reason}` : 'in progress or interrupted'}`);
+  out.push(...(incompleteLines.length > 0 ? incompleteLines : ['- none']), '');
+
+  // ---- 11. Workers AI note (R15.10)
+  h2('11. Workers AI note');
+  para(
+    'Workers AI measurements, or Smoke_Calls, used the REST API called from the local Probe_Runner. A production server path still has to decide or measure:',
+    '',
+  );
+  out.push(
+    '- the added latency of a Worker proxy in front of the model;',
+    '- how to keep the Workers_AI_Token out of the browser;',
+    '- the request budget and rate limits from `tech.md`.',
+    '',
+  );
+  para('None of these is decided here.');
+
+  // ---- quality without timeout (R13.12)
+  h2(QUALITY_WITHOUT_TIMEOUT_TITLE);
+  para('Same denominator as the Metrics, but each timed-out base output that has a Late_Answer is replaced by the grade of that Late_Answer. A timeout without a Late_Answer stays Illegal.');
+  out.push(
+    ...table(
+      ['Combination', 'Task', 'Entry', 'Acceptable rate, without timeout', 'Severe count, without timeout', 'Illegal rate, without timeout', 'Timeouts replaced by a Late_Answer'],
+      usedRuns.map(({ run, task, analysis }) => {
+        const w = analysis.metrics.withoutTimeout;
+        return [run.combination, taskLetter(task), run.id, `${ratioText(w.acceptable)} (${ratioPct(w.acceptable)})`, `${w.severe}`, `${ratioText(w.illegal)} (${ratioPct(w.illegal)})`, `${w.replaced}`];
+      }),
+    ),
+  );
+
+  // ---- Dev_Run figures (R15.2)
+  h2(DEV_SECTION_TITLE);
+  para('These are Dev_Run figures. They are kept out of every mark and out of the recommendation. The Intel iGPU Dev_Run appears only here.');
+  const devRows = input.devRuns.flatMap((r) => {
+    const workers = isWorkersAi(comboById.get(r.combination) ?? ({ runtime: '' } as Combination));
+    const mem = memoryCells(r, workers);
+    return r.tasks.map((t) => [
+      r.id,
+      r.combination,
+      gpuLabel(r, workers),
+      taskLetter(t.metrics.task),
+      `${ratioText(t.metrics.acceptable)} (${ratioPct(t.metrics.acceptable)})`,
+      `${t.metrics.severe.count}`,
+      `${ratioText(t.metrics.flip)}`,
+      `${ratioText(t.metrics.contrast)}`,
+      `${latencyText(t.latency.p50)} / ${latencyText(t.latency.p95)}`,
+      mem.nvidia,
+      mem.intel,
+    ]);
+  });
+  if (devRows.length === 0) para('No Dev_Run figures are included.');
+  else out.push(...table(['Dev_Run', 'Combination', 'GPU', 'Task', 'Acceptable (Dev_Run)', 'Severe', 'Flips', 'Contrast pairs', 'Latency p50 / p95, ms', NVIDIA_MEMORY_COLUMN, 'Intel iGPU peak memory, MiB (quantity named)'], devRows));
+
+  while (out[out.length - 1] === '') out.pop();
+  return `${out.join('\n')}\n`;
+}

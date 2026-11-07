@@ -267,20 +267,20 @@ const genMetricsWorld = fc
   .record({
     singles: fc.array(fc.tuple(genTask, fc.boolean(), fc.boolean()), { maxLength: 6 }),
     pairs: fc.array(
-      fc.record({ task: genTask, taskB: genTask, aScored: fc.boolean(), bScored: fc.boolean(), aVoid: fc.boolean(), bVoid: fc.boolean() }),
+      fc.record({ task: genTask, group: fc.constantFrom('g1', 'g2', 'g3', 'g4'), aScored: fc.boolean(), bScored: fc.boolean(), aVoid: fc.boolean(), bVoid: fc.boolean() }),
       { maxLength: 4 },
     ),
   })
   .chain((shape) => {
-    const specs: { id: string; task: TaskType; scored: boolean; isVoid: boolean; pairId: string | null; role: 'a' | 'b' | null }[] = [];
+    const specs: { id: string; task: TaskType; scored: boolean; isVoid: boolean; pairId: string | null; role: 'a' | 'b' | null; group?: string }[] = [];
     shape.singles.forEach(([task, scored, isVoid], i) => specs.push({ id: `s${i}`, task, scored, isVoid, pairId: null, role: null }));
     shape.pairs.forEach((p, i) => {
-      specs.push({ id: `p${i}a`, task: p.task, scored: p.aScored, isVoid: p.aVoid, pairId: `P${i}`, role: 'a' });
-      specs.push({ id: `p${i}b`, task: p.taskB, scored: p.bScored, isVoid: p.bVoid, pairId: `P${i}`, role: 'b' });
+      specs.push({ id: `p${i}a`, task: p.task, scored: p.aScored, isVoid: p.aVoid, pairId: `P${i}`, role: 'a', group: p.group });
+      specs.push({ id: `p${i}b`, task: p.task, scored: p.bScored, isVoid: p.bVoid, pairId: `P${i}`, role: 'b', group: p.group });
     });
     return fc
       .tuple(
-        fc.tuple(...specs.map((s) => genMetricCard(s.id, { task: s.task, scored: s.scored, void: s.isVoid, pairId: s.pairId, role: s.role }))),
+        fc.tuple(...specs.map((s) => genMetricCard(s.id, { task: s.task, scored: s.scored, void: s.isVoid, pairId: s.pairId, role: s.role, scenarioGroup: s.group }))),
         fc.tuple(...specs.map((s) => genFullRuns(s.id))),
         fc.tuple(...shape.pairs.map((_, i) => fc.option(genContrast(`P${i}`), { nil: null }))),
       )
