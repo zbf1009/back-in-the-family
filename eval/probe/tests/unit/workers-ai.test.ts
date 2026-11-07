@@ -215,3 +215,10 @@ test('factory: reads env lazily, registers secrets, redacts via sink; EnvError p
   const missing = createWorkersAiRuntime({ loadEnv: () => loadWorkersAiEnv({ readFile: () => '' }) });
   await assert.rejects(missing(ctx), EnvError);
 });
+
+test('granite live shape (V4): chat envelope with finish_reason length is truncated even when completion_tokens equals max_tokens', () => {
+  const b = { success: true, result: { choices: [{ message: { content: '{"opt' }, finish_reason: 'length' }], usage: { prompt_tokens: 775, completion_tokens: 5 } } };
+  const r = parseResponse('chat', 200, JSON.stringify(b), 5);
+  assert.equal(r.kind, 'error');
+  if (r.kind === 'error') assert.equal(r.code, 'truncated');
+});

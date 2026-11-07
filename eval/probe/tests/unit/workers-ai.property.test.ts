@@ -265,6 +265,7 @@ test('P39 real combinations.json: the three Workers AI entries feed the adapter 
     const name = c.max_output_param?.name;
     assert.ok(name === 'max_tokens' || name === 'max_completion_tokens');
     assert.ok(c.response_shape === 'chat' || c.response_shape === 'text');
+    if (c.model_id === '@cf/ibm-granite/granite-4.0-h-micro') assert.equal(c.response_shape, 'chat'); // V4: live API returns the chat shape
 
     const prices = workersAiPrices(c);
     assert.equal(prices.inputPrice, c.prices?.input);

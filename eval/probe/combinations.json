@@ -268,7 +268,7 @@
     "model_id": "@cf/ibm-granite/granite-4.0-h-micro",
     "quantization": "",
     "revision": "server-side, not pinnable",
-    "response_shape": "text",
+    "response_shape": "chat",
     "max_output_param": {
       "name": "max_tokens",
       "source": "https://developers.cloudflare.com/workers-ai/models/granite-4.0-h-micro/"
