@@ -1,0 +1,302 @@
+[
+  {
+    "id": "webllm/qwen3.5-0.8b-q4f32/nvidia",
+    "runtime": "webllm",
+    "model_id": "Qwen3.5-0.8B-q4f32_1-MLC",
+    "quantization": "q4f32_1",
+    "revision": "unpinned",
+    "model_lib_url": null,
+    "power_preference": "high-performance",
+    "sampling": {
+      "temperature": 0,
+      "top_p": null,
+      "seed": 20261104,
+      "max_output_tokens": {
+        "decision": 64,
+        "synthesis": 1024
+      }
+    },
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "constraint": "json_schema",
+    "phase1_locked": true,
+    "size": {
+      "expected_download_bytes": null,
+      "download_source": "Hugging Face API tree at `revision`, summed by `probe screen` (not yet read); measured again at Locked_Run start (R14.5)",
+      "params": null,
+      "params_source": "https://huggingface.co/api/models/Qwen/Qwen3.5-0.8B",
+      "vram_mib": 1894.19,
+      "vram_source": "https://github.com/mlc-ai/web-llm/blob/main/src/config.ts"
+    },
+    "license": {
+      "name": "Apache-2.0",
+      "osi": true,
+      "url": "https://huggingface.co/Qwen/Qwen3.5-0.8B",
+      "declared_by": "model",
+      "accepted": null
+    }
+  },
+  {
+    "id": "webllm/qwen3.5-2b-q4f32/nvidia",
+    "runtime": "webllm",
+    "model_id": "Qwen3.5-2B-q4f32_1-MLC",
+    "quantization": "q4f32_1",
+    "revision": "unpinned",
+    "model_lib_url": null,
+    "power_preference": "high-performance",
+    "sampling": {
+      "temperature": 0,
+      "top_p": null,
+      "seed": 20261104,
+      "max_output_tokens": {
+        "decision": 64,
+        "synthesis": 1024
+      }
+    },
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "constraint": "json_schema",
+    "phase1_locked": true,
+    "size": {
+      "expected_download_bytes": null,
+      "download_source": "Hugging Face API tree at `revision`, summed by `probe screen` (not yet read); measured again at Locked_Run start (R14.5)",
+      "params": 2274069824,
+      "params_source": "https://huggingface.co/api/models/Qwen/Qwen3.5-2B",
+      "vram_mib": 2591.55,
+      "vram_source": "https://github.com/mlc-ai/web-llm/blob/main/src/config.ts"
+    },
+    "license": {
+      "name": "Apache-2.0",
+      "osi": true,
+      "url": "https://huggingface.co/Qwen/Qwen3.5-2B",
+      "declared_by": "model",
+      "accepted": null
+    }
+  },
+  {
+    "id": "transformers.js/qwen3.5-0.8b-q4/nvidia",
+    "runtime": "transformers.js",
+    "model_id": "onnx-community/Qwen3.5-0.8B-ONNX",
+    "quantization": "q4",
+    "revision": "unpinned",
+    "power_preference": "high-performance",
+    "sampling": {
+      "do_sample": false,
+      "top_p": null,
+      "seed": null,
+      "max_output_tokens": {
+        "decision": 64,
+        "synthesis": 1024
+      }
+    },
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "constraint": "prompt_only",
+    "phase1_locked": true,
+    "size": {
+      "expected_download_bytes": null,
+      "download_source": "Hugging Face API tree at `revision`, q4 text path, summed by `probe screen` (design DA-1 read about 619 MiB on 2026-11-06); measured again at Locked_Run start (R14.5)",
+      "params": null,
+      "params_source": "https://huggingface.co/api/models/Qwen/Qwen3.5-0.8B",
+      "vram_mib": null,
+      "vram_source": "measured by the VRAM_Preflight (R9.9); not yet run"
+    },
+    "license": {
+      "name": "Apache-2.0",
+      "osi": true,
+      "url": "https://huggingface.co/onnx-community/Qwen3.5-0.8B-ONNX",
+      "declared_by": "model",
+      "accepted": null
+    }
+  },
+  {
+    "id": "transformers.js/qwen3.5-2b-q4/nvidia",
+    "runtime": "transformers.js",
+    "model_id": "onnx-community/Qwen3.5-2B-ONNX",
+    "quantization": "q4",
+    "revision": "unpinned",
+    "power_preference": "high-performance",
+    "sampling": {
+      "do_sample": false,
+      "top_p": null,
+      "seed": null,
+      "max_output_tokens": {
+        "decision": 64,
+        "synthesis": 1024
+      }
+    },
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "constraint": "prompt_only",
+    "phase1_locked": true,
+    "size": {
+      "expected_download_bytes": null,
+      "download_source": "Hugging Face API tree at `revision`, q4 text path, summed by `probe screen` (design DA-1 read about 1465 MiB on 2026-11-06); measured again at Locked_Run start (R14.5)",
+      "params": 2274069824,
+      "params_source": "https://huggingface.co/api/models/Qwen/Qwen3.5-2B",
+      "vram_mib": null,
+      "vram_source": "measured by the VRAM_Preflight (R9.9); not yet run"
+    },
+    "license": {
+      "name": "Apache-2.0",
+      "osi": true,
+      "url": "https://huggingface.co/Qwen/Qwen3.5-2B",
+      "declared_by": "base_model",
+      "accepted": null
+    }
+  },
+  {
+    "id": "transformers.js/lfm2.5-1.2b-instruct-q4/nvidia",
+    "runtime": "transformers.js",
+    "model_id": "LiquidAI/LFM2.5-1.2B-Instruct-ONNX",
+    "quantization": "q4",
+    "revision": "unpinned",
+    "power_preference": "high-performance",
+    "sampling": {
+      "do_sample": false,
+      "top_p": null,
+      "seed": null,
+      "max_output_tokens": {
+        "decision": 64,
+        "synthesis": 1024
+      }
+    },
+    "chat_template_kwargs": null,
+    "constraint": "prompt_only",
+    "phase1_locked": true,
+    "size": {
+      "expected_download_bytes": null,
+      "download_source": "Hugging Face API tree at `revision`, q4 text path, summed by `probe screen` (design DA-1 read about 811 MiB on 2026-11-06); measured again at Locked_Run start (R14.5)",
+      "params": null,
+      "params_source": "https://huggingface.co/api/models/LiquidAI/LFM2.5-1.2B-Instruct-ONNX",
+      "vram_mib": null,
+      "vram_source": "measured by the VRAM_Preflight (R9.9); not yet run"
+    },
+    "license": {
+      "name": "LFM Open License v1.0",
+      "osi": false,
+      "url": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct/blob/main/LICENSE",
+      "declared_by": "base_model",
+      "accepted": "2026-11-06"
+    }
+  },
+  {
+    "id": "workers-ai/gemma-4-26b-a4b-it",
+    "runtime": "workers-ai",
+    "model_id": "@cf/google/gemma-4-26b-a4b-it",
+    "quantization": "",
+    "revision": "server-side, not pinnable",
+    "response_shape": "chat",
+    "max_output_param": {
+      "name": "max_completion_tokens",
+      "source": "https://developers.cloudflare.com/workers-ai/models/gemma-4-26b-a4b-it/"
+    },
+    "prices": {
+      "input": 9091,
+      "output": 27273,
+      "source": "https://developers.cloudflare.com/workers-ai/platform/pricing/",
+      "read_on": "2026-11-06"
+    },
+    "sampling": {
+      "temperature": 0,
+      "top_p": null,
+      "seed": 20261104,
+      "max_output_tokens": {
+        "decision": 64,
+        "synthesis": 1024
+      }
+    },
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "constraint": "json_schema",
+    "phase1_locked": false,
+    "license": {
+      "name": "Apache-2.0",
+      "osi": true,
+      "url": "https://developers.cloudflare.com/workers-ai/models/gemma-4-26b-a4b-it/",
+      "declared_by": "model",
+      "accepted": null
+    }
+  },
+  {
+    "id": "workers-ai/glm-4.7-flash",
+    "runtime": "workers-ai",
+    "model_id": "@cf/zai-org/glm-4.7-flash",
+    "quantization": "",
+    "revision": "server-side, not pinnable",
+    "response_shape": "chat",
+    "max_output_param": {
+      "name": "max_completion_tokens",
+      "source": "https://developers.cloudflare.com/workers-ai/models/glm-4.7-flash/"
+    },
+    "prices": {
+      "input": 5500,
+      "output": 36400,
+      "source": "https://developers.cloudflare.com/workers-ai/platform/pricing/",
+      "read_on": "2026-11-06"
+    },
+    "sampling": {
+      "temperature": 0,
+      "top_p": null,
+      "seed": 20261104,
+      "max_output_tokens": {
+        "decision": 64,
+        "synthesis": 1024
+      }
+    },
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "constraint": "json_schema",
+    "phase1_locked": false,
+    "license": {
+      "name": "MIT",
+      "osi": true,
+      "url": "https://developers.cloudflare.com/workers-ai/models/glm-4.7-flash/",
+      "declared_by": "model",
+      "accepted": null
+    }
+  },
+  {
+    "id": "workers-ai/granite-4.0-h-micro",
+    "runtime": "workers-ai",
+    "model_id": "@cf/ibm-granite/granite-4.0-h-micro",
+    "quantization": "",
+    "revision": "server-side, not pinnable",
+    "response_shape": "text",
+    "max_output_param": {
+      "name": "max_tokens",
+      "source": "https://developers.cloudflare.com/workers-ai/models/granite-4.0-h-micro/"
+    },
+    "prices": {
+      "input": 1542,
+      "output": 10158,
+      "source": "https://developers.cloudflare.com/workers-ai/platform/pricing/",
+      "read_on": "2026-11-06"
+    },
+    "sampling": {
+      "temperature": 0,
+      "top_p": null,
+      "seed": 20261104,
+      "max_output_tokens": {
+        "decision": 64,
+        "synthesis": 1024
+      }
+    },
+    "chat_template_kwargs": null,
+    "constraint": "json_schema",
+    "phase1_locked": false,
+    "license": {
+      "name": "Apache-2.0",
+      "osi": true,
+      "url": "https://developers.cloudflare.com/workers-ai/models/granite-4.0-h-micro/",
+      "declared_by": "model",
+      "accepted": null
+    }
+  }
+]

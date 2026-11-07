@@ -1,0 +1,17 @@
+[system]
+You read a log of events about people in a small town and reply with one JSON object that follows the schema in the user text. No other text.
+[user]
+Today is day 400.
+Wren Alder lent five dollars to her neighbor Pip Marsh.
+People:
+#901 Wren Alder, 40, female, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 100, soul S-9901
+#902 Pip Marsh, 35, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 100, soul S-9902
+Relations:
+none
+Events:
+e901 day 390 loan actors #901 #902 magnitude 5 caused_by — tags verbal, due day 399
+e902 day 395 repayment actors #902 #901 magnitude 5 caused_by e901 tags cash
+Input: none
+Subject: none
+Schema:
+{"type":"object","properties":{"summary":{"type":"string"},"evidence":{"type":"array","items":{"type":"string"}}}}

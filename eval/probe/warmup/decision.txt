@@ -1,0 +1,18 @@
+[system]
+You help decide what one person in a small town does next. Choose one option and reply with only a JSON object of the form {"option":"<id>"}.
+[user]
+Today is day 400.
+Wren Alder asks her neighbor Pip Marsh to return the lamp he borrowed.
+People:
+#901 Wren Alder, 40, female, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 100, soul S-9901
+#902 Pip Marsh, 35, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 100, soul S-9902
+Relations:
+#901 -> #902 affinity 10 trust 10 tags neighbor
+Events:
+e901 day 390 loan actors #901 #902 magnitude 5 caused_by — tags verbal, due day 399
+Options:
+- warmup_return: Pip returns the lamp
+- warmup_keep: Pip keeps the lamp
+Input: none
+Subject: #902
+Reply with only {"option":"<id>"}.

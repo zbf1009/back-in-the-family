@@ -763,3 +763,12 @@ Synced `design.md` with what tasks 1–8 actually built and made task 9's single
 - Result: the full `scripts/gates.sh` printed `card/results marker (check 5): leak.txt`, `web-build: step 'check-deploy' failed`, `gate failed: scripts/web-build.sh`, exit 1.
 - Revert: deleted `leak.txt` and the empty `web/public/`; `git status --short web/` as before.
 - Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0 (Smoke_Test 2 passed). `git diff --stat -- eval/cards` is empty.
+
+### Spec: llm-probe — task 13 design and assumption decisions (2026-11-07)
+
+Four decisions made while implementing task 13 that later tasks must honour:
+
+- (a) The locked `ingest` command completes the ledger entry through `appendComplete`. The page-bundle flow only writes `start`; ingest writes the matching `complete`.
+- (b) Ingest does not write an `llm-probe-perf` record. The Report must read cold-start figures from `eval/results/ingest/<run-id>.json`, or task 16 must make the driver/ingest also write the perf records. Task 16 decides.
+- (c) `cards.ts`: an unknown void ID is an error only when both splits are loaded. With one split loaded, a void ID that is not in it is not treated as an error.
+- (d) The `RuntimeAdapter` interface has `identity`, `state` and `complete` only. Lifecycle (create, rebuild, warm-up) sits on the engine and in `adapters/lifecycle.ts`.

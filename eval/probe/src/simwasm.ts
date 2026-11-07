@@ -47,8 +47,16 @@ export const llmParseCard = (line: string, cardId?: string): string =>
   guard('llm_parse_card', cardId, () => glue.llm_parse_card(line));
 export const llmPermutations = (input: string, cardId?: string): string =>
   guard('llm_permutations', cardId, () => glue.llm_permutations(input));
-export const llmRenderPrompt = (input: string, cardId?: string): string =>
-  guard('llm_render_prompt', cardId, () => glue.llm_render_prompt(input));
+/**
+ * Card IDs (or `undefined`) of every `llm_render_prompt` call so far, in order. Tests read it to prove that
+ * `ingest`, `regrade` and `report` never render a locked card (R3.1, Property 26); it holds IDs only.
+ */
+export const renderPromptCalls: (string | undefined)[] = [];
+
+export const llmRenderPrompt = (input: string, cardId?: string): string => {
+  renderPromptCalls.push(cardId);
+  return guard('llm_render_prompt', cardId, () => glue.llm_render_prompt(input));
+};
 export const llmValidate = (input: string, cardId?: string): string =>
   guard('llm_validate', cardId, () => glue.llm_validate(input));
 export const llmGrade = (input: string, cardId?: string): string =>

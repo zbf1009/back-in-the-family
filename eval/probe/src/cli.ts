@@ -44,6 +44,32 @@ const COMMANDS: Record<string, () => Promise<void>> = {
     const { checkWebImportsCommand } = await import('./check-web-imports.ts');
     process.exitCode = checkWebImportsCommand(REPO_DIR);
   },
+  // Both runs do their own Manifest_Check at the start of every run (R1.1) before reading any card.
+  'dev-run': async () => {
+    const { devRunCommand, defaultRunDeps } = await import('./run-command.ts');
+    process.exitCode = await devRunCommand(process.argv.slice(3), defaultRunDeps(REPO_DIR));
+  },
+  'locked-run': async () => {
+    const { lockedRunCommand, defaultRunDeps } = await import('./run-command.ts');
+    process.exitCode = await lockedRunCommand(process.argv.slice(3), defaultRunDeps(REPO_DIR));
+  },
+  // These three read the Card_Set (page-bundle to render, ingest and regrade to grade only, R3.1) and do
+  // their own Manifest_Check before any card is read (R1.1).
+  'page-bundle': async () => {
+    const { pageBundleCommand } = await import('./ingest-command.ts');
+    const { defaultRunDeps } = await import('./run-command.ts');
+    process.exitCode = await pageBundleCommand(process.argv.slice(3), defaultRunDeps(REPO_DIR));
+  },
+  ingest: async () => {
+    const { ingestCommand } = await import('./ingest-command.ts');
+    const { defaultRunDeps } = await import('./run-command.ts');
+    process.exitCode = await ingestCommand(process.argv.slice(3), defaultRunDeps(REPO_DIR));
+  },
+  regrade: async () => {
+    const { regradeCommand } = await import('./ingest-command.ts');
+    const { defaultRunDeps } = await import('./run-command.ts');
+    process.exitCode = await regradeCommand(process.argv.slice(3), defaultRunDeps(REPO_DIR));
+  },
   ledger: async () => {
     const { ledgerCommand, defaultPaths } = await import('./phase-commands.ts');
     process.exitCode = ledgerCommand(defaultPaths(REPO_DIR));

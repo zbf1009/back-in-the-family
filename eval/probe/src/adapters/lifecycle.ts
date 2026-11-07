@@ -18,7 +18,10 @@ export interface WarmUpPrompts {
 export interface LifecycleInput {
   engine: LifecycleEngine;
   warmups: WarmUpPrompts;
+  /** Sampling for the decision warm-up (and the synthesis warm-up unless `synthesisSampling` is set). */
   sampling: SamplingParams;
+  /** Sampling for the synthesis warm-up (R9.12: the D and S parameters of the run). */
+  synthesisSampling?: SamplingParams;
   /** Called once the engine is created and both warm-ups finished (e.g. the timing machine's reset). */
   onReady?: () => void;
 }
@@ -26,7 +29,7 @@ export interface LifecycleInput {
 export async function createEngineWithWarmUp(input: LifecycleInput): Promise<void> {
   await input.engine.create();
   await input.engine.generate(input.warmups.decision, input.sampling);
-  await input.engine.generate(input.warmups.synthesis, input.sampling);
+  await input.engine.generate(input.warmups.synthesis, input.synthesisSampling ?? input.sampling);
   input.onReady?.();
 }
 
