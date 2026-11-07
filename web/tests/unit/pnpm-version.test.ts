@@ -42,6 +42,8 @@ interface Fixture {
   miseToml: string;
   /** Full text of the temporary web/package.json. */
   packageJson: string;
+  /** Full text of the temporary eval/probe/package.json (default: same as packageJson-matching pin). */
+  probePackageJson?: string;
 }
 
 interface RunResult {
@@ -60,9 +62,14 @@ function runWithFixture(fixture: Fixture): RunResult {
   try {
     mkdirSync(path.join(dir, 'scripts'));
     mkdirSync(path.join(dir, 'web'));
+    mkdirSync(path.join(dir, 'eval', 'probe'), { recursive: true });
     cpSync(realScript, path.join(dir, 'scripts', 'check-pnpm-version.sh'));
     writeFileSync(path.join(dir, 'mise.toml'), fixture.miseToml);
     writeFileSync(path.join(dir, 'web', 'package.json'), fixture.packageJson);
+    writeFileSync(
+      path.join(dir, 'eval', 'probe', 'package.json'),
+      fixture.probePackageJson ?? packageWith('pnpm@10.33.1'),
+    );
 
     const result = spawnSync(
       'bash',
@@ -154,4 +161,26 @@ test('missing pnpm line in mise.toml exits 1', () => {
   assert.equal(result.status, 1, 'expected exit 1 when mise.toml has no pnpm line');
   assert.match(result.stdout, /mise\.toml: missing/);
   assert.match(result.stdout, /web\/package\.json packageManager: pnpm@10\.33\.1/);
+});
+
+// Case (f): the probe package.json differs -> exit 1 and the file is named.
+test('mismatched probe packageManager exits 1 and names the file', () => {
+  const result = runWithFixture({
+    miseToml: miseWith('pnpm = "10.33.1"'),
+    packageJson: packageWith('pnpm@10.33.1'),
+    probePackageJson: packageWith('pnpm@10.33.2'),
+  });
+  assert.equal(result.status, 1, 'expected exit 1 on a probe mismatch');
+  assert.match(result.stdout, /eval\/probe\/package\.json packageManager: pnpm@10\.33\.2/);
+});
+
+// Case (g): the probe packageManager field is absent -> exit 1 with "missing".
+test('missing probe packageManager exits 1', () => {
+  const result = runWithFixture({
+    miseToml: miseWith('pnpm = "10.33.1"'),
+    packageJson: packageWith('pnpm@10.33.1'),
+    probePackageJson: packageWith(null),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /eval\/probe\/package\.json packageManager: missing/);
 });

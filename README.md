@@ -187,6 +187,16 @@ Resolved versions are from the committed `web/pnpm-lock.yaml`; licenses are the 
 
 
 
+### Probe_Runner (`eval/probe/`) dependencies
+
+Resolved versions are from the committed `eval/probe/pnpm-lock.yaml`; licenses are the SPDX identifiers on the npm registry. All three are dev dependencies, pinned to the same versions as `web/`. WebLLM, transformers.js, Vite and Playwright are added with the real adapters (task 16).
+
+| Name | Version | License | Used for |
+|---|---|---|---|
+| [`typescript`](https://www.npmjs.com/package/typescript) | 6.0.3 | Apache-2.0 | `tsc` type check of the Probe_Runner (dev/gate only) |
+| [`@types/node`](https://www.npmjs.com/package/@types/node) | 26.6.6 | MIT | Node type declarations for the Probe_Runner and its tests (dev/gate only) |
+| [`fast-check`](https://www.npmjs.com/package/fast-check) | 4.10.2 | MIT | Property-based testing in the Probe_Runner unit tests (dev/test only) |
+
 Development tools (not linked into any build output): `wasm-bindgen-cli` 0.2.130 (MIT OR Apache-2.0), Node.js 26.7.0 (MIT) and `pnpm` 10.33.1 (MIT), all pinned in `mise.toml`.
 
 ## License

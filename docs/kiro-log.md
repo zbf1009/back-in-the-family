@@ -678,3 +678,27 @@ Synced `design.md` with what tasks 1–8 actually built and made task 9's single
 - `cargo test -p sim-wasm --target wasm32-unknown-unknown` alone: exit 1; the 2 unit tests passed and `llm_parity` failed with the same panic text (`card D-dream_interpretation-001: export llm_validate (fenced:heed_warning) differs from golden`) at `crates/sim-wasm/tests/llm_parity.rs:55:5`.
 - Revert: copied the backup back; `sha256sum -c` matched the original. No stray files were left (no regressions files; `git status` showed only the task 5 changes).
 - Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0.
+
+### Spec: llm-probe — task 6.6 fault injection: probe pnpm pin (2026-11-06)
+
+- Gate under test: `scripts/check-pnpm-version.sh` (the extended pin check) in `scripts/gates.sh`.
+- Injected fault: `eval/probe/package.json` `packageManager` changed from `pnpm@10.33.1` to `pnpm@10.33.0`.
+- Result: the full `scripts/gates.sh` stopped at the check and printed `mise.toml: 10.33.1`, `web/package.json packageManager: pnpm@10.33.1`, `eval/probe/package.json packageManager: pnpm@10.33.0`, then `gate failed: scripts/check-pnpm-version.sh`, exit 1.
+- Revert: restored `package.json` from a backup outside the repo; `sha256sum -c` matched for `package.json` and `pnpm-lock.yaml`.
+- Re-run: see the 6.6 frozen-install entry below; the full gates passed after both reverts.
+
+### Spec: llm-probe — task 6.6 fault injection: probe frozen install (2026-11-06)
+
+- Gate under test: `mise exec -- pnpm --dir eval/probe install --frozen-lockfile` in `scripts/gates.sh`.
+- Injected fault: added `"left-pad": "1.3.0"` to `devDependencies` in `eval/probe/package.json` without touching `pnpm-lock.yaml`.
+- Result: the full `scripts/gates.sh` printed `ERR_PNPM_OUTDATED_LOCKFILE ... specifiers in the lockfile don't match specifiers in package.json: * 1 dependencies were added: left-pad@1.3.0`, then `gate failed: mise exec -- pnpm --dir eval/probe install --frozen-lockfile`, exit 1. `pnpm-lock.yaml` sha256 was unchanged after the failure.
+- Revert: restored `package.json` from the backup; `sha256sum -c` matched for both files.
+- Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0 (Smoke_Test 2 passed).
+
+### Spec: llm-probe — task 6.7 fault injection: probe Type_Check (2026-11-06)
+
+- Gate under test: `mise exec -- pnpm --dir eval/probe run typecheck` in `scripts/gates.sh`.
+- Injected fault: in `eval/probe/src/simwasm.ts`, `export const TRAP_EXIT_STATUS = 2;` became `export const TRAP_EXIT_STATUS: number = "2";`. `latencyMs` does not exist until task 12, so `TRAP_EXIT_STATUS` was the number-typed value used.
+- Result: the full `scripts/gates.sh` printed `src/simwasm.ts(21,14): error TS2322: Type 'string' is not assignable to type 'number'.`, `Probe Type_Check found errors.`, then `gate failed: mise exec -- pnpm --dir eval/probe run typecheck`, exit 1.
+- Revert: restored `simwasm.ts` from a backup outside the repo; `sha256sum -c` matched.
+- Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0.

@@ -11,6 +11,10 @@ web/.bundle-report.json
 # Playwright Smoke_Test output (traces, screenshots); build output, never committed
 web/test-results/
 
+# llm-probe local state: Workers AI budget counter and exported bundles (never committed)
+eval/results/budget/
+eval/results/bundles/
+
 # wasm-pack output
 /pkg/
 **/pkg/

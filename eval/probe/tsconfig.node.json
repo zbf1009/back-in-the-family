@@ -1,0 +1,24 @@
+{
+  // Probe_Runner code run directly by Node (type-stripping): src, tests.
+  // Task 16 adds tsconfig.page.json for the browser Probe_Page.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    // Resolve the generated wasm-bindgen declarations (scripts/wasm-build.sh)
+    // through the bare specifier `sim-wasm/*`.
+    "paths": {
+      "sim-wasm/*": ["../../target/wasm-pkg/*"]
+    },
+    "strict": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts", "scripts/**/*.ts"]
+}

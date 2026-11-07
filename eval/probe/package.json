@@ -1,0 +1,17 @@
+{
+  "name": "back-in-the-family-probe",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.33.1",
+  "scripts": {
+    "probe": "node src/cli.ts",
+    "typecheck": "node scripts/typecheck.ts",
+    "test:unit": "node --test \"tests/unit/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "@types/node": "26.6.6",
+    "fast-check": "4.10.2",
+    "typescript": "6.0.3"
+  }
+}
