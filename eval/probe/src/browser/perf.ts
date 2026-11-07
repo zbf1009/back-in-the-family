@@ -146,6 +146,32 @@ export interface MemoryReader {
   read(): Promise<number | null>;
 }
 
+/**
+ * Waits until the card's memory has stopped moving: `stableReads` consecutive readings within `toleranceMib` of each
+ * other, readings `intervalMs` apart, at most `maxReads` readings. Used after the placement session is disposed:
+ * the driver releases its VRAM with a lag of several seconds, and an idle series taken during that fall would
+ * give a baseline above the real one. Returns the readings taken and whether they settled.
+ */
+export async function settleMemory(
+  reader: MemoryReader,
+  wait: (ms: number) => Promise<void>,
+  o: { readonly intervalMs: number; readonly stableReads: number; readonly toleranceMib: number; readonly maxReads: number },
+): Promise<{ readonly readings: readonly number[]; readonly settled: boolean }> {
+  const readings: number[] = [];
+  for (let i = 0; i < o.maxReads; i++) {
+    if (i > 0) await wait(o.intervalMs);
+    try {
+      const v = await reader.read();
+      if (v !== null) readings.push(v);
+    } catch {
+      // a missing reading
+    }
+    const tail = readings.slice(-o.stableReads);
+    if (tail.length === o.stableReads && Math.max(...tail) - Math.min(...tail) <= o.toleranceMib) return { readings, settled: true };
+  }
+  return { readings, settled: false };
+}
+
 export interface IntervalScheduler {
   /** Calls `fn` every `ms` until the returned function is called. */
   every(ms: number, fn: () => void): () => void;

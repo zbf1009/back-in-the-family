@@ -94,3 +94,27 @@ test('the preflight record carries the CPU classes, the options hash and a failu
   assert.equal(v.record['failure_class'], 'runtime_error');
   assert.match(String(v.record['error']), /previous error/);
 });
+
+test('settleMemory waits for a falling card to stop moving, and gives up at the cap', async () => {
+  const { settleMemory } = await import('../../src/browser/perf.ts');
+  const o = { intervalMs: 250, stableReads: 3, toleranceMib: 20, maxReads: 12 };
+  const falling = [640, 500, 300, 120, 50, 46, 47, 46, 99];
+  const a = await settleMemory({ read: async () => falling.shift() ?? null }, async () => undefined, o);
+  assert.equal(a.settled, true);
+  assert.deepEqual(a.readings, [640, 500, 300, 120, 50, 46, 47]);
+  let n = 0;
+  const b = await settleMemory({ read: async () => (n += 100) }, async () => undefined, o);
+  assert.equal(b.settled, false);
+  assert.equal(b.readings.length, 12);
+});
+
+test('memoryDetail carries the diagnostics and shortens process names to two words', () => {
+  const m = {
+    memory: { baseline_mib: 46 },
+    otherProcesses: { card: '46 MiB, 4096 MiB', compute_apps: [{ pid: 1, type: 'C', name: '/opt/google/chrome/chrome --type=gpu-process --user-data-dir=/tmp/x', mib: 10 }], table: [] },
+    diagnostics: { console_lines_probe: 900, console_lines_quiet: 3, starting_program_quiet: 0, model_bytes: 5, runtime_bytes: 6, model_files: ['a.onnx'] },
+  } as unknown as PreflightMeasurement;
+  const d = memoryDetail(m) as Record<string, any>;
+  assert.equal(d['other_processes'].compute_apps[0].name, '/opt/google/chrome/chrome --type=gpu-process');
+  assert.deepEqual(d['diagnostics'], { console_lines_probe: 900, console_lines_quiet: 3, starting_program_quiet: 0, model_bytes: 5, runtime_bytes: 6, model_files: ['a.onnx'] });
+});

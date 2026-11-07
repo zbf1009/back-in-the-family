@@ -29,6 +29,7 @@ import {
   nvidiaSmiReader,
   parseComputeApps,
   parseNvidiaSmiTable,
+  settleMemory,
   type GpuProcess,
   type ExecFn,
   type IntervalScheduler,
@@ -167,7 +168,21 @@ export interface PreflightMeasurement {
   readonly memory: MemoryRecord;
   /** Processes `nvidia-smi` listed on the card before the engine was created (names and MiB; hybrid-GPU context). */
   readonly otherProcesses?: OtherProcesses;
+  /** Console and network counts of the run (task 19.3 evidence: the quiet session must not flood; what was fetched). */
+  readonly diagnostics?: PreflightDiagnostics;
   readonly run: { readonly ok: true; readonly view: PreflightRunView } | { readonly ok: false; readonly error: string };
+}
+
+export interface PreflightDiagnostics {
+  /** Console lines of the placement (verbose) session, and of the quiet session that was measured. */
+  readonly console_lines_probe: number;
+  readonly console_lines_quiet: number;
+  /** Quiet-session lines containing "Starting program" (the WebGPU dispatch flood; expect 0). */
+  readonly starting_program_quiet: number;
+  readonly model_bytes: number;
+  readonly runtime_bytes: number;
+  /** Distinct model file names requested from the model host (revision and query stripped). */
+  readonly model_files: readonly string[];
 }
 
 export interface OtherProcesses {
@@ -181,6 +196,9 @@ export interface OtherProcesses {
 
 /** Idle series for the preflight: 9 readings 250 ms apart (about 2 s). */
 export const PREFLIGHT_IDLE_READS = 9;
+
+/** Settle wait before the idle series: 4 readings within 20 MiB, 250 ms apart, up to 120 readings (30 s). */
+export const PREFLIGHT_SETTLE = { intervalMs: 250, stableReads: 4, toleranceMib: 20, maxReads: 120 } as const;
 
 export interface WarmUpView {
   readonly task: 'decision' | 'synthesis';
@@ -473,7 +491,11 @@ export class BrowserSession {
     this.assertPinned();
     const placement = this.placementOf(this.consoleLines);
     this.placementValue = placement;
+    // The release of the disposed session's VRAM lags (seen 2026-11-07: 640 -> 46 MiB over the idle series), so wait
+    // until the card has stopped falling before the idle baseline is read. If it never settles, the idle spread flag says so.
+    await settleMemory(nvidiaSmiReader(this.deps.exec), (ms) => new Promise<void>((r) => setTimeout(r, ms)), PREFLIGHT_SETTLE);
     const otherProcesses = await this.readOtherProcesses();
+    const quietStart = this.consoleLines.length;
     this.memory = memoryMeasurementFor(adapter.vendor, {
       reader: nvidiaSmiReader(this.deps.exec),
       scheduler: this.deps.scheduler,
@@ -501,7 +523,29 @@ export class BrowserSession {
       const before = run.ok ? `generation ended (${run.view.outcome.kind})` : run.error;
       run = { ok: false, error: `${before}; console: ${oomLine}` };
     }
-    return { adapter, placement, memory, otherProcesses, run };
+    const quiet = this.consoleLines.slice(quietStart);
+    const modelFiles = new Set<string>();
+    for (const u of this.requestUrls) {
+      try {
+        const url = new URL(u);
+        if (url.hostname === 'huggingface.co' || url.hostname.endsWith('.huggingface.co') || url.hostname.endsWith('.hf.co')) {
+          const at = url.pathname.indexOf('/resolve/');
+          if (at >= 0) modelFiles.add(url.pathname.slice(url.pathname.indexOf('/', at + 9) + 1));
+        }
+      } catch {
+        // not a URL
+      }
+    }
+    const figures = this.counter.figures();
+    const diagnostics: PreflightDiagnostics = {
+      console_lines_probe: quietStart,
+      console_lines_quiet: quiet.length,
+      starting_program_quiet: quiet.filter((l) => l.includes('Starting program')).length,
+      model_bytes: figures.model_bytes,
+      runtime_bytes: figures.runtime_bytes,
+      model_files: [...modelFiles].sort(),
+    };
+    return { adapter, placement, memory, otherProcesses, diagnostics, run };
   }
 
   private async readOtherProcesses(): Promise<OtherProcesses> {

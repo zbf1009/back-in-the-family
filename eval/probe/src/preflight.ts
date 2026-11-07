@@ -76,7 +76,8 @@ export function memoryDetail(m: PreflightMeasurement): JsonObject {
   if (idleMin !== null && idleMax !== null && idleMax - idleMin > NOISE_MIB) flags.push(`idle baseline drifted ${idleMax - idleMin} MiB (> ${NOISE_MIB})`);
   if (baseline !== null && runMin !== null && baseline - runMin > NOISE_MIB) flags.push(`memory.used fell ${baseline - runMin} MiB below the baseline during the run (> ${NOISE_MIB}): other processes freed memory, so the delta may be understated`);
   const o = m.otherProcesses;
-  const proc = (p: { pid: number; type: string | null; name: string; mib: number | null }): JsonObject => ({ pid: p.pid, type: p.type, name: p.name, mib: p.mib });
+  // Names only: the first two words of the command line (no flags, no profile paths).
+  const proc = (p: { pid: number; type: string | null; name: string; mib: number | null }): JsonObject => ({ pid: p.pid, type: p.type, name: p.name.split(/\s+/).slice(0, 2).join(' '), mib: p.mib });
   return {
     baseline_mib: baseline,
     idle_min_mib: idleMin,
@@ -87,6 +88,7 @@ export function memoryDetail(m: PreflightMeasurement): JsonObject {
     card_total_mib: CARD_TOTAL_MIB,
     other_processes: o === undefined ? null : { card_before: o.card, compute_apps: o.compute_apps.map(proc), table: o.table.map(proc) },
     memory_flags: flags,
+    diagnostics: m.diagnostics === undefined ? null : { ...m.diagnostics, model_files: [...m.diagnostics.model_files] },
   };
 }
 
