@@ -718,3 +718,11 @@ Synced `design.md` with what tasks 1–8 actually built and made task 9's single
 ### Spec: llm-probe — steering from the Author: prompt-template content rules (2026-11-07)
 - The Author sent five reminders while task 8.1 ran: relation direction (`#1 -> #2 tags parent` means #2 is #1's parent), `magnitude` units (dollars / joss paper sheets / social intensity 1..100), official `alive` = in office, 1 tick = 1 day with the current day as `{{tick}}`, and event actor order (lender before borrower, promisor before promisee). The 8.1 subagent saw the message and correctly did nothing (no templates in that task).
 - The orchestrator checked the claims against `eval/cards/README.md` (lines 79, 101, 112-113): consistent. Recorded the rules as a "Template content rules" bullet under task 13.1 in `tasks.md`, with a unit test requirement that every statement is present in the committed template files; task 20 (template tuning on Dev_Cards) must keep them. Note: the renderer (task 4.1) prints relations as `#1 -> #2 affinity A trust T tags ...`, so the template text, not the renderer, carries the direction explanation.
+
+### Spec: llm-probe — task 9.12 fault injection: probe Unit_Tests (2026-11-07)
+
+- Gate under test: `mise exec -- pnpm --dir eval/probe run test:unit` in `scripts/gates.sh`.
+- Injected fault: in `eval/probe/src/stats.ts`, `WILSON_Z` changed from `1.96` to `1.0`.
+- Result: the full `scripts/gates.sh` ran the Rust gates green, then the probe unit tests reported `ℹ tests 157`, `ℹ pass 155`, `ℹ fail 2`. The failures were `Wilson 8 of 10 is about [0.4902, 0.9433], both bounds` (stats.examples.test.ts) and `Wilson 8 of 10, 0 of 10, 10 of 10` (stats.test.ts). Every Property test passed, including Property 21's Wilson brackets, since a narrower interval still brackets the rate. The script then printed `gate failed: mise exec -- pnpm --dir eval/probe run test:unit`, exit 1.
+- Revert: restored `stats.ts` from a backup outside the repo; `sha256sum -c` matched.
+- Re-run: `scripts/gates.sh` printed `All gates passed.`, exit 0 (Smoke_Test 2 passed).
