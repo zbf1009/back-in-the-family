@@ -956,3 +956,11 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 ### Spec: llm-probe — V7 conclusion, WebLLM download sizes (task 15.7, 2026-11-08)
 
 - Measured at the pinned revisions on the Target_Machine, empty-cache cold start of a Dev_Run: Qwen3.5-0.8B q4f32_1 fetched 450,403,327 B (429.5 MiB, model + runtime lib), screen 447,173,765 B (+0.7%); Qwen3.5-2B q4f32_1 fetched 1,086,191,136 B (1,035.9 MiB; 1,023.1 MiB of it model files), screen 1,082,561,095 B (+0.3% incl. runtime lib, model files alone -0.9%). Both are under the 1,536 MiB limit (2B at about 67%), so the R9.11 exclusion rule does not fire and no Exclusion_Record is written. The screen is a good predictor (within 1%) for WebLLM.
+
+### Spec: llm-probe — template tuning iteration 1 (task 20.5, 2026-11-08)
+
+- Dev_Cards only, no Locked_Cards, no Workers AI; templates edited in place (`decision.v1.txt`, `synthesis.v1.txt`; file names are fixed in `templates.ts`, the hash changes). No code, schema, validator, grader, timeout or max_tokens change. Unit tests (499) pass; the five Author statements are untouched.
+- Change: decision template gets a "How to choose" paragraph (weigh traits, relations, debts/promises/events) and a "How to reply" paragraph (the option ID is the word between "- " and the colon; no dash, no list position, no label). Synthesis template gets "How to write the conclusions" (be brief, short reasons, event ID is only the first word of the event line, person fields are the `#` numbers, first-named person is the holder/owner/actor).
+- Template_Hashes: D `6fcfbf99f41c83b0902d25537ed57841c25e1d38e833574930c5164c820e9312`, S `73c8b520f8e91a09db993d769f21094c2ef58826470a2c77a0dbac12755def3c`.
+- Dev_Run Metrics (Dev_Run, not Locked_Run), run `dev-20261108T022959Z-webllm-qwen3-5-0-8b-q4f32-nvidia`, 0.8B: D acceptable 43/74 (baseline 39), Illegal 2 (baseline 13; the leading-dash errors are gone), severe 10 (baseline 6); S acceptable 5/30 (baseline 2), Illegal 6 timeout + 6 malformed_event_id (baseline 7 + 7); contrast consistent 0/10; latency median 2,288 ms (baseline 1,948), max 10,002.
+- Remaining S failures: on broken_promise / relationship_shift the model still copies the whole event line or a tag text into `evidence`, and puts ticks into person fields; 6 timeouts on debt_chain and broken_promise.

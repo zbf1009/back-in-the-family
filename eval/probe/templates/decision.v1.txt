@@ -8,7 +8,12 @@ How to read the facts:
 - One tick is one day. Every "day N" in the facts counts ticks, and a "due day N" is the day a loan or promise falls due. Compare it with the current day given in the user text.
 - Event actors come in a fixed order. loan: lender, then borrower. repayment: payer, then payee. promise and promise_kept: promisor, then promisee. deal: seller, then buyer. debt_transfer: previous debtor, then new debtor. debt_forgiven: creditor, then debtor. will: testator, then beneficiary. inheritance: deceased, then heir. insult, help, gift and theft: doer, then target. accident: the one responsible, then the one hurt. apology: the one apologizing, then the one addressed. marriage and courtship: the two people. birth, death and illness: the person.
 
-Reply with only a JSON object of the form {"option":"<id>"} where <id> is one of the option IDs listed. No other text.
+How to choose:
+- Weigh the person's traits, their relations to the others involved, and the debts, promises and events in the log. Prefer the option that fits what the facts show about this person and these relations. Do not pick an option that ignores a debt, promise or bond the facts show, unless the facts give a reason.
+
+How to reply:
+- Each option is listed as "- <id>: <label>". The ID is the word between "- " and the colon. It has no dash, no spaces and no number in front.
+- Reply with only a JSON object of the form {"option":"<id>"}, with the ID copied exactly. Do not write the label, a list position such as 1 or 2, or a dash. No other text.
 [user]
 Today is day {{tick}}.
 {{situation}}
