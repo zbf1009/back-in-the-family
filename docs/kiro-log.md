@@ -1091,3 +1091,9 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - Budget ledger (gitignored): 2026-11-08 shows 104 requests and 1,291 neurons settled. Token usage reported: 114,126 input, 5,755 output; `reasoning_tokens` came back null on every record.
 - Dev_Run figures only; they do not enter any mark. D: 62/74 requests acceptable (83.8%) against a 55.4% random baseline; 16/18 base cards (88.9%) against 55.6%. S: 11/12 base cards (91.7%). One severe S answer (`S-grudge_detection-001`, reversed order).
 - No Locked_Run and no other Workers AI call was made. `eval/cards/cards/locked.jsonl` was not opened. `probe report` was run to read the figures; its `docs/llm-probe.md` output was an untracked draft and was deleted.
+
+### Spec: llm-probe — Workers AI gemma DS Locked_Run approved, start deferred (task 23.3 preparation, 2026-11-08)
+
+- The Author approved the Locked_Run of `workers-ai/gemma-4-26b-a4b-it`, subset DS, `max_requests` 324, under `P2-001`. Recorded as `A-002` (kind `locked`) in `eval/probe/approvals.json`, committed alone as `eb2872d`.
+- Start is conditional: it must not begin before 00:00 UTC on 2026-11-09 (DA-8 fresh-day schedule; today's settled 1,291 neurons leave too little reservation headroom for the Locked_Run), and only after the Author returns and confirms. The approvals schema has no date field and the run gate does not check dates, so the condition is manual; it is written into the entry's `note`.
+- Read-only check: `loadApprovals` accepts the file from `HEAD`, and `findApproval` matches `A-002` for 324 requests. `probe phase-status` still reads branch B with `P2-001`. No Locked_Run was started and no Workers AI request was sent.
