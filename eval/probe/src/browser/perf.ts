@@ -114,6 +114,12 @@ export interface MemoryRecord extends JsonObject {
   reason: string | null;
 }
 
+/** Peak NVIDIA memory.used delta (minus the idle baseline) seen while one request was in flight. */
+export interface RequestPeak {
+  prompt_bytes: number;
+  peak_mib: number | null;
+}
+
 /** Idle-baseline and absolute-peak detail of the NVIDIA reading (hybrid laptops start with a non-zero baseline). */
 export interface NvidiaMemoryDetail {
   baseline_mib: number;
@@ -187,6 +193,10 @@ export const nodeScheduler: IntervalScheduler = {
 export interface MemoryMeasurement {
   /** Takes the idle baseline (NVIDIA) and starts sampling. Call before the engine is created. */
   start(): Promise<void>;
+  /** Opens a per-request window: samples taken from now until `endRequest` belong to that request. Optional. */
+  beginRequest?(): void;
+  /** Closes the window and records its peak against the request's prompt size (UTF-8 bytes). Optional. */
+  endRequest?(promptBytes: number): Promise<void>;
   /** The figure so far; sampling continues. */
   snapshot(): Promise<MemoryRecord>;
   /** Stops sampling and returns the final figure. Call after the last Card request. */
@@ -203,6 +213,8 @@ export class NvidiaPeakSampler implements MemoryMeasurement {
   private readonly samples: number[] = [];
   private stopTimer: (() => void) | null = null;
   private reading = false;
+  private windowStart: number | null = null;
+  private readonly requestPeaks: RequestPeak[] = [];
 
   private readonly reader: MemoryReader;
   private readonly scheduler: IntervalScheduler;
@@ -256,6 +268,18 @@ export class NvidiaPeakSampler implements MemoryMeasurement {
     this.stopTimer = this.scheduler.every(this.intervalMs, () => void this.sample());
   }
 
+  beginRequest(): void {
+    this.windowStart = this.samples.length;
+  }
+
+  async endRequest(promptBytes: number): Promise<void> {
+    if (this.windowStart === null) return;
+    await this.sample(); // a reading right after the request, so a short request still has one
+    const window = this.samples.slice(this.windowStart);
+    this.windowStart = null;
+    this.requestPeaks.push({ prompt_bytes: promptBytes, peak_mib: peakDeltaMib(this.baseline, window) });
+  }
+
   private record(): MemoryRecord {
     if (this.baseline === null) return unmeasuredMemory('nvidia', NVIDIA_MEMORY_QUANTITY, 'nvidia-smi gave no idle baseline reading');
     const peak = peakDeltaMib(this.baseline, this.samples);
@@ -268,7 +292,9 @@ export class NvidiaPeakSampler implements MemoryMeasurement {
       run_min_mib: this.samples.length === 0 ? null : Math.min(...this.samples),
       absolute_peak_mib: Math.max(...this.samples),
     };
-    return { gpu: 'nvidia', quantity: NVIDIA_MEMORY_QUANTITY, peak_mib: peak, reason: null, ...detail };
+    const base = { gpu: 'nvidia' as const, quantity: NVIDIA_MEMORY_QUANTITY, peak_mib: peak, reason: null, ...detail };
+    // Per-request peaks, in request order (empty before the first Card request); lets VRAM be compared with prompt length.
+    return this.requestPeaks.length === 0 ? base : { ...base, per_request: this.requestPeaks.map((r) => ({ ...r })) };
   }
 
   async snapshot(): Promise<MemoryRecord> {

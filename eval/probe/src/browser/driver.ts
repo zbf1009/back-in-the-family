@@ -565,7 +565,12 @@ export class BrowserSession {
     const { page } = this.ready();
     if (this.crashed) throw new Error('the page crashed');
     const args = `${JSON.stringify(prompt)}, ${JSON.stringify({ task, timeoutMs, constraint })}`;
-    return page.evaluate<PromptRunView>(`window.__probe.runPrompt(${args})`);
+    this.memory?.beginRequest?.();
+    try {
+      return await page.evaluate<PromptRunView>(`window.__probe.runPrompt(${args})`);
+    } finally {
+      await this.memory?.endRequest?.(Buffer.byteLength(prompt.system) + Buffer.byteLength(prompt.user)).catch(() => undefined);
+    }
   }
 
   /** Rebuild after an Idle_Cap hit: reload the page, create the engine and run both Warm_Up_Prompts. */

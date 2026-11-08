@@ -118,3 +118,30 @@ test('memoryDetail carries the diagnostics and shortens process names to two wor
   assert.equal(d['other_processes'].compute_apps[0].name, '/opt/google/chrome/chrome --type=gpu-process');
   assert.deepEqual(d['diagnostics'], { console_lines_probe: 900, console_lines_quiet: 3, starting_program_quiet: 0, model_bytes: 5, runtime_bytes: 6, model_files: ['a.onnx'] });
 });
+
+test('per-request peaks: each request gets the peak of its own window, minus the baseline', async () => {
+  const readings = [100, 400, 700, 500, 900, 300];
+  let tick: (() => void) | null = null;
+  const sampler = new NvidiaPeakSampler(
+    { read: async () => readings.shift() ?? null },
+    { every: (_ms, fn) => ((tick = fn), () => undefined) },
+    250,
+  );
+  await sampler.start(); // baseline 100
+  const step = async (): Promise<void> => {
+    (tick as (() => void) | null)?.();
+    await new Promise((r) => setImmediate(r));
+  };
+  sampler.beginRequest();
+  await step(); // 400
+  await sampler.endRequest(1000); // 700
+  sampler.beginRequest();
+  await step(); // 500
+  await sampler.endRequest(5000); // 900
+  const r = (await sampler.stop()) as Record<string, unknown>;
+  assert.deepEqual(r['per_request'], [
+    { prompt_bytes: 1000, peak_mib: 600 },
+    { prompt_bytes: 5000, peak_mib: 800 },
+  ]);
+  assert.equal(r['peak_mib'], 800);
+});
