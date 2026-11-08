@@ -498,7 +498,7 @@ Execution notes for the orchestrator:
     - One per transformers.js candidate that is not excluded, each in a Fresh_Profile with the Headless_Launch_Flags on the NVIDIA adapter. Task 15.6 (V6) is decided on the first one, before the others run. Commit `eval/results/preflight/*.json` and any Exclusion_Records; log peaks and exclusions. One `chore(llm-probe)` commit for task 19.
     - _Requirements: 9.9, 9.10, 9.16, 9.17_
 
-- [ ] 20. STOP-AND-ASK: Dev_Runs, template tuning and template freeze [Target_Machine]
+- [x] 20. STOP-AND-ASK: Dev_Runs, template tuning and template freeze [Target_Machine]
   - [x] 20.1 Ask the Author before the Dev_Runs
     - List the in-browser Combinations that are not excluded, the expected downloads and GPU time. Phase_1 rules: in-browser only; Workers AI only Smoke_Calls within the count (R18.1). Do nothing until the Author approves. If headless WebGPU no longer returns a hardware adapter, stop and ask the Author to run the headed Probe_Page **[headed Chrome]** (`page-bundle`, `page-serve`, export, `ingest`).
     - _Requirements: 10.1, 10.2, 17.1, 18.1_
@@ -511,10 +511,10 @@ Execution notes for the orchestrator:
   - [x] 20.4 Remaining Dev_Runs
     - The other in-browser Combinations that are not excluded (WebLLM Qwen3.5-2B feeds 15.7 too). A load failure or out-of-memory writes a failure record and the next Combination continues. Commit; log.
     - _Requirements: 3.2, 9.4_
-  - [ ] 20.5 Tune the Prompt_Templates on Dev_Cards only
+  - [x] 20.5 Tune the Prompt_Templates on Dev_Cards only
     - Change only the files under `eval/probe/templates/` (block-format changes need a Rust change and a `RENDERER_VERSION` bump with a regenerated golden file; avoid them). Re-run Dev_Runs; never use Locked_Cards; log each iteration with its Template_Hashes and Dev_Run Metrics (labelled Dev_Run).
     - _Requirements: 3.2, 7.7, 15.2_
-  - [ ] 20.6 Ask the Author to freeze the templates, then run the final Dev_Runs
+  - [x] 20.6 Ask the Author to freeze the templates, then run the final Dev_Runs
     - Present the final templates and their Template_Hashes; do nothing until the Author approves the freeze. Then run one Dev_Run per Combination with the frozen hashes (the R3.12 precondition), plus the Intel iGPU Dev_Run (`low-power`) of the best NVIDIA model, added to `combinations.json` with `phase1_locked: false`. Commit Results and the frozen templates; log the hashes. One `chore(llm-probe)` commit.
     - _Requirements: 3.12, 7.7, 15.2, 17.1_
 
