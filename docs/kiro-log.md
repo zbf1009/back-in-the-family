@@ -1074,3 +1074,11 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
   - 21.6 `transformers.js/lfm2.5-1.2b-instruct-q4/nvidia`: ran nothing. Excluded 2026-11-07T12:30Z, 2,675 MiB measured, above the 2,600 MiB limit.
 - Phase_1 locked evidence therefore comes from the two WebLLM Locked_Runs only (21.2 and 21.3); `probe phase-status` reads Phase_1 ended, branch B, subset DS, and no Phase_2 approval exists yet.
 - No Workers AI request, Dev_Run or Locked_Run was made in this step, and `eval/cards/cards/locked.jsonl` was not opened.
+
+### Spec: llm-probe — Phase_1 conclusion and Phase_2 decision recorded (task 22.2, 2026-11-08)
+
+- The Author received the Phase_1 result (22.1) and concluded: both WebLLM Locked_Runs failed D and S (`L-20261108T081803Z-webllm-qwen3-5-0-8b-q4f32-nvidia`, `L-20261108T084653Z-webllm-qwen3-5-2b-q4f32-nvidia`; the three transformers.js Combinations are excluded). Decision: **Phase_2 branch B**, model `@cf/google/gemma-4-26b-a4b-it` (Combination `workers-ai/gemma-4-26b-a4b-it`), Task_Type_Subset `DS`.
+- Budget figures presented at approval time (both D and S on Workers AI): Dev_Run 104 requests, about 1,042 neurons measured-settled / 2,858 at the DA-8 upper bound; Locked_Run 324 requests, about 3,208 / 8,761. Dev and Locked together are 11,618 at the upper bound, above the 9,000 Neuron_Cap, so the Dev_Run goes today (UTC) and the Locked_Run starts at 00:00 UTC on a later fresh day.
+- Recorded as `phase2` entry `P2-001` in `eval/probe/approvals.json`, committed alone as `a49097b`. `probe phase-status` reads it from `HEAD`: branch B (subset DS), model `@cf/google/gemma-4-26b-a4b-it`, no mismatch. No `dev` or `locked` approval exists; those need separate Author approvals (23.2, 23.3).
+- Task 23.1 (branch A, Smoke_Calls only): not applicable, branch B was chosen.
+- No Workers AI request was sent in this step, and `eval/cards/cards/locked.jsonl` was not opened.
