@@ -1065,3 +1065,12 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - S: acceptable 0/40; Illegal 38/40 (95.0%); severe 2; flip rate 3/44; contrast consistency 0/10. 80 of 88 S requests timed out. Mark: fail.
 - Performance: D p50/p95 4,984/5,936 ms; S p50/p95 8,893/9,993 ms. Cold start 243,841 ms (empty cache), 6,444 ms (warm). Download 1,072,781,587 B model + 13,399,008 B runtime. NVIDIA memory.used peak delta 2,461 MiB (absolute 2,505 MiB, baseline 44 MiB).
 - `probe phase-status`: Phase_1 ended; both WebLLM Combinations finished, three transformers.js Combinations have Exclusion_Records; D and S both "no pass"; Branch B, no Phase_2 approval. The generated `docs/llm-probe.md` draft was deleted.
+
+### Spec: llm-probe — Locked_Runs 21.4, 21.5 and 21.6 not run: Combinations excluded (2026-11-08T09:39Z)
+
+- Per task 21.4 to 21.6 ("if the Combination was excluded or failed earlier, record that instead and run nothing"), the three transformers.js Combinations have an Exclusion_Record in `eval/results/exclusions.jsonl` (check `preflight_vram`, limit 2,600 MiB), so no Locked_Run was started, no approval was asked, and no request was sent for any of them:
+  - 21.4 `transformers.js/qwen3.5-0.8b-q4/nvidia`: ran nothing. Excluded 2026-11-07T11:59Z at the formal preflight, value `out_of_memory`.
+  - 21.5 `transformers.js/qwen3.5-2b-q4/nvidia`: ran nothing. Excluded 2026-11-07T12:23Z, value `out_of_memory` (3,090 MiB reading at the crash).
+  - 21.6 `transformers.js/lfm2.5-1.2b-instruct-q4/nvidia`: ran nothing. Excluded 2026-11-07T12:30Z, 2,675 MiB measured, above the 2,600 MiB limit.
+- Phase_1 locked evidence therefore comes from the two WebLLM Locked_Runs only (21.2 and 21.3); `probe phase-status` reads Phase_1 ended, branch B, subset DS, and no Phase_2 approval exists yet.
+- No Workers AI request, Dev_Run or Locked_Run was made in this step, and `eval/cards/cards/locked.jsonl` was not opened.
