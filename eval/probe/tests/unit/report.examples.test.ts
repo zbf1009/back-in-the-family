@@ -8,7 +8,7 @@ import type { TaskType } from '../../src/cards.ts';
 import { deriveEntries, LEDGER_SCHEMA, type LedgerEvent } from '../../src/ledger.ts';
 import type { MetricCard } from '../../src/metrics.ts';
 import type { Combination } from '../../src/phase.ts';
-import { analyzeRun, buildReport, INTEL_MEMORY_QUANTITY, NVIDIA_MEMORY_COLUMN, type ReportInput, type RunAnalysis } from '../../src/report.ts';
+import { analyzeRun, buildReport, INTEL_MEMORY_QUANTITY, NVIDIA_MEMORY_COLUMN, PREFLIGHT_FINDINGS_TITLE, type ReportInput, type RunAnalysis } from '../../src/report.ts';
 import {
   SCHEMA,
   type ContrastLine,
@@ -313,4 +313,24 @@ test('when nothing passes the recommendation is the Rules_Default alone for both
   // Rules_Default stays the one supported link.
   const links = rows(section(report, 8)).filter((r) => r[1] === 'Rules_Default');
   assert.deepEqual(links.map((r) => r[2]), ['supported', 'supported']);
+});
+
+test('the Report states the VRAM_Preflight findings and their limits', () => {
+  const md = build([], [LFM]);
+  assert.ok(md.includes(`### ${PREFLIGHT_FINDINGS_TITLE}`));
+  for (const needle of [
+    'out_of_memory',
+    '1.31.0-dev.20260914',
+    'not a matter of model size',
+    '18 gated-delta-net `Scan` nodes',
+    'LinearAttention fused operator',
+    'Per the Author',
+    'The exclusion conclusion does not change',
+    'only the Qwen3.5 family on WebLLM',
+    'unmapped GEM buffers',
+    'never share a column',
+    'Prompt-length diagnosis',
+  ]) {
+    assert.ok(md.includes(needle), `missing: ${needle}`);
+  }
 });

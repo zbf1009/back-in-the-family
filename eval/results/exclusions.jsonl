@@ -1,3 +1,3 @@
-{"schema":"llm-probe-exclusion-v1","at":"2026-11-07T11:20:03.496Z","check":"preflight_vram","combination":"transformers.js/qwen3.5-0.8b-q4/nvidia","limit":2600,"model":"onnx-community/Qwen3.5-0.8B-ONNX","value":"out of memory during generation (peak 1959 MiB so far)"}
-{"schema":"llm-probe-exclusion-v1","at":"2026-11-07T12:23:40.884Z","check":"preflight_vram","combination":"transformers.js/qwen3.5-2b-q4/nvidia","limit":2600,"model":"onnx-community/Qwen3.5-2B-ONNX","value":3090}
+{"schema":"llm-probe-exclusion-v1","at":"2026-11-07T11:59:00.635Z","check":"preflight_vram","combination":"transformers.js/qwen3.5-0.8b-q4/nvidia","limit":2600,"model":"onnx-community/Qwen3.5-0.8B-ONNX","value":"out_of_memory"}
+{"schema":"llm-probe-exclusion-v1","at":"2026-11-07T12:23:40.884Z","check":"preflight_vram","combination":"transformers.js/qwen3.5-2b-q4/nvidia","limit":2600,"model":"onnx-community/Qwen3.5-2B-ONNX","value":"out_of_memory"}
 {"schema":"llm-probe-exclusion-v1","at":"2026-11-07T12:30:21.146Z","check":"preflight_vram","combination":"transformers.js/lfm2.5-1.2b-instruct-q4/nvidia","limit":2600,"model":"LiquidAI/LFM2.5-1.2B-Instruct-ONNX","value":2675}

@@ -1,0 +1,96 @@
+{
+  "schema": "llm-probe-prompt-diagnosis-v1",
+  "at": "2026-11-08T01:19:14.216Z",
+  "combination": "transformers.js/qwen3.5-0.8b-q4/nvidia",
+  "label": "longest_dev_4_7kb",
+  "prompt_bytes": 4689,
+  "result": {
+    "run": {
+      "ok": true,
+      "view": {
+        "outcome": {
+          "kind": "error",
+          "code": "truncated",
+          "detail": "max_new_tokens reached"
+        },
+        "latency_ms": 327751,
+        "reached_limit": true
+      }
+    },
+    "peak_mib": 2726,
+    "memory": {
+      "gpu": "nvidia",
+      "quantity": "NVIDIA device memory.used delta",
+      "peak_mib": 2726,
+      "reason": null,
+      "baseline_mib": 46,
+      "idle_min_mib": 46,
+      "idle_max_mib": 46,
+      "idle_samples": 9,
+      "run_min_mib": 46,
+      "absolute_peak_mib": 2772
+    },
+    "placement": {
+      "method": "onnxruntime_node_placements",
+      "cpu_nodes": [
+        {
+          "op_type": "Cast",
+          "count": 22
+        },
+        {
+          "op_type": "Concat",
+          "count": 15
+        },
+        {
+          "op_type": "Equal",
+          "count": 18
+        },
+        {
+          "op_type": "Expand",
+          "count": 1
+        },
+        {
+          "op_type": "Gather",
+          "count": 64
+        },
+        {
+          "op_type": "Mul",
+          "count": 12
+        },
+        {
+          "op_type": "Neg",
+          "count": 18
+        },
+        {
+          "op_type": "Range",
+          "count": 12
+        },
+        {
+          "op_type": "Reshape",
+          "count": 12
+        },
+        {
+          "op_type": "Scan",
+          "count": 18
+        },
+        {
+          "op_type": "Shape",
+          "count": 2
+        },
+        {
+          "op_type": "Slice",
+          "count": 18
+        },
+        {
+          "op_type": "Sub",
+          "count": 1
+        },
+        {
+          "op_type": "Unsqueeze",
+          "count": 23
+        }
+      ]
+    },
+    "other_processes_card_before": "46 MiB, 4096 MiB"
+  }
+}

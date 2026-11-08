@@ -51,6 +51,23 @@ export const INTEL_MEMORY_QUANTITY = 'Chrome GPU process peak RSS (excludes unma
 export const DEV_SECTION_TITLE = 'Dev_Run figures (not used for the recommendation)';
 export const QUALITY_WITHOUT_TIMEOUT_TITLE = 'Quality without timeout (not used for any mark, label or recommendation)';
 
+export const PREFLIGHT_FINDINGS_TITLE = 'VRAM_Preflight findings and their limits';
+
+/**
+ * Fixed notes the Author asked the Report to carry (2026-11-08). They qualify the Exclusion_Records above and change none
+ * of them. Raw evidence: `eval/results/preflight/*.json`, `attempts.jsonl`, `diagnosis/*.json`.
+ */
+export const PREFLIGHT_FINDINGS: readonly string[] = [
+  'Both Qwen3.5 ONNX exports (0.8B and 2B, q4) run out of GPU memory in the prefill step (new_tokens = 0, `vkAllocateMemory` returned `VK_ERROR_OUT_OF_DEVICE_MEMORY`) on transformers.js 4.3.2 with onnxruntime-web 1.31.0-dev.20260914-8d85527a0, on the 4,096 MiB RTX 3050 Ti, with the 9.4 KB VRAM_Preflight prompt. Their Exclusion_Records carry the reason `out_of_memory`, not a peak above 2,600 MiB.',
+  'The peak figures of those two runs are readings at the moment of the crash, not complete peaks: 2,128 MiB (0.8B, delta over a 44 MiB baseline; 2,172 MiB absolute) and 3,090 MiB (2B, delta over a 46 MiB baseline; 3,136 MiB absolute). The 2B figure being above 2,600 MiB is not the reason for its exclusion.',
+  'This is not a matter of model size: the larger LFM2.5-1.2B-Instruct runs the same preflight to the end (1,024 tokens, peak 2,675 MiB). It stays excluded because 2,675 MiB is above the 2,600 MiB limit, which was not relaxed.',
+  'Clue: the placement log shows that both Qwen3.5 exports put 18 gated-delta-net `Scan` nodes on the CPU, so every step needs a CPU to GPU copy.',
+  'Per the Author, onnxruntime already has a WebGPU LinearAttention fused operator for Qwen3.5, but these exports do not use it. The Report has not verified this statement independently.',
+  'The exclusion conclusion does not change. It covers the Qwen3.5 ONNX exports on transformers.js with this onnxruntime-web build only. The browser-side conclusion covers only the Qwen3.5 family on WebLLM; it does not represent all in-browser models.',
+  'Intel iGPU memory is the GPU process peak RSS. It excludes unmapped GEM buffers and is a different quantity from the NVIDIA device memory.used delta. The two are never compared and never share a column in this Report.',
+  'Prompt-length diagnosis (Report only; no Exclusion_Record was written or changed from it): Qwen3.5-0.8B (transformers.js, NVIDIA) was run again with prompts built from Dev_Cards only. A 1,560-byte prompt completed all 1,024 tokens (no OOM, peak 1,392 MiB). The longest Dev_Card prompt, 4,689 bytes, also completed all 1,024 tokens (no OOM, peak 2,726 MiB, above the 2,600 MiB limit). The 9.4 KB preflight prompt ran out of memory in prefill. So the failure depends on prompt length, and the memory peak grows steeply with it. The raw records are in `eval/results/preflight/diagnosis/`. The VRAM_Preflight rule (R9.16) fixes the prompt, so the Exclusion_Record stands.',
+];
+
 /** The Target_Machine of the glossary; the Report states it (R14.8). */
 export const TARGET_MACHINE =
   'NVIDIA GeForce RTX 3050 Ti Laptop GPU (4,096 MiB VRAM, driver 615.78.08), Intel UHD Graphics (TigerLake-H GT1), Intel i7-11800H (16 threads), 15 GiB RAM, Linux, Chrome 155';
@@ -539,6 +556,8 @@ export function buildReport(input: ReportInput): string {
     }
     out.push('');
   }
+  h3(PREFLIGHT_FINDINGS_TITLE);
+  out.push(...PREFLIGHT_FINDINGS.map((f) => `- ${f}`), '');
 
   // ---- 4. Metrics per Combination and Task_Type (R15.1, R13)
   h2('4. Locked_Run Metrics per Combination and Task_Type');
