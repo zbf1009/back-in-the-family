@@ -41,6 +41,7 @@ import {
 import { RunLogger } from './run-logger.ts';
 import { buildPlan, loadSchemas, loadTemplates, renderPlan, runManifestCheck, type RunDeps } from './run.ts';
 import { wasmSha256, llmRenderPrompt } from './simwasm.ts';
+import { isTransientNetworkError } from './transient.ts';
 import { printErrorLine, printLine } from './sink.ts';
 
 // ---------------------------------------------------------------- fixed parameters (design: VRAM_Preflight)
@@ -273,8 +274,7 @@ const ENVIRONMENT_CODES: readonly LoadFailureCode[] = ['gpu_unavailable', 'softw
  * says nothing about the model: the weights never arrived. Such a load failure is a `no_verdict` record, never an
  * exclusion (Author, 2026-11-07, after a transient error wrongly excluded Qwen3.5-2B).
  */
-const TRANSIENT_NETWORK_RE = /network error|failed to fetch|networkerror|net::err_|econnreset|etimedout|enotfound|eai_again|socket hang up/i;
-export const isTransientNetworkError = (message: string): boolean => TRANSIENT_NETWORK_RE.test(message);
+export { isTransientNetworkError };
 
 const placementJson = (p: Placement | null): JsonValue =>
   p === null ? null : { method: p.method, cpu_nodes: p.cpu_nodes.map((n) => ({ op_type: n.op_type, count: n.count })) };

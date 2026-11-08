@@ -65,3 +65,18 @@ test('without D card facts the Report leaves the diagnosis out instead of invent
   assert.ok(!text.includes('request level'));
   assert.ok(!text.includes(DEV_D_FINDING));
 });
+
+test('the Dev section states the position/content confound, and the note matches dev.jsonl', async () => {
+  const { DEV_CONFOUND_NOTE } = await import('../../src/report.ts');
+  assert.ok(devReport(false).includes(DEV_CONFOUND_NOTE));
+  for (const needle of ['all 15 scored D cards', 'oversight on the card-authoring side', 'not changed', 'last 14, middle 26, first 7', 'Per the Author', 'Locked_Run results']) {
+    assert.ok(DEV_CONFOUND_NOTE.includes(needle), needle);
+  }
+  // The dev facts the note states (dev.jsonl may be read; the locked split is not).
+  const { readFileSync } = await import('node:fs');
+  const { DEFAULT_CARDS_DIR } = await import('../../src/cards.ts');
+  const dev = readFileSync(`${DEFAULT_CARDS_DIR}/cards/dev.jsonl`, 'utf8').split('\n').filter((l) => l.trim() !== '').map((l) => JSON.parse(l) as { task: string; scored: boolean; options: { id: string }[]; severe: string[] });
+  const withSevere = dev.filter((c) => c.task === 'decision' && c.scored && c.severe.length > 0);
+  assert.equal(withSevere.length, 15);
+  assert.ok(withSevere.every((c) => c.severe.length === 1 && c.options.findIndex((o) => o.id === c.severe[0]) === c.options.length - 1));
+});

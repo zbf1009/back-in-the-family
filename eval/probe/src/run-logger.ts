@@ -117,7 +117,7 @@ export class RunLogger {
   }
 
   /** `probe: run: <label> <ids and counts>`: a short fixed status line. */
-  status(label: 'dev-run start' | 'locked-run start' | 'resume' | 'results written' | 'grades written' | 'complete' | 'aborted', args: FailureArgs = {}): void {
+  status(label: 'dev-run start' | 'locked-run start' | 'resume' | 'results written' | 'grades written' | 'complete' | 'aborted' | 'transient load failure, retrying', args: FailureArgs = {}): void {
     printLine(`probe: ${label}${formatArgs(args)}`);
   }
 

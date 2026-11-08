@@ -6,7 +6,7 @@
 import { chooseReportEntries, modelKeysEqual, subsetTaskTypes, type LedgerEntry } from './ledger.ts';
 import type { Approval, ApprovalsResult } from './approvals.ts';
 import type { TaskType } from './cards.ts';
-import type { ExclusionRecord, FailureRecord, ModelKey, SmokeRecord, TaskSubset } from './results.ts';
+import { countsForGate, type ExclusionRecord, type FailureRecord, type ModelKey, type SmokeRecord, type TaskSubset } from './results.ts';
 
 // ---------------------------------------------------------------- Combination (combinations.json)
 
@@ -139,7 +139,11 @@ function completeCoverage(combo: Combination, state: PhaseState): Set<TaskType> 
 }
 
 export const hasExclusion = (combo: Combination, state: PhaseState): boolean => state.exclusions.some((x) => x.combination === combo.id);
-export const hasFailure = (combo: Combination, state: PhaseState): boolean => state.failures.some((f) => f.combination === combo.id);
+/**
+ * A Combination has failed Phase_1 only through a non-transient failure of a Locked_Run (Author, 2026-11-08):
+ * a Dev_Run failure and a transient network error never finish it. See `effectiveFailure` in `results.ts`.
+ */
+export const hasFailure = (combo: Combination, state: PhaseState): boolean => state.failures.some((f) => f.combination === combo.id && countsForGate(f));
 
 /** Terminal Phase_1 state of one Combination, or null when it still needs a run (R18.2, R9.17). */
 export function phase1Finish(combo: Combination, state: PhaseState): Phase1Finish | null {

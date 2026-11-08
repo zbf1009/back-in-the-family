@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { appendTextFile, writeTextFile } from './sink.ts';
+import { isTransientNetworkError } from './transient.ts';
 
 export const SCHEMA_PREFIX = 'llm-probe-';
 
@@ -19,6 +20,7 @@ export const SCHEMA = {
   preflight: 'llm-probe-preflight-v1',
   exclusion: 'llm-probe-exclusion-v1',
   failure: 'llm-probe-failure-v1',
+  failureCorrection: 'llm-probe-failure-correction-v1',
 } as const;
 
 // ---------------------------------------------------------------- types
@@ -133,6 +135,65 @@ export interface FailureRecord extends JsonObject {
   schema: typeof SCHEMA.failure;
   combination: string;
   kind: string;
+}
+
+/**
+ * What the phase gate reads from a failure record (2026-11-08, Author's gate fix). The gate counts a
+ * record only when `run_kind` is `locked` AND `transient` is false.
+ *
+ * Reading rules (the schema stays `llm-probe-failure-v1`; both fields are optional, so every older
+ * line still parses):
+ *  - `run_kind`: the field when it is `dev` or `locked`; else inferred: a `run_id` starting with `dev-`
+ *    is `dev`, anything else (a ledger entry ID, or no run ID at all) is `locked`. The unknown case
+ *    reads as `locked` on purpose: a failure that cannot be shown to be a Dev_Run is not ignored.
+ *  - `transient`: the field when it is a boolean; else true when `detail`, `reason` or `message`
+ *    matches the transient network-error matcher (`transient.ts`).
+ *  - A correction record (`llm-probe-failure-correction-v1`, appended to the same file, never an edit
+ *    of the original line) overrides both for the record with the same `combination` and `at`
+ *    (and the same `run_id` when the correction names one). The last matching correction wins.
+ */
+export interface EffectiveFailure {
+  readonly run_kind: 'dev' | 'locked';
+  readonly transient: boolean;
+}
+
+/** Append-only correction of one failure record's run type and transient flag. */
+export interface FailureCorrection extends JsonObject {
+  schema: typeof SCHEMA.failureCorrection;
+  combination: string;
+  /** The `at` of the record being corrected. */
+  target_at: string;
+  run_kind: 'dev' | 'locked';
+  transient: boolean;
+  reason: string;
+  at: string;
+}
+
+const textOf = (f: JsonObject, k: string): string => (typeof f[k] === 'string' ? (f[k] as string) : '');
+
+/** Run type and transient flag of a failure record, with the legacy rules above. */
+export function effectiveFailure(f: FailureRecord): EffectiveFailure {
+  const kind = f['run_kind'];
+  const runId = textOf(f, 'run_id');
+  const run_kind: 'dev' | 'locked' = kind === 'dev' || kind === 'locked' ? kind : runId.startsWith('dev-') ? 'dev' : 'locked';
+  const flag = f['transient'];
+  const transient = typeof flag === 'boolean' ? flag : isTransientNetworkError(`${textOf(f, 'detail')}\n${textOf(f, 'reason')}\n${textOf(f, 'message')}`);
+  return { run_kind, transient };
+}
+
+/** True when the phase gate counts this record: a non-transient failure of a Locked_Run. */
+export const countsForGate = (f: FailureRecord): boolean => {
+  const e = effectiveFailure(f);
+  return e.run_kind === 'locked' && !e.transient;
+};
+
+/** Applies corrections to failure records: the result carries explicit `run_kind` and `transient`. */
+export function applyFailureCorrections(failures: readonly FailureRecord[], corrections: readonly FailureCorrection[]): FailureRecord[] {
+  return failures.map((f) => {
+    const c = [...corrections].reverse().find((x) => x.combination === f.combination && x.target_at === f['at'] && (x['run_id'] === undefined || x['run_id'] === f['run_id']));
+    if (c === undefined) return f;
+    return { ...f, run_kind: c.run_kind, transient: c.transient, corrected_by: c.at };
+  });
 }
 export interface SmokeRecord extends JsonObject {
   schema: typeof SCHEMA.smoke;
@@ -501,6 +562,16 @@ export function parseFailureRecord(v: unknown): FailureRecord {
     nonEmptyStr(o.kind, 'record.kind');
   });
 }
+export function parseFailureCorrection(v: unknown): FailureCorrection {
+  return freeRecord<FailureCorrection>(v, SCHEMA.failureCorrection, (o) => {
+    nonEmptyStr(o.combination, 'record.combination');
+    nonEmptyStr(o.target_at, 'record.target_at');
+    oneOf(o.run_kind, ['locked', 'dev'] as const, 'record.run_kind');
+    bool(o.transient, 'record.transient');
+    nonEmptyStr(o.reason, 'record.reason');
+    nonEmptyStr(o.at, 'record.at');
+  });
+}
 export function parseSmokeRecord(v: unknown): SmokeRecord {
   return freeRecord<SmokeRecord>(v, SCHEMA.smoke, () => {});
 }
@@ -721,7 +792,15 @@ function appendChecked<T>(file: string, parse: (v: unknown) => T, record: unknow
   appendTextFile(file, serializeLine(validated(parse, record, what)));
 }
 
-export const appendFailure = (file: string, r: FailureRecord): void => appendChecked(file, parseFailureRecord, r, 'failure record');
+/**
+ * Appends a failure record. A record with no `transient` flag gets one from the transient matcher, so every new
+ * line states it (2026-11-08); `run_kind` is set by the caller.
+ */
+export const appendFailure = (file: string, r: FailureRecord): void => {
+  const withFlag: FailureRecord = typeof r['transient'] === 'boolean' ? r : { ...r, transient: effectiveFailure(r).transient };
+  appendChecked(file, parseFailureRecord, withFlag, 'failure record');
+};
+export const appendFailureCorrection = (file: string, r: FailureCorrection): void => appendChecked(file, parseFailureCorrection, r, 'failure correction');
 export const appendExclusion = (file: string, r: ExclusionRecord): void => appendChecked(file, parseExclusionRecord, r, 'exclusion record');
 /** Appends an Exclusion_Record unless one for the same Combination and check is already there. Returns whether it wrote. */
 export function appendExclusionOnce(file: string, r: ExclusionRecord): boolean {
@@ -745,7 +824,15 @@ export const writePerf = (file: string, r: PerfRecord, overwrite = false): void 
 export const writePreflight = (file: string, r: PreflightRecord, overwrite = false): void =>
   writeSingle(file, parsePreflightRecord, r, 'preflight record', overwrite);
 
-export const readFailures = (file: string): FailureRecord[] => readJsonLines(file, (v) => parseFailureRecord(v));
+/** Failure records of `failures.jsonl` with the correction lines applied; correction lines are not returned themselves. */
+export const readFailures = (file: string): FailureRecord[] => {
+  const lines = readJsonLines(file, (v) =>
+    typeof v === 'object' && v !== null && (v as { schema?: unknown }).schema === SCHEMA.failureCorrection ? parseFailureCorrection(v) : parseFailureRecord(v),
+  );
+  const corrections = lines.filter((l): l is FailureCorrection => l.schema === SCHEMA.failureCorrection);
+  const failures = lines.filter((l): l is FailureRecord => l.schema === SCHEMA.failure);
+  return applyFailureCorrections(failures, corrections);
+};
 export const readExclusions = (file: string): ExclusionRecord[] => readJsonLines(file, (v) => parseExclusionRecord(v));
 export const readSmoke = (file: string): SmokeRecord[] => readJsonLines(file, (v) => parseSmokeRecord(v));
 export const readPerf = (file: string): PerfRecord => {

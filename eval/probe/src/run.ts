@@ -12,6 +12,7 @@ import path from 'node:path';
 import type { AdapterResult, LateAnswer, Prompt, RuntimeAdapter, SamplingParams, OutputConstraint } from './adapters/interface.ts';
 import { rebuildEngineWithWarmUp, type LifecycleEngine, type WarmUpPrompts } from './adapters/lifecycle.ts';
 import { findApproval } from './approvals.ts';
+import { isTransientNetworkError } from './transient.ts';
 import { BudgetError, BudgetSession, estimateNeurons, isRefusal, type Reservation } from './budget.ts';
 import { CardLoadError, loadCards, type LoadedCard, type LoadedCards, type TaskType } from './cards.ts';
 import {
@@ -152,6 +153,8 @@ export interface RunDeps {
   /** Milliseconds since the epoch; default `Date.now`. */
   readonly now?: () => number;
   readonly logger?: RunLogger;
+  /** Waits `ms` milliseconds before an automatic load retry (Locked_Run); default `setTimeout`. Tests inject a fake. */
+  readonly sleep?: (ms: number) => Promise<void>;
 }
 
 /** One rendered request of a Probe_Page bundle (design: Probe_Page bundle and export). */
@@ -615,6 +618,7 @@ function failureRecord(a: {
     cause: a.kind,
     phase: a.kind === 'rebuild_failed' ? 'inference' : 'load',
     run_kind: a.runKind,
+    transient: isTransientNetworkError(a.detail),
     run_id: a.runId,
     entry_id: a.entryId,
     cards_answered: a.cardsAnswered,
@@ -774,10 +778,10 @@ async function rebuild(c: Exec): Promise<void> {
 // ---------------------------------------------------------------- grades
 
 /** Replaces the perf record written at load with the handle's final one (memory peak up to the last Card). */
-async function finishPerf(handle: RuntimeHandle, file: string): Promise<void> {
+async function finishPerf(handle: RuntimeHandle, file: string, extra: JsonObject = {}): Promise<void> {
   if (handle.finish === undefined) return;
   const done = await handle.finish();
-  if (done !== undefined && done.perf !== undefined) writePerf(file, done.perf, true);
+  if (done !== undefined && done.perf !== undefined) writePerf(file, { ...done.perf, ...extra }, true);
 }
 
 const perfPathFor = (resultsFile: string): string => resultsFile.replace(/\.jsonl$/, '') + '.perf.json';
@@ -985,6 +989,66 @@ async function loadFirst(handle: RuntimeHandle, coldStart: boolean): Promise<Loa
   } catch (e) {
     if (e instanceof RuntimeLoadError) return { perf: undefined, failure: e, crash: null };
     return { perf: undefined, failure: null, crash: e };
+  }
+}
+
+/**
+ * Locked_Run transient load rules (Author's condition 2, 2026-11-08; `docs/kiro-log.md` and design.md carry the same text):
+ * a load that fails with `model_load_failed` and a transient network message (`transient.ts`) is retried up to
+ * LOCKED_LOAD_RETRIES times, waiting LOCKED_LOAD_BACKOFF_MS[n-1] before retry n. Each retry closes the failed handle and
+ * opens a NEW Fresh_Profile (a new handle and the Fresh_Profile hook), so a retry never reuses a half-filled cache or a
+ * byte counter, and the cold-start and download figures come from the first load that succeeded, never from a failed or
+ * partial one. A failed attempt writes a locked + transient failure record (`will_retry: true`) which the phase gate
+ * ignores. The retry happens before the first Card request. After the last retry the run stops as before: not_run
+ * records, a ledger abort, and a final locked + transient failure record; it is continued only with `--resume`, after
+ * asking the Author again. Any other load failure is not retried. A transient error after the first request is never
+ * retried automatically: the run stops, the failure record is flagged transient, and it is resumed the same way.
+ */
+export const LOCKED_LOAD_RETRIES = 3;
+export const LOCKED_LOAD_BACKOFF_MS: readonly number[] = [5_000, 15_000, 45_000];
+
+const realSleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+interface RetriedLoad {
+  readonly handle: RuntimeHandle;
+  readonly outcome: Loaded;
+  /** Loads tried, including the one that decided the outcome. */
+  readonly attempts: number;
+}
+
+async function loadLockedWithRetry(
+  deps: RunDeps,
+  logger: RunLogger,
+  ctx: RuntimeContext,
+  first: RuntimeHandle,
+  coldStart: boolean,
+  rec: { readonly combo: Combination; readonly entryId: string; readonly cardsAnswered: number },
+): Promise<RetriedLoad> {
+  let handle = first;
+  for (let attempt = 1; ; attempt++) {
+    const outcome = await loadFirst(handle, coldStart);
+    const f = outcome.failure;
+    if (f === null || f.code !== 'model_load_failed' || !isTransientNetworkError(f.message) || attempt > LOCKED_LOAD_RETRIES) return { handle, outcome, attempts: attempt };
+    appendFailure(deps.paths.failures, {
+      ...failureRecord({ combo: rec.combo, kind: f.code, runKind: 'locked', runId: rec.entryId, cardsAnswered: rec.cardsAnswered, detail: f.message, at: nowOf(deps), entryId: rec.entryId }),
+      attempt,
+      will_retry: true,
+    });
+    logger.status('transient load failure, retrying', { entryId: rec.entryId, combination: rec.combo.id, count: attempt });
+    await closeHandle(handle);
+    await (deps.sleep ?? realSleep)(LOCKED_LOAD_BACKOFF_MS[attempt - 1] ?? 45_000);
+    try {
+      handle = await createHandle(deps, ctx);
+      if (deps.freshProfile !== undefined) {
+        const fp = await deps.freshProfile(ctx, handle);
+        if (!fp.ok) {
+          const why = [fp.failure['detail'], fp.failure['reason'], fp.failure['kind']].find((x) => typeof x === 'string') as string | undefined;
+          return { handle, outcome: { perf: undefined, failure: new RuntimeLoadError('model_load_failed', `fresh profile for retry ${attempt} failed: ${why ?? 'unknown'}`), crash: null }, attempts: attempt + 1 };
+        }
+      }
+    } catch (e) {
+      return { handle, outcome: { perf: undefined, failure: new RuntimeLoadError('model_load_failed', `could not reopen for retry ${attempt}: ${e instanceof Error ? e.message : String(e)}`), crash: null }, attempts: attempt + 1 };
+    }
   }
 }
 
@@ -1250,7 +1314,11 @@ export async function lockedRun(deps: RunDeps, opts: LockedRunOptions): Promise<
     // in-browser Runtime knows only after its session exists. The ledger `start` (step 7) still precedes it.
     const resultsFile = resumeFile ?? resultsPath(deps.paths.resultsDir, 'locked', entryId);
     const perfFile = perfPathFor(resultsFile);
-    const outcome = await loadFirst(handle, !fs.existsSync(perfFile));
+    const retried = await loadLockedWithRetry(deps, logger, ctx, handle, !fs.existsSync(perfFile), { combo, entryId, cardsAnswered: sentCount(priorRecords) });
+    handle = retried.handle;
+    const outcome = retried.outcome;
+    // The figures of the load that succeeded, with the retry count when there was one (never a failed attempt's figures).
+    const perfExtra: JsonObject = retried.attempts > 1 ? { load_attempts: retried.attempts } : {};
 
     let writer: ResultsWriter;
     try {
@@ -1268,7 +1336,7 @@ export async function lockedRun(deps: RunDeps, opts: LockedRunOptions): Promise<
     let stop: Stop | null = null;
     let perfWritten = false;
     if (outcome.perf !== undefined && !fs.existsSync(perfFile)) {
-      writePerf(perfFile, outcome.perf);
+      writePerf(perfFile, { ...outcome.perf, ...perfExtra });
       perfWritten = true;
     }
     if (outcome.failure !== null) {
@@ -1285,7 +1353,7 @@ export async function lockedRun(deps: RunDeps, opts: LockedRunOptions): Promise<
       const exec: Exec = { deps, logger, kind: 'locked', combo, tasks, timeoutMs: effectiveTimeout, plan, handle, writer, base, budget, entryId, templates, samplings: ctx.samplings };
       stop = await sendMissing(exec, priorRecords);
     }
-    if (perfWritten) await finishPerf(handle, perfFile);
+    if (perfWritten) await finishPerf(handle, perfFile, perfExtra);
 
     // Steps 10 and 11: grade, then `complete` only when every Card x Permutation has an output.
     const records = readResultsFile(writer.file).records;

@@ -26,7 +26,7 @@ import {
   type EntryPasses,
   type PhaseState,
 } from './phase.ts';
-import { canonicalJson } from './results.ts';
+import { canonicalJson, countsForGate, effectiveFailure } from './results.ts';
 import type { ExcludedLine, GradesFile, JsonObject, PerfRecord, PreflightRecord, ResultRecord, ResultsHeader, SmokeRecord } from './results.ts';
 import {
   clusterBootstrapAcceptable,
@@ -52,6 +52,14 @@ export const INTEL_MEMORY_QUANTITY = 'Chrome GPU process peak RSS (excludes unma
 /** The Author's reading of the iteration-2 Dev_Runs (2026-11-08); fixed text, the figures are checked by hand in docs/kiro-log.md. */
 export const DEV_D_FINDING =
   'Reading of the Dev_Runs with the frozen D template (Author, 2026-11-08): Qwen3.5-0.8B 43/74 and Qwen3.5-2B 38/74 acceptable D requests are at random level (see the request-level random baseline below, about 41 of 74); contrast-pair consistency is 0 of the pairs; and the gain from the first template to the frozen one came mainly from fewer Illegal outputs (the model stopped writing a leading dash and a wrong ID), not from better judgement. The final Dev_Runs with the frozen hashes gave the same picture: Qwen3.5-0.8B 43/74 on NVIDIA and, with identical outputs, on the Intel iGPU, and Qwen3.5-2B 34/74 (8 Illegal, mostly Timeouts; run-to-run latency noise moved it from 38/74).';
+
+/**
+ * Author's condition 3 (2026-11-08). The dev figures are from `dev.jsonl` (checked 2026-11-08: 15 scored four-option D cards
+ * have exactly one severe option and it is the fourth in card order; the two unscored two-option Sanity_Cards also have it
+ * last, so 17 D cards in all). The locked distribution is the Author's statement; it was not computed or read here.
+ */
+export const DEV_CONFOUND_NOTE =
+  'Position/content confound in the dev set: in `dev.jsonl` all 15 scored D cards that have a severe option list it last in card order (the two unscored two-option Sanity_Cards do too). Option rotation was applied only to the locked set; this was an oversight on the card-authoring side, and the cards are locked and are not changed. So in the Dev_Runs a model that prefers the last-listed option cannot be told apart from one that prefers the severe content. Per the Author, the severe options of the locked set are distributed last 14, middle 26, first 7. The position-versus-content question is therefore to be settled from the Locked_Run results, not from the Dev_Runs.';
 
 export const DEV_SECTION_TITLE = 'Dev_Run figures (not used for the recommendation)';
 export const QUALITY_WITHOUT_TIMEOUT_TITLE = 'Quality without timeout (not used for any mark, label or recommendation)';
@@ -539,7 +547,7 @@ export function buildReport(input: ReportInput): string {
     const measured = perfView(runById.get(usedEntries.find((r) => r.combination === c.id)?.id ?? '')?.perf ?? null)?.modelBytes ?? null;
     const download = isWorkersAi(c) ? 'not applicable' : `${size?.expected_download_bytes === null || size?.expected_download_bytes === undefined ? 'unknown' : `${mib(size.expected_download_bytes)} MiB (published)`}${measured === null ? '' : `; measured ${mib(measured)} MiB`}`;
     const excl = state.exclusions.filter((x) => x.combination === c.id);
-    const fail = state.failures.filter((f) => f.combination === c.id);
+    const fail = state.failures.filter((f) => f.combination === c.id && countsForGate(f));
     const statusText =
       excl.length > 0 ? `excluded (${excl.map((x) => x.check).join(', ')})`
       : overLimit.has(c.id) ? 'over the In_Browser_Size_Limits (measured download); not recommended'
@@ -690,7 +698,7 @@ export function buildReport(input: ReportInput): string {
     if (ex !== undefined) return `${c.id}: Exclusion_Record (${ex.check})${used === null ? '' : `, entry ${used}`}`;
     if (overLimit.has(c.id)) return `${c.id}: over the In_Browser_Size_Limits${used === null ? '' : `, entry ${used}`}`;
     if (used !== null) return `${c.id}: entry ${used} did not pass`;
-    if (hasFailure(c, state)) return `${c.id}: failure record (${state.failures.filter((f) => f.combination === c.id).map((f) => f.kind).join(', ')}), no completed entry`;
+    if (hasFailure(c, state)) return `${c.id}: failure record (${state.failures.filter((f) => f.combination === c.id && countsForGate(f)).map((f) => f.kind).join(', ')}), no completed entry`;
     return `${c.id}: no completed Locked_Run for this Task_Type`;
   };
   const workersPass = (c: Combination, task: TaskType): string | null => {
@@ -807,6 +815,8 @@ export function buildReport(input: ReportInput): string {
   const failedLines: string[] = [];
   for (const f of state.failures) {
     const bits = ['message', 'reason', 'phase', 'cards_answered', 'quota', 'expected'].flatMap((k) => (f[k] === undefined || f[k] === null ? [] : [`${k}: ${typeof f[k] === 'string' ? f[k] : JSON.stringify(f[k])}`]));
+    const eff = effectiveFailure(f);
+    if (!countsForGate(f)) bits.unshift(`${eff.run_kind} run, ${eff.transient ? 'transient' : 'not transient'}; not counted as a Combination failure`);
     failedLines.push(`- ${f.combination}: failure record ${f.kind}${bits.length > 0 ? ` (${bits.join('; ')})` : ''}`);
   }
   for (const { run, task, analysis } of usedRuns) {
@@ -875,6 +885,7 @@ export function buildReport(input: ReportInput): string {
   // ---- Dev_Run figures (R15.2)
   h2(DEV_SECTION_TITLE);
   para('These are Dev_Run figures. They are kept out of every mark and out of the recommendation. The Intel iGPU Dev_Run appears only here.');
+  para(DEV_CONFOUND_NOTE);
   const devRows = input.devRuns.flatMap((r) => {
     const workers = isWorkersAi(comboById.get(r.combination) ?? ({ runtime: '' } as Combination));
     const mem = memoryCells(r, workers);
