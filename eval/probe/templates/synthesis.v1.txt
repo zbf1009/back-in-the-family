@@ -9,9 +9,9 @@ How to read the facts:
 - Event actors come in a fixed order. loan: lender, then borrower. repayment: payer, then payee. promise and promise_kept: promisor, then promisee. deal: seller, then buyer. debt_transfer: previous debtor, then new debtor. debt_forgiven: creditor, then debtor. will: testator, then beneficiary. inheritance: deceased, then heir. insult, help, gift and theft: doer, then target. accident: the one responsible, then the one hurt. apology: the one apologizing, then the one addressed. marriage and courtship: the two people. birth, death and illness: the person.
 
 How to write the conclusions:
-- Be brief. List only conclusions the events support; leave out pairs and debts with no support. Keep every "reason" to a few words. Write the fields the schema requires and nothing else.
-- Each event line starts with its event ID, such as e12. Wherever the schema asks for an event ID, write only that first word (for example "e12"), never the rest of the line, never a day, a person number or the word "event".
-- Person fields hold the number after "#" in the facts, as a plain integer. In a pair, the first-named person is the one who holds the feeling, owes, promises or acts, and the second-named is the other side. Check the event actor order above before you decide which is which.
+- Be brief. List only conclusions the events support; leave out pairs and debts with no support. Write every "reason" as at most six words. Write the fields the schema requires and nothing else.
+- Each event line starts with its event ID, a short code such as e12. Wherever the schema asks for an event ID (an "evidence" list, an origin, a turning point), write only that code, for example "e12". Never copy the rest of the line, its tags or its day. An evidence list is a list of such codes only.
+- Person fields hold the number after "#" in the facts, as a plain integer such as 3. A day number is never a person. In a pair, the first-named person is the one who holds the feeling, owes, promises or acts, and the second-named is the other side. Check the event actor order above before you decide which is which.
 
 Reply with only one JSON object that follows the schema in the user text. No other text.
 [user]
