@@ -1,0 +1,4 @@
+{
+  "dev-20261108T041937Z-webllm-qwen3-5-0-8b-q4f32-intel": "Intel adapter reported, but the model ran on the NVIDIA GPU: WebLLM 0.2.87 makes its own requestAdapter() call with a hard-coded high-performance preference. Found 2026-11-08; outputs identical to the NVIDIA run in 104 of 104 requests, latency within 11 ms (median) per request. Fixed in the page by pinLowPowerAdapter.",
+  "dev-20261108T043623Z-webllm-qwen3-5-0-8b-q4f32-intel": "Unfixed code with the new guard: device_mismatch true in the perf record (NVIDIA memory.used rose 1,761 MiB). Kept as the guard's evidence."
+}
