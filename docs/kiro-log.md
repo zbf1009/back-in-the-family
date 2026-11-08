@@ -1056,3 +1056,12 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - Pinned_Manifest_Hash `9322729c727a8c975dc3273fb7cc2f239e8790ea66e1745493179aea6815b34f`. Template_Hashes checked after `page:build`: decision `6fcfbf99f41c83b0902d25537ed57841c25e1d38e833574930c5164c820e9312`, synthesis `5139bcc5a4e10a52184483779dad0f2c4541ac432862170d1749a2c939663d85` (both equal the frozen hashes).
 - GPU check before the run: `nvidia-smi` shows no compute processes; RTX 3050 Ti Laptop, 14 MiB used of 4,096 MiB.
 - Written by hand before the first request, as in 21.2. Locked card content is not opened or printed by me.
+
+### Spec: llm-probe — Locked_Run END, `webllm/qwen3.5-2b-q4f32/nvidia` (task 21.3, 2026-11-08T09:38Z)
+
+- Status: **completed**. Ledger entry `L-20261108T084653Z-webllm-qwen3-5-2b-q4f32-nvidia` (fingerprint `fp-e24a66baa279f30177c26e5338f7d5059ac9e992d0bf629c48ddb68c9567dff2`, started 2026-11-08T08:46:53Z, wall time about 50 min). 324 requests (decision 236, synthesis 88), all with output records, 0 not_run, 0 engine faults, no load retries, no transient errors.
+- Results: `eval/results/locked/L-20261108T084653Z-webllm-qwen3-5-2b-q4f32-nvidia.jsonl`, `.grades.jsonl`, `.perf.json`; ledger `eval/results/ledger.jsonl`. No card content is in this entry.
+- D: acceptable 36/60 cards (60.0%, Random_Baseline 51.8%), request level 148/236 (62.7%); Illegal 2/60 cards (10 requests); severe 3; flip rate 72/172 (41.9%); contrast consistency 0/15. 8 D requests timed out. Mark: fail.
+- S: acceptable 0/40; Illegal 38/40 (95.0%); severe 2; flip rate 3/44; contrast consistency 0/10. 80 of 88 S requests timed out. Mark: fail.
+- Performance: D p50/p95 4,984/5,936 ms; S p50/p95 8,893/9,993 ms. Cold start 243,841 ms (empty cache), 6,444 ms (warm). Download 1,072,781,587 B model + 13,399,008 B runtime. NVIDIA memory.used peak delta 2,461 MiB (absolute 2,505 MiB, baseline 44 MiB).
+- `probe phase-status`: Phase_1 ended; both WebLLM Combinations finished, three transformers.js Combinations have Exclusion_Records; D and S both "no pass"; Branch B, no Phase_2 approval. The generated `docs/llm-probe.md` draft was deleted.
