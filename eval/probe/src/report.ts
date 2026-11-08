@@ -595,8 +595,9 @@ export function buildReport(input: ReportInput): string {
         ['Metric', 'Numerator / denominator', 'Value', 'Threshold', 'Mark'],
         [
           ['Acceptable rate', ratioText(m.acceptable), `${ratioPct(m.acceptable)}${baseline === null ? '' : ` (Random_Baseline ${baseline})`}`, `at least ${THRESHOLDS.acceptablePct}%`, mk.acceptable],
-          ['Severe count', `${m.severe.count} of ${m.severe.den} cards`, `${m.severe.count}`, `at most ${THRESHOLDS.severeMax}`, mk.severe],
-          ['Flip rate', ratioText(m.flip), ratioPct(m.flip), `at most ${THRESHOLDS.flipPct}%`, mk.flip],
+          ['Severe count (base Permutation of each card)', `${m.severe.count} of ${m.severe.den} cards`, `${m.severe.count}`, `at most ${THRESHOLDS.severeMax}`, mk.severe],
+          ['Severe outputs in other Permutations', `${m.severeOtherPermutations} of ${m.flip.den} non-base requests`, `${m.severeOtherPermutations}`, 'none (no verdict)', 'reported only'],
+          ['Flip rate (non-base requests with an output, Illegal and timeouts included)', ratioText(m.flip), ratioPct(m.flip), `at most ${THRESHOLDS.flipPct}%`, mk.flip],
           ['Contrast consistency', `${ratioText(m.contrast)} pairs`, ratioPct(m.contrast), `at least ${THRESHOLDS.contrastPct}%`, mk.contrast],
           ['Illegal rate', ratioText(m.illegal), ratioPct(m.illegal), 'none (no verdict)', 'reported only'],
         ],
@@ -628,7 +629,7 @@ export function buildReport(input: ReportInput): string {
 
   // ---- 6. Performance (R14, R10.10, R9.11, R15.11)
   h2('6. Performance');
-  para('All figures come from the Locked_Run perf record of the entry (R14.10). Latency covers every request that returned raw text, including outputs later graded Illegal; Timeouts and runtime errors are counted apart.');
+  para('All figures come from the Locked_Run perf record of the entry (R14.10). Latency covers every request that returned raw text (all Permutations and Sanity_Cards), including outputs later graded Illegal; Timeouts and runtime errors are counted apart. Percentiles are nearest-rank on the sorted values, index floor((p·n + 99) / 100) − 1, with no interpolation, so p50 of 30 values is the 15th and p95 the 29th.');
   out.push(
     ...table(
       ['Combination', 'Task', 'p50, ms', 'p95, ms', 'Requests covered', 'Timeouts', 'Runtime errors', 'Notes'],
@@ -896,6 +897,7 @@ export function buildReport(input: ReportInput): string {
       taskLetter(t.metrics.task),
       `${ratioText(t.metrics.acceptable)} (${ratioPct(t.metrics.acceptable)})${t.metrics.randomBaseline === null ? '' : `; random baseline ${pct(t.metrics.randomBaseline.num, t.metrics.randomBaseline.den)}`}`,
       `${t.metrics.severe.count}`,
+      `${t.metrics.severeOtherPermutations}`,
       `${ratioText(t.metrics.flip)}`,
       `${ratioText(t.metrics.contrast)}`,
       `${latencyText(t.latency.p50)} / ${latencyText(t.latency.p95)}`,
@@ -904,7 +906,7 @@ export function buildReport(input: ReportInput): string {
     ]);
   });
   if (devRows.length === 0) para('No Dev_Run figures are included.');
-  else out.push(...table(['Dev_Run', 'Combination', 'GPU', 'Task', 'Acceptable (Dev_Run)', 'Severe', 'Flips', 'Contrast pairs', 'Latency p50 / p95, ms', NVIDIA_MEMORY_COLUMN, 'Intel iGPU peak memory, MiB (quantity named)'], devRows));
+  else out.push(...table(['Dev_Run', 'Combination', 'GPU', 'Task', 'Acceptable (Dev_Run, base cards)', 'Severe (base cards)', 'Severe in other Permutations', 'Flips (non-base requests with an output)', 'Contrast pairs', 'Latency p50 / p95, ms (nearest rank, all requests with text)', NVIDIA_MEMORY_COLUMN, 'Intel iGPU peak memory, MiB (quantity named)'], devRows));
 
   // Request-level D figures next to their random baseline, and the position / shuffle diagnosis.
   const devDiag = input.devRuns.filter((r) => r.decisionDiagnosis != null && r.decisionDiagnosis.requests > 0);

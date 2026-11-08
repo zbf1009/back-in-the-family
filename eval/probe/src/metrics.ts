@@ -168,6 +168,11 @@ export interface TaskMetrics {
   cards: number;
   acceptable: JudgedRatio;
   severe: SevereCount;
+  /**
+   * Severe grades on non-base Permutations of the same cards (reported only, no verdict). The
+   * Severe count above is over the base Permutation of each card, by design (R13.1).
+   */
+  severeOtherPermutations: number;
   /** Reported without a verdict (R13.4). */
   illegal: Ratio;
   flip: JudgedRatio;
@@ -406,11 +411,13 @@ export function computeMetrics(input: MetricsInput): Metrics {
     // Shuffle_Test: non-base Permutations run, Flips by Identity_Value (R13.2).
     let perms = 0;
     let flips = 0;
+    let severeOther = 0;
     for (const c of counted) {
       const b = baseIdentity.get(c.id) as string;
       for (const r of input.records) {
         if (r.card_id !== c.id || r.permutation === BASE_PERMUTATION || !hasOutput(r)) continue;
         perms++;
+        if (readFlags(gradeOf(r).grade, `grade of ${r.card_id} / ${r.permutation}`).severe) severeOther++;
         // An Illegal output has the `invalid` identity, so it flips unless the base is invalid too.
         if (canonicalJson(gradeOf(r).identity) !== b) flips++;
       }
@@ -462,6 +469,7 @@ export function computeMetrics(input: MetricsInput): Metrics {
       cards: den,
       acceptable,
       severe: severeC,
+      severeOtherPermutations: severeOther,
       illegal: ratio(illegal, den),
       flip,
       contrast,

@@ -77,3 +77,9 @@ test('label: one resample step more than 10 points under is "pass with weak evid
 test('label: one resample step under the threshold is "pass (interval overlaps threshold)"', () => {
   assert.equal(weakEvidenceLabel({ k: 7999, m: 10_000 }, 80), 'pass (interval overlaps threshold)');
 });
+
+test('nearest rank on 30 values takes the 15th and the 29th, not interpolated positions', () => {
+  const v = Array.from({ length: 30 }, (_, i) => (i + 1) * 100);
+  assert.equal(nearestRank(v, 50), 1500);
+  assert.equal(nearestRank(v, 95), 2900);
+});

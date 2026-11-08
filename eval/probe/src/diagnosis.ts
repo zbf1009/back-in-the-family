@@ -195,7 +195,7 @@ export function diagnosisLines(d: DecisionDiagnosis, label: string): string[] {
     `${label} D, request level: acceptable ${d.acceptable}/${d.requests} (${pctOf(d.acceptable, d.requests)}) against a random baseline of ${sharePercent(d.randomBaseline)} (expected ${expectedCount(d.randomBaseline)} of ${d.requests}); Scored_Cards' requests only: ${d.scoredAcceptable}/${d.scoredRequests} (${pctOf(d.scoredAcceptable, d.scoredRequests)}) against ${sharePercent(d.scoredRandomBaseline)}. Illegal requests: ${d.illegal}.`,
   );
   out.push(
-    `${label} D, shuffle: ${d.flips} of ${d.flipComparisons} comparisons against the base pick changed the chosen option (both picks valid); of ${d.cardsWithPicks} cards with at least two valid picks, ${d.stableByOption} kept the same option in every order and ${d.stableByShownPosition} kept the same shown position in every order.`,
+    `${label} D, shuffle: ${d.flips} of ${d.flipComparisons} comparisons against the base pick changed the chosen option (only comparisons where both picks are valid options; a timeout or an Illegal output is left out here, while the Flip rate in the Metrics counts it as a Flip, R13.2, and counts Scored_Cards only); of ${d.cardsWithPicks} cards with at least two valid picks, ${d.stableByOption} kept the same option in every order and ${d.stableByShownPosition} kept the same shown position in every order.`,
   );
   for (const r of d.positions) {
     out.push(`${label} D, ${r.optionCount}-option cards, ${r.picks} valid picks: by original position ${r.byOriginal.join(' / ')}; by shown position ${r.byShown.join(' / ')} (uniform would be ${(r.picks / r.optionCount).toFixed(1)} each).`);

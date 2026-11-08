@@ -153,3 +153,18 @@ test('void and Sanity cards are listed apart and enter no Metric', () => {
   assert.deepEqual(m.sanity, [{ cardId: 'z1', task: 'decision', outcome: 'text', grade: { acceptable: true, severe: false, illegal: false } }]);
   assert.equal(m.combinationFailed, true);
 });
+
+test('a severe grade on a non-base Permutation stays out of the severe count and shows in severeOtherPermutations', () => {
+  const SEV = { acceptable: true, severe: true, illegal: false, severe_conditions: ['reversed_direction'] };
+  const m = computeMetrics({
+    cards: [card('s1', { task: 'synthesis', acceptableCount: null, optionCount: null })],
+    records: [rec('s1', 'base', text()), rec('s1', 'reversed', text())],
+    grades: [gradeLine('s1', 'base', OK, opt('a')), gradeLine('s1', 'reversed', SEV, opt('a'))],
+    contrasts: [],
+    tasks: ['synthesis'],
+  });
+  const t = m.tasks[0];
+  assert.equal(t?.severe.count, 0);
+  assert.equal(t?.severeOtherPermutations, 1);
+  assert.equal(t?.flip.den, 1);
+});
