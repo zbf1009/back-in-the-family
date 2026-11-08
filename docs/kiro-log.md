@@ -1082,3 +1082,12 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - Recorded as `phase2` entry `P2-001` in `eval/probe/approvals.json`, committed alone as `a49097b`. `probe phase-status` reads it from `HEAD`: branch B (subset DS), model `@cf/google/gemma-4-26b-a4b-it`, no mismatch. No `dev` or `locked` approval exists; those need separate Author approvals (23.2, 23.3).
 - Task 23.1 (branch A, Smoke_Calls only): not applicable, branch B was chosen.
 - No Workers AI request was sent in this step, and `eval/cards/cards/locked.jsonl` was not opened.
+
+### Spec: llm-probe — Workers AI gemma DS Dev_Run (task 23.2, 2026-11-08)
+
+- The Author approved `A-001` (kind `dev`, `workers-ai/gemma-4-26b-a4b-it`, subset DS, `max_requests` 104, under `P2-001`). Recorded in `eval/probe/approvals.json` and committed alone as `38ecb01`.
+- Ran `probe dev-run --combo workers-ai/gemma-4-26b-a4b-it --task DS --approval A-001` once. The gate accepted the plan at exactly 104 requests (74 D + 30 S); the newest Response_Shape Smoke_Call (2026-11-07T09:09:37Z) was `ok`. Frozen templates: D `6fcfbf99…`, S `5139bcc5…`. Run ID `dev-20261108T101109Z-workers-ai-gemma-4-26b-a4b-it`.
+- 104 requests sent, 104 records, 103 with text output, 1 client-side timeout (10 s limit; a D request, `D-dream_interpretation-001` rotated_2). 0 remote errors, 0 not_run, 0 engine faults. No resume was needed.
+- Budget ledger (gitignored): 2026-11-08 shows 104 requests and 1,291 neurons settled. Token usage reported: 114,126 input, 5,755 output; `reasoning_tokens` came back null on every record.
+- Dev_Run figures only; they do not enter any mark. D: 62/74 requests acceptable (83.8%) against a 55.4% random baseline; 16/18 base cards (88.9%) against 55.6%. S: 11/12 base cards (91.7%). One severe S answer (`S-grudge_detection-001`, reversed order).
+- No Locked_Run and no other Workers AI call was made. `eval/cards/cards/locked.jsonl` was not opened. `probe report` was run to read the figures; its `docs/llm-probe.md` output was an untracked draft and was deleted.
