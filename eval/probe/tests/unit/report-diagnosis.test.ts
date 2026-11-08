@@ -53,6 +53,8 @@ function devReport(withFacts: boolean): string {
 test('the Dev section prints the computed random baseline, the shuffle counts and the Author finding', () => {
   const text = devReport(true);
   assert.ok(text.includes(DEV_D_FINDING));
+  // The Dev table cell carries the card-level Random_Baseline next to the D score (2 of 4 options acceptable on every card).
+  assert.match(text, /\| D \| 2\/2 \(100\.0%\); random baseline 50\.0% \|/);
   assert.match(text, /Dev_Run D, request level: acceptable 4\/4 \(100\.0%\) against a random baseline of 50\.0% \(expected 2\.0 of 4\)/);
   assert.match(text, /Dev_Run D, shuffle: 0 of 2 comparisons/);
   assert.match(text, /4-option cards, 4 valid picks: by original position 4 \/ 0 \/ 0 \/ 0; by shown position 2 \/ 0 \/ 0 \/ 2/);

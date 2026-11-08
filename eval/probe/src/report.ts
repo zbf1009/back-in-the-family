@@ -51,7 +51,7 @@ export const NVIDIA_MEMORY_COLUMN = 'NVIDIA device memory.used delta, MiB';
 export const INTEL_MEMORY_QUANTITY = 'Chrome GPU process peak RSS (excludes unmapped GEM buffers)';
 /** The Author's reading of the iteration-2 Dev_Runs (2026-11-08); fixed text, the figures are checked by hand in docs/kiro-log.md. */
 export const DEV_D_FINDING =
-  'Reading of the Dev_Runs with the frozen D template (Author, 2026-11-08): Qwen3.5-0.8B 43/74 and Qwen3.5-2B 38/74 acceptable D requests are at random level (see the request-level random baseline below, about 41 of 74); contrast-pair consistency is 0 of the pairs; and the gain from the first template to the frozen one came mainly from fewer Illegal outputs (the model stopped writing a leading dash and a wrong ID), not from better judgement.';
+  'Reading of the Dev_Runs with the frozen D template (Author, 2026-11-08): Qwen3.5-0.8B 43/74 and Qwen3.5-2B 38/74 acceptable D requests are at random level (see the request-level random baseline below, about 41 of 74); contrast-pair consistency is 0 of the pairs; and the gain from the first template to the frozen one came mainly from fewer Illegal outputs (the model stopped writing a leading dash and a wrong ID), not from better judgement. The final Dev_Runs with the frozen hashes gave the same picture: Qwen3.5-0.8B 43/74 on NVIDIA and, with identical outputs, on the Intel iGPU, and Qwen3.5-2B 34/74 (8 Illegal, mostly Timeouts; run-to-run latency noise moved it from 38/74).';
 
 export const DEV_SECTION_TITLE = 'Dev_Run figures (not used for the recommendation)';
 export const QUALITY_WITHOUT_TIMEOUT_TITLE = 'Quality without timeout (not used for any mark, label or recommendation)';
@@ -879,7 +879,7 @@ export function buildReport(input: ReportInput): string {
       r.combination,
       gpuLabel(r, workers),
       taskLetter(t.metrics.task),
-      `${ratioText(t.metrics.acceptable)} (${ratioPct(t.metrics.acceptable)})`,
+      `${ratioText(t.metrics.acceptable)} (${ratioPct(t.metrics.acceptable)})${t.metrics.randomBaseline === null ? '' : `; random baseline ${pct(t.metrics.randomBaseline.num, t.metrics.randomBaseline.den)}`}`,
       `${t.metrics.severe.count}`,
       `${ratioText(t.metrics.flip)}`,
       `${ratioText(t.metrics.contrast)}`,
