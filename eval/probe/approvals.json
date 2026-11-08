@@ -1,1 +1,1 @@
-{"schema":"llm-probe-approvals-v1","approvals":[]}
+{"schema":"llm-probe-approvals-v1","approvals":[{"id":"P2-001","kind":"phase2","branch":"B","combination":"workers-ai/gemma-4-26b-a4b-it","model":"@cf/google/gemma-4-26b-a4b-it","task_subset":"DS","approved_on":"2026-11-08","note":"Author decision after Phase_1: both WebLLM Locked_Runs failed D and S; branch B, one Workers AI model, D and S."}]}
