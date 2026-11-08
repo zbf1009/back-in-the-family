@@ -553,7 +553,7 @@ Execution notes for the orchestrator:
   - [x] 23.2 Branch B: approved Dev_Run
     - If branch B: ask the Author to approve the `dev` run (combination, `task_subset`, `max_requests`); after approval add the `dev` entry to `approvals.json` in its own commit; confirm a current `ok` Response_Shape Smoke_Call; run `probe dev-run --combo … --task <subset> --approval <id>` within the budget; commit Results; log. If branch A, not applicable.
     - _Requirements: 11.5, 11.6, 11.7, 11.8, 11.13, 11.14, 11.19, 18.4, 17.1_
-  - [ ] 23.3 Branch B: approved Locked_Run
+  - [-] 23.3 Branch B: approved Locked_Run
     - If branch B: ask the Author to approve the `locked` run; after approval add the `locked` entry in its own commit; append the start entry to `docs/kiro-log.md`, run `probe locked-run --combo … --task <subset> --approval <id>` (start at 00:00 UTC of a fresh day per the DA-8 schedule; a budget stop is resumed with `--resume` on a later UTC day after asking again), append the end entry, commit. If branch A, not applicable.
     - _Requirements: 3.9, 11.5, 11.13, 11.14, 17.1, 17.6, 18.4, 18.5_
 
