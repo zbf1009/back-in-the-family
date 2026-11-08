@@ -38,6 +38,44 @@
     }
   },
   {
+    "id": "webllm/qwen3.5-0.8b-q4f32/intel",
+    "runtime": "webllm",
+    "model_id": "Qwen3.5-0.8B-q4f32_1-MLC",
+    "quantization": "q4f32_1",
+    "revision": "4ed017713f04c91ffe55a9dca8c7ac853c41314d",
+    "model_lib_url": "https://raw.githubusercontent.com/mlc-ai/binary-mlc-llm-libs/146ed9cd4b4062e967b017fd2291f7106b50599f/web-llm-models/v0_2_87/base/Qwen3.5-0.8B-q4f32_1_cs1k-webgpu.wasm",
+    "power_preference": "low-power",
+    "sampling": {
+      "temperature": 0,
+      "top_p": null,
+      "seed": 20261104,
+      "max_output_tokens": {
+        "decision": 64,
+        "synthesis": 1024
+      }
+    },
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    },
+    "constraint": "json_schema",
+    "phase1_locked": false,
+    "size": {
+      "expected_download_bytes": 447173765,
+      "download_source": "Hugging Face API tree at `revision`, summed by `probe screen` (read on 2026-11-07); measured again at Locked_Run start (R14.5); tree listing https://huggingface.co/api/models/mlc-ai/Qwen3.5-0.8B-q4f32_1-MLC/tree/4ed017713f04c91ffe55a9dca8c7ac853c41314d",
+      "params": 873438784,
+      "params_source": "https://huggingface.co/api/models/Qwen/Qwen3.5-0.8B",
+      "vram_mib": 1894.19,
+      "vram_source": "https://github.com/mlc-ai/web-llm/blob/main/src/config.ts"
+    },
+    "license": {
+      "name": "Apache-2.0",
+      "osi": true,
+      "url": "https://huggingface.co/Qwen/Qwen3.5-0.8B",
+      "declared_by": "base_model",
+      "accepted": null
+    }
+  },
+  {
     "id": "webllm/qwen3.5-2b-q4f32/nvidia",
     "runtime": "webllm",
     "model_id": "Qwen3.5-2B-q4f32_1-MLC",

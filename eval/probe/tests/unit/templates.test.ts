@@ -75,9 +75,17 @@ test('the warm-up prompts render as literal [system]/[user] text with IDs outsid
   }
 });
 
-test('combinations.json parses; five locked in-browser Combinations, three Workers AI candidates', () => {
+test('combinations.json parses; five locked in-browser Combinations, one Intel Dev_Run, three Workers AI candidates', () => {
   const list = parseCombinations(read('../../combinations.json'));
-  assert.equal(list.length, 8);
+  assert.equal(list.length, 9);
+  const intel = list.find((c) => c.id === 'webllm/qwen3.5-0.8b-q4f32/intel')!;
+  const nvidia = list.find((c) => c.id === 'webllm/qwen3.5-0.8b-q4f32/nvidia')!;
+  assert.equal(intel.phase1_locked, false);
+  assert.equal(intel.power_preference, 'low-power');
+  assert.equal(nvidia.power_preference, 'high-performance');
+  // Same model pins, sampling and constraint as the NVIDIA Combination; only the id, power preference and lock flag differ.
+  const rest = (c: typeof intel): unknown => ({ ...c, id: '', power_preference: '', phase1_locked: false });
+  assert.deepEqual(rest(intel), rest(nvidia));
   const locked = list.filter((c) => c.phase1_locked);
   assert.deepEqual(locked.map((c) => c.runtime).sort(), ['transformers.js', 'transformers.js', 'transformers.js', 'webllm', 'webllm']);
   for (const c of locked) assert.match(c.revision, /^[0-9a-f]{40}$/);
