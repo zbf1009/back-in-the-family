@@ -1033,3 +1033,10 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - Author's approvals recorded here (task 21.1 dispatch): Locked_Run 21.2 (`webllm/qwen3.5-0.8b-q4f32/nvidia`) and Locked_Run 21.3 (`webllm/qwen3.5-2b-q4f32/nvidia`), each `--task DS`, at most 408 requests. These are the approvals of the start; neither run was started in this entry. The start and end entries of each run come when it runs.
 - Author's condition 4: after the Locked_Runs, I report the Phase_1 conclusion first, and only then ask for Phase_2 approval, with a budget estimate that covers both D and S on Workers AI.
 - No Locked_Run was started and no Workers AI call was made. `eval/cards/` and `locked.jsonl` were not opened (only `dev.jsonl` for the confound check).
+
+### Spec: llm-probe — Locked_Run START, `webllm/qwen3.5-0.8b-q4f32/nvidia` (task 21.2, 2026-11-08T08:18Z)
+
+- Combination `webllm/qwen3.5-0.8b-q4f32/nvidia`, Task_Type_Subset `DS` (at most 408 requests), approved by the Author (logged in `4274e9a`). Model_Fingerprint: the full record is written by the runner into the ledger `start` line and the Results header (the runner prints its ID once it starts; I add the ledger entry ID in the END entry).
+- Pinned_Manifest_Hash `9322729c727a8c975dc3273fb7cc2f239e8790ea66e1745493179aea6815b34f`. Template_Hashes checked after `page:build`: decision `6fcfbf99f41c83b0902d25537ed57841c25e1d38e833574930c5164c820e9312`, synthesis `5139bcc5a4e10a52184483779dad0f2c4541ac432862170d1749a2c939663d85` (both equal the frozen hashes).
+- GPU check before the run: `nvidia-smi` shows no compute processes; RTX 3050 Ti Laptop, 14 MiB used of 4,096 MiB.
+- The runner only prints the paste-ready entry at start and does not wait, so this entry is written by hand before the first request. Locked card content is not opened or printed by me.
