@@ -1049,3 +1049,10 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - S: acceptable 7/40 (17.5%); Illegal 10/40 (25.0%); severe 4; flip rate 11/44; contrast consistency 0/10. 20 of 88 S requests timed out. Mark: fail.
 - Performance: D p50/p95 2,482/3,081 ms; S p50/p95 6,079/7,357 ms. Cold start 70,876 ms (empty cache), 5,137 ms (warm). Download 437,021,473 B model + 13,382,539 B runtime. NVIDIA memory.used peak delta 1,783 MiB (absolute 1,827 MiB, baseline 44 MiB).
 - `probe phase-status`: the Combination is finished (complete D and S entry); D and S both still "no pass". The generated `docs/llm-probe.md` draft was deleted.
+
+### Spec: llm-probe — Locked_Run START, `webllm/qwen3.5-2b-q4f32/nvidia` (task 21.3, 2026-11-08T08:46Z)
+
+- Combination `webllm/qwen3.5-2b-q4f32/nvidia`, Task_Type_Subset `DS` (at most 408 requests), approved by the Author (logged in `4274e9a`). Model_Fingerprint: the full record is written by the runner into the ledger `start` line and the Results header (I add the ledger entry ID in the END entry).
+- Pinned_Manifest_Hash `9322729c727a8c975dc3273fb7cc2f239e8790ea66e1745493179aea6815b34f`. Template_Hashes checked after `page:build`: decision `6fcfbf99f41c83b0902d25537ed57841c25e1d38e833574930c5164c820e9312`, synthesis `5139bcc5a4e10a52184483779dad0f2c4541ac432862170d1749a2c939663d85` (both equal the frozen hashes).
+- GPU check before the run: `nvidia-smi` shows no compute processes; RTX 3050 Ti Laptop, 14 MiB used of 4,096 MiB.
+- Written by hand before the first request, as in 21.2. Locked card content is not opened or printed by me.
