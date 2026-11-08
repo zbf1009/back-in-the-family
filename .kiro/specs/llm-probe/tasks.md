@@ -514,27 +514,27 @@ Execution notes for the orchestrator:
   - [x] 20.5 Tune the Prompt_Templates on Dev_Cards only
     - Change only the files under `eval/probe/templates/` (block-format changes need a Rust change and a `RENDERER_VERSION` bump with a regenerated golden file; avoid them). Re-run Dev_Runs; never use Locked_Cards; log each iteration with its Template_Hashes and Dev_Run Metrics (labelled Dev_Run).
     - _Requirements: 3.2, 7.7, 15.2_
-  - [x] 20.6 Ask the Author to freeze the templates, then run the final Dev_Runs
+  - [ ] 20.6 Ask the Author to freeze the templates, then run the final Dev_Runs
     - Present the final templates and their Template_Hashes; do nothing until the Author approves the freeze. Then run one Dev_Run per Combination with the frozen hashes (the R3.12 precondition), plus the Intel iGPU Dev_Run (`low-power`) of the best NVIDIA model, added to `combinations.json` with `phase1_locked: false`. Commit Results and the frozen templates; log the hashes. One `chore(llm-probe)` commit.
     - _Requirements: 3.12, 7.7, 15.2, 17.1_
 
-- [ ] 21. STOP-AND-ASK: Phase_1 Locked_Runs [Target_Machine]
-  - [ ] 21.1 Check the preconditions
+- [x] 21. STOP-AND-ASK: Phase_1 Locked_Runs [Target_Machine]
+  - [x] 21.1 Check the preconditions
     - Tasks 15.1 to 15.8 are all done and logged; `probe phase-status` shows Phase_1; every `phase1_locked` Combination has a final Dev_Run with the frozen Template_Hashes or an Exclusion_Record or failure record; gates green; working tree clean. Report the list to the Author.
     - _Requirements: 3.12, 18.1_
-  - [ ] 21.2 Locked_Run: WebLLM Qwen3.5-0.8B (`q4f32_1`, NVIDIA)
+  - [x] 21.2 Locked_Run: WebLLM Qwen3.5-0.8B (`q4f32_1`, NVIDIA)
     - Ask the Author to approve this Locked_Run (Combination, `--task DS`, at most 408 requests). Only after approval: append the `docs/kiro-log.md` start entry (Combination, Task_Type_Subset, Model_Fingerprint, Pinned_Manifest_Hash) before the first request, run `probe locked-run --combo … --task DS`, append the end entry (completed, aborted or failed, Results location), commit the Results, grades, perf record and ledger lines. If the Combination was excluded or failed earlier, record that instead and run nothing.
     - _Requirements: 3.3, 3.5, 3.11, 14.4, 14.10, 17.1, 17.6_
-  - [ ] 21.3 Locked_Run: WebLLM Qwen3.5-2B (`q4f32_1`, NVIDIA)
+  - [x] 21.3 Locked_Run: WebLLM Qwen3.5-2B (`q4f32_1`, NVIDIA)
     - Same procedure as 21.2, with its own approval.
     - _Requirements: 3.3, 3.5, 3.11, 14.4, 14.10, 17.1, 17.6_
-  - [ ] 21.4 Locked_Run: transformers.js Qwen3.5-0.8B (`q4`, NVIDIA)
+  - [x] 21.4 Locked_Run: transformers.js Qwen3.5-0.8B (`q4`, NVIDIA)
     - Same procedure as 21.2, with its own approval.
     - _Requirements: 3.3, 3.5, 3.11, 14.4, 14.10, 17.1, 17.6_
-  - [ ] 21.5 Locked_Run: transformers.js Qwen3.5-2B (`q4`, NVIDIA)
+  - [x] 21.5 Locked_Run: transformers.js Qwen3.5-2B (`q4`, NVIDIA)
     - Same procedure as 21.2, with its own approval.
     - _Requirements: 3.3, 3.5, 3.11, 14.4, 14.10, 17.1, 17.6_
-  - [ ] 21.6 Locked_Run: transformers.js LFM2.5-1.2B-Instruct (`q4`, NVIDIA)
+  - [x] 21.6 Locked_Run: transformers.js LFM2.5-1.2B-Instruct (`q4`, NVIDIA)
     - Same procedure as 21.2, with its own approval. An interrupted run is continued only with `locked-run --resume <entry-id>` after asking again; a re-run needs the Author's reason (`--rerun-reason`).
     - _Requirements: 3.3, 3.5, 3.6, 3.9, 3.11, 14.4, 14.10, 17.1, 17.6_
 

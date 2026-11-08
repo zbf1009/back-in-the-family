@@ -2250,6 +2250,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180486
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794125040000
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794125830236
       }
     ],
     "21.2 Locked_Run: WebLLM Qwen3.5-0.8B (`q4f32_1`, NVIDIA)": [
@@ -2257,6 +2267,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180490
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794125831264
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794127568982
       }
     ],
     "21.3 Locked_Run: WebLLM Qwen3.5-2B (`q4f32_1`, NVIDIA)": [
@@ -2264,6 +2284,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180495
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794127569001
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794130729162
       }
     ],
     "21.4 Locked_Run: transformers.js Qwen3.5-0.8B (`q4`, NVIDIA)": [
@@ -2271,6 +2301,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180500
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794130736109
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794130917219
       }
     ],
     "21.5 Locked_Run: transformers.js Qwen3.5-2B (`q4`, NVIDIA)": [
@@ -2278,6 +2318,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180505
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794130918496
       }
     ],
     "21.6 Locked_Run: transformers.js LFM2.5-1.2B-Instruct (`q4`, NVIDIA)": [
@@ -2285,6 +2330,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180512
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794130919066
       }
     ],
     "22.1 Report the Phase_1 result and ask for the Phase_2 branch": [
@@ -2523,6 +2573,13 @@
         "executionId": "d5258a74-1023-4429-ab74-140c32435dd5",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794115118105
+      }
+    ],
+    "21. STOP-AND-ASK: Phase_1 Locked_Runs [Target_Machine]": [
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794130919073
       }
     ]
   }
