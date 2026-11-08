@@ -8,7 +8,8 @@
 // byte for byte, R12.6). The caller must run the Manifest_Check first (cli.ts does).
 import * as fs from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_CARDS_DIR, loadCards, type LoadedCards } from './cards.ts';
+import { DEFAULT_CARDS_DIR, loadCards, type LoadedCard, type LoadedCards } from './cards.ts';
+import { decisionFactsFromLoaded, type DecisionCardFacts } from './diagnosis.ts';
 import { readLedger, type LedgerEntry } from './ledger.ts';
 import { metricCardFromLoaded, type FaultRecord, type MetricCard } from './metrics.ts';
 import { defaultPaths, loadPhaseState, type PhasePaths } from './phase-commands.ts';
@@ -50,11 +51,21 @@ export function reportPaths(repoDir: string): ReportPaths {
 export interface ReportCards {
   readonly dev: readonly MetricCard[];
   readonly locked: readonly MetricCard[];
+  /** D card facts for the request-level baseline and position diagnosis. */
+  readonly devDecision?: readonly DecisionCardFacts[];
+  readonly lockedDecision?: readonly DecisionCardFacts[];
 }
+
+const decisionFacts = (cards: readonly LoadedCard[]): DecisionCardFacts[] => cards.flatMap((c) => decisionFactsFromLoaded(c) ?? []);
 
 /** Converts loaded cards into the parsed facts the Metrics read; nothing is rendered. */
 export function reportCardsFrom(loaded: LoadedCards): ReportCards {
-  return { dev: loaded.cards.dev.map(metricCardFromLoaded), locked: loaded.cards.locked.map(metricCardFromLoaded) };
+  return {
+    dev: loaded.cards.dev.map(metricCardFromLoaded),
+    locked: loaded.cards.locked.map(metricCardFromLoaded),
+    devDecision: decisionFacts(loaded.cards.dev),
+    lockedDecision: decisionFacts(loaded.cards.locked),
+  };
 }
 
 const perfPathFor = (resultsFile: string): string => resultsFile.replace(/\.jsonl$/, '') + '.perf.json';
@@ -107,6 +118,7 @@ export async function gatherReportInput(paths: ReportPaths, cards: ReportCards, 
           kind: 'locked',
           id: e.entry_id,
           cards: cards.locked,
+          ...(cards.lockedDecision !== undefined ? { decisionCards: cards.lockedDecision } : {}),
           header: results.header,
           records: results.records,
           grades: readGradesFile(gradesPathFor(file)),
@@ -133,6 +145,7 @@ export async function gatherReportInput(paths: ReportPaths, cards: ReportCards, 
           kind: 'dev',
           id: results.header.run_id,
           cards: cards.dev,
+          ...(cards.devDecision !== undefined ? { decisionCards: cards.devDecision } : {}),
           header: results.header,
           records: results.records,
           grades: readGradesFile(gradesPathFor(file)),

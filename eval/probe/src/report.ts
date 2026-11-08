@@ -12,6 +12,7 @@
 import { splitCpuNodes } from './adapters/placement.ts';
 import type { TaskType } from './cards.ts';
 import { chooseReportEntries, subsetTaskTypes, type LedgerEntry } from './ledger.ts';
+import { diagnoseDecisions, diagnosisLines, type DecisionCardFacts, type DecisionDiagnosis } from './diagnosis.ts';
 import { computeMetrics, THRESHOLDS, type FaultRecord, type MetricCard, type Ratio, type SanityResult, type TaskMetrics, type Verdict } from './metrics.ts';
 import {
   browserPassEntry,
@@ -48,6 +49,10 @@ import {
 
 export const NVIDIA_MEMORY_COLUMN = 'NVIDIA device memory.used delta, MiB';
 export const INTEL_MEMORY_QUANTITY = 'Chrome GPU process peak RSS (excludes unmapped GEM buffers)';
+/** The Author's reading of the iteration-2 Dev_Runs (2026-11-08); fixed text, the figures are checked by hand in docs/kiro-log.md. */
+export const DEV_D_FINDING =
+  'Reading of the Dev_Runs with the frozen D template (Author, 2026-11-08): Qwen3.5-0.8B 43/74 and Qwen3.5-2B 38/74 acceptable D requests are at random level (see the request-level random baseline below, about 41 of 74); contrast-pair consistency is 0 of the pairs; and the gain from the first template to the frozen one came mainly from fewer Illegal outputs (the model stopped writing a leading dash and a wrong ID), not from better judgement.';
+
 export const DEV_SECTION_TITLE = 'Dev_Run figures (not used for the recommendation)';
 export const QUALITY_WITHOUT_TIMEOUT_TITLE = 'Quality without timeout (not used for any mark, label or recommendation)';
 
@@ -114,6 +119,8 @@ export interface RunAnalysis {
   /** Distinct `source` values of the records (`headless`, `probe_page`, `node`). */
   readonly sources: readonly string[];
   readonly perf: PerfRecord | null;
+  /** Request-level D baseline and position diagnosis; absent when the D cards were not supplied. */
+  readonly decisionDiagnosis?: DecisionDiagnosis | null;
 }
 
 export interface RunInputs {
@@ -124,6 +131,8 @@ export interface RunInputs {
   readonly records: readonly ResultRecord[];
   readonly grades: GradesFile;
   readonly perf: PerfRecord | null;
+  /** D card facts of the run's split; when given, the run's D request-level diagnosis is computed. */
+  readonly decisionCards?: readonly DecisionCardFacts[];
 }
 
 function rateStats(r: Ratio, cluster: BootstrapInterval | null, perCard: TaskMetrics['perCard'], pick: (c: TaskMetrics['perCard'][number]) => boolean): RateStats {
@@ -191,6 +200,7 @@ export function analyzeRun(input: RunInputs): RunAnalysis {
     combinationFailed: metrics.combinationFailed,
     sources: [...new Set(input.records.map((r) => r.source))].sort(),
     perf: input.perf,
+    decisionDiagnosis: input.decisionCards !== undefined && tasks.includes('decision') ? diagnoseDecisions(input.decisionCards, input.grades.grades) : null,
   };
 }
 
@@ -591,6 +601,7 @@ export function buildReport(input: ReportInput): string {
       ),
     );
     if (task === 'decision') para(`Random_Baseline next to the D acceptable rate: ${baseline ?? 'not computable'}.`);
+    if (task === 'decision' && run.decisionDiagnosis != null) out.push(...diagnosisLines(run.decisionDiagnosis, 'Locked_Run').map((l) => `- ${l}`), '');
     const nodes = cpuNodeList(run);
     para(`CPU-placed nodes (placement detection: ${run.header.placement?.method ?? 'not applicable'}): ${nodes === '' ? 'none' : nodes}.`);
   }
@@ -879,6 +890,16 @@ export function buildReport(input: ReportInput): string {
   });
   if (devRows.length === 0) para('No Dev_Run figures are included.');
   else out.push(...table(['Dev_Run', 'Combination', 'GPU', 'Task', 'Acceptable (Dev_Run)', 'Severe', 'Flips', 'Contrast pairs', 'Latency p50 / p95, ms', NVIDIA_MEMORY_COLUMN, 'Intel iGPU peak memory, MiB (quantity named)'], devRows));
+
+  // Request-level D figures next to their random baseline, and the position / shuffle diagnosis.
+  const devDiag = input.devRuns.filter((r) => r.decisionDiagnosis != null && r.decisionDiagnosis.requests > 0);
+  if (devDiag.length > 0) {
+    h3('D requests against the random baseline, and position diagnosis (Dev_Run)');
+    para(DEV_D_FINDING);
+    para('The table above counts the base Permutation of each Scored_Card (Random_Baseline over cards). The lines below count every graded D request (all Permutations and the Sanity_Cards); the random baseline is computed from the cards (acceptable options / options per request), not typed in. Positions are 1-based in the printed order: "original" is the card order, "shown" is the order in that request\'s prompt.');
+    for (const r of devDiag) out.push(`- **${r.id}** (${r.combination}):`, ...diagnosisLines(r.decisionDiagnosis as DecisionDiagnosis, 'Dev_Run').map((l) => `  - ${l}`));
+    out.push('');
+  }
 
   while (out[out.length - 1] === '') out.pop();
   return `${out.join('\n')}\n`;
