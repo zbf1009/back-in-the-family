@@ -1040,3 +1040,12 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - Pinned_Manifest_Hash `9322729c727a8c975dc3273fb7cc2f239e8790ea66e1745493179aea6815b34f`. Template_Hashes checked after `page:build`: decision `6fcfbf99f41c83b0902d25537ed57841c25e1d38e833574930c5164c820e9312`, synthesis `5139bcc5a4e10a52184483779dad0f2c4541ac432862170d1749a2c939663d85` (both equal the frozen hashes).
 - GPU check before the run: `nvidia-smi` shows no compute processes; RTX 3050 Ti Laptop, 14 MiB used of 4,096 MiB.
 - The runner only prints the paste-ready entry at start and does not wait, so this entry is written by hand before the first request. Locked card content is not opened or printed by me.
+
+### Spec: llm-probe — Locked_Run END, `webllm/qwen3.5-0.8b-q4f32/nvidia` (task 21.2, 2026-11-08T08:45Z)
+
+- Status: **completed**. Ledger entry `L-20261108T081803Z-webllm-qwen3-5-0-8b-q4f32-nvidia` (fingerprint `fp-9489e14e911cc00113d57b7ea1f0b7421d09490650110bcf47d4b177693c3d85`, started 2026-11-08T08:18:03Z, wall time about 27 min). 324 requests (decision 236, synthesis 88), all with output, 0 not_run, 0 engine faults, no load retries, no transient errors.
+- Results: `eval/results/locked/L-20261108T081803Z-webllm-qwen3-5-0-8b-q4f32-nvidia.jsonl`, `.grades.jsonl`, `.perf.json`; ledger `eval/results/ledger.jsonl`. No card content is in this entry.
+- D: acceptable 35/60 cards (58.3%, Random_Baseline 51.8%), request level 142/236 (60.2%); Illegal 0; severe 8; flip rate 81/172 (47.1%); contrast consistency 0/15. Mark: fail.
+- S: acceptable 7/40 (17.5%); Illegal 10/40 (25.0%); severe 4; flip rate 11/44; contrast consistency 0/10. 20 of 88 S requests timed out. Mark: fail.
+- Performance: D p50/p95 2,482/3,081 ms; S p50/p95 6,079/7,357 ms. Cold start 70,876 ms (empty cache), 5,137 ms (warm). Download 437,021,473 B model + 13,382,539 B runtime. NVIDIA memory.used peak delta 1,783 MiB (absolute 1,827 MiB, baseline 44 MiB).
+- `probe phase-status`: the Combination is finished (complete D and S entry); D and S both still "no pass". The generated `docs/llm-probe.md` draft was deleted.
