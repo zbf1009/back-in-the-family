@@ -2243,6 +2243,11 @@
         "executionId": "d5258a74-1023-4429-ab74-140c32435dd5",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794115118099
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794130929367
       }
     ],
     "21.1 Check the preconditions": [
@@ -2342,6 +2347,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180517
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794130930166
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794132412733
       }
     ],
     "22.2 Record the Phase_2 approval": [
@@ -2349,6 +2364,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180521
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794132413686
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794132482450
       }
     ],
     "23.1 Branch A: Smoke_Calls only": [
@@ -2356,6 +2381,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180526
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794132482476
       }
     ],
     "23.2 Branch B: approved Dev_Run": [
@@ -2363,6 +2393,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180531
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794132627568
+      },
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794133032571
       }
     ],
     "23.3 Branch B: approved Locked_Run": [
@@ -2580,6 +2620,13 @@
         "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794130919073
+      }
+    ],
+    "22. STOP-AND-ASK: Phase_1 checkpoint and the Author's Phase_2 decision": [
+      {
+        "executionId": "af1e52aa-38a6-4a80-a95c-6ebba2c235cb",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794132482456
       }
     ]
   }

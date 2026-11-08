@@ -514,7 +514,7 @@ Execution notes for the orchestrator:
   - [x] 20.5 Tune the Prompt_Templates on Dev_Cards only
     - Change only the files under `eval/probe/templates/` (block-format changes need a Rust change and a `RENDERER_VERSION` bump with a regenerated golden file; avoid them). Re-run Dev_Runs; never use Locked_Cards; log each iteration with its Template_Hashes and Dev_Run Metrics (labelled Dev_Run).
     - _Requirements: 3.2, 7.7, 15.2_
-  - [ ] 20.6 Ask the Author to freeze the templates, then run the final Dev_Runs
+  - [x] 20.6 Ask the Author to freeze the templates, then run the final Dev_Runs
     - Present the final templates and their Template_Hashes; do nothing until the Author approves the freeze. Then run one Dev_Run per Combination with the frozen hashes (the R3.12 precondition), plus the Intel iGPU Dev_Run (`low-power`) of the best NVIDIA model, added to `combinations.json` with `phase1_locked: false`. Commit Results and the frozen templates; log the hashes. One `chore(llm-probe)` commit.
     - _Requirements: 3.12, 7.7, 15.2, 17.1_
 
@@ -538,19 +538,19 @@ Execution notes for the orchestrator:
     - Same procedure as 21.2, with its own approval. An interrupted run is continued only with `locked-run --resume <entry-id>` after asking again; a re-run needs the Author's reason (`--rerun-reason`).
     - _Requirements: 3.3, 3.5, 3.6, 3.9, 3.11, 14.4, 14.10, 17.1, 17.6_
 
-- [ ] 22. STOP-AND-ASK: Phase_1 checkpoint and the Author's Phase_2 decision
-  - [ ] 22.1 Report the Phase_1 result and ask for the Phase_2 branch
+- [x] 22. STOP-AND-ASK: Phase_1 checkpoint and the Author's Phase_2 decision
+  - [x] 22.1 Report the Phase_1 result and ask for the Phase_2 branch
     - Run `probe phase-status` (and, for the Author's reading, a draft `probe report`, not committed). Report per Task_Type whether an in-browser Combination passed, with ledger entry IDs, and the branch that follows (A: Smoke_Calls only; B: one Workers AI model on the failing Task_Type_Subset, default `@cf/google/gemma-4-26b-a4b-it`). Do nothing until the Author decides.
     - _Requirements: 18.2, 17.1_
-  - [ ] 22.2 Record the Phase_2 approval
+  - [x] 22.2 Record the Phase_2 approval
     - After the Author's decision in the conversation, add the `phase2` entry (`branch`, and for B the model and `task_subset`, `approved_on`) to `eval/probe/approvals.json` and commit it; confirm `phase-status` reads it from `HEAD`; log.
     - _Requirements: 11.20, 18.2, 18.4, 18.8_
 
 - [ ] 23. STOP-AND-ASK: Phase_2 (exactly one branch)
-  - [ ] 23.1 Branch A: Smoke_Calls only
+  - [x] 23.1 Branch A: Smoke_Calls only
     - If branch A: up to 10 Smoke_Calls on the branch-B default model (for example 5 D and 5 S Dev_Cards) within the daily count, to show the link is reachable and returns output the Output_Validator accepts; no Workers AI Dev_Run or Locked_Run. Commit the smoke records; log sent and accepted counts. If branch B, mark this sub-task not applicable.
     - _Requirements: 18.3, 18.6_
-  - [ ] 23.2 Branch B: approved Dev_Run
+  - [x] 23.2 Branch B: approved Dev_Run
     - If branch B: ask the Author to approve the `dev` run (combination, `task_subset`, `max_requests`); after approval add the `dev` entry to `approvals.json` in its own commit; confirm a current `ok` Response_Shape Smoke_Call; run `probe dev-run --combo … --task <subset> --approval <id>` within the budget; commit Results; log. If branch A, not applicable.
     - _Requirements: 11.5, 11.6, 11.7, 11.8, 11.13, 11.14, 11.19, 18.4, 17.1_
   - [ ] 23.3 Branch B: approved Locked_Run
