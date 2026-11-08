@@ -225,6 +225,22 @@ test('text result maps usage; length → truncated; empty → empty_content', as
   assert.equal(nul.kind === 'error' && nul.code, 'empty_content');
 });
 
+test('the empty think block WebLLM prepends is removed; a non-empty one is kept', async () => {
+  const clock = createFakeClock();
+  let next: Script = {};
+  const rt = runtime(clock, makeFake(clock, () => next));
+  await rt.load();
+  next = { content: '<think>\n\n</think>\n\n{"option":"a"}' };
+  const a = await rt.adapter.complete(card, { timeoutMs: 10_000, sampling: samplingD });
+  assert.equal(a.kind === 'text' && a.text, '{"option":"a"}');
+  next = { content: '<think>\nhmm\n</think>\n\n{"option":"a"}' };
+  const b = await rt.adapter.complete(card, { timeoutMs: 10_000, sampling: samplingD });
+  assert.equal(b.kind === 'text' && b.text, '<think>\nhmm\n</think>\n\n{"option":"a"}');
+  next = { content: '<think>\n\n</think>\n\n' };
+  const c = await rt.adapter.complete(card, { timeoutMs: 10_000, sampling: samplingD });
+  assert.equal(c.kind === 'error' && c.code, 'empty_content');
+});
+
 test('complete before load is a runtime_error and sends nothing', async () => {
   const clock = createFakeClock();
   const fake = makeFake(clock);

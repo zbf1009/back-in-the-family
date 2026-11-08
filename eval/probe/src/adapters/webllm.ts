@@ -114,6 +114,16 @@ export function buildChatRequest(prompt: Prompt, sampling: SamplingParams): WebL
   return request;
 }
 
+/**
+ * `enable_thinking: false` makes WebLLM put an empty think block (`<think>\n\n</think>\n\n`) at the start of the
+ * reply; it is the engine's own marker, not model output. Remove exactly that one prefix. A think block with any
+ * content is left in place, so real thinking text still reaches the grader and the think-text check.
+ */
+export const EMPTY_THINK_PREFIX = '<think>\n\n</think>\n\n';
+export function stripEmptyThinkPrefix(text: string): string {
+  return text.startsWith(EMPTY_THINK_PREFIX) ? text.slice(EMPTY_THINK_PREFIX.length) : text;
+}
+
 // ---------------------------------------------------------------- adapter
 
 export interface WebLlmModelSpec {
@@ -198,7 +208,7 @@ export function createWebLlmRuntime(deps: WebLlmDeps): WebLlmRuntime {
       u !== undefined && u !== null && typeof u.prompt_tokens === 'number' && typeof u.completion_tokens === 'number'
         ? { inputTokens: u.prompt_tokens, outputTokens: u.completion_tokens, reasoningTokens: null }
         : null;
-    return { text: choice?.message.content ?? '', usage, interrupted: finish === 'abort' };
+    return { text: stripEmptyThinkPrefix(choice?.message.content ?? ''), usage, interrupted: finish === 'abort' };
   }
 
   const lifecycleEngine: LifecycleEngine = {
