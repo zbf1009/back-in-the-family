@@ -78,3 +78,20 @@ export async function checkAdapter(gpu: GpuLike | undefined | null, powerPrefere
   }
   return { ok: true, info };
 }
+
+/**
+ * Makes every later `gpu.requestAdapter()` call carry the Combination's `low-power` preference, whatever the caller asks.
+ * Why: WebLLM 0.2.87 requests its own adapter with a hard-coded "high-performance", so on a hybrid laptop the
+ * adapter check reported the Intel iGPU while the model ran on the NVIDIA GPU (llm-probe task 20.6, Dev_Run
+ * `dev-20261108T041937Z-...-intel`). `high-performance` Combinations are left alone, so their results do not change.
+ * Idempotent; returns true when the gpu object was wrapped.
+ */
+export function pinLowPowerAdapter(gpu: GpuLike | undefined | null, powerPreference: PowerPreference): boolean {
+  if (gpu === undefined || gpu === null || typeof gpu.requestAdapter !== 'function' || powerPreference !== 'low-power') return false;
+  const marked = gpu as GpuLike & { __probeLowPowerPinned?: true };
+  if (marked.__probeLowPowerPinned === true) return false;
+  const original = gpu.requestAdapter.bind(gpu);
+  marked.requestAdapter = (options) => original({ ...options, powerPreference: 'low-power' });
+  marked.__probeLowPowerPinned = true;
+  return true;
+}

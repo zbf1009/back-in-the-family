@@ -352,6 +352,8 @@ interface PerfView {
   readonly memQuantity: string | null;
   readonly memPeak: number | null;
   readonly memReason: string | null;
+  /** `true`: NVIDIA memory rose during an Intel-adapter run, so the work did not run on the Intel GPU. */
+  readonly deviceMismatch: boolean | null;
   readonly connection: string | null;
   readonly throttling: string | null;
   readonly mbit: number | null;
@@ -369,6 +371,7 @@ function perfView(perf: PerfRecord | null): PerfView | null {
     memQuantity: asStr(dig(perf, 'memory', 'quantity')),
     memPeak: asNum(dig(perf, 'memory', 'peak_mib')),
     memReason: asStr(dig(perf, 'memory', 'reason')),
+    deviceMismatch: dig(perf, 'memory', 'device_mismatch') === true ? true : dig(perf, 'memory', 'device_mismatch') === false ? false : null,
     connection: asStr(dig(perf, 'network', 'connection')),
     throttling: asStr(dig(perf, 'network', 'throttling')),
     mbit: asNum(dig(perf, 'network', 'measured_mbit_s')),
@@ -390,7 +393,7 @@ function gpuLabel(run: RunAnalysis, workers: boolean): string {
   if (workers) return 'not applicable (server side)';
   const vendor = asStr(dig(run.header.fingerprint, 'webgpu', 'vendor')) ?? asStr(perfView(run.perf)?.memGpu);
   if (vendor === 'nvidia') return 'NVIDIA discrete GPU';
-  if (vendor === 'intel') return 'Intel integrated GPU';
+  if (vendor === 'intel') return perfView(run.perf)?.deviceMismatch === true ? 'INVALID: Intel adapter reported, but the work ran on the NVIDIA GPU (device_mismatch)' : 'Intel integrated GPU';
   return vendor ?? 'unknown';
 }
 
@@ -400,6 +403,7 @@ function memoryCells(run: RunAnalysis, workers: boolean): { nvidia: string; inte
   if (p === null) return { nvidia: 'not measured: no perf record', intel: 'not measured: no perf record' };
   const unmeasured = `not measured: ${p.memReason ?? 'no reason recorded'}`;
   if (p.memGpu === 'nvidia') return { nvidia: p.memPeak !== null ? `${p.memPeak}` : unmeasured, intel: '—' };
+  if (p.memGpu === 'intel' && p.deviceMismatch === true) return { nvidia: '—', intel: 'INVALID (device_mismatch): NVIDIA memory rose during this run, so these are not Intel figures' };
   if (p.memGpu === 'intel') return { nvidia: '—', intel: p.memPeak !== null ? `${p.memPeak} — ${p.memQuantity ?? 'quantity not named'}` : unmeasured };
   return { nvidia: unmeasured, intel: unmeasured };
 }

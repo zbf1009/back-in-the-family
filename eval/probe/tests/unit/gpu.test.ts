@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { checkAdapter, type GpuLike, type GpuAdapterLike } from '../../src/adapters/gpu.ts';
+import { checkAdapter, pinLowPowerAdapter, type GpuLike, type GpuAdapterLike } from '../../src/adapters/gpu.ts';
 
 const gpuOf = (adapter: GpuAdapterLike | null, seen: unknown[] = []): GpuLike => ({
   requestAdapter: async (o) => {
@@ -44,4 +44,19 @@ test('google with another architecture is accepted; legacy requestAdapterInfo is
 test('requestAdapter throwing is gpu_unavailable', async () => {
   const r = await checkAdapter({ requestAdapter: async () => { throw new Error('boom'); } }, 'low-power');
   assert.equal(r.ok === false && r.code, 'gpu_unavailable');
+});
+
+test('pinLowPowerAdapter forces low-power on later engine calls; high-performance Combinations are untouched', async () => {
+  const seen: unknown[] = [];
+  const gpu = gpuOf({ info: { vendor: 'intel' } }, seen);
+  assert.equal(pinLowPowerAdapter(gpu, 'high-performance'), false);
+  await gpu.requestAdapter();
+  assert.deepEqual(seen, [undefined]); // not wrapped
+
+  assert.equal(pinLowPowerAdapter(gpu, 'low-power'), true);
+  assert.equal(pinLowPowerAdapter(gpu, 'low-power'), false); // idempotent
+  await gpu.requestAdapter(); // what WebLLM does with no argument
+  await gpu.requestAdapter({ powerPreference: 'high-performance' }); // what WebLLM's detectGPUDevice does
+  assert.deepEqual(seen.slice(1), [{ powerPreference: 'low-power' }, { powerPreference: 'low-power' }]);
+  assert.equal(pinLowPowerAdapter(undefined, 'low-power'), false);
 });

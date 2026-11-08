@@ -8,7 +8,7 @@
 // Type-only imports from ../src/** are erased by the bundler; the only runtime imports are the two
 // engine-neutral adapter modules in engines.ts.
 import type { AdapterResult, OutputConstraint, Prompt, RequestOptions, RuntimeAdapter, RuntimeIdentity, SamplingParams } from '../src/adapters/interface.ts';
-import { checkAdapter, type AdapterCheck, type GpuLike, type PowerPreference } from '../src/adapters/gpu.ts';
+import { checkAdapter, pinLowPowerAdapter, type AdapterCheck, type GpuLike, type PowerPreference } from '../src/adapters/gpu.ts';
 import type { TimingClock } from '../src/adapters/timing.ts';
 import type { WarmUpPrompts } from '../src/adapters/lifecycle.ts';
 import type { TaskType } from '../src/cards.ts';
@@ -419,6 +419,7 @@ export function createProbeController(deps: PageDeps): ProbeApi {
 
   async function check(): Promise<AdapterCheck> {
     const c = need();
+    pinLowPowerAdapter(deps.gpu, power(c)); // engines make their own requestAdapter() calls; see the helper
     adapterCheck = await checkAdapter(deps.gpu, power(c));
     deps.log(`[probe] adapter check: ${JSON.stringify(adapterCheck)}`);
     return adapterCheck;

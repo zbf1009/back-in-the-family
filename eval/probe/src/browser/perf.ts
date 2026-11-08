@@ -438,6 +438,56 @@ export class IntelGpuProcessPeak implements MemoryMeasurement {
   }
 }
 
+/** NVIDIA memory.used rise (MiB) during an Intel-adapter run above which the run is flagged `device_mismatch`. The model alone is over 400 MiB; idle wobble on the Target_Machine is about 15 MiB. */
+export const DEVICE_MISMATCH_MIB = 256;
+
+/** Verdict of the NVIDIA watch: `null` when nvidia-smi gave no usable reading (cannot say). */
+export const deviceMismatchOf = (nvidiaPeakDeltaMib: number | null): boolean | null => (nvidiaPeakDeltaMib === null ? null : nvidiaPeakDeltaMib > DEVICE_MISMATCH_MIB);
+
+/**
+ * Intel iGPU run with a guard: the Intel figure as before, plus an NVIDIA `memory.used` watch. On a hybrid laptop the
+ * browser may report the Intel adapter while the work lands on the NVIDIA card; if NVIDIA memory rose by more than
+ * DEVICE_MISMATCH_MIB the record carries `device_mismatch: true` and the run's figures are not Intel figures.
+ */
+export class IntelWithNvidiaWatch implements MemoryMeasurement {
+  private readonly intel: IntelGpuProcessPeak;
+  private readonly watch: NvidiaPeakSampler;
+
+  constructor(intel: IntelGpuProcessPeak, watch: NvidiaPeakSampler) {
+    this.intel = intel;
+    this.watch = watch;
+  }
+
+  async start(): Promise<void> {
+    await this.intel.start();
+    await this.watch.start();
+  }
+
+  private merge(intel: MemoryRecord, nvidia: MemoryRecord): MemoryRecord {
+    const delta = typeof nvidia.peak_mib === 'number' ? nvidia.peak_mib : null;
+    const mismatch = deviceMismatchOf(delta);
+    return {
+      ...intel,
+      device_mismatch: mismatch,
+      nvidia_watch: {
+        peak_delta_mib: delta,
+        baseline_mib: typeof nvidia['baseline_mib'] === 'number' ? nvidia['baseline_mib'] : null,
+        absolute_peak_mib: typeof nvidia['absolute_peak_mib'] === 'number' ? nvidia['absolute_peak_mib'] : null,
+        threshold_mib: DEVICE_MISMATCH_MIB,
+        reason: nvidia.reason,
+      },
+    };
+  }
+
+  async snapshot(): Promise<MemoryRecord> {
+    return this.merge(await this.intel.snapshot(), await this.watch.snapshot());
+  }
+
+  async stop(): Promise<MemoryRecord> {
+    return this.merge(await this.intel.stop(), await this.watch.stop());
+  }
+}
+
 /** No measurement is possible (for example an adapter that is neither NVIDIA nor Intel). */
 export class NoMemoryMeasurement implements MemoryMeasurement {
   private readonly reason: string;
@@ -467,7 +517,12 @@ export function memoryMeasurementFor(
 ): MemoryMeasurement {
   const v = vendor.toLowerCase();
   if (v === 'nvidia') return new NvidiaPeakSampler(deps.reader, deps.scheduler, SAMPLE_INTERVAL_MS, deps.idle?.reads ?? 1, deps.idle?.wait);
-  if (v === 'intel') return new IntelGpuProcessPeak(deps.proc, deps.profileDir);
+  if (v === 'intel') {
+    return new IntelWithNvidiaWatch(
+      new IntelGpuProcessPeak(deps.proc, deps.profileDir),
+      new NvidiaPeakSampler(deps.reader, deps.scheduler, SAMPLE_INTERVAL_MS, deps.idle?.reads ?? 1, deps.idle?.wait),
+    );
+  }
   return new NoMemoryMeasurement(`no memory measurement for adapter vendor "${vendor}"`);
 }
 

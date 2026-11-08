@@ -244,6 +244,17 @@ test('NVIDIA and Intel memory sit in separate columns and the Intel quantity is 
   assert.equal(ilRow?.[intelCol], `812 — ${INTEL_MEMORY_QUANTITY}`);
 });
 
+test('an Intel run flagged device_mismatch is shown as INVALID, never as Intel figures', () => {
+  const il = combo('webllm/q/intel');
+  const specs: Spec[] = [{ id: 'L-il', c: il, task: 'decision', good: true, perf: { memory: { gpu: 'intel', quantity: INTEL_MEMORY_QUANTITY, peak_mib: 783, device_mismatch: true } } }];
+  const table = rows(section(build(specs, [il, WAI]), 6));
+  const head = table.find((r) => r.includes(NVIDIA_MEMORY_COLUMN)) as string[];
+  const row = table.find((r) => r.length === head.length && r[1] === 'L-il');
+  const cell = row?.[head.findIndex((h) => h.startsWith('Intel iGPU peak memory'))] ?? '';
+  assert.match(cell, /^INVALID \(device_mismatch\)/);
+  assert.doesNotMatch(cell, /783/);
+});
+
 test('a CPU-flagged Combination carries the "not pure-WebGPU results" note (R15.11)', () => {
   const cpu = combo('webllm/cpu/nvidia');
   const report = build([{ id: 'L-cpu', c: cpu, task: 'decision', good: true, cpu: 3 }], [cpu, WAI]);

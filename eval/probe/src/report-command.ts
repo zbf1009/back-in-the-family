@@ -131,6 +131,7 @@ export async function gatherReportInput(paths: ReportPaths, cards: ReportCards, 
   }
 
   const devRuns: RunAnalysis[] = [];
+  const invalidDevRuns = loadInvalidDevRuns(path.join(paths.devDir, '..', INVALID_DEV_RUNS_FILE));
   if (fs.existsSync(paths.devDir)) {
     const files = fs.readdirSync(paths.devDir).filter((n) => n.endsWith('.jsonl') && !n.endsWith('.grades.jsonl')).sort();
     for (const name of files) {
@@ -149,7 +150,7 @@ export async function gatherReportInput(paths: ReportPaths, cards: ReportCards, 
           header: results.header,
           records: results.records,
           grades: readGradesFile(gradesPathFor(file)),
-          perf: readPerfIfExists(perfPathFor(file)),
+          perf: markInvalid(readPerfIfExists(perfPathFor(file)), invalidDevRuns.has(results.header.run_id)),
         }),
       );
     }
@@ -165,6 +166,29 @@ export async function gatherReportInput(paths: ReportPaths, cards: ReportCards, 
     preflights: loadPreflights(paths.preflightDir),
     runtimeLibraries: loadLibraries(paths.runtimeLibraries),
   };
+}
+
+/**
+ * Dev_Runs the Author or the harness found to have run on another device than the one they report (listed by run ID
+ * in `eval/results/invalid-dev-runs.json`, a JSON object run_id -> reason). The result files stay as written; the
+ * Report treats a listed run as `device_mismatch`, so its figures never appear as figures of the reported GPU.
+ */
+export const INVALID_DEV_RUNS_FILE = 'invalid-dev-runs.json';
+
+export function loadInvalidDevRuns(file: string): Map<string, string> {
+  if (!fs.existsSync(file)) return new Map();
+  const raw: unknown = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const out = new Map<string, string>();
+  if (typeof raw === 'object' && raw !== null && !Array.isArray(raw)) {
+    for (const [k, v] of Object.entries(raw)) out.set(k, typeof v === 'string' ? v : '');
+  }
+  return out;
+}
+
+export function markInvalid(perf: PerfRecord | null, invalid: boolean): PerfRecord | null {
+  if (!invalid || perf === null) return perf;
+  const memory = typeof perf.memory === 'object' && perf.memory !== null && !Array.isArray(perf.memory) ? perf.memory : {};
+  return { ...perf, memory: { ...memory, device_mismatch: true } };
 }
 
 /** `report`: writes `docs/llm-probe.md`. Returns the exit code. The Manifest_Check has already passed. */
