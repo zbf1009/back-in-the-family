@@ -1501,6 +1501,15 @@ Decided: A (Author, 2026-11-06).
 - **B.** An interactive confirmation (`type the combination ID to continue`) on a TTY. Pros: a human must be present. Cons: no record; breaks unattended runs.
 - **C.** An environment variable. Cons: invisible afterwards.
 
+### DA-15: Failure records, the Phase_1 gate and Locked_Run transient errors (Author, 2026-11-08)
+
+Decided: option A of the gate fix, with the retry rules below. Note dated 2026-11-08; commit `d8066ee`.
+
+- **Failure records.** `llm-probe-failure-v1` gains two optional fields: `run_kind` (`dev` or `locked`) and `transient` (boolean; the matcher is `transient.ts`, moved unchanged from `preflight.ts`). The phase gate (`hasFailure`, `Phase1Finish = 'failure'`) counts a record only when `run_kind` is `locked` and `transient` is false. A Dev_Run failure, or a transient network error in either kind of run, never finishes Phase_1.
+- **Old records.** No `run_kind`: a `run_id` starting with `dev-` reads as dev, anything else as locked. No `transient`: the matcher is applied to `detail`, `reason` and `message`. Corrections are appended, never edited: a `llm-probe-failure-correction-v1` line in the same file names `combination` and `target_at` and overrides both fields; the reader merges them (last wins). The 03:22:28.525Z Dev_Run record is corrected this way.
+- **Locked_Run load retry.** Only a `model_load_failed` with a transient message, before the first Card request: at most 3 retries, waits of 5 s, 15 s, 45 s. Each retry opens a new handle and a new Fresh_Profile, so a retry cannot reuse a partial cache or the byte counter. Cold-start and download figures come from the first load that succeeded; failed loads write no perf record; a perf record from a retried load carries `load_attempts`. Failed attempts write locked + transient + `will_retry` failure records, which the gate ignores. After the last retry the run aborts as before (the final record is locked + transient, so the Combination is not failed) and continues only with `--resume`, after asking the Author again. A transient error mid-run is not retried automatically: the run stops and is resumed the same way. Non-transient load failures are not retried and do count.
+- **Dev-set confound note.** The Report states that in `dev.jsonl` every severe option is last in card order (rotation was applied to the locked set only) and that the position-versus-content distinction is to be drawn from the Locked_Run results.
+
 ### Mechanical choices
 
 - Probe_Page port 4318 (distinct from the Smoke_Test's 4173).
