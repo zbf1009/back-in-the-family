@@ -268,6 +268,14 @@ export interface PreflightVerdict {
 
 const ENVIRONMENT_CODES: readonly LoadFailureCode[] = ['gpu_unavailable', 'software_adapter'];
 
+/**
+ * A fetch that died on the wire (`TypeError: network error`, `Failed to fetch`, a reset or timed-out connection)
+ * says nothing about the model: the weights never arrived. Such a load failure is a `no_verdict` record, never an
+ * exclusion (Author, 2026-11-07, after a transient error wrongly excluded Qwen3.5-2B).
+ */
+const TRANSIENT_NETWORK_RE = /network error|failed to fetch|networkerror|net::err_|econnreset|etimedout|enotfound|eai_again|socket hang up/i;
+export const isTransientNetworkError = (message: string): boolean => TRANSIENT_NETWORK_RE.test(message);
+
 const placementJson = (p: Placement | null): JsonValue =>
   p === null ? null : { method: p.method, cpu_nodes: p.cpu_nodes.map((n) => ({ op_type: n.op_type, count: n.count })) };
 
@@ -338,7 +346,7 @@ export function judgePreflight(i: JudgeInput): PreflightVerdict {
   if (a.kind === 'session_failed') return out('no_verdict', { ...notStarted, error: `session_failed: ${a.message}` }, null);
   if (a.kind === 'load_failed') {
     const rec = { ...notStarted, error: `${a.code}: ${a.message}` };
-    if (ENVIRONMENT_CODES.includes(a.code)) return out('no_verdict', rec, null);
+    if (ENVIRONMENT_CODES.includes(a.code) || (a.code === 'model_load_failed' && isTransientNetworkError(a.message))) return out('no_verdict', rec, null);
     return out('excluded', rec, exclusion('preflight_load', a.code, 'loaded on WebGPU'));
   }
 

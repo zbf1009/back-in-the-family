@@ -12,7 +12,7 @@ import type { Prompt } from '../../src/adapters/interface.ts';
 import type { Placement } from '../../src/adapters/placement.ts';
 import { BrowserLoadError, type PreflightMeasurement } from '../../src/browser/driver.ts';
 import type { Combination } from '../../src/phase.ts';
-import { longestDevPromptBytes, preflightPath, preflightRun, promptBytes, type PreflightDeps, type PreflightSession } from '../../src/preflight.ts';
+import { attemptsPath, longestDevPromptBytes, preflightPath, preflightRun, promptBytes, type PreflightDeps, type PreflightSession } from '../../src/preflight.ts';
 import { readExclusions, readPreflight } from '../../src/results.ts';
 import { capture, FAKE_COMBO, makeCardSet, makeEnv, REVISION } from './run.helpers.ts';
 
@@ -189,4 +189,17 @@ test('a model that did not run on the WebGPU provider is excluded the same way',
   assert.equal((await capture(() => preflightRun(deps, { combo: TF.id }))).value, 1);
   assert.equal(readPreflight(preflightPath(deps.paths.resultsDir, TF.id))['loaded_on_webgpu'], false);
   assert.equal(readExclusions(deps.paths.exclusions)[0]?.check, 'preflight_load');
+});
+
+test('a transient network error during model load writes only an attempt record and no Exclusion_Record', async () => {
+  const { deps, seen } = setup(new BrowserLoadError('model_load_failed', 'page.evaluate: TypeError: network error'));
+  assert.equal((await capture(() => preflightRun(deps, { combo: TF.id }))).value, 1);
+  assert.equal(fs.existsSync(deps.paths.exclusions) ? readExclusions(deps.paths.exclusions).length : 0, 0);
+  assert.equal(fs.existsSync(preflightPath(deps.paths.resultsDir, TF.id)), false);
+  const lines = fs.readFileSync(attemptsPath(deps.paths.resultsDir), 'utf8').split('\n').filter((l) => l !== '');
+  assert.equal(lines.length, 1);
+  const rec = JSON.parse(lines[0]!) as Record<string, unknown>;
+  assert.equal(rec['verdict'], 'no_verdict');
+  assert.match(String(rec['error']), /network error/);
+  assert.equal(seen.closed, 1);
 });

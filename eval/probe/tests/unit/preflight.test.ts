@@ -17,6 +17,7 @@ import {
   PREFLIGHT_MAX_NEW_TOKENS,
   PREFLIGHT_MIN_NEW_TOKENS,
   buildPreflightPrompt,
+  isTransientNetworkError,
   judgePreflight,
   padPrompt,
   parsePreflightArgs,
@@ -331,4 +332,23 @@ test('readTree follows Link headers; withDownloadBytes never overwrites a stored
   assert.throws(() => withDownloadBytes('[{"id":"a"}]', new Map()), /canonical/);
   assert.deepEqual(parseScreenArgs(['--write']), { ok: true, options: { write: true } });
   assert.equal(parseScreenArgs(['--nope']).ok, false);
+});
+
+test('a transient network error on load is a no_verdict record, while other model_load_failed messages still exclude', () => {
+  fc.assert(
+    fc.property(fc.constantFrom('TypeError: network error', 'Failed to fetch', 'net::ERR_CONNECTION_RESET', 'read ECONNRESET'), fc.string({ maxLength: 20 }), (msg, pre) => {
+      const v = judge({ kind: 'load_failed', code: 'model_load_failed', message: `${pre}${msg}` });
+      assert.equal(v.verdict, 'no_verdict');
+      assert.equal(v.exclusion, null);
+      assert.equal(v.record['loaded_on_webgpu'], false);
+    }),
+  );
+  fc.assert(
+    fc.property(fc.constantFrom('weights missing', 'unpinned_fetch', 'Aborted(): invalid protobuf', 'out of memory while loading'), (msg) => {
+      assert.equal(isTransientNetworkError(msg), false);
+      const v = judge({ kind: 'load_failed', code: 'model_load_failed', message: msg });
+      assert.equal(v.verdict, 'excluded');
+      assert.equal(v.exclusion?.check, 'preflight_load');
+    }),
+  );
 });
