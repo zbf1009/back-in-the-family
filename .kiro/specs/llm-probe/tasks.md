@@ -380,36 +380,36 @@ Execution notes for the orchestrator:
 - [x] 14. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 15. Pre-run verification (V1 to V8 of the design)
+- [x] 15. Pre-run verification (V1 to V8 of the design)
   - Every sub-task below must be complete, with its conclusion appended to `docs/kiro-log.md`, before any Phase_1 Locked_Run (task 21). Each sub-task ends with its own `docs(llm-probe)` commit (with any design or code change it causes), because the sub-tasks run at different points of the plan. A changed design section gets a dated note.
-  - [~] 15.1 V1: WebLLM issue 560 fixed in 0.2.87?
+  - [x] 15.1 V1: WebLLM issue 560 fixed in 0.2.87?
     - Runs: during the first WebLLM Dev_Run (task 20.2), which switches between the D schema and an S family schema on one engine.
     - Check: no "Module has already been disposed" or other schema-change error across the D and S requests.
     - If it fails: the design already uses the one card-independent D schema; record the conclusion (and, if a schema-change error appears, record it as `runtime_error` and revisit DA-6 with the Author before any Locked_Run, as the design states).
     - _Requirements: 4.15, 9.1_
-  - [~] 15.2 V2: does `apply_chat_template` pass `enable_thinking` into the Qwen3.5 template?
+  - [x] 15.2 V2: does `apply_chat_template` pass `enable_thinking` into the Qwen3.5 template?
     - Runs: during the first transformers.js Qwen3.5 Dev_Run (task 20.3); check the raw outputs for `<think>`.
     - If it fails: switch to a hand-built prompt for that model, record it in the Model_Fingerprint (`chat_template_kwargs` and a note), re-run that Dev_Run, and log.
     - _Requirements: 9.14, 12.12_
-  - [~] 15.3 V3: do gemma-4 and glm-4.7 read `enable_thinking`, and does the API return extra reasoning fields?
+  - [x] 15.3 V3: do gemma-4 and glm-4.7 read `enable_thinking`, and does the API return extra reasoning fields?
     - Runs: after task 17, as Workers AI Smoke_Calls (`probe smoke`) within the 10-per-UTC-day count; no approval needed within the count (R17.1), but tell the Author the model and count before sending. **[Target_Machine]** only because the root `env` lives there; the agent never opens `env`.
     - Check: `usage.completion_tokens_details.reasoning_tokens` is 0 or absent, which fields the live response carries, and the shape check result.
     - If it fails: adjust `response_shape` (and `combinations.json`) to the actual structure, confirm with a later Smoke_Call, log.
     - _Requirements: 11.15, 11.17, 11.19, 18.1_
-  - [~] 15.4 V4: granite has no `finish_reason`; is truncation judged by `completion_tokens >= max_tokens`?
+  - [x] 15.4 V4: granite has no `finish_reason`; is truncation judged by `completion_tokens >= max_tokens`?
     - Runs: after task 17, one Smoke_Call on `granite-4.0-h-micro` with a very small `max_tokens`, inside the same daily count as 15.3.
     - If it fails (or to record the basis either way): write the observed basis of the truncation rule into the design's Workers AI adapter section with a dated note, adjust the adapter and its Property 39 generator if needed, log.
     - _Requirements: 11.16, 11.19_
-  - [~] 15.5 V5: recompute the DA-8 neuron estimates for the glm and granite rows
+  - [x] 15.5 V5: recompute the DA-8 neuron estimates for the glm and granite rows
     - Runs: after 15.3 and 15.4 and before the budget approval (task 18). Offline arithmetic.
     - Recompute the glm-4.7-flash and granite-4.0-h-micro rows (and the gemma rows if the Smoke_Calls showed reasoning tokens billed beyond the cap) from the stated prices and assumptions; correct DA-8 with a dated note; log the figures.
     - _Requirements: 11.7, 11.13_
-  - [~] 15.6 V6: can ONNX Runtime log which device each operator is placed on?
+  - [x] 15.6 V6: can ONNX Runtime log which device each operator is placed on?
     - Runs: at the first transformers.js VRAM_Preflight (task 19.3). **[Target_Machine]**
     - Check: the "Node placements" block appears in the captured console with `logSeverityLevel: 0` and verbose log level; add a real captured sample to the placement-parser tests.
     - If it fails: the preflight stops at `placement_not_logged`; change the detection method in the design's Placement detection section (dated note, Author informed) and in `placement.ts`, re-run the preflight, log. No Dev_Run of a transformers.js Combination before this is resolved.
     - _Requirements: 9.1, 10.6_
-  - [~] 15.7 V7: actual WebLLM download size at the pinned revisions
+  - [x] 15.7 V7: actual WebLLM download size at the pinned revisions
     - Runs: during the first WebLLM Dev_Runs (tasks 20.2 and 20.4), from the Dev_Run perf record, compared with the `probe screen` sum at the Pinned_Revision.
     - If over 1,536 MiB: handled by the exclusion rule (screen) or the over-limit mark at Locked_Run start (R9.11); record the figures.
     - _Requirements: 9.3, 9.11, 14.5_
@@ -481,115 +481,115 @@ Execution notes for the orchestrator:
     - One conventional commit for task 17.
     - _Requirements: 11.1, 16.4, 16.5_
 
-- [ ] 18. STOP-AND-ASK: approve the Request_Budget values
-  - [~] 18.1 Ask the Author to approve the Request_Budget and Neuron_Cap
+- [x] 18. STOP-AND-ASK: approve the Request_Budget values
+  - [x] 18.1 Ask the Author to approve the Request_Budget and Neuron_Cap
     - Precondition: task 15.5 (V5) is done. Present the per-run cap 410, the daily cap 600 per UTC day, 10 Smoke_Calls per UTC day without approval, the Neuron_Cap of 9,000 estimated neurons per UTC day, the expected cost of a full Locked_Run per candidate model and Task_Type_Subset from DA-8 (with the V5 corrections), and the branch-B schedule. Do nothing that depends on these values until the Author approves them in the conversation at that moment.
     - Record the approval and its date in `docs/kiro-log.md` and as a dated note in DA-8; if the Author changes a value, change `budget.ts`, its tests and the design, run the gates, then log. One `docs(llm-probe)` commit (or `feat` if code changed).
     - _Requirements: 11.7, 17.1, 17.2_
 
-- [ ] 19. STOP-AND-ASK: screening and VRAM_Preflight [Target_Machine]
-  - [~] 19.1 Ask the Author before screening and preflight
+- [x] 19. STOP-AND-ASK: screening and VRAM_Preflight [Target_Machine]
+  - [x] 19.1 Ask the Author before screening and preflight
     - Name the actions: `probe screen` (Hugging Face API reads at each Pinned_Revision) and `probe preflight` for the three transformers.js candidates (downloads of about 0.6 to 1.5 GiB each, GPU use). Do nothing until the Author approves.
     - _Requirements: 17.1, 17.2_
-  - [~] 19.2 Run `probe screen`
+  - [x] 19.2 Run `probe screen`
     - Write Exclusion_Records for any Combination that fails the size limits or the pinning check; commit `eval/results/exclusions.jsonl` and the filled `size` fields; log the outcome.
     - _Requirements: 9.3, 9.8, 9.15, 9.17_
-  - [~] 19.3 Run the VRAM_Preflights
+  - [x] 19.3 Run the VRAM_Preflights
     - One per transformers.js candidate that is not excluded, each in a Fresh_Profile with the Headless_Launch_Flags on the NVIDIA adapter. Task 15.6 (V6) is decided on the first one, before the others run. Commit `eval/results/preflight/*.json` and any Exclusion_Records; log peaks and exclusions. One `chore(llm-probe)` commit for task 19.
     - _Requirements: 9.9, 9.10, 9.16, 9.17_
 
 - [ ] 20. STOP-AND-ASK: Dev_Runs, template tuning and template freeze [Target_Machine]
-  - [~] 20.1 Ask the Author before the Dev_Runs
+  - [x] 20.1 Ask the Author before the Dev_Runs
     - List the in-browser Combinations that are not excluded, the expected downloads and GPU time. Phase_1 rules: in-browser only; Workers AI only Smoke_Calls within the count (R18.1). Do nothing until the Author approves. If headless WebGPU no longer returns a hardware adapter, stop and ask the Author to run the headed Probe_Page **[headed Chrome]** (`page-bundle`, `page-serve`, export, `ingest`).
     - _Requirements: 10.1, 10.2, 17.1, 18.1_
-  - [~] 20.2 First WebLLM Dev_Run (dev smoke test)
+  - [x] 20.2 First WebLLM Dev_Run (dev smoke test)
     - `probe dev-run --combo webllm/qwen3.5-0.8b-q4f32/nvidia --task DS` in a Fresh_Profile. Check that WebLLM's `enable_thinking: false` leaves no thinking text in the outputs. Feeds 15.1 (V1) and 15.7 (V7). Commit the Dev_Run Results; log.
     - _Requirements: 3.2, 9.12, 9.14, 14.5_
-  - [~] 20.3 First transformers.js Dev_Run
+  - [x] 20.3 First transformers.js Dev_Run
     - `probe dev-run` for the transformers.js Qwen3.5-0.8B Combination; confirm the text-path loading of the multimodal export. Feeds 15.2 (V2). Commit; log.
     - _Requirements: 3.2, 9.1, 9.14_
-  - [~] 20.4 Remaining Dev_Runs
+  - [x] 20.4 Remaining Dev_Runs
     - The other in-browser Combinations that are not excluded (WebLLM Qwen3.5-2B feeds 15.7 too). A load failure or out-of-memory writes a failure record and the next Combination continues. Commit; log.
     - _Requirements: 3.2, 9.4_
-  - [~] 20.5 Tune the Prompt_Templates on Dev_Cards only
+  - [ ] 20.5 Tune the Prompt_Templates on Dev_Cards only
     - Change only the files under `eval/probe/templates/` (block-format changes need a Rust change and a `RENDERER_VERSION` bump with a regenerated golden file; avoid them). Re-run Dev_Runs; never use Locked_Cards; log each iteration with its Template_Hashes and Dev_Run Metrics (labelled Dev_Run).
     - _Requirements: 3.2, 7.7, 15.2_
-  - [~] 20.6 Ask the Author to freeze the templates, then run the final Dev_Runs
+  - [ ] 20.6 Ask the Author to freeze the templates, then run the final Dev_Runs
     - Present the final templates and their Template_Hashes; do nothing until the Author approves the freeze. Then run one Dev_Run per Combination with the frozen hashes (the R3.12 precondition), plus the Intel iGPU Dev_Run (`low-power`) of the best NVIDIA model, added to `combinations.json` with `phase1_locked: false`. Commit Results and the frozen templates; log the hashes. One `chore(llm-probe)` commit.
     - _Requirements: 3.12, 7.7, 15.2, 17.1_
 
 - [ ] 21. STOP-AND-ASK: Phase_1 Locked_Runs [Target_Machine]
-  - [~] 21.1 Check the preconditions
+  - [ ] 21.1 Check the preconditions
     - Tasks 15.1 to 15.8 are all done and logged; `probe phase-status` shows Phase_1; every `phase1_locked` Combination has a final Dev_Run with the frozen Template_Hashes or an Exclusion_Record or failure record; gates green; working tree clean. Report the list to the Author.
     - _Requirements: 3.12, 18.1_
-  - [~] 21.2 Locked_Run: WebLLM Qwen3.5-0.8B (`q4f32_1`, NVIDIA)
+  - [ ] 21.2 Locked_Run: WebLLM Qwen3.5-0.8B (`q4f32_1`, NVIDIA)
     - Ask the Author to approve this Locked_Run (Combination, `--task DS`, at most 408 requests). Only after approval: append the `docs/kiro-log.md` start entry (Combination, Task_Type_Subset, Model_Fingerprint, Pinned_Manifest_Hash) before the first request, run `probe locked-run --combo … --task DS`, append the end entry (completed, aborted or failed, Results location), commit the Results, grades, perf record and ledger lines. If the Combination was excluded or failed earlier, record that instead and run nothing.
     - _Requirements: 3.3, 3.5, 3.11, 14.4, 14.10, 17.1, 17.6_
-  - [~] 21.3 Locked_Run: WebLLM Qwen3.5-2B (`q4f32_1`, NVIDIA)
+  - [ ] 21.3 Locked_Run: WebLLM Qwen3.5-2B (`q4f32_1`, NVIDIA)
     - Same procedure as 21.2, with its own approval.
     - _Requirements: 3.3, 3.5, 3.11, 14.4, 14.10, 17.1, 17.6_
-  - [~] 21.4 Locked_Run: transformers.js Qwen3.5-0.8B (`q4`, NVIDIA)
+  - [ ] 21.4 Locked_Run: transformers.js Qwen3.5-0.8B (`q4`, NVIDIA)
     - Same procedure as 21.2, with its own approval.
     - _Requirements: 3.3, 3.5, 3.11, 14.4, 14.10, 17.1, 17.6_
-  - [~] 21.5 Locked_Run: transformers.js Qwen3.5-2B (`q4`, NVIDIA)
+  - [ ] 21.5 Locked_Run: transformers.js Qwen3.5-2B (`q4`, NVIDIA)
     - Same procedure as 21.2, with its own approval.
     - _Requirements: 3.3, 3.5, 3.11, 14.4, 14.10, 17.1, 17.6_
-  - [~] 21.6 Locked_Run: transformers.js LFM2.5-1.2B-Instruct (`q4`, NVIDIA)
+  - [ ] 21.6 Locked_Run: transformers.js LFM2.5-1.2B-Instruct (`q4`, NVIDIA)
     - Same procedure as 21.2, with its own approval. An interrupted run is continued only with `locked-run --resume <entry-id>` after asking again; a re-run needs the Author's reason (`--rerun-reason`).
     - _Requirements: 3.3, 3.5, 3.6, 3.9, 3.11, 14.4, 14.10, 17.1, 17.6_
 
 - [ ] 22. STOP-AND-ASK: Phase_1 checkpoint and the Author's Phase_2 decision
-  - [~] 22.1 Report the Phase_1 result and ask for the Phase_2 branch
+  - [ ] 22.1 Report the Phase_1 result and ask for the Phase_2 branch
     - Run `probe phase-status` (and, for the Author's reading, a draft `probe report`, not committed). Report per Task_Type whether an in-browser Combination passed, with ledger entry IDs, and the branch that follows (A: Smoke_Calls only; B: one Workers AI model on the failing Task_Type_Subset, default `@cf/google/gemma-4-26b-a4b-it`). Do nothing until the Author decides.
     - _Requirements: 18.2, 17.1_
-  - [~] 22.2 Record the Phase_2 approval
+  - [ ] 22.2 Record the Phase_2 approval
     - After the Author's decision in the conversation, add the `phase2` entry (`branch`, and for B the model and `task_subset`, `approved_on`) to `eval/probe/approvals.json` and commit it; confirm `phase-status` reads it from `HEAD`; log.
     - _Requirements: 11.20, 18.2, 18.4, 18.8_
 
 - [ ] 23. STOP-AND-ASK: Phase_2 (exactly one branch)
-  - [~] 23.1 Branch A: Smoke_Calls only
+  - [ ] 23.1 Branch A: Smoke_Calls only
     - If branch A: up to 10 Smoke_Calls on the branch-B default model (for example 5 D and 5 S Dev_Cards) within the daily count, to show the link is reachable and returns output the Output_Validator accepts; no Workers AI Dev_Run or Locked_Run. Commit the smoke records; log sent and accepted counts. If branch B, mark this sub-task not applicable.
     - _Requirements: 18.3, 18.6_
-  - [~] 23.2 Branch B: approved Dev_Run
+  - [ ] 23.2 Branch B: approved Dev_Run
     - If branch B: ask the Author to approve the `dev` run (combination, `task_subset`, `max_requests`); after approval add the `dev` entry to `approvals.json` in its own commit; confirm a current `ok` Response_Shape Smoke_Call; run `probe dev-run --combo … --task <subset> --approval <id>` within the budget; commit Results; log. If branch A, not applicable.
     - _Requirements: 11.5, 11.6, 11.7, 11.8, 11.13, 11.14, 11.19, 18.4, 17.1_
-  - [~] 23.3 Branch B: approved Locked_Run
+  - [ ] 23.3 Branch B: approved Locked_Run
     - If branch B: ask the Author to approve the `locked` run; after approval add the `locked` entry in its own commit; append the start entry to `docs/kiro-log.md`, run `probe locked-run --combo … --task <subset> --approval <id>` (start at 00:00 UTC of a fresh day per the DA-8 schedule; a budget stop is resumed with `--resume` on a later UTC day after asking again), append the end entry, commit. If branch A, not applicable.
     - _Requirements: 3.9, 11.5, 11.13, 11.14, 17.1, 17.6, 18.4, 18.5_
 
 - [ ] 24. Report
-  - [~] 24.1 Generate `docs/llm-probe.md`
+  - [ ] 24.1 Generate `docs/llm-probe.md`
     - Run `probe report`. Check it against R15.1 to R15.12 and R18.6 to R18.8: every section present, only Locked_Run figures in marks and recommendations, Dev_Run figures labelled, no card content other than IDs, licenses and the LFM acceptance, the Workers AI note. Run `probe regrade` on every Locked_Run Results file and confirm byte-equal grades and identical Metrics.
     - _Requirements: 12.6, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 18.6, 18.7, 18.8_
-  - [~] 24.2 STOP-AND-ASK: the Author reviews the Report
+  - [ ] 24.2 STOP-AND-ASK: the Author reviews the Report
     - Present the Report and ask the Author to review it; apply only corrections to the generator or its inputs (never to Results), regenerate, then commit. Ask the Author to run a search for the exact token and account ID strings over `eval/results/`, `docs/`, the console logs and `web/dist` (the agent never opens `env`); record the result.
     - _Requirements: 11.3, 17.1_
 
 - [ ] 25. STOP-AND-ASK: the Author's runtime decision and the steering update
-  - [~] 25.1 Ask the Author for the runtime decision
+  - [ ] 25.1 Ask the Author for the runtime decision
     - Ask for the chosen Runtime and model per Task_Type, or Rules_Default only. Until the Author records it, `tech.md` keeps "Decided by the W1 probe" and no recommendation goes into the steering files.
     - _Requirements: 15.8, 15.9_
-  - [~] 25.2 Update `tech.md` and `structure.md` in one change
+  - [ ] 25.2 Update `tech.md` and `structure.md` in one change
     - `tech.md` "LLM runtime" row names the decision per Task_Type and links to `docs/llm-probe.md`; `structure.md` "Next steps" states the decision and links to the Report. Log the steering change; one `docs(llm-probe)` commit.
     - _Requirements: 15.8_
 
 - [ ] 26. Final audit
-  - [~] 26.1 Run the gates from a clean build
+  - [ ] 26.1 Run the gates from a clean build
     - Remove `target/`, `web/node_modules/`, `eval/probe/node_modules/`, `web/dist/` and `eval/probe/dist/` (build output only), run `scripts/gates.sh` to exit 0, record the wall time. Run them once more in a fresh clone in a temporary directory, which has no `env` file, to show R16.4 offline of secrets.
     - _Requirements: 16.4, 16.5, 16.9_
-  - [~] 26.2 Write `docs/llm-probe-audit.md`
+  - [ ] 26.2 Write `docs/llm-probe-audit.md`
     - Same style as `docs/web-shell-audit.md`: one row per acceptance criterion of R1 to R18 with status and evidence (test, property, gate, injection log entry, Results file, ledger entry, Report section). List the gaps.
     - _Requirements: all_
-  - [~] 26.3 Update `README.md`
+  - [ ] 26.3 Update `README.md`
     - Exact commands from the repository root for the probe: install, `check-manifest`, `screen`, `preflight`, `dev-run`, `locked-run`, `smoke`, `page-serve`, `ingest`, `regrade`, `phase-status`, `report`. Final third-party table checked against both `package.json` files, both lockfiles and `Cargo.lock`.
     - _Requirements: 16.8_
-  - [~] 26.4 Update the steering files' layout and gates
+  - [ ] 26.4 Update the steering files' layout and gates
     - `.kiro/steering/structure.md`: `eval/probe/`, `eval/results/`, `fixtures/grading/`, `scripts/regen-grading-golden.sh`, `docs/llm-probe.md`, `docs/llm-probe-audit.md`, and the module table row for the slow-think bridge. `.kiro/steering/tech.md` Quality gates: the new gates in order. Log the steering changes.
     - _Requirements: 15.8_
-  - [~] 26.5 Sync the spec documents with what was built
+  - [ ] 26.5 Sync the spec documents with what was built
     - Update `design.md` where the implementation differs (resolved versions, Property 35 placement, the V1 to V8 outcomes, any changed flag, method or schema) with dated notes, without rewriting history; keep `requirements.md` criteria and add notes only. Run `validate_spec_format` on both files until clean. Gates green; one conventional commit for task 26.
     - _Requirements: all_
-  - [~] 26.6 STOP-AND-ASK before pushing `main`
+  - [ ] 26.6 STOP-AND-ASK before pushing `main`
     - Ask the Author for a deploy approval naming the commit to push, because a green push to `main` deploys `web/dist`. Do nothing until approved. After the push, report the CI result and any CI-only difference, and log it.
     - _Requirements: 17.1, 17.2, 17.3_
 

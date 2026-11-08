@@ -1670,6 +1670,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180310
+      },
+      {
+        "executionId": "d5258a74-1023-4429-ab74-140c32435dd5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794103072435
       }
     ],
     "15.2 V2: does `apply_chat_template` pass `enable_thinking` into the Qwen3.5 template?": [
@@ -1677,6 +1682,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180315
+      },
+      {
+        "executionId": "d5258a74-1023-4429-ab74-140c32435dd5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794103073638
       }
     ],
     "15.3 V3: do gemma-4 and glm-4.7 read `enable_thinking`, and does the API return extra reasoning fields?": [
@@ -1684,6 +1694,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180321
+      },
+      {
+        "executionId": "c8d413d8-6830-46be-be2a-6069c565cfaa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794042098695
+      },
+      {
+        "executionId": "c8d413d8-6830-46be-be2a-6069c565cfaa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794042862016
       }
     ],
     "15.4 V4: granite has no `finish_reason`; is truncation judged by `completion_tokens >= max_tokens`?": [
@@ -1691,6 +1711,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180325
+      },
+      {
+        "executionId": "c8d413d8-6830-46be-be2a-6069c565cfaa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794042866541
+      },
+      {
+        "executionId": "c8d413d8-6830-46be-be2a-6069c565cfaa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794043172415
       }
     ],
     "15.5 V5: recompute the DA-8 neuron estimates for the glm and granite rows": [
@@ -1698,6 +1728,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180330
+      },
+      {
+        "executionId": "c8d413d8-6830-46be-be2a-6069c565cfaa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794043176093
+      },
+      {
+        "executionId": "c8d413d8-6830-46be-be2a-6069c565cfaa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794043363253
       }
     ],
     "15.6 V6: can ONNX Runtime log which device each operator is placed on?": [
@@ -1705,6 +1745,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180334
+      },
+      {
+        "executionId": "94f391ab-d798-4aa9-909a-ea809279fbe5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794058467915
+      },
+      {
+        "executionId": "94f391ab-d798-4aa9-909a-ea809279fbe5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794058476514
       }
     ],
     "15.7 V7: actual WebLLM download size at the pinned revisions": [
@@ -1712,6 +1762,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180339
+      },
+      {
+        "executionId": "d5258a74-1023-4429-ab74-140c32435dd5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794104907205
       }
     ],
     "15.8 V8: re-read the WebLLM interfaces at the `v0.2.87` tag": [
@@ -2025,6 +2080,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180434
+      },
+      {
+        "executionId": "b23c19fd-3aca-47c7-a967-9a76ad446dfa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794043610089
+      },
+      {
+        "executionId": "b23c19fd-3aca-47c7-a967-9a76ad446dfa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794043639847
       }
     ],
     "19.1 Ask the Author before screening and preflight": [
@@ -2032,6 +2097,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180439
+      },
+      {
+        "executionId": "b23c19fd-3aca-47c7-a967-9a76ad446dfa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794043644210
+      },
+      {
+        "executionId": "b23c19fd-3aca-47c7-a967-9a76ad446dfa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794043648902
       }
     ],
     "19.2 Run `probe screen`": [
@@ -2039,6 +2114,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180444
+      },
+      {
+        "executionId": "b23c19fd-3aca-47c7-a967-9a76ad446dfa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794043652550
+      },
+      {
+        "executionId": "b23c19fd-3aca-47c7-a967-9a76ad446dfa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794043710259
       }
     ],
     "19.3 Run the VRAM_Preflights": [
@@ -2046,6 +2131,21 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180448
+      },
+      {
+        "executionId": "b23c19fd-3aca-47c7-a967-9a76ad446dfa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794043714450
+      },
+      {
+        "executionId": "94f391ab-d798-4aa9-909a-ea809279fbe5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794048812021
+      },
+      {
+        "executionId": "94f391ab-d798-4aa9-909a-ea809279fbe5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794058461028
       }
     ],
     "20.1 Ask the Author before the Dev_Runs": [
@@ -2053,6 +2153,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180454
+      },
+      {
+        "executionId": "d5258a74-1023-4429-ab74-140c32435dd5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794099355770
+      },
+      {
+        "executionId": "d5258a74-1023-4429-ab74-140c32435dd5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794101038145
       }
     ],
     "20.2 First WebLLM Dev_Run (dev smoke test)": [
@@ -2060,6 +2170,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180459
+      },
+      {
+        "executionId": "d5258a74-1023-4429-ab74-140c32435dd5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794101038242
+      },
+      {
+        "executionId": "d5258a74-1023-4429-ab74-140c32435dd5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794103058314
       }
     ],
     "20.3 First transformers.js Dev_Run": [
@@ -2067,6 +2187,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180467
+      },
+      {
+        "executionId": "d5258a74-1023-4429-ab74-140c32435dd5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794103058683
       }
     ],
     "20.4 Remaining Dev_Runs": [
@@ -2074,6 +2199,16 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180472
+      },
+      {
+        "executionId": "d5258a74-1023-4429-ab74-140c32435dd5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794103074171
+      },
+      {
+        "executionId": "d5258a74-1023-4429-ab74-140c32435dd5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794104907189
       }
     ],
     "20.5 Tune the Prompt_Templates on Dev_Cards only": [
@@ -2340,6 +2475,27 @@
         "executionId": "13835f49-68b1-4046-891a-3a8dee1b05c8",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794040799332
+      }
+    ],
+    "18. STOP-AND-ASK: approve the Request_Budget values": [
+      {
+        "executionId": "b23c19fd-3aca-47c7-a967-9a76ad446dfa",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794043639853
+      }
+    ],
+    "19. STOP-AND-ASK: screening and VRAM_Preflight [Target_Machine]": [
+      {
+        "executionId": "94f391ab-d798-4aa9-909a-ea809279fbe5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794058461037
+      }
+    ],
+    "15. Pre-run verification (V1 to V8 of the design)": [
+      {
+        "executionId": "d5258a74-1023-4429-ab74-140c32435dd5",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794104907211
       }
     ]
   }
