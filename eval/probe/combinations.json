@@ -339,6 +339,7 @@
   },
   {
     "id": "workers-ai/clef-flash",
+    "variant": "single",
     "runtime": "workers-ai",
     "model_id": "@cf/cloudflare/clef-flash",
     "model_selector": "clef-flash",
@@ -381,6 +382,7 @@
   },
   {
     "id": "workers-ai/clef",
+    "variant": "single",
     "runtime": "workers-ai",
     "model_id": "@cf/cloudflare/clef",
     "model_selector": "clef",
@@ -412,6 +414,72 @@
       "output": 0,
       "source": "https://developers.cloudflare.com/workers-ai/platform/pricing/",
       "read_on": "2026-11-09"
+    },
+    "license": {
+      "name": "Apache-2.0",
+      "osi": true,
+      "url": "https://developers.cloudflare.com/changelog/post/2026-10-01-clef-workers-ai/",
+      "declared_by": "model",
+      "accepted": null
+    }
+  },
+  {
+    "id": "workers-ai/clef-flash/perm_avg",
+    "variant": "perm_avg",
+    "derives_from": "workers-ai/clef-flash",
+    "sends_requests": false,
+    "runtime": "workers-ai",
+    "model_id": "@cf/cloudflare/clef-flash",
+    "model_selector": "clef-flash",
+    "quantization": "",
+    "revision": "server-side, not pinnable",
+    "model_lib_url": null,
+    "phase1_locked": false,
+    "task_subset_allowed": "D",
+    "response_shape": "system_one",
+    "validator_mode": "raw_choice",
+    "question_id": "decision",
+    "mapping": {
+      "file": "eval/probe/templates/decision.system_one.v1.txt",
+      "format_version": 1
+    },
+    "aggregation": {
+      "file": "eval/probe/templates/aggregation.perm_avg.v1.txt",
+      "rule_version": 1,
+      "sha256": "05acd24f84c1d16ba1ef67bd752e18347f38fe4c13f2c8fc125c9499bc15cf23"
+    },
+    "license": {
+      "name": "Apache-2.0",
+      "osi": true,
+      "url": "https://developers.cloudflare.com/changelog/post/2026-10-01-clef-workers-ai/",
+      "declared_by": "model",
+      "accepted": null
+    }
+  },
+  {
+    "id": "workers-ai/clef/perm_avg",
+    "variant": "perm_avg",
+    "derives_from": "workers-ai/clef",
+    "sends_requests": false,
+    "runtime": "workers-ai",
+    "model_id": "@cf/cloudflare/clef",
+    "model_selector": "clef",
+    "quantization": "",
+    "revision": "server-side, not pinnable",
+    "model_lib_url": null,
+    "phase1_locked": false,
+    "task_subset_allowed": "D",
+    "response_shape": "system_one",
+    "validator_mode": "raw_choice",
+    "question_id": "decision",
+    "mapping": {
+      "file": "eval/probe/templates/decision.system_one.v1.txt",
+      "format_version": 1
+    },
+    "aggregation": {
+      "file": "eval/probe/templates/aggregation.perm_avg.v1.txt",
+      "rule_version": 1,
+      "sha256": "05acd24f84c1d16ba1ef67bd752e18347f38fe4c13f2c8fc125c9499bc15cf23"
     },
     "license": {
       "name": "Apache-2.0",

@@ -6,7 +6,7 @@
 // line must carry an `llm-probe-` schema, and malformed files are rejected with the file and
 // line named, leaving the file byte-identical.
 import assert from 'node:assert/strict';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test } from 'node:test';
@@ -385,4 +385,173 @@ test('Property 32: grades lines without or with a foreign schema are rejected, f
     ),
     { numRuns: 50 },
   );
+});
+
+// ---------------------------------------------------------------- Property 32 (extended): derived-file members (R20.7, DA-26)
+// Feature: llm-probe, Property 32 (extended): Results records, including derived-file members, round trip byte-exact
+// Validates: Requirements 20.7, 12.1, 12.2, 12.4, 12.10
+
+const hex64 = fc.stringMatching(/^[0-9a-f]{64}$/);
+
+const registryArb: fc.Arbitrary<NonNullable<ResultsHeader['variants']>> = fc.array(
+  fc.oneof(
+    fc.record({ id: word, variant: fc.constant('single' as const), aggregation_hash: fc.constant(null) }),
+    fc.record({ id: word, variant: fc.constant('perm_avg' as const), aggregation_hash: hex64.map((h): string | null => h) }),
+  ),
+  { maxLength: 4 },
+);
+
+const derivedFromArb: fc.Arbitrary<NonNullable<ResultsHeader['derived_from']>> = fc.record({
+  combination: word,
+  run_id: word,
+  ledger_entry: fc.option(word, { nil: null }),
+  results_file: word,
+  results_sha256: hex64,
+  pinned_manifest_hash: word,
+  aggregation_hash: hex64,
+  rule_version: fc.integer({ min: 1, max: 9 }),
+  sim_wasm_sha256: hex64,
+});
+
+/** A header of a `single` Decision_Model run (variant and registry) or a Derived_Run (`model_key: null`, `derived_from`). */
+const variantHeaderArb: fc.Arbitrary<ResultsHeader> = fc.oneof(
+  headerArb.chain((h) => fc.record({ variant: fc.constantFrom('single' as const, undefined), variants: fc.option(registryArb, { nil: undefined }) }).map((v): ResultsHeader => ({
+    ...h,
+    ...(v.variant === undefined ? {} : { variant: v.variant }),
+    ...(v.variants === undefined ? {} : { variants: v.variants }),
+  }))),
+  headerArb.chain((h) => fc.record({ derived_from: derivedFromArb, variants: fc.option(registryArb, { nil: undefined }) }).map((v): ResultsHeader => ({
+    ...h,
+    model_key: null,
+    variant: 'perm_avg',
+    derived_from: v.derived_from,
+    ...(v.variants === undefined ? {} : { variants: v.variants }),
+  }))),
+);
+
+const digits = fc.stringMatching(/^[0-9]{1,45}$/);
+const permAvgArb: fc.Arbitrary<NonNullable<ResultRecord['perm_avg']>> = fc.record({
+  scope: fc.constantFrom('scored' as const, 'sanity' as const),
+  rule_version: fc.integer({ min: 1, max: 9 }),
+  chosen: fc.option(word, { nil: null }),
+  sums: fc.option(fc.record({ scale: fc.integer({ min: 0, max: 60 }), options: fc.array(fc.record({ id: word, sum: digits }), { maxLength: 5 }) }), { nil: null }),
+  calls: fc.array(
+    fc.record({
+      permutation: word,
+      choice: word,
+      probabilities: fc.array(fc.record({ id: word, lexeme: fc.constantFrom('0.50', '5e-1', '1', '0', '0.125', '1e-60') }), { maxLength: 5 }),
+      latency_ms: fc.option(uint, { nil: null }),
+      input_tokens: fc.option(uint, { nil: null }),
+    }),
+    { maxLength: 4 },
+  ),
+  positions: fc.option(
+    fc.record({ original: fc.integer({ min: 0, max: 4 }), shown: fc.array(fc.record({ permutation: word, position: fc.integer({ min: 0, max: 4 }) }), { maxLength: 4 }) }),
+    { nil: null },
+  ),
+});
+
+/** A derived record: `source: "derived"`, a base permutation and the `perm_avg` member; the outcome is a text or an error. */
+function derivedRecordArb(header: ResultsHeader): fc.Arbitrary<ResultRecord> {
+  const fpId = fingerprintId(header.fingerprint);
+  return fc
+    .record({
+      outcome: fc.oneof(
+        word.map((text): Outcome => ({ kind: 'text', text })),
+        fc.record({ kind: fc.constant('error' as const), code: fc.constant('perm_avg_illegal'), detail: word, remote: fc.constant(false) }),
+      ),
+      latency: uint,
+      card_id: word,
+      requested_at: timestamp,
+      template_hash: word,
+      perm_avg: permAvgArb,
+    })
+    .map((x): ResultRecord => ({
+      schema: SCHEMA.result,
+      run_id: header.run_id,
+      split: header.split,
+      card_id: x.card_id,
+      permutation: 'base',
+      outcome: x.outcome,
+      latency_ms: x.latency,
+      timeout_ms: header.timeout_ms,
+      requested_at: x.requested_at,
+      template_hash: x.template_hash,
+      fingerprint_id: fpId,
+      usage: null,
+      late: null,
+      source: 'derived',
+      perm_avg: x.perm_avg,
+    }));
+}
+
+const derivedFileArb = variantHeaderArb.chain((header) =>
+  fc.record({
+    header: fc.constant(header),
+    records: fc.array(header.variant === 'perm_avg' ? derivedRecordArb(header) : recordArb(header), { minLength: 1, maxLength: 4 }),
+  }),
+);
+
+test('Property 32 (extended): header variant, registry, derived_from and record perm_avg round trip byte-exact', () => {
+  fc.assert(
+    fc.property(derivedFileArb, ({ header, records }) => {
+      withTemp((dir) => {
+        checkRoundTrip(dir, header, records);
+      });
+    }),
+    { numRuns: 80 },
+  );
+});
+
+test('Property 32 (extended): the derived-file members are validated (null model_key, derived_from, perm_avg source)', () => {
+  withTemp((dir) => {
+    const base: ResultsHeader = {
+      schema: SCHEMA.header, run_id: 'd1', split: 'dev', combination: 'c/perm_avg', model_key: null, variant: 'perm_avg',
+      task_subset: 'D', fingerprint: { a: 1 }, template_hashes: { decision: 'h' }, timeout_ms: 1000, placement: null,
+    };
+    // model_key null without variant perm_avg, and perm_avg without derived_from, are refused.
+    const { variant: _omitted, ...noVariant } = base;
+    assert.throws(() => ResultsWriter.create(path.join(dir, 'a'), noVariant), /model_key must not be null/);
+    assert.throws(() => ResultsWriter.create(path.join(dir, 'b'), base), /derived_from is required/);
+    const derived_from = {
+      combination: 'c', run_id: 'r', ledger_entry: null, results_file: 'f', results_sha256: 'a'.repeat(64),
+      pinned_manifest_hash: 'm', aggregation_hash: 'b'.repeat(64), rule_version: 1, sim_wasm_sha256: 'c'.repeat(64),
+    };
+    assert.throws(() => ResultsWriter.create(path.join(dir, 'c'), { ...base, derived_from, model_key: { runtime: 'r', model_id: 'm', quantization: '', revision: 'v' } }), /model_key must be null/);
+    assert.throws(() => ResultsWriter.create(path.join(dir, 'd'), { ...base, variant: 'single', derived_from }), /derived_from is allowed only/);
+    // A perm_avg member on a record whose source is not "derived" is refused.
+    const w = ResultsWriter.create(path.join(dir, 'e'), { ...base, derived_from });
+    const rec: ResultRecord = {
+      schema: SCHEMA.result, run_id: 'd1', split: 'dev', card_id: 'c1', permutation: 'base', outcome: { kind: 'text', text: 'x' }, latency_ms: 3,
+      timeout_ms: 1000, requested_at: '2026-11-09T00:00:00.000Z', template_hash: 'h', fingerprint_id: fingerprintId(base.fingerprint), usage: null, late: null,
+      source: 'node', perm_avg: { scope: 'scored', rule_version: 1, chosen: 'x', sums: null, calls: [], positions: null },
+    };
+    assert.throws(() => w.append(rec), /perm_avg is allowed only when record.source is "derived"/);
+    w.append({ ...rec, source: 'derived' });
+  });
+});
+
+test('Property 32 (extended): Results files written before the variant members existed still read, byte for byte', () => {
+  // Every committed Results file (dev and locked) is read and re-serialized: the additive members change nothing for them.
+  const root = new URL('../../../results/', import.meta.url).pathname;
+  let checked = 0;
+  for (const split of ['dev', 'locked']) {
+    const dir = path.join(root, split);
+    let names: string[] = [];
+    try {
+      names = readdirSync(dir).filter((n) => n.endsWith('.jsonl') && !n.endsWith('.grades.jsonl'));
+    } catch {
+      continue;
+    }
+    for (const n of names) {
+      const file = path.join(dir, n);
+      const back = readResultsFile(file);
+      const lines = fileLines(file);
+      assert.equal(`${lines[0]}\n`, serializeLine(back.header), `${n}: header`);
+      back.records.forEach((r, i) => assert.equal(`${lines[i + 1]}\n`, serializeLine(r), `${n}: record ${i + 1}`));
+      assert.equal(back.header.variant, undefined);
+      checked += 1;
+    }
+  }
+  assert.ok(checked > 0, 'at least one stored Results file was checked');
 });

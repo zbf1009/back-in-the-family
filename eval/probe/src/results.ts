@@ -30,7 +30,7 @@ export type JsonObject = { [key: string]: JsonValue };
 
 export type Split = 'dev' | 'locked';
 export type TaskSubset = 'D' | 'S' | 'DS';
-export type Source = 'headless' | 'probe_page' | 'node';
+export type Source = 'headless' | 'probe_page' | 'node' | 'derived';
 
 export const NOT_RUN_REASONS = ['budget', 'not_approved', 'render_error', 'load_failed', 'oom', 'rebuild_failed', 'over_context'] as const;
 export type NotRunReason = (typeof NOT_RUN_REASONS)[number];
@@ -64,12 +64,36 @@ export interface Placement {
   cpu_nodes: { op_type: string; count: number }[];
 }
 
+/** One entry of the variant registry in a Decision_Model header (R20.1, DA-27). */
+export interface VariantRegistryHeaderEntry {
+  id: string;
+  variant: 'single' | 'perm_avg';
+  /** `perm_avg`: sha256 of the Aggregation_Rule file; `single`: null. */
+  aggregation_hash: string | null;
+}
+
+/** The source of a Derived_Run (R20.7, DA-26): which stored `single` run the file was computed from. */
+export interface DerivedFrom {
+  combination: string;
+  run_id: string;
+  /** Locked split: the ledger entry of the source run; Dev split: null. */
+  ledger_entry: string | null;
+  results_file: string;
+  /** sha256 of the source Results file as it was read. */
+  results_sha256: string;
+  pinned_manifest_hash: string;
+  aggregation_hash: string;
+  rule_version: number;
+  sim_wasm_sha256: string;
+}
+
 export interface ResultsHeader {
   schema: typeof SCHEMA.header;
   run_id: string;
   split: Split;
   combination: string;
-  model_key: ModelKey;
+  /** `null` only in a Derived_Run (`variant: "perm_avg"`): a derived file has no Model_Key (R3 Model_Key amendment). */
+  model_key: ModelKey | null;
   task_subset: TaskSubset;
   /** The complete Model_Fingerprint (design: Model_Fingerprint). */
   fingerprint: JsonObject;
@@ -79,6 +103,35 @@ export interface ResultsHeader {
   /** Decision_Model runs only (R19.6, R4.16): the Response_Shape and the Output_Validator mode the Probe_Runner chose. */
   response_shape?: 'system_one';
   validator_mode?: 'raw_choice';
+  /** Decision_Variant of the run (R20.1). Absent means `single`; a Derived_Run says `perm_avg`. */
+  variant?: 'single' | 'perm_avg';
+  /** Derived_Run only: the stored source it was computed from (DA-26). */
+  derived_from?: DerivedFrom;
+  /** Decision_Model runs: the frozen variant registry as of this run (R20.1). Absent in older files. */
+  variants?: VariantRegistryHeaderEntry[];
+}
+
+/** One call of a `perm_avg` decision, as stored (DA-26). */
+export interface PermAvgCall {
+  permutation: string;
+  choice: string;
+  probabilities: { id: string; lexeme: string }[];
+  latency_ms: number | null;
+  input_tokens: number | null;
+}
+
+/**
+ * Separate Results field of a Derived_Run record (R20.7, DA-26): the exact per-option sums as decimal strings with their
+ * scale, the chosen option ID, the per-call lexemes and the positions. Evidence only; no validation, grade or Metric reads it.
+ */
+export interface PermAvgField {
+  scope: 'scored' | 'sanity';
+  rule_version: number;
+  /** The option ID the rule chose; `null` for an Illegal answer. */
+  chosen: string | null;
+  sums: { scale: number; options: { id: string; sum: string }[] } | null;
+  calls: PermAvgCall[];
+  positions: { original: number; shown: { permutation: string; position: number }[] } | null;
 }
 
 /** Separate Results field of a System_One request (R19.8): the byte-exact HTTP body, kept outside the outcome. */
@@ -105,6 +158,8 @@ export interface ResultRecord {
   source: Source;
   /** Present only for a System_One request; a record without it is read and written as before. */
   system_one?: SystemOneField;
+  /** Present only in a Derived_Run record (`source: "derived"`, DA-26). */
+  perm_avg?: PermAvgField;
 }
 
 export interface GradeLine {
@@ -363,7 +418,7 @@ function checkSchemaField(o: Obj, expected: string): void {
 
 const SPLITS = ['dev', 'locked'] as const;
 const SUBSETS = ['D', 'S', 'DS'] as const;
-const SOURCES = ['headless', 'probe_page', 'node'] as const;
+const SOURCES = ['headless', 'probe_page', 'node', 'derived'] as const;
 
 function parseModelKey(v: unknown, where: string): ModelKey {
   const o = obj(v, where);
@@ -391,16 +446,61 @@ function parsePlacement(v: unknown, where: string): Placement | null {
   };
 }
 
+const HEADER_REQUIRED = ['schema', 'run_id', 'split', 'combination', 'model_key', 'task_subset', 'fingerprint', 'template_hashes', 'timeout_ms', 'placement'] as const;
+const SHA256_LOWER = /^[0-9a-f]{64}$/;
+
+function parseDerivedFrom(v: unknown, where: string): DerivedFrom {
+  const o = obj(v, where);
+  exactKeys(o, ['combination', 'run_id', 'ledger_entry', 'results_file', 'results_sha256', 'pinned_manifest_hash', 'aggregation_hash', 'rule_version', 'sim_wasm_sha256'], where);
+  const hex = (x: unknown, w: string): string => {
+    const t = str(x, w);
+    if (!SHA256_LOWER.test(t)) fault(`${w} must be 64 lowercase hex digits`);
+    return t;
+  };
+  return {
+    combination: nonEmptyStr(o.combination, `${where}.combination`),
+    run_id: nonEmptyStr(o.run_id, `${where}.run_id`),
+    ledger_entry: o.ledger_entry === null ? null : nonEmptyStr(o.ledger_entry, `${where}.ledger_entry`),
+    results_file: nonEmptyStr(o.results_file, `${where}.results_file`),
+    results_sha256: hex(o.results_sha256, `${where}.results_sha256`),
+    pinned_manifest_hash: nonEmptyStr(o.pinned_manifest_hash, `${where}.pinned_manifest_hash`),
+    aggregation_hash: hex(o.aggregation_hash, `${where}.aggregation_hash`),
+    rule_version: int(o.rule_version, `${where}.rule_version`),
+    sim_wasm_sha256: hex(o.sim_wasm_sha256, `${where}.sim_wasm_sha256`),
+  };
+}
+
+function parseVariantRegistry(v: unknown, where: string): VariantRegistryHeaderEntry[] {
+  if (!Array.isArray(v)) fault(`${where} must be an array`);
+  return v.map((e, i) => {
+    const o = obj(e, `${where}[${i}]`);
+    exactKeys(o, ['id', 'variant', 'aggregation_hash'], `${where}[${i}]`);
+    const variant = oneOf(o.variant, ['single', 'perm_avg'] as const, `${where}[${i}].variant`);
+    const hash = o.aggregation_hash === null ? null : str(o.aggregation_hash, `${where}[${i}].aggregation_hash`);
+    if (variant === 'single' && hash !== null) fault(`${where}[${i}].aggregation_hash must be null for a "single" variant`);
+    if (variant === 'perm_avg' && hash === null) fault(`${where}[${i}].aggregation_hash is required for a "perm_avg" variant`);
+    return { id: nonEmptyStr(o.id, `${where}[${i}].id`), variant, aggregation_hash: hash };
+  });
+}
+
 /** Validates a header object (also used by writers before writing). */
 export function parseHeader(v: unknown): ResultsHeader {
   const o = obj(v, 'header');
   checkSchemaField(o, SCHEMA.header);
   const withShape = o.response_shape !== undefined || o.validator_mode !== undefined;
-  exactKeys(o, ['schema', 'run_id', 'split', 'combination', 'model_key', 'task_subset', 'fingerprint', 'template_hashes', 'timeout_ms', 'placement', ...(withShape ? ['response_shape', 'validator_mode'] : [])], 'header');
+  const optional = ['variant', 'derived_from', 'variants'].filter((k) => o[k] !== undefined);
+  exactKeys(o, [...HEADER_REQUIRED, ...(withShape ? ['response_shape', 'validator_mode'] : []), ...optional], 'header');
   if (withShape) {
     if (o.response_shape !== 'system_one') fault('header.response_shape must be "system_one" when present');
     if (o.validator_mode !== 'raw_choice') fault('header.validator_mode must be "raw_choice" when present');
   }
+  const variant = o.variant === undefined ? undefined : oneOf(o.variant, ['single', 'perm_avg'] as const, 'header.variant');
+  // A derived file (variant perm_avg) has no Model_Key and names its source; every other file has a Model_Key and no source.
+  const derived = variant === 'perm_avg';
+  if (derived && o.derived_from === undefined) fault('header.derived_from is required when header.variant is "perm_avg"');
+  if (!derived && o.derived_from !== undefined) fault('header.derived_from is allowed only when header.variant is "perm_avg"');
+  if (derived && o.model_key !== null) fault('header.model_key must be null when header.variant is "perm_avg"');
+  if (!derived && o.model_key === null) fault('header.model_key must not be null unless header.variant is "perm_avg"');
   const hashes = obj(o.template_hashes, 'header.template_hashes');
   // `Object.fromEntries` defines own properties, so a key named `__proto__` survives (`map[k] = v` would set the prototype and drop it).
   const template_hashes: { [name: string]: string } = Object.fromEntries(Object.entries(hashes).map(([k, h]) => [k, str(h, `header.template_hashes.${k}`)]));
@@ -411,13 +511,16 @@ export function parseHeader(v: unknown): ResultsHeader {
     run_id: nonEmptyStr(o.run_id, 'header.run_id'),
     split: oneOf(o.split, SPLITS, 'header.split'),
     combination: nonEmptyStr(o.combination, 'header.combination'),
-    model_key: parseModelKey(o.model_key, 'header.model_key'),
+    model_key: o.model_key === null ? null : parseModelKey(o.model_key, 'header.model_key'),
     task_subset: oneOf(o.task_subset, SUBSETS, 'header.task_subset'),
     fingerprint: jsonObject(o.fingerprint, 'header.fingerprint'),
     template_hashes,
     timeout_ms: timeout,
     placement: parsePlacement(o.placement, 'header.placement'),
     ...(withShape ? { response_shape: 'system_one' as const, validator_mode: 'raw_choice' as const } : {}),
+    ...(variant === undefined ? {} : { variant }),
+    ...(o.derived_from === undefined ? {} : { derived_from: parseDerivedFrom(o.derived_from, 'header.derived_from') }),
+    ...(o.variants === undefined ? {} : { variants: parseVariantRegistry(o.variants, 'header.variants') }),
   };
 }
 
@@ -472,11 +575,73 @@ function parseSystemOneField(v: unknown, where: string): SystemOneField {
   return { response_text: str(o.response_text, `${where}.response_text`), usage_reported: bool(o.usage_reported, `${where}.usage_reported`) };
 }
 
+const DECIMAL_STRING = /^[0-9]+$/;
+
+function parsePermAvgField(v: unknown, where: string): PermAvgField {
+  const o = obj(v, where);
+  exactKeys(o, ['scope', 'rule_version', 'chosen', 'sums', 'calls', 'positions'], where);
+  let sums: PermAvgField['sums'] = null;
+  if (o.sums !== null) {
+    const m = obj(o.sums, `${where}.sums`);
+    exactKeys(m, ['scale', 'options'], `${where}.sums`);
+    if (!Array.isArray(m.options)) fault(`${where}.sums.options must be an array`);
+    sums = {
+      scale: int(m.scale, `${where}.sums.scale`),
+      options: m.options.map((e, i) => {
+        const x = obj(e, `${where}.sums.options[${i}]`);
+        exactKeys(x, ['id', 'sum'], `${where}.sums.options[${i}]`);
+        const sum = str(x.sum, `${where}.sums.options[${i}].sum`);
+        if (!DECIMAL_STRING.test(sum)) fault(`${where}.sums.options[${i}].sum must be a decimal digit string`);
+        return { id: nonEmptyStr(x.id, `${where}.sums.options[${i}].id`), sum };
+      }),
+    };
+  }
+  if (!Array.isArray(o.calls)) fault(`${where}.calls must be an array`);
+  const calls = o.calls.map((e, i) => {
+    const c = obj(e, `${where}.calls[${i}]`);
+    exactKeys(c, ['permutation', 'choice', 'probabilities', 'latency_ms', 'input_tokens'], `${where}.calls[${i}]`);
+    if (!Array.isArray(c.probabilities)) fault(`${where}.calls[${i}].probabilities must be an array`);
+    return {
+      permutation: nonEmptyStr(c.permutation, `${where}.calls[${i}].permutation`),
+      choice: str(c.choice, `${where}.calls[${i}].choice`),
+      probabilities: c.probabilities.map((p, j) => {
+        const x = obj(p, `${where}.calls[${i}].probabilities[${j}]`);
+        exactKeys(x, ['id', 'lexeme'], `${where}.calls[${i}].probabilities[${j}]`);
+        return { id: nonEmptyStr(x.id, `${where}.calls[${i}].probabilities[${j}].id`), lexeme: nonEmptyStr(x.lexeme, `${where}.calls[${i}].probabilities[${j}].lexeme`) };
+      }),
+      latency_ms: intOrNull(c.latency_ms, `${where}.calls[${i}].latency_ms`),
+      input_tokens: intOrNull(c.input_tokens, `${where}.calls[${i}].input_tokens`),
+    };
+  });
+  let positions: PermAvgField['positions'] = null;
+  if (o.positions !== null) {
+    const p = obj(o.positions, `${where}.positions`);
+    exactKeys(p, ['original', 'shown'], `${where}.positions`);
+    if (!Array.isArray(p.shown)) fault(`${where}.positions.shown must be an array`);
+    positions = {
+      original: int(p.original, `${where}.positions.original`),
+      shown: p.shown.map((e, i) => {
+        const x = obj(e, `${where}.positions.shown[${i}]`);
+        exactKeys(x, ['permutation', 'position'], `${where}.positions.shown[${i}]`);
+        return { permutation: nonEmptyStr(x.permutation, `${where}.positions.shown[${i}].permutation`), position: int(x.position, `${where}.positions.shown[${i}].position`) };
+      }),
+    };
+  }
+  return {
+    scope: oneOf(o.scope, ['scored', 'sanity'] as const, `${where}.scope`),
+    rule_version: int(o.rule_version, `${where}.rule_version`),
+    chosen: o.chosen === null ? null : nonEmptyStr(o.chosen, `${where}.chosen`),
+    sums,
+    calls,
+    positions,
+  };
+}
+
 /** Validates one Results record object (R12.1, R12.9, R12.10). */
 export function parseResultRecord(v: unknown): ResultRecord {
   const o = obj(v, 'record');
   checkSchemaField(o, SCHEMA.result);
-  exactKeys(o, ['schema', 'run_id', 'split', 'card_id', 'permutation', 'outcome', 'latency_ms', 'timeout_ms', 'requested_at', 'template_hash', 'fingerprint_id', 'usage', 'late', 'source', ...(o.system_one === undefined ? [] : ['system_one'])], 'record');
+  exactKeys(o, ['schema', 'run_id', 'split', 'card_id', 'permutation', 'outcome', 'latency_ms', 'timeout_ms', 'requested_at', 'template_hash', 'fingerprint_id', 'usage', 'late', 'source', ...(o.system_one === undefined ? [] : ['system_one']), ...(o.perm_avg === undefined ? [] : ['perm_avg'])], 'record');
   const outcome = parseOutcome(o.outcome, 'record.outcome');
   const latency_ms = intOrNull(o.latency_ms, 'record.latency_ms');
   if (outcome.kind === 'not_run') {
@@ -496,6 +661,7 @@ export function parseResultRecord(v: unknown): ResultRecord {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(requested_at)) {
     fault('record.requested_at must be a UTC timestamp with millisecond precision');
   }
+  if (o.perm_avg !== undefined && o.source !== 'derived') fault('record.perm_avg is allowed only when record.source is "derived"');
   return {
     schema: SCHEMA.result,
     run_id: nonEmptyStr(o.run_id, 'record.run_id'),
@@ -512,6 +678,7 @@ export function parseResultRecord(v: unknown): ResultRecord {
     late,
     source: oneOf(o.source, SOURCES, 'record.source'),
     ...(o.system_one === undefined ? {} : { system_one: parseSystemOneField(o.system_one, 'record.system_one') }),
+    ...(o.perm_avg === undefined ? {} : { perm_avg: parsePermAvgField(o.perm_avg, 'record.perm_avg') }),
   };
 }
 

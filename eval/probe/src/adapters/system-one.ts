@@ -300,6 +300,8 @@ export function systemOneFingerprint(combo: SystemOneCombination): JsonObject {
     measurement: 'node',
     seed: null,
     response_shape: 'system_one',
+    // R20.1: each Decision_Variant is its own Combination with its own fingerprint; this is the `single` one.
+    variant: 'single',
     max_output_param: null,
     endpoint: 'ai/run',
     response_format_sent: false,

@@ -59,9 +59,9 @@ test('the warm-up prompts render as literal [system]/[user] text with IDs outsid
   }
 });
 
-test('combinations.json parses; five locked in-browser Combinations, one Intel Dev_Run, three Workers AI candidates, two Decision_Models', () => {
+test('combinations.json parses; five locked in-browser Combinations, one Intel Dev_Run, three Workers AI candidates, two Decision_Models, two perm_avg variants', () => {
   const list = parseCombinations(read('../../combinations.json'));
-  assert.equal(list.length, 11);
+  assert.equal(list.length, 13);
   const intel = list.find((c) => c.id === 'webllm/qwen3.5-0.8b-q4f32/intel')!;
   const nvidia = list.find((c) => c.id === 'webllm/qwen3.5-0.8b-q4f32/nvidia')!;
   assert.equal(intel.phase1_locked, false);
@@ -75,9 +75,12 @@ test('combinations.json parses; five locked in-browser Combinations, one Intel D
   for (const c of locked) assert.match(c.revision, /^[0-9a-f]{40}$/);
   const wai = list.filter((c) => c.runtime === 'workers-ai' && c.response_shape !== 'system_one');
   assert.equal(wai.length, 3);
-  const decisionModels = list.filter((c) => c.response_shape === 'system_one');
+  const decisionModels = list.filter((c) => c.response_shape === 'system_one' && c.variant === 'single');
   assert.deepEqual(decisionModels.map((c) => c.id), ['workers-ai/clef-flash', 'workers-ai/clef']);
   for (const c of decisionModels) assert.equal(c.phase1_locked, false);
+  const permAvg = list.filter((c) => c.variant === 'perm_avg');
+  assert.deepEqual(permAvg.map((c) => c.id), ['workers-ai/clef-flash/perm_avg', 'workers-ai/clef/perm_avg']);
+  for (const c of permAvg) assert.equal(c.phase1_locked, false);
   for (const c of wai) {
     assert.equal(c.phase1_locked, false);
     assert.equal(c.revision, 'server-side, not pinnable');

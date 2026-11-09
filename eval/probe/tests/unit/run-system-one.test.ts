@@ -188,3 +188,57 @@ test('a Locked_Run is refused when the newest Dev_Run used another mapping hash 
   }
   assert.equal(net.calls.length, calls, 'nothing was sent');
 });
+
+// ---------------------------------------------------------------- variant registry (R20.1, DA-27, task 40)
+
+const RULE_REL = 'eval/probe/templates/aggregation.perm_avg.v1.txt';
+
+/** The two records of one model: the `single` record under test and the committed-shape `perm_avg` record derived from it. */
+function recordsWithVariant(): { single: SystemOneCombination; permAvg: Combination } {
+  const single = comboFor();
+  const rule = fs.readFileSync(path.join(REPO, RULE_REL));
+  const permAvg = {
+    id: `${single.id}/perm_avg`, variant: 'perm_avg', derives_from: single.id, sends_requests: false,
+    runtime: single.runtime, model_id: single.model_id, model_selector: single.model_selector, quantization: single.quantization, revision: single.revision,
+    phase1_locked: false, task_subset_allowed: 'D', response_shape: 'system_one', validator_mode: 'raw_choice', question_id: 'decision', mapping: single['mapping'],
+    aggregation: { file: RULE_REL, rule_version: 1, sha256: sha256(rule) },
+  } as unknown as Combination;
+  return { single, permAvg };
+}
+
+test('every Decision_Model Dev_Run header records the frozen variant registry; the Locked_Run header too', async () => {
+  const env = makeEnv(cardSet);
+  repoWithMapping(env);
+  const rulePath = path.join(env.root, RULE_REL);
+  fs.mkdirSync(path.dirname(rulePath), { recursive: true });
+  fs.copyFileSync(path.join(REPO, RULE_REL), rulePath);
+  const { single, permAvg } = recordsWithVariant();
+  const net = fakeFetch(answerFirst);
+  const deps: RunDeps = { ...depsFor(env, single, net.fetch), combinations: [single as Combination, permAvg] };
+  const dev = await capture(() => devRun(deps, { combo: single.id, task: 'D', approval: 'DM-D' }));
+  assert.equal(dev.value, 0);
+  const expected = [
+    { id: single.id, variant: 'single', aggregation_hash: null },
+    { id: permAvg.id, variant: 'perm_avg', aggregation_hash: sha256(fs.readFileSync(rulePath)) },
+  ];
+  assert.deepEqual(readOnly(env, 'dev').header.variants, expected);
+
+  const locked = await capture(() => lockedRun(deps, { combo: single.id, task: 'D', approval: 'DM-L' }));
+  assert.equal(locked.value, 0);
+  assert.deepEqual(readOnly(env, 'locked').header.variants, expected);
+});
+
+test('dev-run and locked-run refuse a perm_avg Combination before anything is read, sent or written', async () => {
+  const env = makeEnv(cardSet);
+  repoWithMapping(env);
+  const { single, permAvg } = recordsWithVariant();
+  const net = fakeFetch(answerFirst);
+  const deps: RunDeps = { ...depsFor(env, single, net.fetch), combinations: [single as Combination, permAvg] };
+  const dev = await capture(() => devRun(deps, { combo: permAvg.id, task: 'D', approval: 'DM-D' }));
+  assert.notEqual(dev.value, 0);
+  assert.match(dev.err, /variant: perm_avg is derived/);
+  const locked = await capture(() => lockedRun(deps, { combo: permAvg.id, task: 'D', approval: 'DM-L' }));
+  assert.notEqual(locked.value, 0);
+  assert.equal(net.calls.length, 0);
+  assert.ok(!fs.existsSync(path.join(env.root, 'eval/results/dev')) && !fs.existsSync(path.join(env.root, 'eval/results/locked')));
+});

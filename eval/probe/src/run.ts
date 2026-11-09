@@ -35,7 +35,10 @@ import {
 import { checkManifest, formatManifestResult } from './manifest.ts';
 import {
   allowDecisionModel,
+  isPermAvg,
   isSystemOne,
+  variantRegistry,
+  type VariantRegistryEntry,
   type SystemOneCombination,
   allowWorkersAi,
   comboModelKey,
@@ -77,7 +80,7 @@ import {
 import { GradingError, cardFacts, gradeRecords, hasOutput, type CardFacts } from './run-grading.ts';
 import { RunLogger, renderReasonCategory, type FailureCode, type FailureArgs, type TaskProgress } from './run-logger.ts';
 import { llmPermutations, llmRenderPrompt, llmRenderSystemOne, wasmSha256, type ValidateMode } from './simwasm.ts';
-import { TEMPLATES_DIR, WARMUP_DIR, loadSystemOneMapping, loadTemplate, loadWarmup, loadWarmupPrompt, type TextWithHash } from './templates.ts';
+import { TEMPLATES_DIR, WARMUP_DIR, loadAggregationRule, loadSystemOneMapping, loadTemplate, loadWarmup, ruleVersionOf, loadWarmupPrompt, type TextWithHash } from './templates.ts';
 
 // ---------------------------------------------------------------- public types
 
@@ -986,6 +989,8 @@ async function closeHandle(h: RuntimeHandle | null): Promise<void> {
 function prepare(deps: RunDeps, comboId: string, task: TaskSubset, rawTimeout: number | string | undefined): Prepared {
   const timeoutMs = parseTimeoutMs(rawTimeout);
   const combo = findCombo(deps, comboId);
+  // A `perm_avg` Combination sends nothing and has no Runtime: it is computed by `probe derive`, never run (R20.9, task 41).
+  if (isPermAvg(combo)) throw new RunError('invalid_arguments', { combination: combo.id, value: 'variant: perm_avg is derived from its source run, not run; use `probe derive`' });
   return { combo, subset: task, tasks: tasksOf(task), timeoutMs };
 }
 
@@ -1051,7 +1056,7 @@ export async function devRun(deps: RunDeps, opts: DevRunOptions): Promise<number
       if (gate.writeNothing === true) return 1;
       const identity = placeholderHandle(combo);
       const fingerprint = buildFingerprint(deps, combo, identity, templates, tasks, rendered.rendererVersion);
-      const writer = ResultsWriter.create(deps.paths.resultsDir, header(runId, 'dev', combo, subset, fingerprint, templates, tasks, timeoutMs, null));
+      const writer = ResultsWriter.create(deps.paths.resultsDir, header(runId, 'dev', combo, subset, fingerprint, templates, tasks, timeoutMs, null, registryOf(deps, combo)));
       const base = recordBase(runId, 'dev', timeoutMs, writer.fingerprintId, 'node', templates.hashes);
       for (const item of plan) writer.append(notRun(base, item, 'not_approved', gate.reason, nowOf(deps)));
       writeGrades({ writer, cards, tasks });
@@ -1075,7 +1080,7 @@ export async function devRun(deps: RunDeps, opts: DevRunOptions): Promise<number
     // Load first: the Results header records the placement, which an in-browser Runtime knows only after the
     // session is created. The load sends no Card, so the header still precedes the first request.
     const outcome = await loadFirst(handle, true);
-    const writer = ResultsWriter.create(deps.paths.resultsDir, header(runId, 'dev', combo, subset, fingerprint, templates, tasks, timeoutMs, handle.placement ?? null));
+    const writer = ResultsWriter.create(deps.paths.resultsDir, header(runId, 'dev', combo, subset, fingerprint, templates, tasks, timeoutMs, handle.placement ?? null, registryOf(deps, combo)));
     if (outcome.crash !== null) throw outcome.crash;
     const base = recordBase(runId, 'dev', timeoutMs, writer.fingerprintId, handle.source ?? 'node', templates.hashes);
 
@@ -1219,6 +1224,19 @@ function loadStop(e: RuntimeLoadError): Stop {
   return { notRun: e.code === 'out_of_memory' ? 'oom' : 'load_failed', ledgerReason: e.code, code: 'load_failed', detail: e.message };
 }
 
+/** The variant registry of a Decision_Model run header (R20.1): every Decision_Variant of the model as of this run; undefined for any other run. */
+function registryOf(deps: RunDeps, combo: Combination): VariantRegistryEntry[] | undefined {
+  if (!isDecisionModel(combo)) return undefined;
+  return variantRegistry(deps.combinations, combo.model_id, (file) => {
+    try {
+      const rule = loadAggregationRule(deps.paths.repoDir, file);
+      return { sha256: rule.sha256, ruleVersion: ruleVersionOf(rule.text) };
+    } catch {
+      return null;
+    }
+  });
+}
+
 function header(
   runId: string,
   split: RunKind,
@@ -1229,6 +1247,7 @@ function header(
   tasks: readonly TaskType[],
   timeoutMs: number,
   placement: Placement | null,
+  variants?: readonly VariantRegistryEntry[],
 ): ResultsHeader {
   const key: ModelKey = comboModelKey(combo);
   return {
@@ -1243,6 +1262,7 @@ function header(
     timeout_ms: timeoutMs,
     placement,
     ...(isSystemOne(combo) ? { response_shape: 'system_one' as const, validator_mode: combo.validator_mode } : {}),
+    ...(variants === undefined ? {} : { variants: [...variants] }),
   };
 }
 
@@ -1478,7 +1498,7 @@ export async function lockedRun(deps: RunDeps, opts: LockedRunOptions): Promise<
       writer =
         resumeFile !== null
           ? ResultsWriter.open(resumeFile)
-          : ResultsWriter.create(deps.paths.resultsDir, header(entryId, 'locked', combo, subset, fingerprint, templates, tasks, effectiveTimeout, handle.placement ?? null));
+          : ResultsWriter.create(deps.paths.resultsDir, header(entryId, 'locked', combo, subset, fingerprint, templates, tasks, effectiveTimeout, handle.placement ?? null, registryOf(deps, combo)));
     } catch {
       abort('results_write_failed');
       throw new RunError('results_write_failed', { entryId });

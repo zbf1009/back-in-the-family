@@ -24,7 +24,7 @@ import { BudgetSession, isRefusal } from '../../src/budget.ts';
 import { ACCOUNT_VARIABLE, EnvError, loadWorkersAiEnv, TOKEN_VARIABLE } from '../../src/env.ts';
 import { appendAbort, appendResume, appendStart } from '../../src/ledger.ts';
 import type { Combination } from '../../src/phase.ts';
-import { appendFailure, ResultsWriter, SCHEMA, type Late, type Outcome, type Usage as ResultUsage } from '../../src/results.ts';
+import { appendFailure, ResultsWriter, SCHEMA, type Late, type ModelKey, type Outcome, type Usage as ResultUsage } from '../../src/results.ts';
 import { REDACTED, Secret, secretVariants } from '../../src/redact.ts';
 import { comboWith } from './system-one.helpers.ts';
 import {
@@ -265,7 +265,7 @@ describe('Property 27: the real Workers AI adapter and factory in the loop (task
             }
             if (!started) {
               appendStart(ledgerFile, {
-                entry_id: 'E1', model_key: writer.header.model_key, combination: WAI_COMBO.id, task_subset: 'D', fingerprint,
+                entry_id: 'E1', model_key: writer.header.model_key as ModelKey, combination: WAI_COMBO.id, task_subset: 'D', fingerprint,
                 template_hashes: { 'decision.v1': 'ab' }, started_at: '2026-11-07T09:00:00.000Z', approval: null, planned: { decision: 4 },
               });
               started = true;
@@ -293,7 +293,7 @@ describe('Property 27: the real Workers AI adapter and factory in the loop (task
               appendFailure(mk('failures.jsonl'), { schema: SCHEMA.failure, combination: WAI_COMBO.id, kind: res.code, detail: res.detail, remote: JSON.stringify(res.remote) });
               appendAbort(ledgerFile, 'E1', '2026-11-07T09:10:00.000Z', `${res.code}: ${res.detail}`);
               appendResume(ledgerFile, 'E1', '2026-11-07T09:11:00.000Z', {
-                model_key: writer.header.model_key, fingerprint, template_hashes: { 'decision.v1': 'ab' },
+                model_key: writer.header.model_key as ModelKey, fingerprint, template_hashes: { 'decision.v1': 'ab' },
               });
             } else {
               assert.deepEqual(await res.late, { kind: 'none', reason: 'aborted' });

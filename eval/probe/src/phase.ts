@@ -3,6 +3,8 @@
 // (ledger entries, failure and Exclusion_Records, Smoke_Call records, `combinations.json`,
 // approvals read from `HEAD`, and the per-entry pass results), so tests use fixtures and the
 // Report calls the very same `browserPass`. No I/O and no card content in this file.
+import { fileURLToPath } from 'node:url';
+import { loadAggregationRule, ruleVersionOf } from './templates.ts';
 import { chooseReportEntries, modelKeysEqual, subsetTaskTypes, type LedgerEntry } from './ledger.ts';
 import type { Approval, ApprovalsResult } from './approvals.ts';
 import type { TaskType } from './cards.ts';
@@ -51,7 +53,24 @@ export interface Combination {
   readonly license?: CombinationLicense;
   readonly size?: CombinationSize;
   readonly model_lib_url?: string;
+  /** Decision_Variant (R20.1). Absent means `single`. */
+  readonly variant?: DecisionVariant;
+  /** `perm_avg` only: the ID of the `single` record whose stored bodies it aggregates (R20.1, DA-27). */
+  readonly derives_from?: string;
+  /** `perm_avg` only: the Aggregation_Rule file, its `rule_version` and the pinned Aggregation_Hash (R20.8). */
+  readonly aggregation?: AggregationPin;
+  /** `false` for a `perm_avg` record: it sends nothing. Absent on a `single` record. */
+  readonly sends_requests?: boolean;
   readonly [extra: string]: unknown;
+}
+
+export type DecisionVariant = 'single' | 'perm_avg';
+
+/** The pinned Aggregation_Rule of a `perm_avg` record (DA-27). `sha256` is the Aggregation_Hash. */
+export interface AggregationPin {
+  readonly file: string;
+  readonly rule_version: number;
+  readonly sha256: string;
 }
 
 /**
@@ -77,15 +96,42 @@ export const WORKERS_AI_RUNTIME = 'workers-ai';
 export const IN_BROWSER_DOWNLOAD_LIMIT_BYTES = 1536 * 1024 * 1024;
 
 export const isWorkersAi = (c: Combination): boolean => c.runtime === WORKERS_AI_RUNTIME;
-/** True for a Decision_Model; `parseCombinations` has checked the extra members of such a record. */
-export const isSystemOne = (c: Combination): c is SystemOneCombination => c.response_shape === 'system_one';
+/** The Decision_Variant of a record; a record without `variant` is `single` (R20.1). */
+export const variantOf = (c: Combination): DecisionVariant => (c.variant === 'perm_avg' ? 'perm_avg' : 'single');
+/** True for a `perm_avg` record: a derived Combination that has no Runtime and sends no request (R20.9). */
+export const isPermAvg = (c: Combination): boolean => variantOf(c) === 'perm_avg';
+/**
+ * True for a `single` Decision_Model record, the one that carries the model, sampling and price members and is run
+ * through a Runtime; `parseCombinations` has checked the extra members of such a record. A `perm_avg` record is not a
+ * System_One Combination in this sense: nothing is sent for it (its gate is added with the variant approvals, task 42).
+ */
+export const isSystemOne = (c: Combination): c is SystemOneCombination => c.response_shape === 'system_one' && !isPermAvg(c);
 export const comboModelKey = (c: Combination): ModelKey => ({ runtime: c.runtime, model_id: c.model_id, quantization: c.quantization, revision: c.revision });
 
 /** True when a measured model download is over the In_Browser_Size_Limits (R9.11). */
 export const overDownloadLimit = (measuredBytes: number): boolean => measuredBytes > IN_BROWSER_DOWNLOAD_LIMIT_BYTES;
 
-/** Parses `combinations.json` text: a JSON array of objects with the fields the gate needs. */
-export function parseCombinations(text: string): Combination[] {
+/** Where the pinned Aggregation_Rule files are looked up: the repository root (this file is `eval/probe/src/phase.ts`). */
+const REPO_DIR = fileURLToPath(new URL('../../../', import.meta.url));
+
+/** What the validator needs to know about an Aggregation_Rule file: its Aggregation_Hash and `rule_version`; null when unreadable. */
+export type AggregationReader = (file: string) => { readonly sha256: string; readonly ruleVersion: number | null } | null;
+
+/** Reads the rule file from the repository (the one I/O of this module, used while `combinations.json` is validated). */
+export const readAggregationFromRepo: AggregationReader = (file) => {
+  try {
+    const rule = loadAggregationRule(REPO_DIR, file);
+    return { sha256: rule.sha256, ruleVersion: ruleVersionOf(rule.text) };
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Parses `combinations.json` text: a JSON array of objects with the fields the gate needs. `readAggregation` is injectable
+ * for tests; a `perm_avg` record is refused when the sha256 it pins differs from the rule file's (R20.8).
+ */
+export function parseCombinations(text: string, readAggregation: AggregationReader = readAggregationFromRepo): Combination[] {
   let value: unknown;
   try {
     value = JSON.parse(text);
@@ -104,12 +150,74 @@ export function parseCombinations(text: string): Combination[] {
     if (typeof o['phase1_locked'] !== 'boolean') throw new Error(`combinations[${i}].phase1_locked must be a boolean`);
     const shape = o['response_shape'];
     if (shape !== undefined && shape !== 'chat' && shape !== 'text' && shape !== 'system_one') throw new Error(`combinations[${i}].response_shape must be chat, text or system_one`);
-    if (shape === 'system_one') checkSystemOne(o, i);
+    const variant = o['variant'];
+    if (variant !== undefined && variant !== 'single' && variant !== 'perm_avg') throw new Error(`combinations[${i}].variant must be "single" or "perm_avg"`);
+    if (variant === 'perm_avg') checkPermAvgShape(o, i, readAggregation);
+    else {
+      if (shape === 'system_one') checkSystemOne(o, i);
+      checkSingleVariant(o, i);
+    }
     const id = o['id'] as string;
     if (seen.has(id)) throw new Error(`combinations[${i}].id "${id}" is a duplicate`);
     seen.add(id);
   });
+  // Cross-record rules (R20.1, DA-27): each `perm_avg` record derives from a `single` record of the same model.
+  const byId = new Map<string, Record<string, unknown>>(list.map((c: Record<string, unknown>) => [c['id'] as string, c]));
+  list.forEach((c: Record<string, unknown>, i) => {
+    if (c['variant'] !== 'perm_avg') return;
+    checkPermAvgSource(c, byId, `combinations[${i}]`);
+  });
   return list as Combination[];
+}
+
+/** A `single` record carries none of the `perm_avg` members (DA-27). */
+function checkSingleVariant(o: Record<string, unknown>, i: number): void {
+  const at = `combinations[${i}]`;
+  if (o['derives_from'] !== undefined) throw new Error(`${at}.derives_from is not allowed on a "single" record`);
+  if (o['aggregation'] !== undefined) throw new Error(`${at}.aggregation is not allowed on a "single" record`);
+  if (o['sends_requests'] !== undefined && o['sends_requests'] !== true) throw new Error(`${at}.sends_requests must be absent or true on a "single" record`);
+}
+
+const SHA256_HEX = /^[0-9a-f]{64}$/;
+/** Members a `perm_avg` record must not carry: it sends nothing, so the checks that need them read the `derives_from` record (DA-27). */
+const PERM_AVG_FORBIDDEN = ['sampling', 'prices', 'context_window_tokens', 'max_bytes_per_token'] as const;
+
+/** Shape of a `perm_avg` record, alone: R20.1, R20.8, DA-27. */
+function checkPermAvgShape(o: Record<string, unknown>, i: number, readAggregation: AggregationReader): void {
+  const at = `combinations[${i}]`;
+  if (o['response_shape'] !== 'system_one') throw new Error(`${at}.response_shape must be "system_one" for a "perm_avg" record`);
+  if (o['validator_mode'] !== 'raw_choice') throw new Error(`${at}.validator_mode must be "raw_choice" for a "perm_avg" record`);
+  if (o['task_subset_allowed'] !== 'D') throw new Error(`${at}.task_subset_allowed must be "D" for a "perm_avg" record`);
+  if (o['phase1_locked'] !== false) throw new Error(`${at}.phase1_locked must be false for a "perm_avg" record`);
+  if (o['sends_requests'] !== false) throw new Error(`${at}.sends_requests must be false for a "perm_avg" record`);
+  if (typeof o['derives_from'] !== 'string' || o['derives_from'] === '') throw new Error(`${at}.derives_from must name the "single" record it derives from`);
+  if (typeof o['model_selector'] !== 'string' || !/^[a-z][a-z0-9-]*$/.test(o['model_selector'])) throw new Error(`${at}.model_selector must be a model name such as "clef-flash"`);
+  for (const k of PERM_AVG_FORBIDDEN) if (o[k] !== undefined) throw new Error(`${at}.${k} is not allowed on a "perm_avg" record (it sends nothing; read it from the derives_from record)`);
+  const agg = o['aggregation'];
+  if (typeof agg !== 'object' || agg === null || Array.isArray(agg)) throw new Error(`${at}.aggregation must be an object with file, rule_version and sha256`);
+  const a = agg as Record<string, unknown>;
+  if (typeof a['file'] !== 'string' || a['file'] === '') throw new Error(`${at}.aggregation.file must be a non-empty string`);
+  if (!isPositiveInt(a['rule_version'])) throw new Error(`${at}.aggregation.rule_version must be a positive integer`);
+  if (typeof a['sha256'] !== 'string' || !SHA256_HEX.test(a['sha256'])) throw new Error(`${at}.aggregation.sha256 must be 64 lowercase hex digits`);
+  const rule = readAggregation(a['file']);
+  if (rule === null) throw new Error(`${at}.aggregation.file "${a['file']}" cannot be read`);
+  if (rule.sha256 !== a['sha256']) throw new Error(`${at}.aggregation.sha256 does not equal the sha256 of ${a['file']} (pinned ${a['sha256']}, file ${rule.sha256})`);
+  if (rule.ruleVersion !== a['rule_version']) throw new Error(`${at}.aggregation.rule_version ${String(a['rule_version'])} differs from the rule_version line of ${a['file']} (${String(rule.ruleVersion)})`);
+}
+
+/** The model fields a `perm_avg` record repeats from its source (DA-27 Cons: a test checks they are equal). */
+const PERM_AVG_REPEATED = ['runtime', 'model_id', 'model_selector', 'quantization', 'revision', 'question_id'] as const;
+
+function checkPermAvgSource(o: Record<string, unknown>, byId: ReadonlyMap<string, Record<string, unknown>>, at: string): void {
+  const from = o['derives_from'] as string;
+  const src = byId.get(from);
+  if (src === undefined) throw new Error(`${at}.derives_from "${from}" is not a record of combinations.json`);
+  if (src['variant'] !== undefined && src['variant'] !== 'single') throw new Error(`${at}.derives_from "${from}" is not a "single" record`);
+  if (src['response_shape'] !== 'system_one') throw new Error(`${at}.derives_from "${from}" is not a System_One record`);
+  for (const k of PERM_AVG_REPEATED) {
+    if (o[k] !== src[k]) throw new Error(`${at}.${k} differs from the derives_from record ${from}`);
+  }
+  if (JSON.stringify(o['mapping']) !== JSON.stringify(src['mapping'])) throw new Error(`${at}.mapping differs from the derives_from record ${from}`);
 }
 
 const isPositiveInt = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v > 0;
@@ -500,7 +608,7 @@ export function formatLedger(entries: readonly LedgerEntry[]): string[] {
 // ---------------------------------------------------------------- Decision_Models (R19, DA-21, DA-22)
 
 /** A Decision_Model is a Workers AI Combination with the `system_one` Response_Shape (design: Decision_Model Combination records). */
-export const isDecisionModel = (c: Combination): boolean => isWorkersAi(c) && c.response_shape === 'system_one';
+export const isDecisionModel = (c: Combination): boolean => isWorkersAi(c) && c.response_shape === 'system_one' && !isPermAvg(c);
 
 /** IDs withdrawn by some `withdrawal` entry (DA-21). A withdrawal of a withdrawal does nothing: only `decision_model` entries are looked up. */
 export function withdrawnIds(approvals: readonly Approval[]): Set<string> {
@@ -624,6 +732,29 @@ export function formatDecisionModels(state: PhaseState): string[] {
   }
   out.push(decisionHold(state) ? 'runtime decision: ON HOLD (R19.17)' : 'runtime decision: not on hold');
   return out;
+}
+
+/** One entry of the variant registry written into a Decision_Model run header (R20.1, DA-27). */
+export interface VariantRegistryEntry {
+  readonly id: string;
+  readonly variant: DecisionVariant;
+  /** `perm_avg`: sha256 of the Aggregation_Rule file named by the record, as read now; `single`: null. */
+  readonly aggregation_hash: string | null;
+}
+
+/**
+ * The registry of the Decision_Variants of one model (the records of `combinations.json` with this `model_id`, Workers AI,
+ * `system_one`), in file order. The Dev_Run header of every Decision_Model run records it (R20.1); a later difference
+ * is what the variant gate's registry check (task 42) refuses.
+ */
+export function variantRegistry(combos: readonly Combination[], modelId: string, readAggregation: AggregationReader = readAggregationFromRepo): VariantRegistryEntry[] {
+  return combos
+    .filter((c) => isWorkersAi(c) && c.response_shape === 'system_one' && c.model_id === modelId)
+    .map((c) => ({
+      id: c.id,
+      variant: variantOf(c),
+      aggregation_hash: isPermAvg(c) && c.aggregation !== undefined ? (readAggregation(c.aggregation.file)?.sha256 ?? null) : null,
+    }));
 }
 
 /** Text the "LLM runtime" row of tech.md starts with while the decision is pending. */
