@@ -10,6 +10,8 @@ The plan builds the probe in three stages and only then measures.
 
 Requirement 19 (added 2026-11-09, tasks 27 to 38) adds the two Workers AI Decision_Models and the External_Reference ingest. Its tasks are numbered after 26 but run before 25.1 completes, 25.2 and 26, and after 25.3 (see the graph); the Decision_Model Dev_Runs and Locked_Runs each wait for the Author's own named approval.
 
+Requirement 20 (added 2026-11-09, tasks 39 to 50) registers two Decision_Variants per Decision_Model (`single` and `perm_avg`). Its implementation tasks 39 to 44 are numbered last but run right after 33.3 and before 34.1 completes, because R20.1 freezes the variant registry and the Aggregation_Hash from the first Decision_Model Dev_Run result. The derive runs (tasks 45 to 48) follow the single Dev_Runs and Locked_Runs, each under its own approval; RC-20 (task 50) stays open until the Author answers.
+
 Model runs are never part of the gates. The gates stay offline: no network, no GPU, no `env` file, no Workers AI request (R16.4, R16.5).
 
 ## Notes
@@ -722,7 +724,7 @@ Execution notes for the orchestrator:
     - _Requirements: 19.2, 19.3, 19.11, 19.12, 11.19, 16.9_
 
 - [ ] 34. STOP-AND-ASK: Decision_Model Dev_Runs, mapping tuning and freeze [Target_Machine]
-  - [~] 34.1 Ask for the `clef-flash` Dev_Run approval
+  - [-] 34.1 Ask for the `clef-flash` Dev_Run approval
     - Present the Combination, `task_subset: "D"`, `max_requests` (74), the expected neurons (about 249 typical, 518 planning bound, recomputed from 33.3 if needed), the Neuron_Cap, and that the mapping is tuned on Dev_Cards only. Do nothing until the Author approves in the conversation at that moment.
     - _Requirements: 19.4, 19.5, 17.1, 17.2_
   - [~] 34.2 Record the `clef-flash` `dev` approval
@@ -749,7 +751,7 @@ Execution notes for the orchestrator:
 
 - [ ] 35. STOP-AND-ASK: Decision_Model Locked_Runs (D) [Target_Machine]
   - [~] 35.1 Check the preconditions
-    - For each model: a `shape_check: "ok"` Smoke_Call for the declared shape; a final Dev_Run with the frozen Template_Hash; no `over_context` refusals; `probe phase-status` shows Phase_1 ended; gates green; working tree clean. Report to the Author.
+    - For each model: a `shape_check: "ok"` Smoke_Call for the declared shape; a final Dev_Run with the frozen Template_Hash; no `over_context` refusals; `probe phase-status` shows Phase_1 ended; gates green; working tree clean. Amended (R20): the four-record registry and the Aggregation_Hash are committed (task 44.2) and `phase-status` shows the registry check passing; the `single` Dev_Run is complete (no `not_run` or `engine_fault` record) so the later Dev derived file (tasks 45 and 46) can exist before `derive_locked`. Report to the Author.
     - _Requirements: 19.4, 19.5, 3.12, 18.1_
   - [~] 35.2 Locked_Run: `clef-flash` (D)
     - Ask the Author to approve this Locked_Run (Combination, `--task D`, 236 requests, about 877 neurons typical). Only after approval: add the `decision_model` entry (`step: "locked"`) in its own commit; append the `docs/kiro-log.md` start entry (Combination, Task_Type_Subset, Model_Fingerprint, Pinned_Manifest_Hash) before the first request; run `probe locked-run --combo workers-ai/clef-flash --task D --approval <id>`; append the end entry; commit Results, grades, perf record and ledger lines. The agent passes on only progress counts, aggregate Metrics, Card IDs and error messages (R3.11); it never opens `locked.jsonl`, `eval/cards/blind/*` or `env`.
@@ -771,26 +773,174 @@ Execution notes for the orchestrator:
 
 - [ ] 37. Ingest the External_Reference when the Author hands it over [blocked on the Author]
   - [~] 37.1 Ingest the file
-    - Do nothing until the Author hands over the External_Reference_File and its three sibling files. Run `probe ingest-reference <file>`; on a rejection, report the first failing field and wait for a corrected file. On acceptance, commit `eval/results/external/<label>/` and log the hashes. If the Author asks to go on without a reference, record that in `docs/kiro-log.md` and leave this sub-task open for later.
-    - _Requirements: 19.15, 19.16_
+    - Amended 2026-11-09 (R20.18 to R20.20, DA-29): the chosen route is the checked-in `eval/results/external/teacher-upper-bound/author-supplied.json`, written and wired in task 43 and shown in Report section 12 as "Author-supplied, not verified by ingest". The Author's archive is not in the External_Reference_File format, so `probe ingest-reference` is not run on it (R19.15 amendment). Here: confirm the file is committed and unchanged since task 43 (sha256 in `docs/kiro-log.md`). Run `probe ingest-reference <file>` only if the Author later hands over a file in the R19.15 format with its three sibling files; on a rejection, report the first failing field and wait for a corrected file. RC-20 stays open until the Author answers it (task 50, before 38.2).
+    - _Requirements: 19.15, 19.16, 20.18, 20.19, 20.20_
   - [~] 37.2 Check isolation after the ingest
     - Confirm `phase-status`, the ledger bytes, the budget counter and every pass or fail mark are identical before and after the ingest, and that the reference appears only in Report section 12; any difference is a defect to fix before the Report.
     - _Requirements: 19.16, 18.8_
 
 - [ ] 38. Report regeneration and the Author's review for the Decision_Models
   - [~] 38.1 Regenerate `docs/llm-probe.md`
-    - Run `probe report`. Check R19.13, R19.16 and R19.17 content: section 2 candidate count and selection-bias note, each Decision_Model's approval IDs and Locked_Run figures (or "not measured" with the reason), `truncated_state` and `over_context` counts, V14 "not tested", hold banner state in section 9, External_Reference only in section 12. Re-run the R24.1 checks: only Locked_Run figures in marks, Dev_Run labelled, no card content other than IDs; `probe regrade` on every new Locked_Run Results file gives byte-equal grades and identical Metrics.
-    - _Requirements: 19.13, 19.16, 19.17, 12.6, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 18.6, 18.7, 18.8_
+    - Run `probe report`. Check R19.13, R19.16 and R19.17 content: section 2 candidate count and selection-bias note, each Decision_Model's approval IDs and Locked_Run figures (or "not measured" with the reason), `truncated_state` and `over_context` counts, V14 "not tested", hold banner state in section 9, External_Reference only in section 12. Re-run the R24.1 checks: only Locked_Run figures in marks, Dev_Run labelled, no card content other than IDs; `probe regrade` on every new Locked_Run Results file gives byte-equal grades and identical Metrics. Amended (R20.13 to R20.16): the four Decision_Model Combinations appear with their variants, each `perm_avg` figure carries its label, the Request_Multiplier and the `by_construction` flip, the production note is present, the External reference (Author-supplied, not verified by ingest) is only in section 12, and `probe derive --verify` gives byte-equal files for every derived Results file.
+    - _Requirements: 20.13, 20.14, 20.15, 20.16, 20.19, 19.13, 19.16, 19.17, 12.6, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 18.6, 18.7, 18.8_
   - [~] 38.2 STOP-AND-ASK: the Author reviews the updated Report
     - Present the Report; apply only corrections to the generator or its inputs (never to Results), regenerate, then commit. Ask the Author to search the exact token and account ID strings over `eval/results/`, `docs/`, console logs and `web/dist` again (the agent never opens `env`); record the result.
     - _Requirements: 11.3, 17.1_
   - [~] 38.3 Confirm the decision hold state before 25.1 completes
-    - Run `probe phase-status`. The hold line must read `not on hold` (every approved Decision_Model has a `complete` entry, a recorded failure or an Exclusion_Record, or the Author withdrew its approval, in which case add the `withdrawal` entry in its own commit). Log the state. 25.1 stays blocked on this line (R19.17).
-    - _Requirements: 19.17, 15.8, 15.9_
+    - Run `probe phase-status`. The hold line must read `not on hold` (every approved Decision_Model has a `complete` entry, a recorded failure or an Exclusion_Record, or the Author withdrew its approval, in which case add the `withdrawal` entry in its own commit). Amended (R20.10): the hold is per variant, so each approved `single` and `perm_avg` variant must be resolved. Log the state. 25.1 stays blocked on this line (R19.17).
+    - _Requirements: 20.10, 19.17, 15.8, 15.9_
+
+- [ ] 39. R20 core: `llm_aggregate_perm_avg`, golden fixtures, parity and the rule text (R20.3 to R20.8, R20.17; DA-25, V18)
+  - [ ] 39.1 Write `crates/sim-core/src/llm/aggregate.rs` and its export
+    - Digit-string Probability_Lexeme parser (JSON number grammar, value 0 to 1, at most 40 significant digits, decimal exponent not below -60; rejections as in R20.4), schoolbook decimal addition (no `f32`/`f64`, no `i128` shortcuts that can overflow; exact sums as decimal strings with their scale), selection of the highest sum with the tie broken by ascending UTF-8 bytes of the option ID (R20.5), the Illegal reasons of R20.6 (missing record, Timeout or error, `truncated_state`, no `probabilities`, `choice` outside the set, keys not exactly the option IDs, bad lexeme, base call missing), per-call positions, `RULE_VERSION`. Module-level `deny` lints as in task 1.1; `tests/source_guard.rs` needs no change.
+    - `llm_aggregate_perm_avg` in `api.rs`; the one-JSON-string wrapper in `crates/sim-wasm/src/llm.rs` (never throws); the wrapper in `simwasm.ts`; the entry in `crates/sim-wasm/tests/llm_bad_input.rs`. Additive: no existing export result and no existing golden byte changes.
+    - _Requirements: 20.3, 20.4, 20.5, 20.6, 20.7, 6.1, 6.7_
+  - [ ] 39.2 Write property tests for the aggregation (Properties 49 and 50)
+    - **Property 49: The aggregation is exact, total and equals a test-only big-integer reference model**
+    - **Property 50: The chosen option is invariant under Permutation order of the calls and under the call labels, and Illegal reasons are exact**
+    - In `crates/sim-core/tests/llm_properties.rs`, each tagged `// Feature: llm-probe, Property N: <title>`; the reference model lives in the test file only. Example tests in `llm_examples.rs`: each accepted and rejected lexeme form (`0`, `1`, `0.5`, `5e-1`, `1e0`, `1.0000…` with 41 significant digits, `-0`, `1.01`, `.5`, `0x1`, exponent below -60), the tie case, sums that carry across 40-digit lexemes, a Card with fewer than four distinct Permutations, and a Sanity_Card with the base call only (RC-19).
+    - **Validates: Requirements 20.4, 20.5, 20.6, 20.17**
+  - [ ] 39.3 Fixtures, regeneration, native and wasm32 parity, TS parity
+    - `fixtures/grading/perm-avg-inputs.json` (synthetic, built from Dev_Card option IDs, no model output) and `fixtures/grading/perm-avg-golden.json`; extend `scripts/regen-grading-golden.sh` to write it on purpose only (the commit message says so). The parity test in `crates/sim-wasm/tests/llm_parity.rs` compares native and wasm32 bytes and names the Card ID and the export on a failure; the TS-side parity test in `eval/probe/tests/unit/parity.test.ts` reads the same file through `simwasm.ts`. `dev-golden.json`, `system-one-golden.json`, `dev-system-one-golden.json` and `fixtures/parity/` stay byte-identical (`git diff --stat`); record the new `sim_wasm_bg.wasm` size against the Size_Limit.
+    - _Requirements: 20.7, 20.17, 6.4, 6.5, 6.8, 6.9_
+  - [ ] 39.4 Write the rule text, the `rule_version` check (V18) and the Aggregation_Hash
+    - `eval/probe/templates/aggregation.perm_avg.v1.txt` states the Aggregation_Rule in words. A `rule_version` line in the file must equal the export's `RULE_VERSION`; a mismatch is a failure in the unit tests and at every `derive` (V18). Compute the sha256 of the file bytes (the Aggregation_Hash) and pin it in `combinations.json` in task 40.1 (R20.8). The rule text is not a prompt and is never sent to a Runtime.
+    - _Requirements: 20.8, 20.1_
+  - [ ] 39.5 Gates green and commit
+    - Run `scripts/gates.sh` to exit 0; `git diff 091d1d7 -- eval/cards` empty; one `feat(sim-core)` commit for task 39 (the commit message says the grading goldens were extended on purpose); log in `docs/kiro-log.md`.
+    - _Requirements: 16.9, 17.7_
+
+- [ ] 40. R20 registry: variant Combination records, Results members and the fingerprint (R20.1, R20.2, R20.7; DA-24, DA-26, V16)
+  - [ ] 40.1 Extend `combinations.json` and `phase.ts` validation
+    - New members `variant` (absent means `single`), `derives_from`, `aggregation` (rule file name, `rule_version`, pinned Aggregation_Hash) and `sends_requests` (`false` for `perm_avg`). Existing `workers-ai/clef-flash` and `workers-ai/clef` keep their IDs and gain `"variant": "single"`. Add `workers-ai/clef-flash/perm_avg` and `workers-ai/clef/perm_avg` with Task_Type_Subset {D}, `derives_from` naming the `single` record, `validator_mode: "raw_choice"`, `phase1_locked: false`. Validation rejects a `perm_avg` record whose `derives_from` is missing, is not a `single` record of the same model, or whose aggregation hash does not equal the rule file's sha256, and a `single` record with `derives_from`. The Model_Fingerprint builder gains `variant`, `derived` and `aggregation`, and `template_hashes.aggregation`; a `single` fingerprint ID keeps its value for the existing records unless the design says otherwise (check with a test against the stored Smoke_Call records).
+    - _Requirements: 20.1, 20.2, 20.8, 19.1, 3.12_
+  - [ ] 40.2 Results additions in `results.ts` and `run.ts`
+    - Additive members only: header `variant`, `derived_from`, `variants` (the frozen registry, written into every Decision_Model Dev_Run and Locked_Run header), `model_key: null` for a derived file; record members `perm_avg` (exact per-option sums as decimal strings with their scale, chosen option ID, per-call positions) and `source: "derived"`. Files written before this task still read unchanged. Extend the Property 32 round trip to the new members.
+    - _Requirements: 20.1, 20.7, 12.1, 12.2, 12.4_
+  - [ ] 40.3 Write property test extension for the Results round trip
+    - **Property 32 (extended): Results records, including derived-file members, round trip byte-exact**
+    - **Validates: Requirements 20.7, 12.1, 12.2, 12.4, 12.10**
+  - [ ] 40.4 Gates green and commit
+    - Run `scripts/gates.sh` to exit 0; one `feat(probe)` commit for task 40; log.
+    - _Requirements: 16.9_
+
+- [ ] 41. `probe derive`, the Derived_Run and the metrics flip (R20.7, R20.9, R20.11, R20.12; DA-26, Properties 51, 52)
+  - [ ] 41.1 Write `eval/probe/src/derive.ts` and the `derive` command
+    - `probe derive --combo <perm_avg id> --split dev|locked --approval <id> [--verify]`: no network, no `env`, no budget counter, no ledger line, no Runtime. Order: Manifest_Check; `allowDecisionVariant('derive_dev' | 'derive_locked', …)` (task 42.1 provides it; until then use a stub that always refuses, replaced in 42.1); `rule_version` check (V18); registry check; the source must be complete (R20.11 and RC-24: every Card × Permutation of the plan has an output record and no `not_run` or `engine_fault` record; a Locked source is complete by its ledger entry); `derive_locked` requires the Dev derived file; `--task` other than `D` is refused. For each Card call `llm_aggregate_perm_avg` on the stored `system_one.response_text` bodies, grade through `llm_validate` in `raw_choice` mode and `llm_grade`, write the Derived_Run Results file and the grades file (a refusal or a `perm_avg_illegal` Card is recorded as an Illegal base record with detail `<reason> <permutation>`). An existing derived file with a different source hash is never overwritten (`probe: derive: derived_conflict: <path>`). `--verify` recomputes from the stored source and compares bytes without writing. `dev-run` and `locked-run` refuse a `perm_avg` Combination with `probe: variant: …`. The command reads `locked.jsonl` for grading only (RC-18) and prints only counts, Card IDs and error messages.
+    - _Requirements: 20.7, 20.9, 20.10, 20.11, 3.1, 3.11_
+  - [ ] 41.2 `metrics.ts`: flip `by_construction` and `passLabel`
+    - For a derived file the flip Metric is `by_construction` (not measured, not a pass), the other three Metrics are computed as for any Locked_Run, the latency figures are taken from the source `single` run with the Request_Multiplier shown, and `passLabel` gives a pass the "perm_avg, order-invariant by construction" label (R20.13: it still counts as a pass under R13.4 with its label).
+    - _Requirements: 20.12, 20.13, 13.4_
+  - [ ] 41.3 Write property tests for derive and the metrics flip (Properties 51 and 52)
+    - **Property 51: A Derived_Run is a pure function of its stored source, never overwritten, byte-exact under `--verify`, and refused unless the source is complete**
+    - **Property 52: A derived file's flip Metric is by_construction and its other Metrics equal the Metrics computed from its grades**
+    - Fake sources built from the Dev_Card option IDs; example tests: incomplete source (a `not_run` record, an `engine_fault` record), a conflicting existing file, a `dev-run` request for a `perm_avg` Combination, a V18 mismatch.
+    - **Validates: Requirements 20.7, 20.9, 20.11, 20.12, 20.13**
+  - [ ] 41.4 Gates green and commit
+    - Run `scripts/gates.sh` to exit 0; one `feat(probe)` commit for task 41; log.
+    - _Requirements: 16.9_
+
+- [ ] 42. Approvals, phase gate and Report for the variants (R20.1, R20.10, R20.13 to R20.16, R19.4; DA-27, DA-28, Properties 53 to 55)
+  - [ ] 42.1 `approvals.ts` and `phase.ts`: `variant`, `derive_dev`, `derive_locked`
+    - The approvals reader accepts the `decision_model` kind with a `variant` member and the steps `derive_dev` and `derive_locked` for a `perm_avg` Combination only (and `dev`/`locked` for `single` only); a `derive_*` entry names its Combination and carries no `max_requests` above 0. `allowDecisionVariant(step, combo, state)`: Task_Type D, the Combination's registry entry equals the registry written in the `single` Dev_Run header (R20.1), the `single` source run exists and is complete, an unwithdrawn entry from `HEAD` for this variant and step, and `derive_locked` after a Dev derived file. Replace the stub of 41.1. Per-variant `decisionHoldPending` (R20.10, R19.17): each approved variant needs its own `complete` entry, failure record or Exclusion_Record, or a `withdrawal`; the Phase_2 candidate count includes derived files; `phase-status` prints the variant lines and the registry check.
+    - _Requirements: 20.1, 20.10, 19.4, 19.17, 11.20_
+  - [ ] 42.2 Write property test for the variant gate (Property 53)
+    - **Property 53: A variant step needs its own approval, registry match and complete source, and the hold is per variant**
+    - Extend the generators of Property 47 with variants, `derive_*` entries, registry mismatches and withdrawals.
+    - **Validates: Requirements 20.1, 20.10, 19.4, 19.17**
+  - [ ] 42.3 `report.ts`: sections 2, 4, 4a, 4b, 4c, 9, 12 and the `perm_avg_mark`
+    - Section 2: four Decision_Model Combinations with their variants and the multiple-comparison count including derived files. Sections 4, 4a to 4c: the `single` and `perm_avg` figures side by side, the `perm_avg` flip shown as `by_construction`, the Request_Multiplier (up to 4 calls per decision) next to every `perm_avg` latency, and the production note of R20.15 (`tech.md` says one request per node; the one-request alternative is "not measured" unless V17 was run). Section 9: the per-variant hold banner. Section 12: the External reference (task 43). `perm_avg_mark(...)` is a pure function used for the pass label. The fine-tuning sentence of R20.16. Only Locked_Run figures in marks; Dev derived figures are labelled Dev_Run.
+    - _Requirements: 20.13, 20.14, 20.15, 20.16, 15.1, 15.2_
+  - [ ] 42.4 Write property tests for the Report additions (Properties 54 and 55)
+    - **Property 54: The Report labels a perm_avg pass, shows the Request_Multiplier and never marks a derived flip**
+    - **Property 55: The Report prints the production note, the per-variant hold banner and the variant candidate count**
+    - **Validates: Requirements 20.13, 20.14, 20.15, 20.16, 19.13, 19.17**
+  - [ ] 42.5 Gates green and commit
+    - Run `scripts/gates.sh` to exit 0; one `feat(probe)` commit for task 42; log.
+    - _Requirements: 16.9_
+
+- [ ] 43. Author-supplied External reference file (R20.18 to R20.20; DA-29, Property 56)
+  - [ ] 43.1 Write `eval/results/external/teacher-upper-bound/author-supplied.json` and its reader
+    - Check in the file with the figures exactly as the Author supplied them (integers only), labelled "Author-supplied, not verified by ingest", with no claim that only the flip Threshold fails (RC-20 stays open, see task 50; do not guess its wording). Extend `external.ts` with a reader for this format (a distinct label from the External_Reference_File of R19.15; it sends no request, reads no `env`, writes nothing under `eval/results/` at read time). The Report section 12 shows it with that label and its sha256. The import-graph test of 31.2 is extended: the reader is imported only by the CLI and Report section 12. Never open `eval/cards/blind/*`, `locked.jsonl` or `env`.
+    - _Requirements: 20.18, 20.19, 20.20, 19.16_
+  - [ ] 43.2 Write property test for the External reference (Property 56)
+    - **Property 56: The Author-supplied External reference is shown only in section 12, with its label, and never touches a mark, the ledger, the budget or the Phase_2 branch**
+    - **Validates: Requirements 20.18, 20.19, 20.20, 19.16**
+  - [ ] 43.3 Gates green and commit
+    - Run `scripts/gates.sh` to exit 0; one `feat(probe)` commit for task 43; log.
+    - _Requirements: 16.9_
+
+- [ ] 44. R20 fault injections, registry freeze check and gate wiring (R20.1, R20.17; V16, V18)
+  - [ ] 44.1 Fault injections for the R20 code
+    - One at a time, each with the full `scripts/gates.sh`, revert, green, and a `docs/kiro-log.md` entry (date, gate, fault, failure excerpt, revert, passing re-run): (1) aggregation sums with `f64` or truncates a lexeme to 17 digits (Property 49 fails at `cargo test --workspace`); (2) tie broken by Permutation order instead of option ID bytes (Property 50 fails); (3) `perm-avg-golden.json` one byte changed (parity test names the Card ID and the export, also on wasm32 alone); (4) `derive` overwrites a conflicting file or accepts an incomplete source (Property 51 fails at the Unit_Tests gate); (5) the metrics flip reports a measured flip for a derived file (Property 52); (6) `allowDecisionVariant` ignores the registry check or the per-variant approval (Property 53); (7) the Report drops the Request_Multiplier or marks the External reference in a pass mark (Properties 54 to 56); (8) change one byte of `aggregation.perm_avg.v1.txt` without updating the pinned hash (the registry validation fails); (9) change `rule_version` in the file only (V18 test fails). No injected fault may remain in any commit, and none edits a file under `eval/cards/`.
+    - _Requirements: 20.17, 16.1, 16.3, 16.6, 16.7, 16.10_
+  - [ ] 44.2 V16: confirm the registry is committed before any Decision_Model Dev_Run result
+    - Check with `git log` that tasks 39 to 43 are committed, that `combinations.json` holds the four records and the pinned Aggregation_Hash, and that no Decision_Model Dev_Run Results file exists yet (`eval/results/dev/` listing, names and headers only). Run `probe phase-status` and `scripts/gates.sh` to exit 0. Record the Aggregation_Hash and the commit in `docs/kiro-log.md`. Task 34.1 may complete only after this sub-task (R20.1). If a Decision_Model Dev_Run result already exists, stop and tell the Author: a later change needs an Author amendment.
+    - _Requirements: 20.1, 17.7_
+
+- [ ] 45. STOP-AND-ASK: derive the `clef-flash` Dev_Run into `perm_avg`
+  - [ ] 45.1 V15 over the first real `clef-flash` Dev_Run bodies
+    - After 34.3. Read-only count over the stored `system_one.response_text` bodies (counts only, no Card content): `probabilities` present for every Permutation of every D Card, keys exactly equal to the Card's option IDs, every lexeme inside the accepted grammar (none above 1, none with more than 40 significant digits). Write the counts and the conclusion in `docs/kiro-log.md`. If V15 fails, stop and tell the Author; do not ask for the derive approval.
+    - _Requirements: 20.3, 20.4, 20.6_
+  - [ ] 45.2 Ask for the `derive_dev` approval for `workers-ai/clef-flash/perm_avg`
+    - Present the Combination, the source run and its hash, the Aggregation_Hash, 0 requests and 0 neurons, and that the figures are Dev_Run figures not used for a mark. Do nothing until the Author approves in the conversation at that moment. Its own approval: the `dev` approval of the `single` variant covers nothing here.
+    - _Requirements: 20.9, 20.10, 17.1, 17.2_
+  - [ ] 45.3 Record the `derive_dev` approval
+    - Add the entry to `eval/probe/approvals.json` in its own commit; confirm `phase-status` reads it from `HEAD`; log.
+    - _Requirements: 20.10, 11.20_
+  - [ ] 45.4 Run `probe derive` for the Dev split and verify
+    - `timeout 120 pnpm --dir eval/probe run probe derive --combo workers-ai/clef-flash/perm_avg --split dev --approval <id>` then the same with `--verify`. Read the Dev figures as Dev_Run figures. If the mapping is tuned later (34.7, 34.8), a derived file from the superseded source is not overwritten: ask the Author before deriving from the final Dev_Run. Commit the derived Results and grades; log.
+    - _Requirements: 20.7, 20.9, 20.11, 20.12, 15.2_
+
+- [ ] 46. STOP-AND-ASK: derive the `clef` Dev_Run into `perm_avg`
+  - [ ] 46.1 V15 over the first real `clef` Dev_Run bodies
+    - After 34.6. Same read-only counts as 45.1 for `clef`. Log; stop and tell the Author on a failure.
+    - _Requirements: 20.3, 20.4, 20.6_
+  - [ ] 46.2 Ask for the `derive_dev` approval for `workers-ai/clef/perm_avg`
+    - As 45.2, for `clef`; its own approval.
+    - _Requirements: 20.9, 20.10, 17.1, 17.2_
+  - [ ] 46.3 Record the `derive_dev` approval
+    - As 45.3.
+    - _Requirements: 20.10, 11.20_
+  - [ ] 46.4 Run `probe derive` for the Dev split and verify
+    - As 45.4, for `clef`.
+    - _Requirements: 20.7, 20.9, 20.11, 20.12, 15.2_
+
+- [ ] 47. STOP-AND-ASK: derive the `clef-flash` Locked_Run into `perm_avg`
+  - [ ] 47.1 Ask for the `derive_locked` approval for `workers-ai/clef-flash/perm_avg`
+    - After 35.2 (the `single` Locked_Run is `complete`). Present the source ledger entry, the Dev derived file, the Aggregation_Hash, 0 requests and 0 neurons. Do nothing until approved.
+    - _Requirements: 20.9, 20.10, 17.1, 17.2_
+  - [ ] 47.2 Record the approval and run `probe derive --split locked`
+    - Add the `derive_locked` entry in its own commit; append the start entry in `docs/kiro-log.md` (Combination, source ledger entry, Aggregation_Hash, Pinned_Manifest_Hash); run the command with `timeout`, then `--verify`; append the end entry; commit Results and grades. The agent passes on only progress counts, aggregate Metrics, Card IDs and error messages (R3.11); it never opens `locked.jsonl`, `eval/cards/blind/*` or `env`.
+    - _Requirements: 20.9, 20.10, 20.11, 3.11, 17.6_
+
+- [ ] 48. STOP-AND-ASK: derive the `clef` Locked_Run into `perm_avg`
+  - [ ] 48.1 Ask for the `derive_locked` approval for `workers-ai/clef/perm_avg`
+    - After 35.3 (the `single` Locked_Run is `complete`). As 47.1, for `clef`; its own approval.
+    - _Requirements: 20.9, 20.10, 17.1, 17.2_
+  - [ ] 48.2 Record the approval and run `probe derive --split locked`
+    - As 47.2, for `clef`.
+    - _Requirements: 20.9, 20.10, 20.11, 3.11, 17.6_
+
+- [ ] 49. Optional: V17 one-request alternative (only if the Author asks; R20.15)
+  - [ ]* 49.1 Ask the Author whether to measure the one-request alternative
+    - If not asked, this task is not applicable and the Report says "not measured". If asked, at most two Smoke_Calls inside the day's count of 10, D Dev_Cards only, naming the model and the number of calls first (no approval needed, RC-10).
+    - _Requirements: 20.15, 11.8, 17.1_
+  - [ ]* 49.2 Run the V17 Smoke_Calls and record the conclusion
+    - Check that several `choice` questions over one `state` are answered independently and keep the `criteria` key order; commit the smoke records; log. The production conflict with `tech.md` stays with the Author.
+    - _Requirements: 20.15, 11.19_
+
+- [ ] 50. STOP-AND-ASK: RC-20 stays open until the Author answers (R20.20)
+  - [ ] 50.1 Ask the Author for the RC-20 wording
+    - Before 38.2: present the open RC-20 item and the current wording of Report section 12 ("Author-supplied, not verified by ingest", teacher figures as supplied, no claim that only the flip Threshold fails). Do nothing until the Author answers. If the Author asks to continue without an answer, record that in `docs/kiro-log.md` and leave RC-20 marked open in the Report.
+    - _Requirements: 20.20, 17.1_
+  - [ ] 50.2 Apply the answer and regenerate the Report section 12
+    - Apply only the wording the Author gave to `requirements.md` (as "Amendment (RC-20, date)") and the generator inputs; never edit Results; run `validate_spec_format`; gates green; one `docs(llm-probe)` commit; log.
+    - _Requirements: 20.20, 19.16_
 
 ## Task Dependency Graph
 
-Each leaf runs in its own wave because nearly every task edits shared files (`scripts/gates.sh`, `eval/probe/package.json` and its lockfile, `README.md`, `docs/kiro-log.md`, `eval/results/ledger.jsonl`). The order follows the numbers, except for the Pre-run verification sub-tasks: 15.8 (V8) runs before the WebLLM adapter work of task 16; 15.3, 15.4 and 15.5 (V3, V4, V5) run after the Workers AI adapter and before the budget approval; 15.6 (V6) runs at the first VRAM_Preflight; 15.1, 15.7 and 15.2 (V1, V7, V2) run during the first Dev_Runs. All of them are done before task 21. Requirement 19 (tasks 27 to 38) runs after 24.2: 25.3 first (the single `loadPhaseState()`), then 27 to 38 in numeric order, then 25.1 (blocked until `phase-status` shows the decision hold is off, task 38.3), 25.2 and 26. 36 is optional, and 37 waits for the Author.
+Each leaf runs in its own wave because nearly every task edits shared files (`scripts/gates.sh`, `eval/probe/package.json` and its lockfile, `README.md`, `docs/kiro-log.md`, `eval/results/ledger.jsonl`). The order follows the numbers, except for the Pre-run verification sub-tasks: 15.8 (V8) runs before the WebLLM adapter work of task 16; 15.3, 15.4 and 15.5 (V3, V4, V5) run after the Workers AI adapter and before the budget approval; 15.6 (V6) runs at the first VRAM_Preflight; 15.1, 15.7 and 15.2 (V1, V7, V2) run during the first Dev_Runs. All of them are done before task 21. Requirement 19 (tasks 27 to 38) runs after 24.2: 25.3 first (the single `loadPhaseState()`), then 27 to 38 in numeric order, then, amended for Requirement 20 (tasks 39 to 50): 39 to 44 right after 33.3 (before 34.1 completes), the `derive_dev` tasks 45 and 46 after 34.3 and 34.6, the `derive_locked` tasks 47 and 48 after 35.2 and 35.3, 49 (optional) after 37, 50 (RC-20) after 38.1 and before 38.2. Then 25.1 (blocked until `phase-status` shows the decision hold is off, task 38.3), 25.2 and 26. 36 is optional, and 37 waits for the Author.
 
 ```json
 {
@@ -974,33 +1124,72 @@ Each leaf runs in its own wave because nearly every task edits shared files (`sc
     { "id": 176, "tasks": ["33.1"] },
     { "id": 177, "tasks": ["33.2"] },
     { "id": 178, "tasks": ["33.3"] },
-    { "id": 179, "tasks": ["34.1"] },
-    { "id": 180, "tasks": ["34.2"] },
-    { "id": 181, "tasks": ["34.3"] },
-    { "id": 182, "tasks": ["34.4"] },
-    { "id": 183, "tasks": ["34.5"] },
-    { "id": 184, "tasks": ["34.6"] },
-    { "id": 185, "tasks": ["34.7"] },
-    { "id": 186, "tasks": ["34.8"] },
-    { "id": 187, "tasks": ["35.1"] },
-    { "id": 188, "tasks": ["35.2"] },
-    { "id": 189, "tasks": ["35.3"] },
-    { "id": 190, "tasks": ["36.1"] },
-    { "id": 191, "tasks": ["36.2"] },
-    { "id": 192, "tasks": ["36.3"] },
-    { "id": 193, "tasks": ["37.1"] },
-    { "id": 194, "tasks": ["37.2"] },
-    { "id": 195, "tasks": ["38.1"] },
-    { "id": 196, "tasks": ["38.2"] },
-    { "id": 197, "tasks": ["38.3"] },
-    { "id": 198, "tasks": ["25.1"] },
-    { "id": 199, "tasks": ["25.2"] },
-    { "id": 200, "tasks": ["26.1"] },
-    { "id": 201, "tasks": ["26.2"] },
-    { "id": 202, "tasks": ["26.3"] },
-    { "id": 203, "tasks": ["26.4"] },
-    { "id": 204, "tasks": ["26.5"] },
-    { "id": 205, "tasks": ["26.6"] }
+    { "id": 179, "tasks": ["39.1"] },
+    { "id": 180, "tasks": ["39.2"] },
+    { "id": 181, "tasks": ["39.3"] },
+    { "id": 182, "tasks": ["39.4"] },
+    { "id": 183, "tasks": ["39.5"] },
+    { "id": 184, "tasks": ["40.1"] },
+    { "id": 185, "tasks": ["40.2"] },
+    { "id": 186, "tasks": ["40.3"] },
+    { "id": 187, "tasks": ["40.4"] },
+    { "id": 188, "tasks": ["41.1"] },
+    { "id": 189, "tasks": ["41.2"] },
+    { "id": 190, "tasks": ["41.3"] },
+    { "id": 191, "tasks": ["41.4"] },
+    { "id": 192, "tasks": ["42.1"] },
+    { "id": 193, "tasks": ["42.2"] },
+    { "id": 194, "tasks": ["42.3"] },
+    { "id": 195, "tasks": ["42.4"] },
+    { "id": 196, "tasks": ["42.5"] },
+    { "id": 197, "tasks": ["43.1"] },
+    { "id": 198, "tasks": ["43.2"] },
+    { "id": 199, "tasks": ["43.3"] },
+    { "id": 200, "tasks": ["44.1"] },
+    { "id": 201, "tasks": ["44.2"] },
+    { "id": 202, "tasks": ["34.1"] },
+    { "id": 203, "tasks": ["34.2"] },
+    { "id": 204, "tasks": ["34.3"] },
+    { "id": 205, "tasks": ["45.1"] },
+    { "id": 206, "tasks": ["45.2"] },
+    { "id": 207, "tasks": ["45.3"] },
+    { "id": 208, "tasks": ["45.4"] },
+    { "id": 209, "tasks": ["34.4"] },
+    { "id": 210, "tasks": ["34.5"] },
+    { "id": 211, "tasks": ["34.6"] },
+    { "id": 212, "tasks": ["46.1"] },
+    { "id": 213, "tasks": ["46.2"] },
+    { "id": 214, "tasks": ["46.3"] },
+    { "id": 215, "tasks": ["46.4"] },
+    { "id": 216, "tasks": ["34.7"] },
+    { "id": 217, "tasks": ["34.8"] },
+    { "id": 218, "tasks": ["35.1"] },
+    { "id": 219, "tasks": ["35.2"] },
+    { "id": 220, "tasks": ["47.1"] },
+    { "id": 221, "tasks": ["47.2"] },
+    { "id": 222, "tasks": ["35.3"] },
+    { "id": 223, "tasks": ["48.1"] },
+    { "id": 224, "tasks": ["48.2"] },
+    { "id": 225, "tasks": ["36.1"] },
+    { "id": 226, "tasks": ["36.2"] },
+    { "id": 227, "tasks": ["36.3"] },
+    { "id": 228, "tasks": ["37.1"] },
+    { "id": 229, "tasks": ["37.2"] },
+    { "id": 230, "tasks": ["49.1"] },
+    { "id": 231, "tasks": ["49.2"] },
+    { "id": 232, "tasks": ["38.1"] },
+    { "id": 233, "tasks": ["50.1"] },
+    { "id": 234, "tasks": ["50.2"] },
+    { "id": 235, "tasks": ["38.2"] },
+    { "id": 236, "tasks": ["38.3"] },
+    { "id": 237, "tasks": ["25.1"] },
+    { "id": 238, "tasks": ["25.2"] },
+    { "id": 239, "tasks": ["26.1"] },
+    { "id": 240, "tasks": ["26.2"] },
+    { "id": 241, "tasks": ["26.3"] },
+    { "id": 242, "tasks": ["26.4"] },
+    { "id": 243, "tasks": ["26.5"] },
+    { "id": 244, "tasks": ["26.6"] }
   ]
 }
 ```
