@@ -7,6 +7,7 @@
 //
 // Design rule: all grading goes through Sim_Wasm (run-grading.ts); this file holds no validation or
 // scoring logic. All output goes through RunLogger, which has no method for prompt or output text.
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import path from 'node:path';
 import type { AdapterResult, LateAnswer, Prompt, RuntimeAdapter, SamplingParams, OutputConstraint } from './adapters/interface.ts';
@@ -33,8 +34,11 @@ import {
 } from './ledger.ts';
 import { checkManifest, formatManifestResult } from './manifest.ts';
 import {
+  allowDecisionModel,
   allowWorkersAi,
   comboModelKey,
+  decisionModelApprovals,
+  isDecisionModel,
   isWorkersAi,
   type Combination,
   type PhaseState,
@@ -63,6 +67,7 @@ import {
   type Placement,
   type ResultRecord,
   type ResultsHeader,
+  type SystemOneField,
   type Source,
   type TaskSubset,
   type Usage as ResultUsage,
@@ -492,8 +497,19 @@ interface GateOk {
   readonly approval: string | null;
 }
 
-/** Phase gate and approval for Workers AI (R18, R11.8, R11.20). Returns null reason when allowed. */
-async function gateRun(
+/** sha256 of the System_One_Mapping file named by the Combination (the Template_Hash of R19.10); null when it cannot be read. */
+function mappingHashOf(repoDir: string, combo: Combination): string | null {
+  const file = asRecord(combo['mapping'])?.['file'];
+  if (typeof file !== 'string') return null;
+  try {
+    return createHash('sha256').update(fs.readFileSync(path.join(repoDir, file))).digest('hex');
+  } catch {
+    return null;
+  }
+}
+
+/** Phase gate and approval for Workers AI (R18, R11.8, R11.20); Decision_Models go through `allowDecisionModel` (R19, DA-21). */
+export async function gateRun(
   deps: RunDeps,
   kind: RunKind,
   combo: Combination,
@@ -504,6 +520,17 @@ async function gateRun(
   if (!isWorkersAi(combo)) return { ok: true, value: { approval: null } };
   if (deps.phaseState === undefined) return { ok: false, reason: 'phase state is not available' };
   const state = await deps.phaseState();
+  if (isDecisionModel(combo)) {
+    const mappingHash = mappingHashOf(deps.paths.repoDir, combo);
+    if (mappingHash === null) return { ok: false, reason: `the System_One_Mapping file of ${combo.id} cannot be read` };
+    const gate = allowDecisionModel(kind, combo, subset, state, { count: requestCount, mappingHash });
+    if (gate.outcome !== 'allowed') return { ok: false, reason: gate.reason };
+    if (approvalId === null) return { ok: false, reason: `--approval is required for a Decision_Model ${kind} run` };
+    const list = state.approvals.approved ? state.approvals.approvals : [];
+    const entry = decisionModelApprovals(list, combo.id, kind).find((a) => a.id === approvalId && a.max_requests !== undefined && requestCount <= a.max_requests);
+    if (entry === undefined) return { ok: false, reason: `approval ${approvalId} does not match an unwithdrawn decision_model ${kind} approval for ${combo.id} covering ${requestCount} requests` };
+    return { ok: true, value: { approval: approvalId } };
+  }
   const decision = allowWorkersAi(kind, combo, subset, state);
   if (decision.allowed !== 'full') return { ok: false, reason: decision.reason };
   if (approvalId === null) return { ok: false, reason: `--approval is required for a Workers AI ${kind} run` };
@@ -551,6 +578,10 @@ function usageOf(u: { inputTokens: number; outputTokens: number; reasoningTokens
   return u === null || u === undefined ? null : { input_tokens: u.inputTokens, output_tokens: u.outputTokens, reasoning_tokens: u.reasoningTokens };
 }
 
+function systemOneOf(x: { readonly responseText: string; readonly usageReported: boolean } | undefined): { readonly systemOne?: SystemOneField } {
+  return x === undefined ? {} : { systemOne: { response_text: x.responseText, usage_reported: x.usageReported } };
+}
+
 function lateOf(l: LateAnswer): Late {
   return l.kind === 'late' ? { kind: 'late', text: l.text, latency_ms: l.latencyMs } : { kind: 'none', reason: l.reason };
 }
@@ -564,14 +595,24 @@ interface Stop {
 }
 
 type Mapped =
-  | { readonly kind: 'record'; readonly outcome: Outcome; readonly latency: number | null; readonly usage: ResultUsage | null; readonly late: Late | null }
+  | {
+      readonly kind: 'record';
+      readonly outcome: Outcome;
+      readonly latency: number | null;
+      readonly usage: ResultUsage | null;
+      readonly late: Late | null;
+      /** System_One only (R19.8): the byte-exact response body next to the outcome. */
+      readonly systemOne?: SystemOneField;
+    }
   | { readonly kind: 'stop'; readonly stop: Stop; readonly failure: { readonly kind: string; readonly detail: string } | null };
 
 const LOAD_CLASS_ERRORS: readonly string[] = ['gpu_unavailable', 'software_adapter', 'backend_not_webgpu', 'placement_not_logged', 'model_load_failed', 'out_of_memory'];
 
 /** Outcome mapping table (design "Outcome mapping", R8.5). */
 async function mapResult(res: AdapterResult): Promise<Mapped> {
-  if (res.kind === 'text') return { kind: 'record', outcome: { kind: 'text', text: res.text }, latency: res.latencyMs, usage: usageOf(res.usage), late: null };
+  if (res.kind === 'text') {
+    return { kind: 'record', outcome: { kind: 'text', text: res.text }, latency: res.latencyMs, usage: usageOf(res.usage), late: null, ...systemOneOf(res.systemOne) };
+  }
   if (res.kind === 'timeout') {
     // The Probe_Runner waits for the Late_Answer before the next request (R8.12).
     const late = lateOf(await res.late);
@@ -587,6 +628,9 @@ async function mapResult(res: AdapterResult): Promise<Mapped> {
       return { kind: 'stop', stop: { notRun: 'oom', ledgerReason: 'out_of_memory', code: 'load_failed', detail }, failure: { kind: res.code, detail } };
     case 'runtime_stuck':
       return { kind: 'record', outcome: { kind: 'engine_fault', code: 'runtime_stuck', detail }, latency: null, usage: null, late: null };
+    case 'truncated_state':
+      // A possibly cut System_One request: an engine fault, not an Illegal; never graded, never `complete` (R19.11).
+      return { kind: 'record', outcome: { kind: 'engine_fault', code: 'truncated_state', detail }, latency: null, usage: usageOf(res.usage), late: null, ...systemOneOf(res.systemOne) };
     default:
       if (LOAD_CLASS_ERRORS.includes(res.code)) {
         return { kind: 'stop', stop: { notRun: 'load_failed', ledgerReason: res.code, code: 'load_failed', detail }, failure: { kind: res.code, detail } };
@@ -595,8 +639,9 @@ async function mapResult(res: AdapterResult): Promise<Mapped> {
         kind: 'record',
         outcome: { kind: 'error', code: res.code, detail, remote: res.remote !== null },
         latency: res.elapsedMs,
-        usage: null,
+        usage: res.code === 'system_one_shape' ? usageOf(res.usage) : null,
         late: null,
+        ...systemOneOf(res.systemOne),
       };
   }
 }
@@ -754,6 +799,7 @@ async function sendMissing(c: Exec, existing: readonly ResultRecord[]): Promise<
       usage: mapped.usage,
       late: mapped.late,
       source: c.base.source,
+      ...(mapped.systemOne === undefined ? {} : { system_one: mapped.systemOne }),
     });
     if (mapped.outcome.kind !== 'engine_fault') answered += 1;
     done.add(key);

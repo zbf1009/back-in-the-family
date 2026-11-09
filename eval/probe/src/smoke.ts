@@ -23,16 +23,17 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { parseArgs } from 'node:util';
 import { createWorkersAiRuntime, budgetInputs, toBudgetUsage, type AdapterClock, type FetchLike } from './adapters/workers-ai.ts';
+import { buildSystemOneBody, bodyBytesOf, createSystemOneRuntime, SystemOneAdapter, decisionRequestFrom, isOverContext, systemOneBudgetInputs } from './adapters/system-one.ts';
 import type { AdapterResult } from './adapters/interface.ts';
 import { isRefusal, BudgetSession, SMOKE_CAP, utcDay } from './budget.ts';
 import { CardLoadError, DEFAULT_CARDS_DIR, formatCardFailure, loadCards } from './cards.ts';
 import type { WorkersAiEnv } from './env.ts';
 import { checkManifest, formatManifestResult, PINNED_MANIFEST_HASH } from './manifest.ts';
-import { isWorkersAi, parseCombinations, type Combination, type ResponseShape } from './phase.ts';
+import { allowDecisionModel, isDecisionModel, isSystemOne, isWorkersAi, parseCombinations, type Combination, type PhaseState, type ResponseShape, type SystemOneCombination } from './phase.ts';
 import { SCHEMA, appendSmoke, type JsonObject, type JsonValue, type SmokeRecord } from './results.ts';
 import { buildPlan, loadSchemas, loadTemplates, parseTimeoutMs, renderPlan, samplingFor, RunError, type PlanItem, type RunPaths } from './run.ts';
 import { printErrorLine, printLine, scrub } from './sink.ts';
-import { llmValidate } from './simwasm.ts';
+import { llmRenderSystemOne, llmValidate, type ValidateMode } from './simwasm.ts';
 
 // ---------------------------------------------------------------- Response_Shape check (pure)
 
@@ -91,6 +92,39 @@ export function finishReasonOf(bodyText: string | null): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Checks a REST response against the `system_one` shape (R11.19, R19.6, V9): `result.model` is a string;
+ * `result.answers.decision.type` is "choice" and its `choice` a string; `probabilities` is an object whose values
+ * are numbers; `confidence` is a number; `result.usage.input_tokens` and `output_tokens` are integers. A top-level
+ * object without `result` is a mismatch. `ok` exactly when every member is present with that type.
+ */
+export function checkSystemOneShape(status: number | null, bodyText: string | null): ShapeCheck {
+  if (status === null || bodyText === null) return { check: 'not_checked', detail: 'no response' };
+  if (status < 200 || status > 299) return { check: 'not_checked', detail: 'http_error' };
+  let body: unknown;
+  try {
+    body = JSON.parse(bodyText);
+  } catch {
+    return { check: 'mismatch', detail: 'body is not JSON' };
+  }
+  const env = asObject(body);
+  if (env === null) return { check: 'mismatch', detail: 'body is not an object' };
+  if (env['success'] === false) return { check: 'not_checked', detail: 'api_error' };
+  const result = asObject(env['result']);
+  if (result === null) return { check: 'mismatch', detail: 'envelope has no result object' };
+  if (typeof result['model'] !== 'string') return { check: 'mismatch', detail: 'result.model is not a string' };
+  const decision = asObject(asObject(result['answers'])?.['decision']);
+  if (decision === null) return { check: 'mismatch', detail: 'result.answers.decision missing' };
+  if (decision['type'] !== 'choice') return { check: 'mismatch', detail: 'answers.decision.type is not "choice"' };
+  if (typeof decision['choice'] !== 'string') return { check: 'mismatch', detail: 'answers.decision.choice is not a string' };
+  const probabilities = asObject(decision['probabilities']);
+  if (probabilities === null || !Object.values(probabilities).every((v) => typeof v === 'number')) return { check: 'mismatch', detail: 'answers.decision.probabilities is not an object of numbers' };
+  if (typeof decision['confidence'] !== 'number') return { check: 'mismatch', detail: 'answers.decision.confidence is not a number' };
+  const usage = asObject(result['usage']);
+  if (!Number.isInteger(usage?.['input_tokens']) || !Number.isInteger(usage?.['output_tokens'])) return { check: 'mismatch', detail: 'result.usage.input_tokens or output_tokens is not an integer' };
+  return { check: 'ok', detail: 'system_one' };
 }
 
 // ---------------------------------------------------------------- --diagnose (dev only, names and numbers)
@@ -304,12 +338,15 @@ function outcomeLabel(r: AdapterResult): string {
 function validateInputOf(frozenContext: JsonValue, r: AdapterResult): string {
   if (r.kind === 'text') return JSON.stringify({ frozen_context: frozenContext, raw: r.text });
   if (r.kind === 'timeout') return JSON.stringify({ frozen_context: frozenContext, outcome: { kind: 'timeout' } });
-  const outcome = r.code === 'non_text_response' ? { kind: 'error', code: 'parse_failure', detail: 'non_text_response' } : { kind: 'error', code: r.code, detail: r.detail };
+  const outcome =
+    r.code === 'non_text_response' || r.code === 'system_one_shape' ? { kind: 'error', code: 'parse_failure', detail: r.code } : { kind: 'error', code: r.code, detail: r.detail };
   return JSON.stringify({ frozen_context: frozenContext, outcome });
 }
 
-function verdictOf(frozenContext: JsonValue, r: AdapterResult, cardId: string): { kind: string; reason: string | null } {
-  const env = JSON.parse(llmValidate(validateInputOf(frozenContext, r), 'json', cardId)) as { ok?: boolean; verdict?: { kind?: string; reason?: string } };
+function verdictOf(frozenContext: JsonValue, r: AdapterResult, cardId: string, mode: ValidateMode = 'json'): { kind: string; reason: string | null } {
+  // A possibly cut System_One request is an engine fault: it is not graded (R19.11).
+  if (r.kind === 'error' && (r.code === 'truncated_state' || r.code === 'over_context')) return { kind: 'engine_fault', reason: null };
+  const env = JSON.parse(llmValidate(validateInputOf(frozenContext, r), mode, cardId)) as { ok?: boolean; verdict?: { kind?: string; reason?: string } };
   if (env.ok !== true || typeof env.verdict?.kind !== 'string') throw new Error(`llm_validate refused the input for Card ID ${cardId}`);
   return { kind: env.verdict.kind, reason: typeof env.verdict.reason === 'string' ? env.verdict.reason : null };
 }
@@ -326,6 +363,13 @@ export async function smokeCommand(argv: readonly string[], deps: SmokeDeps): Pr
   if (!isWorkersAi(combo)) return fail(`"${combo.id}" is not a Workers AI Combination; Smoke_Calls go to Workers AI only`);
   if (combo.response_shape === undefined || combo.prices === undefined) return fail(`${combo.id}: combinations.json needs response_shape and prices`);
   const shape: ResponseShape = combo.response_shape;
+  if (isDecisionModel(combo)) {
+    // A Decision_Model Smoke_Call needs no approval (RC-10) but goes through the one Decision_Model gate (R19.1).
+    const gate = allowDecisionModel('smoke', combo, parsed.options.task === 'S' ? 'S' : 'D', smokeGateState(deps.combinations));
+    if (gate.outcome !== 'allowed') return fail(gate.reason);
+    if (parsed.options.maxTokens !== null) return fail('--max-tokens does not apply to a Decision_Model (System One has no output-token parameter)');
+    if (!isSystemOne(combo)) return fail(`${combo.id}: combinations.json is not a valid System_One record`);
+  }
 
   let timeoutMs: number;
   try {
@@ -353,6 +397,8 @@ export async function smokeCommand(argv: readonly string[], deps: SmokeDeps): Pr
   if (count > remaining) {
     return fail(`refused: ${count} Smoke_Call(s) requested, ${remaining} left of the ${SMOKE_CAP} allowed for UTC day ${day}; nothing sent`);
   }
+
+  if (isSystemOne(combo)) return smokeDecisionModel({ combo, deps, count, timeoutMs, budget, now, day, remaining });
 
   let items: PlanItem[];
   let templates: ReturnType<typeof loadTemplates>;
@@ -481,6 +527,176 @@ export async function smokeCommand(argv: readonly string[], deps: SmokeDeps): Pr
     }
     appendSmoke(smokeFileOf(deps.paths, utcDay(at)), record as SmokeRecord);
     printLine(`probe: smoke: ${item.card.id} (${item.task === 'decision' ? 'D' : 'S'}) outcome=${outcomeLabel(result)} verdict=${verdict.kind} shape=${shapeResult.check} http=${captured?.status ?? 'none'}`);
+  }
+
+  printLine(`probe: smoke: sent ${sent}; Output_Validator accepted ${accepted}; shape mismatches ${mismatches}`);
+  return 0;
+}
+
+/** A state the Decision_Model gate can take for a `smoke` step: that step reads nothing from it (RC-10). */
+function smokeGateState(combinations: readonly Combination[]): PhaseState {
+  return {
+    combinations,
+    entries: [],
+    failures: [],
+    exclusions: [],
+    smoke: [],
+    approvals: { approved: false, reason: 'Smoke_Calls need no approval' },
+    passes: new Map(),
+    overLimit: new Set(),
+  };
+}
+
+/** The `bytes_per_token` of a Smoke_Call as an exact fraction of integers (`body_bytes / input_tokens`); null without usage. */
+export function bytesPerTokenOf(bodyBytes: number, inputTokens: number | null): JsonObject | null {
+  return inputTokens === null || inputTokens < 1 ? null : { numerator: bodyBytes, denominator: inputTokens };
+}
+
+interface DecisionSmokeArgs {
+  readonly combo: SystemOneCombination;
+  readonly deps: SmokeDeps;
+  readonly count: number;
+  readonly timeoutMs: number;
+  readonly budget: BudgetSession;
+  readonly now: () => number;
+  readonly day: string;
+  readonly remaining: number;
+}
+
+/**
+ * The Smoke_Calls of a Decision_Model (R19.5, R19.6, R11.19): D Dev_Cards only, base permutation, one System One
+ * request each. Nothing is sent when a body is over the context window or a request cannot be rendered.
+ */
+async function smokeDecisionModel(a: DecisionSmokeArgs): Promise<number> {
+  const { combo, deps, count, timeoutMs, budget, now } = a;
+  const mappingFile = (combo['mapping'] as { file?: unknown } | undefined)?.file;
+  if (typeof mappingFile !== 'string') return fail(`${combo.id}: combinations.json has no mapping file`);
+  let mapping: string;
+  try {
+    mapping = fs.readFileSync(path.join(deps.paths.repoDir, mappingFile), 'utf8');
+  } catch {
+    return fail(`the System_One_Mapping file ${mappingFile} cannot be read; nothing sent`);
+  }
+
+  interface Prepared {
+    readonly item: PlanItem;
+    readonly body: string;
+    readonly request: ReturnType<typeof decisionRequestFrom>;
+  }
+  const prepared: Prepared[] = [];
+  let templates: ReturnType<typeof loadTemplates>;
+  try {
+    const loaded = loadCards({ cardsDir: deps.paths.cardsDir, splits: ['dev'] });
+    templates = loadTemplates(deps.paths);
+    const items = pickSmokeItems(buildPlan(loaded.cards.dev, ['decision']), count, 'D');
+    if (items.length < count) return fail(`only ${items.length} usable D Dev_Card(s) for ${count} requested call(s); nothing sent`);
+    const failed: string[] = [];
+    const over: string[] = [];
+    for (const item of items) {
+      const env = JSON.parse(llmRenderSystemOne(JSON.stringify({ frozen_context: item.facts.frozenContext, mapping, permutation: item.permutation }), item.card.id)) as {
+        ok?: boolean;
+        state?: string;
+        instructions?: string;
+        question_id?: string;
+        criteria?: { id: string; label: string }[];
+      };
+      if (env.ok !== true || typeof env.state !== 'string' || typeof env.instructions !== 'string' || typeof env.question_id !== 'string' || !Array.isArray(env.criteria)) {
+        failed.push(item.card.id);
+        continue;
+      }
+      const request = decisionRequestFrom({ state: env.state, instructions: env.instructions, question_id: env.question_id, criteria: env.criteria });
+      const body = buildSystemOneBody(combo.model_selector, request);
+      if (isOverContext(bodyBytesOf(body), combo.context_window_tokens)) over.push(item.card.id);
+      prepared.push({ item, body, request });
+    }
+    if (failed.length > 0) return fail(`${failed.length} request(s) failed to render (Card IDs: ${failed.join(', ')}); nothing sent`);
+    if (over.length > 0) return fail(`over_context: ${over.length} request body(ies) longer than ${combo.context_window_tokens} bytes (Card IDs: ${over.join(', ')}); nothing sent`);
+  } catch (e) {
+    if (e instanceof CardLoadError) {
+      for (const f of e.failures) printErrorLine(formatCardFailure(f));
+      return 1;
+    }
+    return fail(e instanceof Error ? e.message : 'could not prepare the Smoke_Calls');
+  }
+
+  // The response is captured in memory only, for the shape check. Never written.
+  let last: { status: number; body: string } | null = null;
+  const inner: FetchLike = deps.fetch ?? ((url, init) => globalThis.fetch(url, init));
+  const capturing: FetchLike = async (url, init) => {
+    last = null;
+    const res = await inner(url, init);
+    const body = await res.text();
+    last = { status: res.status, body };
+    return { status: res.status, text: () => Promise.resolve(body) };
+  };
+
+  const placeholder = { temperature: 0, topP: null, maxOutputTokens: 1, seed: null, chatTemplateKwargs: null, constraint: { kind: 'none' } } as const;
+  let handle;
+  try {
+    const factory = createSystemOneRuntime({
+      ...(deps.loadEnv === undefined ? {} : { loadEnv: deps.loadEnv }),
+      fetch: capturing,
+      ...(deps.clock === undefined ? {} : { clock: deps.clock }),
+    });
+    handle = await factory({ combo, kind: 'dev', resume: false, timeoutMs, samplings: { decision: placeholder, synthesis: placeholder }, warmups: templates.warmups });
+  } catch (e) {
+    // EnvError already printed its message (it names the file or variable only).
+    if (e instanceof Error && e.name !== 'EnvError') printErrorLine(`probe: smoke: cannot create the System_One runtime (${e.name})`);
+    return 1;
+  }
+
+  printLine(`probe: smoke: model ${combo.model_id} (${combo.id}), Decision_Model, Task_Type D`);
+  printLine(`probe: smoke: will send ${count} Smoke_Call(s); remaining daily allowance ${a.remaining} of ${SMOKE_CAP} (UTC day ${a.day})`);
+
+  let sent = 0;
+  let accepted = 0;
+  let mismatches = 0;
+  for (const { item, body, request } of prepared) {
+    const inputs = systemOneBudgetInputs(combo, body);
+    const reservation = budget.reserve({ smoke: true, estimate: inputs.estimate });
+    if (isRefusal(reservation)) {
+      printErrorLine(`probe: smoke: stopped after ${sent} call(s): ${reservation.message}`);
+      return 1;
+    }
+    last = null;
+    if (!(handle.adapter instanceof SystemOneAdapter)) return fail('internal: the Decision_Model runtime has no System_One adapter');
+    const result = await handle.adapter.complete(request, { timeoutMs });
+    sent += 1;
+    const captured = last as { status: number; body: string } | null;
+    const usage = result.kind === 'text' || result.kind === 'error' ? (result.usage ?? null) : null;
+    budget.settleSystemOne(reservation, usage === null ? null : usage.inputTokens, combo.prices.input);
+
+    const shapeResult = checkSystemOneShape(captured?.status ?? null, captured?.body ?? null);
+    const verdict = verdictOf(item.facts.frozenContext, result, item.card.id, 'raw_choice');
+    if (verdict.kind !== 'illegal' && verdict.kind !== 'engine_fault') accepted += 1;
+    if (shapeResult.check === 'mismatch') mismatches += 1;
+
+    const at = now();
+    const record: JsonObject = {
+      schema: SCHEMA.smoke,
+      at: new Date(at).toISOString(),
+      combination: combo.id,
+      model_id: combo.model_id,
+      card_id: item.card.id,
+      task: item.task,
+      permutation: item.permutation,
+      outcome: outcomeLabel(result),
+      verdict: verdict.kind,
+      illegal_reason: verdict.reason,
+      declared_shape: 'system_one',
+      shape_detail: shapeResult.detail,
+      http_status: captured?.status ?? null,
+      body_bytes: inputs.bodyBytes,
+      bytes_per_token: bytesPerTokenOf(inputs.bodyBytes, usage === null ? null : usage.inputTokens),
+      latency_ms: result.kind === 'text' ? result.latencyMs : result.elapsedMs,
+      estimated_neurons: inputs.estimate,
+      usage: usage === null ? null : { input_tokens: usage.inputTokens, output_tokens: usage.outputTokens, reasoning_tokens: usage.reasoningTokens },
+      usage_reported: usage !== null,
+    };
+    // `shape_check` is left out when no response body could be judged, so a 429 or a timeout never changes the gate.
+    if (shapeResult.check !== 'not_checked') record['shape_check'] = shapeResult.check;
+    appendSmoke(smokeFileOf(deps.paths, utcDay(at)), record as SmokeRecord);
+    printLine(`probe: smoke: ${item.card.id} (D) outcome=${outcomeLabel(result)} verdict=${verdict.kind} shape=${shapeResult.check} http=${captured?.status ?? 'none'}`);
   }
 
   printLine(`probe: smoke: sent ${sent}; Output_Validator accepted ${accepted}; shape mismatches ${mismatches}`);

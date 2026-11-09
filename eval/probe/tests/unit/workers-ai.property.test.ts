@@ -255,7 +255,7 @@ test('P39 timeout: the request is aborted, the result is a timeout with late = n
 
 test('P39 real combinations.json: the three Workers AI entries feed the adapter helpers', async () => {
   const text = readFileSync(path.join(import.meta.dirname, '..', '..', 'combinations.json'), 'utf8');
-  const workers = parseCombinations(text).filter((c) => c.runtime === 'workers-ai');
+  const workers = parseCombinations(text).filter((c) => c.runtime === 'workers-ai' && c.response_shape !== 'system_one'); // the Decision_Models are Properties 43 to 45
   assert.deepEqual(
     workers.map((c) => c.model_id).sort(),
     ['@cf/google/gemma-4-26b-a4b-it', '@cf/ibm-granite/granite-4.0-h-micro', '@cf/zai-org/glm-4.7-flash'],

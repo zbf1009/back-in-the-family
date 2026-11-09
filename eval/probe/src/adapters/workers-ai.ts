@@ -163,10 +163,15 @@ function tryParse(text: string): unknown {
 }
 
 /**
- * Maps an HTTP status and body text to raw text or an error (design "Raw text", R11.9, R11.15, R11.16, R11.18).
- * `maxTokens` is the requested output limit (used for the `text` shape's truncation rule).
+ * The shared HTTP error mapping (R11.9, R11.16, R11.18): a non-2xx status becomes `rate_limited` (429) or
+ * `remote_error` with the status and the first API error code; a 2xx body that is not an object or says
+ * `success: false` is an error too. Otherwise the Cloudflare envelope's `result` (or null when it is no object).
+ * No response message text is ever put in `detail`. Used by the System_One adapter unchanged.
  */
-export function parseResponse(shape: ResponseShape, status: number, bodyText: string, maxTokens: number): ParsedResponse {
+export function openEnvelope(
+  status: number,
+  bodyText: string,
+): Extract<ParsedResponse, { kind: 'error' }> | { readonly kind: 'envelope'; readonly envelope: Record<string, unknown>; readonly result: Record<string, unknown> | null } {
   const envelope = tryParse(bodyText);
   if (status < 200 || status > 299) {
     const code = firstApiErrorCode(envelope);
@@ -184,7 +189,17 @@ export function parseResponse(shape: ResponseShape, status: number, bodyText: st
     const code = firstApiErrorCode(env);
     return { kind: 'error', code: 'remote_error', detail: `HTTP ${status} success=false${code === null ? '' : ` api error ${code}`}`, remote: { status, code }, usage: null };
   }
-  const result = asObject(env['result']);
+  return { kind: 'envelope', envelope: env, result: asObject(env['result']) };
+}
+
+/**
+ * Maps an HTTP status and body text to raw text or an error (design "Raw text", R11.9, R11.15, R11.16, R11.18).
+ * `maxTokens` is the requested output limit (used for the `text` shape's truncation rule).
+ */
+export function parseResponse(shape: ResponseShape, status: number, bodyText: string, maxTokens: number): ParsedResponse {
+  const opened = openEnvelope(status, bodyText);
+  if (opened.kind === 'error') return opened;
+  const result = opened.result;
   if (result === null) return { kind: 'error', code: 'non_text_response', detail: 'missing_result', remote: null, usage: null };
   const usage = parseUsage(result);
   const fail = (code: AdapterErrorCode, detail: string): ParsedResponse => ({ kind: 'error', code, detail, remote: null, usage });
@@ -229,6 +244,48 @@ export function toBudgetUsage(u: Usage): BudgetUsage {
   return { promptTokens: u.inputTokens, completionTokens: u.outputTokens, reasoningTokens: u.reasoningTokens };
 }
 
+// ---------------------------------------------------------------- shared request glue (also used by system-one.ts)
+
+/**
+ * Runs `send` under the Timeout (R8.4, R11.11). At the Timeout the request is aborted and the result is a
+ * `timeout` with `late = none (aborted)`; the timer is always cancelled. `send` must never reject.
+ */
+export async function runWithTimeout(
+  clock: AdapterClock,
+  timeoutMs: number,
+  send: (signal: AbortSignal, elapsed: () => number) => Promise<AdapterResult>,
+): Promise<AdapterResult> {
+  const t0 = clock.now();
+  const elapsed = (): number => Math.max(0, Math.ceil(clock.now() - t0));
+  const controller = new AbortController();
+  let cancelTimer: () => void = () => undefined;
+  const timeout = new Promise<AdapterResult>((resolve) => {
+    cancelTimer = clock.setTimer(timeoutMs, () => {
+      controller.abort();
+      resolve({ kind: 'timeout', timeoutMs, elapsedMs: elapsed(), late: Promise.resolve({ kind: 'none', reason: 'aborted' }) });
+    });
+  });
+  try {
+    return await Promise.race([send(controller.signal, elapsed), timeout]);
+  } finally {
+    cancelTimer();
+  }
+}
+
+export type PostOutcome =
+  | { readonly kind: 'response'; readonly status: number; readonly text: string }
+  | { readonly kind: 'network_error'; readonly name: string };
+
+/** One authenticated JSON POST. A thrown error becomes `network_error` with the error's name only. */
+export async function postJson(fetchImpl: FetchLike, url: string, token: Secret, body: string, signal: AbortSignal): Promise<PostOutcome> {
+  try {
+    const res = await fetchImpl(url, { method: 'POST', headers: { Authorization: `Bearer ${token.reveal()}`, 'Content-Type': 'application/json' }, body, signal });
+    return { kind: 'response', status: res.status, text: await res.text() };
+  } catch (e) {
+    return { kind: 'network_error', name: e instanceof Error ? e.name : typeof e };
+  }
+}
+
 // ---------------------------------------------------------------- adapter
 
 export interface WorkersAiAdapterOptions {
@@ -260,6 +317,7 @@ export class WorkersAiAdapter implements RuntimeAdapter {
   constructor(o: WorkersAiAdapterOptions) {
     if (!isWorkersAi(o.combo)) throw new Error(`"${o.combo.id}" is not a Workers AI Combination`);
     if (o.combo.response_shape === undefined) throw new Error(`combinations.json: ${o.combo.id}: response_shape is required`);
+    if (o.combo.response_shape === 'system_one') throw new Error(`"${o.combo.id}" is a Decision_Model; it uses the System_One adapter`);
     this.#combo = o.combo;
     this.#shape = o.combo.response_shape;
     this.#maxParam = maxParamOf(o.combo);
@@ -285,20 +343,9 @@ export class WorkersAiAdapter implements RuntimeAdapter {
 
   async complete(prompt: Prompt, options: RequestOptions): Promise<AdapterResult> {
     this.#inFlight += 1;
-    const t0 = this.#clock.now();
-    const elapsed = (): number => Math.max(0, Math.ceil(this.#clock.now() - t0));
-    const controller = new AbortController();
-    let cancelTimer: () => void = () => undefined;
-    const timeout = new Promise<AdapterResult>((resolve) => {
-      cancelTimer = this.#clock.setTimer(options.timeoutMs, () => {
-        controller.abort();
-        resolve({ kind: 'timeout', timeoutMs: options.timeoutMs, elapsedMs: elapsed(), late: Promise.resolve({ kind: 'none', reason: 'aborted' }) });
-      });
-    });
     try {
-      return await Promise.race([this.#send(prompt, options, controller.signal, elapsed), timeout]);
+      return await runWithTimeout(this.#clock, options.timeoutMs, (signal, elapsed) => this.#send(prompt, options, signal, elapsed));
     } finally {
-      cancelTimer();
       this.#inFlight -= 1;
     }
   }
@@ -307,21 +354,12 @@ export class WorkersAiAdapter implements RuntimeAdapter {
   async #send(prompt: Prompt, options: RequestOptions, signal: AbortSignal, elapsed: () => number): Promise<AdapterResult> {
     const secrets = [this.#token, this.#accountId];
     const body = JSON.stringify(buildRequestBody(prompt, options.sampling, this.#maxParam));
-    let status: number;
-    let text: string;
-    try {
-      const res = await this.#fetch(requestUrl(this.#accountId, this.#combo.model_id), {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${this.#token.reveal()}`, 'Content-Type': 'application/json' },
-        body,
-        signal,
-      });
-      status = res.status;
-      text = await res.text();
-    } catch (e) {
-      const name = e instanceof Error ? e.name : typeof e;
-      return { kind: 'error', code: 'remote_error', detail: redact(`network error (${name})`, secrets), elapsedMs: elapsed(), remote: null };
+    const posted = await postJson(this.#fetch, requestUrl(this.#accountId, this.#combo.model_id), this.#token, body, signal);
+    if (posted.kind === 'network_error') {
+      return { kind: 'error', code: 'remote_error', detail: redact(`network error (${posted.name})`, secrets), elapsedMs: elapsed(), remote: null };
     }
+    const status = posted.status;
+    const text = posted.text;
     const parsed = parseResponse(this.#shape, status, text, options.sampling.maxOutputTokens);
     if (parsed.kind === 'text') return { kind: 'text', text: parsed.text, latencyMs: elapsed(), usage: parsed.usage };
     return { kind: 'error', code: parsed.code, detail: redact(parsed.detail, secrets), elapsedMs: elapsed(), remote: parsed.remote, usage: parsed.usage };

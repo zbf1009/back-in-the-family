@@ -10,7 +10,7 @@ import { countsForGate, type ExclusionRecord, type FailureRecord, type ModelKey,
 
 // ---------------------------------------------------------------- Combination (combinations.json)
 
-export type ResponseShape = 'chat' | 'text';
+export type ResponseShape = 'chat' | 'text' | 'system_one';
 
 export interface CombinationLicense {
   readonly name: string;
@@ -54,12 +54,31 @@ export interface Combination {
   readonly [extra: string]: unknown;
 }
 
+/**
+ * A Decision_Model Combination (R19.6, R19.11): `response_shape: "system_one"`, Task_Type D only. The validator
+ * mode is required and fixed to `raw_choice` (R4.16): a record without it does not type check, and
+ * `parseCombinations` refuses it at run time.
+ */
+export interface SystemOneCombination extends Combination {
+  readonly response_shape: 'system_one';
+  readonly validator_mode: 'raw_choice';
+  /** The model name in the request body (`clef-flash`, `clef`). */
+  readonly model_selector: string;
+  /** W: input tokens the service accepts. A request body longer than this many bytes is refused (R19.11). */
+  readonly context_window_tokens: number;
+  /** K: the provisional or frozen cap on bytes per input token; part of the Model_Fingerprint. */
+  readonly max_bytes_per_token: number;
+  readonly prices: { readonly input: number; readonly output: number; readonly source: string; readonly read_on: string };
+}
+
 export const WORKERS_AI_RUNTIME = 'workers-ai';
 
 /** The in-browser download limit of option M (R9.3): 1,536 MiB. */
 export const IN_BROWSER_DOWNLOAD_LIMIT_BYTES = 1536 * 1024 * 1024;
 
 export const isWorkersAi = (c: Combination): boolean => c.runtime === WORKERS_AI_RUNTIME;
+/** True for a Decision_Model; `parseCombinations` has checked the extra members of such a record. */
+export const isSystemOne = (c: Combination): c is SystemOneCombination => c.response_shape === 'system_one';
 export const comboModelKey = (c: Combination): ModelKey => ({ runtime: c.runtime, model_id: c.model_id, quantization: c.quantization, revision: c.revision });
 
 /** True when a measured model download is over the In_Browser_Size_Limits (R9.11). */
@@ -83,12 +102,29 @@ export function parseCombinations(text: string): Combination[] {
       if (typeof o[k] !== 'string' || (k !== 'quantization' && o[k] === '')) throw new Error(`combinations[${i}].${k} must be a ${k === 'quantization' ? '' : 'non-empty '}string`);
     }
     if (typeof o['phase1_locked'] !== 'boolean') throw new Error(`combinations[${i}].phase1_locked must be a boolean`);
-    if (o['response_shape'] !== undefined && o['response_shape'] !== 'chat' && o['response_shape'] !== 'text') throw new Error(`combinations[${i}].response_shape must be chat or text`);
+    const shape = o['response_shape'];
+    if (shape !== undefined && shape !== 'chat' && shape !== 'text' && shape !== 'system_one') throw new Error(`combinations[${i}].response_shape must be chat, text or system_one`);
+    if (shape === 'system_one') checkSystemOne(o, i);
     const id = o['id'] as string;
     if (seen.has(id)) throw new Error(`combinations[${i}].id "${id}" is a duplicate`);
     seen.add(id);
   });
   return list as Combination[];
+}
+
+const isPositiveInt = (v: unknown): v is number => typeof v === 'number' && Number.isSafeInteger(v) && v > 0;
+
+/** The members a `system_one` record must carry (R19.6, R19.11, R19.12). */
+function checkSystemOne(o: Record<string, unknown>, i: number): void {
+  const at = `combinations[${i}]`;
+  if (o['validator_mode'] !== 'raw_choice') throw new Error(`${at}.validator_mode must be "raw_choice" for response_shape system_one`);
+  if (typeof o['model_selector'] !== 'string' || !/^[a-z][a-z0-9-]*$/.test(o['model_selector'])) throw new Error(`${at}.model_selector must be a model name such as "clef-flash"`);
+  if (!isPositiveInt(o['context_window_tokens'])) throw new Error(`${at}.context_window_tokens must be a positive integer`);
+  if (!isPositiveInt(o['max_bytes_per_token'])) throw new Error(`${at}.max_bytes_per_token must be a positive integer`);
+  const prices = o['prices'];
+  const input = typeof prices === 'object' && prices !== null ? (prices as Record<string, unknown>)['input'] : undefined;
+  if (!isPositiveInt(input)) throw new Error(`${at}.prices.input must be a positive integer`);
+  if (o['task_subset_allowed'] !== 'D') throw new Error(`${at}.task_subset_allowed must be "D" for response_shape system_one`);
 }
 
 // ---------------------------------------------------------------- state
@@ -459,7 +495,7 @@ export function formatLedger(entries: readonly LedgerEntry[]): string[] {
 // ---------------------------------------------------------------- Decision_Models (R19, DA-21, DA-22)
 
 /** A Decision_Model is a Workers AI Combination with the `system_one` Response_Shape (design: Decision_Model Combination records). */
-export const isDecisionModel = (c: Combination): boolean => isWorkersAi(c) && (c.response_shape as string | undefined) === 'system_one';
+export const isDecisionModel = (c: Combination): boolean => isWorkersAi(c) && c.response_shape === 'system_one';
 
 /** IDs withdrawn by some `withdrawal` entry (DA-21). A withdrawal of a withdrawal does nothing: only `decision_model` entries are looked up. */
 export function withdrawnIds(approvals: readonly Approval[]): Set<string> {

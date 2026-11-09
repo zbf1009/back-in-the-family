@@ -10,7 +10,8 @@ import { afterEach, beforeEach, describe, test } from 'node:test';
 import { inspect } from 'node:util';
 import fc from 'fast-check';
 import { createFakeClock } from '../../src/adapters/fake.ts';
-import type { Prompt, RequestOptions } from '../../src/adapters/interface.ts';
+import type { DecisionAdapter, DecisionRequest, Prompt, RequestOptions } from '../../src/adapters/interface.ts';
+import { createSystemOneRuntime } from '../../src/adapters/system-one.ts';
 import {
   createWorkersAiRuntime,
   toBudgetUsage,
@@ -25,6 +26,7 @@ import { appendAbort, appendResume, appendStart } from '../../src/ledger.ts';
 import type { Combination } from '../../src/phase.ts';
 import { appendFailure, ResultsWriter, SCHEMA, type Late, type Outcome, type Usage as ResultUsage } from '../../src/results.ts';
 import { REDACTED, Secret, secretVariants } from '../../src/redact.ts';
+import { comboWith } from './system-one.helpers.ts';
 import {
   appendTextFile,
   clearSecrets,
@@ -332,6 +334,96 @@ describe('Property 27: the real Workers AI adapter and factory in the loop (task
           const all = [...out, ...err, ...thrown, ...listFiles(dir).map((f) => fs.readFileSync(f, 'utf8'))];
           for (const s of all) assert.equal(leaks(s, [token, account]), false);
           assert.ok(listFiles(dir).some((f) => f.endsWith('budget.json')));
+        },
+      ),
+      { numRuns: 40 },
+    );
+  });
+});
+
+// ---------------------------------------------------------------- task 29.9: the System_One adapter in the loop
+
+/** The leaky fetch of the chat loop, except that a successful answer is a System One body that echoes the generated text. */
+function leakySystemOneFetch(scenario: Scenario, text: string): FetchLike {
+  const chat = leakyFetch(scenario, text);
+  return (url, init) => {
+    if (scenario !== 'ok_text') return chat(url, init);
+    const echoed = `${text} ${url} ${init.headers['Authorization'] ?? ''}`;
+    const body = JSON.stringify({
+      success: true,
+      result: { model: 'clef-flash', answers: { decision: { type: 'choice', choice: echoed, probabilities: { a: 1 }, confidence: 1 } }, usage: { input_tokens: 100, output_tokens: 6 } },
+    });
+    return Promise.resolve({ status: 200, text: () => Promise.resolve(body) });
+  };
+}
+
+describe('Property 27: the System_One adapter and factory in the loop (task 29.9)', () => {
+  test('stdout, stderr, Results (with the verbatim body), budget counter and thrown messages hold neither secret', async () => {
+    const combo = comboWith({ window: 65536, k: 1000 });
+    const request: DecisionRequest = { kind: 'decision', state: 'Today is day 3.', instructions: 'Choose.', questionId: 'decision', options: [{ id: 'keep', label: 'Keep' }, { id: 'sell', label: 'Sell' }] };
+    await fc.assert(
+      fc.asyncProperty(
+        pairArb.filter(([t, a]) => [t, a].every((v) => !/['"#\\]/.test(v))),
+        fc.array(fc.tuple(scenarioArb, SAFE, formArb, formArb), { minLength: 1, maxLength: 4 }),
+        async ([token, account], scenarios) => {
+          out.length = 0;
+          err.length = 0;
+          clearSecrets();
+          const dir = fs.mkdtempSync(path.join(tmp, 's1-'));
+          const makeEnv = () => loadWorkersAiEnv({ readFile: () => `${TOKEN_VARIABLE}=${token}\n${ACCOUNT_VARIABLE}=${account}\n`, envPath: '/fake/env' });
+          const probeEnv = makeEnv();
+          fc.pre(probeEnv.token.reveal() === token && probeEnv.accountId.reveal() === account);
+          const budget = BudgetSession.open({ file: path.join(dir, 'budget.json'), now: () => Date.UTC(2026, 10, 10, 9) });
+          let writer: ResultsWriter | null = null;
+          for (const [i, [scenario, safe, fa, fb]] of scenarios.entries()) {
+            const clock = createFakeClock();
+            const factory = createSystemOneRuntime({ loadEnv: makeEnv, fetch: leakySystemOneFetch(scenario, `${safe}${shape(account, fa)} ${shape(token, fb)}`), clock });
+            const handle = await factory({ combo, kind: 'dev', resume: false, timeoutMs: 5000 } as never);
+            const fingerprint = handle.fingerprint ?? {};
+            assert.equal(leaks(JSON.stringify(fingerprint), [token, account]), false);
+            writer ??= ResultsWriter.create(dir, {
+              schema: SCHEMA.header, run_id: 'so', split: 'dev', combination: combo.id,
+              model_key: { runtime: 'workers-ai', model_id: combo.model_id, quantization: '', revision: WORKERS_AI_REVISION },
+              task_subset: 'D', fingerprint, template_hashes: { decision: 'ab' }, timeout_ms: 5000, placement: null,
+            });
+            const reservation = budget.reserve({ smoke: false, estimate: 5 });
+            assert.ok(!isRefusal(reservation));
+            const adapter = handle.adapter as DecisionAdapter;
+            const pending = adapter.complete(request, { timeoutMs: 5000 });
+            if (scenario === 'timeout') await clock.advance(5000);
+            const res = await pending;
+            if (!isRefusal(reservation)) budget.settleSystemOne(reservation, res.kind === 'text' || res.kind === 'error' ? (res.usage?.inputTokens ?? null) : null, combo.prices.input);
+
+            let outcome: Outcome;
+            let late: Late | null = null;
+            let usage: ResultUsage | null = null;
+            let latency: number;
+            let system_one: { response_text: string; usage_reported: boolean } | undefined;
+            if (res.kind === 'text') {
+              outcome = { kind: 'text', text: res.text };
+              latency = res.latencyMs;
+              usage = res.usage === null ? null : { input_tokens: res.usage.inputTokens, output_tokens: res.usage.outputTokens, reasoning_tokens: res.usage.reasoningTokens };
+              if (res.systemOne !== undefined) system_one = { response_text: res.systemOne.responseText, usage_reported: res.systemOne.usageReported };
+            } else if (res.kind === 'error') {
+              outcome = { kind: 'error', code: res.code, detail: res.detail, remote: res.remote !== null };
+              latency = res.elapsedMs;
+              printErrorLine(`${res.code}: ${res.detail} ${JSON.stringify(res.remote)}`);
+              if (res.systemOne !== undefined) system_one = { response_text: res.systemOne.responseText, usage_reported: res.systemOne.usageReported };
+            } else {
+              assert.deepEqual(await res.late, { kind: 'none', reason: 'aborted' });
+              outcome = { kind: 'timeout' };
+              late = { kind: 'none', reason: 'aborted' };
+              latency = res.elapsedMs;
+            }
+            printLine(JSON.stringify(outcome));
+            writer.append({
+              schema: SCHEMA.result, run_id: 'so', split: 'dev', card_id: `D-x-${String(i).padStart(3, '0')}`, permutation: 'base', outcome, latency_ms: latency,
+              timeout_ms: 5000, requested_at: '2026-11-10T09:00:00.000Z', template_hash: 'ab', fingerprint_id: writer.fingerprintId, usage, late, source: 'node',
+              ...(system_one === undefined ? {} : { system_one }),
+            });
+          }
+          const all = [...out, ...err, ...listFiles(dir).map((f) => fs.readFileSync(f, 'utf8'))];
+          for (const text of all) assert.equal(leaks(text, [token, account]), false);
         },
       ),
       { numRuns: 40 },

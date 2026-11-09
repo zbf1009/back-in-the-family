@@ -336,5 +336,89 @@
       "declared_by": "model",
       "accepted": null
     }
+  },
+  {
+    "id": "workers-ai/clef-flash",
+    "runtime": "workers-ai",
+    "model_id": "@cf/cloudflare/clef-flash",
+    "model_selector": "clef-flash",
+    "quantization": "",
+    "revision": "server-side, not pinnable",
+    "model_lib_url": null,
+    "phase1_locked": false,
+    "task_subset_allowed": "D",
+    "response_shape": "system_one",
+    "validator_mode": "raw_choice",
+    "question_id": "decision",
+    "mapping": {
+      "file": "eval/probe/templates/decision.system_one.v1.txt",
+      "format_version": 1
+    },
+    "sampling": {
+      "temperature": null,
+      "top_p": null,
+      "seed": null,
+      "max_output_tokens": null
+    },
+    "chat_template_kwargs": null,
+    "constraint": "system_one_choice",
+    "context_window_tokens": 24576,
+    "context_window_source": "https://developers.cloudflare.com/workers-ai/models/clef-flash/ (retrieved 2026-11-09)",
+    "max_bytes_per_token": 8,
+    "prices": {
+      "input": 3455,
+      "output": 0,
+      "source": "https://developers.cloudflare.com/workers-ai/platform/pricing/",
+      "read_on": "2026-11-09"
+    },
+    "license": {
+      "name": "Apache-2.0",
+      "osi": true,
+      "url": "https://developers.cloudflare.com/changelog/post/2026-10-01-clef-workers-ai/",
+      "declared_by": "model",
+      "accepted": null
+    }
+  },
+  {
+    "id": "workers-ai/clef",
+    "runtime": "workers-ai",
+    "model_id": "@cf/cloudflare/clef",
+    "model_selector": "clef",
+    "quantization": "",
+    "revision": "server-side, not pinnable",
+    "model_lib_url": null,
+    "phase1_locked": false,
+    "task_subset_allowed": "D",
+    "response_shape": "system_one",
+    "validator_mode": "raw_choice",
+    "question_id": "decision",
+    "mapping": {
+      "file": "eval/probe/templates/decision.system_one.v1.txt",
+      "format_version": 1
+    },
+    "sampling": {
+      "temperature": null,
+      "top_p": null,
+      "seed": null,
+      "max_output_tokens": null
+    },
+    "chat_template_kwargs": null,
+    "constraint": "system_one_choice",
+    "context_window_tokens": 65536,
+    "context_window_source": "https://developers.cloudflare.com/workers-ai/models/clef/ (retrieved 2026-11-09)",
+    "max_bytes_per_token": 8,
+    "prices": {
+      "input": 21818,
+      "output": 0,
+      "source": "https://developers.cloudflare.com/workers-ai/platform/pricing/",
+      "read_on": "2026-11-09"
+    },
+    "license": {
+      "name": "Apache-2.0",
+      "osi": true,
+      "url": "https://developers.cloudflare.com/changelog/post/2026-10-01-clef-workers-ai/",
+      "declared_by": "model",
+      "accepted": null
+    }
   }
 ]

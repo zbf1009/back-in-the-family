@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../src');
-const ALLOWED = new Set(['env.ts', 'adapters/workers-ai.ts', 'smoke.ts', 'run-command.ts']);
+const ALLOWED = new Set(['env.ts', 'adapters/workers-ai.ts', 'adapters/system-one.ts', 'smoke.ts', 'run-command.ts']);
 
 function walk(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) =>

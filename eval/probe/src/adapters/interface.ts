@@ -21,10 +21,32 @@ export interface SamplingParams {
   constraint: OutputConstraint;
 }
 
-export interface RequestOptions {
+/** The only option every request has. A `decision` request carries no sampling (System One has none). */
+export interface TimeoutOptions {
   timeoutMs: number;
+}
+
+export interface RequestOptions extends TimeoutOptions {
   sampling: SamplingParams;
 }
+
+/** Today's chat request: a system and a user text (what the existing adapters take). */
+export type ChatRequest = Prompt & { readonly kind: 'chat' };
+
+/**
+ * A transport-neutral Decision_Model request (R19.6, R8.11): the rendered facts, the reading and choosing
+ * instructions, and the options in the Permutation's order. It has no Workers AI field.
+ */
+export interface DecisionRequest {
+  readonly kind: 'decision';
+  readonly state: string;
+  readonly instructions: string;
+  readonly questionId: string;
+  readonly options: readonly { readonly id: string; readonly label: string }[];
+}
+
+/** The Adapter_Interface request (design: Decision_Model adapter): a chat request or a decision request. */
+export type AdapterRequest = ChatRequest | DecisionRequest;
 
 export type AdapterErrorCode =
   | 'gpu_unavailable'
@@ -43,7 +65,10 @@ export type AdapterErrorCode =
   | 'empty_content'
   | 'truncated'
   | 'non_text_response'
-  | 'runtime_error';
+  | 'runtime_error'
+  | 'system_one_shape'
+  | 'over_context'
+  | 'truncated_state';
 
 export interface Usage {
   inputTokens: number;
@@ -51,12 +76,19 @@ export interface Usage {
   reasoningTokens: number | null;
 }
 
+/** What a System_One adapter keeps next to the outcome (R19.8): the verbatim response body and whether usage was reported. */
+export interface SystemOneExtra {
+  /** The byte-exact HTTP body, so `confidence` and `probabilities` keep their original lexemes. */
+  readonly responseText: string;
+  readonly usageReported: boolean;
+}
+
 export type LateAnswer =
   | { kind: 'late'; text: string; latencyMs: number; usage?: Usage | null } // arrived after the Timeout, by the Generation_Cap
   | { kind: 'none'; reason: LateNoneReason };
 
 export type AdapterResult =
-  | { kind: 'text'; text: string; latencyMs: number; usage: Usage | null }
+  | { kind: 'text'; text: string; latencyMs: number; usage: Usage | null; systemOne?: SystemOneExtra }
   | { kind: 'timeout'; timeoutMs: number; elapsedMs: number; late: Promise<LateAnswer> }
   | {
       kind: 'error';
@@ -66,6 +98,8 @@ export type AdapterResult =
       remote: { status: number; code: string | null } | null;
       /** Token usage when the Runtime reported it despite the error (for example `truncated`); lets the run flow settle the budget. */
       usage?: Usage | null;
+      /** Set by a System_One adapter for a response it could read (R19.8). */
+      systemOne?: SystemOneExtra;
     };
 
 export interface RuntimeIdentity {
@@ -74,6 +108,11 @@ export interface RuntimeIdentity {
   modelId: string; // 'unknown' when not determinable (R8.10)
   modelRevision: string; // commit sha, or 'server-side, not pinnable' (R11.21)
   quantization: string;
+}
+
+/** An adapter that also takes the transport-neutral `decision` request (the System_One adapter). */
+export interface DecisionAdapter extends RuntimeAdapter {
+  complete(request: Prompt | AdapterRequest, options: TimeoutOptions): Promise<AdapterResult>;
 }
 
 export type AdapterState = 'idle' | 'busy' | 'stuck';

@@ -12,7 +12,7 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { parseCombinations } from './phase.ts';
+import { isSystemOne, parseCombinations } from './phase.ts';
 import { checkManifest, PINNED_MANIFEST_HASH } from './manifest.ts';
 import { loadPhaseState, reportPaths } from './report-command.ts';
 import type { TaskSubset } from './results.ts';
@@ -22,6 +22,7 @@ import { createBrowserRuntime, isInBrowser, type EngineVersions } from './browse
 import { realSessionDeps } from './browser/driver.ts';
 import { printErrorLine } from './sink.ts';
 import { createWorkersAiRuntime } from './adapters/workers-ai.ts';
+import { createSystemOneRuntime } from './adapters/system-one.ts';
 
 const REPO_DIR = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -57,8 +58,9 @@ export function defaultBrowserWiring(repoDir: string = REPO_DIR, fallback: Runti
     sessionDeps: () => realSessionDeps(path.join(repoDir, 'eval/probe/dist')),
     engineVersions: readEngineVersions(repoDir),
   });
+  const systemOne = createSystemOneRuntime();
   return {
-    createRuntime: (ctx) => (isInBrowser(ctx.combo) ? browser.createRuntime(ctx) : fallback(ctx)),
+    createRuntime: (ctx) => (isInBrowser(ctx.combo) ? browser.createRuntime(ctx) : isSystemOne(ctx.combo) ? systemOne(ctx) : fallback(ctx)),
     freshProfile: browser.freshProfile,
   };
 }

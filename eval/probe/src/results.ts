@@ -32,7 +32,7 @@ export type Split = 'dev' | 'locked';
 export type TaskSubset = 'D' | 'S' | 'DS';
 export type Source = 'headless' | 'probe_page' | 'node';
 
-export const NOT_RUN_REASONS = ['budget', 'not_approved', 'render_error', 'load_failed', 'oom', 'rebuild_failed'] as const;
+export const NOT_RUN_REASONS = ['budget', 'not_approved', 'render_error', 'load_failed', 'oom', 'rebuild_failed', 'over_context'] as const;
 export type NotRunReason = (typeof NOT_RUN_REASONS)[number];
 export const LATE_NONE_REASONS = ['generation_cap', 'idle_cap', 'aborted', 'error'] as const;
 export type LateNoneReason = (typeof LATE_NONE_REASONS)[number];
@@ -41,7 +41,7 @@ export type Outcome =
   | { kind: 'text'; text: string }
   | { kind: 'timeout' }
   | { kind: 'error'; code: string; detail: string; remote: boolean }
-  | { kind: 'engine_fault'; code: 'runtime_stuck'; detail: string }
+  | { kind: 'engine_fault'; code: 'runtime_stuck' | 'truncated_state'; detail: string }
   | { kind: 'not_run'; reason: NotRunReason; detail: string };
 
 export type Late = { kind: 'late'; text: string; latency_ms: number } | { kind: 'none'; reason: LateNoneReason };
@@ -78,6 +78,12 @@ export interface ResultsHeader {
   placement: Placement | null;
 }
 
+/** Separate Results field of a System_One request (R19.8): the byte-exact HTTP body, kept outside the outcome. */
+export interface SystemOneField {
+  response_text: string;
+  usage_reported: boolean;
+}
+
 export interface ResultRecord {
   schema: typeof SCHEMA.result;
   run_id: string;
@@ -94,6 +100,8 @@ export interface ResultRecord {
   usage: Usage | null;
   late: Late | null;
   source: Source;
+  /** Present only for a System_One request; a record without it is read and written as before. */
+  system_one?: SystemOneField;
 }
 
 export interface GradeLine {
@@ -419,7 +427,7 @@ function parseOutcome(v: unknown, where: string): Outcome {
       return { kind, code: nonEmptyStr(o.code, `${where}.code`), detail: str(o.detail, `${where}.detail`), remote: bool(o.remote, `${where}.remote`) };
     case 'engine_fault':
       exactKeys(o, ['kind', 'code', 'detail'], where);
-      return { kind, code: oneOf(o.code, ['runtime_stuck'] as const, `${where}.code`), detail: str(o.detail, `${where}.detail`) };
+      return { kind, code: oneOf(o.code, ['runtime_stuck', 'truncated_state'] as const, `${where}.code`), detail: str(o.detail, `${where}.detail`) };
     case 'not_run':
       exactKeys(o, ['kind', 'reason', 'detail'], where);
       return { kind, reason: oneOf(o.reason, NOT_RUN_REASONS, `${where}.reason`), detail: str(o.detail, `${where}.detail`) };
@@ -449,11 +457,17 @@ function parseUsage(v: unknown, where: string): Usage | null {
   };
 }
 
+function parseSystemOneField(v: unknown, where: string): SystemOneField {
+  const o = obj(v, where);
+  exactKeys(o, ['response_text', 'usage_reported'], where);
+  return { response_text: str(o.response_text, `${where}.response_text`), usage_reported: bool(o.usage_reported, `${where}.usage_reported`) };
+}
+
 /** Validates one Results record object (R12.1, R12.9, R12.10). */
 export function parseResultRecord(v: unknown): ResultRecord {
   const o = obj(v, 'record');
   checkSchemaField(o, SCHEMA.result);
-  exactKeys(o, ['schema', 'run_id', 'split', 'card_id', 'permutation', 'outcome', 'latency_ms', 'timeout_ms', 'requested_at', 'template_hash', 'fingerprint_id', 'usage', 'late', 'source'], 'record');
+  exactKeys(o, ['schema', 'run_id', 'split', 'card_id', 'permutation', 'outcome', 'latency_ms', 'timeout_ms', 'requested_at', 'template_hash', 'fingerprint_id', 'usage', 'late', 'source', ...(o.system_one === undefined ? [] : ['system_one'])], 'record');
   const outcome = parseOutcome(o.outcome, 'record.outcome');
   const latency_ms = intOrNull(o.latency_ms, 'record.latency_ms');
   if (outcome.kind === 'not_run') {
@@ -488,6 +502,7 @@ export function parseResultRecord(v: unknown): ResultRecord {
     usage: parseUsage(o.usage, 'record.usage'),
     late,
     source: oneOf(o.source, SOURCES, 'record.source'),
+    ...(o.system_one === undefined ? {} : { system_one: parseSystemOneField(o.system_one, 'record.system_one') }),
   };
 }
 

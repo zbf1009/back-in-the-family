@@ -107,6 +107,20 @@ export function estimateNeurons(a: { promptBytes: number; maxOutputTokens: numbe
   return asCount(ceilDiv(input * BigInt(a.inputPrice) + BigInt(a.maxOutputTokens) * BigInt(a.outputPrice), 1_000_000n));
 }
 
+/**
+ * Reservation of a System_One request (R19.12, DA-20): `ceil((body_bytes + 256) × input_price / 1,000,000)` in
+ * `BigInt`. There is no output-token term: the service bills input tokens only. Each byte counts as at most one
+ * token, so this is an upper bound while the service's own wrapper stays within the 256-token allowance.
+ */
+export function estimateSystemOneNeurons(a: { bodyBytes: number; inputPrice: number }): number {
+  return asCount(ceilDiv((BigInt(a.bodyBytes) + BigInt(TEMPLATE_ALLOWANCE)) * BigInt(a.inputPrice), 1_000_000n));
+}
+
+/** Counted cost of a System_One response with usage: `ceil(input_tokens × input_price / 1,000,000)`; `output_tokens` costs nothing. */
+export function systemOneUsageNeurons(inputTokens: number, inputPrice: number): number {
+  return asCount(ceilDiv(BigInt(inputTokens) * BigInt(inputPrice), 1_000_000n));
+}
+
 export interface Usage {
   promptTokens: number;
   completionTokens: number;
@@ -266,9 +280,18 @@ export class BudgetSession {
 
   /** Replaces the reserved estimate by the usage-based cost (a second atomic write). Without usage nothing changes. */
   settle(r: Reservation, usage: Usage | null, prices: { inputPrice: number; outputPrice: number }): number {
+    if (usage === null) return this.counter(r.day).neurons;
+    return this.replaceEstimate(r, usageNeurons(usage, prices));
+  }
+
+  /** `settle` for a System_One response: the counted cost is `ceil(input_tokens × price / 1e6)`, with no output term (R19.12). */
+  settleSystemOne(r: Reservation, inputTokens: number | null, inputPrice: number): number {
+    if (inputTokens === null) return this.counter(r.day).neurons;
+    return this.replaceEstimate(r, systemOneUsageNeurons(inputTokens, inputPrice));
+  }
+
+  private replaceEstimate(r: Reservation, actual: number): number {
     const c = this.counter(r.day);
-    if (usage === null) return c.neurons;
-    const actual = usageNeurons(usage, prices);
     const neurons = asCount(BigInt(c.neurons) - BigInt(r.estimate) + BigInt(actual));
     const next: BudgetState = { schema: BUDGET_SCHEMA, days: { ...this.state.days, [r.day]: { ...c, neurons } } };
     writeTextFileAtomicDurable(this.file, serializeBudget(next));
