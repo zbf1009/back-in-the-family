@@ -46,7 +46,7 @@ export type ChainResult =
 
 function validate(frozenContext: string, text: string, cardId: string): Verdict {
   const input = JSON.stringify({ frozen_context: JSON.parse(frozenContext) as unknown, raw: text });
-  const env = JSON.parse(llmValidate(input, cardId)) as { ok: boolean; verdict?: Verdict };
+  const env = JSON.parse(llmValidate(input, 'json', cardId)) as { ok: boolean; verdict?: Verdict };
   if (!env.ok || env.verdict === undefined) {
     throw new Error(`llm_validate rejected its input for card ${cardId}`);
   }

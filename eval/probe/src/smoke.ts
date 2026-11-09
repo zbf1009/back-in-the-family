@@ -309,7 +309,7 @@ function validateInputOf(frozenContext: JsonValue, r: AdapterResult): string {
 }
 
 function verdictOf(frozenContext: JsonValue, r: AdapterResult, cardId: string): { kind: string; reason: string | null } {
-  const env = JSON.parse(llmValidate(validateInputOf(frozenContext, r), cardId)) as { ok?: boolean; verdict?: { kind?: string; reason?: string } };
+  const env = JSON.parse(llmValidate(validateInputOf(frozenContext, r), 'json', cardId)) as { ok?: boolean; verdict?: { kind?: string; reason?: string } };
   if (env.ok !== true || typeof env.verdict?.kind !== 'string') throw new Error(`llm_validate refused the input for Card ID ${cardId}`);
   return { kind: env.verdict.kind, reason: typeof env.verdict.reason === 'string' ? env.verdict.reason : null };
 }

@@ -57,8 +57,28 @@ export const llmRenderPrompt = (input: string, cardId?: string): string => {
   renderPromptCalls.push(cardId);
   return guard('llm_render_prompt', cardId, () => glue.llm_render_prompt(input));
 };
-export const llmValidate = (input: string, cardId?: string): string =>
-  guard('llm_validate', cardId, () => glue.llm_validate(input));
+/** The two validator modes of `llm_validate` (R4.16, DA-17). */
+export type ValidateMode = 'json' | 'raw_choice';
+
+/**
+ * Inserts the `mode` member into a JSON-object input text without re-serializing it, so every
+ * other byte reaches the export unchanged. Input that is not an object text is passed on as is:
+ * the export then answers with its own `input` error.
+ */
+export function withMode(input: string, mode: ValidateMode): string {
+  const open = input.search(/\S/);
+  if (open < 0 || input[open] !== '{') return input;
+  const rest = input.slice(open + 1);
+  const empty = /^\s*\}/.test(rest);
+  return `${input.slice(0, open + 1)}"mode":${JSON.stringify(mode)}${empty ? '' : ','}${rest}`;
+}
+
+/** `mode` is required: the Probe_Runner picks it from the Combination's `response_shape`, never from the output. */
+export const llmValidate = (input: string, mode: ValidateMode, cardId?: string): string =>
+  guard('llm_validate', cardId, () => glue.llm_validate(withMode(input, mode)));
+/** System_One_Mapping render: `{"frozen_context":…,"mapping":"…","permutation":"base"}` in, JSON text out (R19.7). */
+export const llmRenderSystemOne = (input: string, cardId?: string): string =>
+  guard('llm_render_system_one', cardId, () => glue.llm_render_system_one(input));
 export const llmGrade = (input: string, cardId?: string): string =>
   guard('llm_grade', cardId, () => glue.llm_grade(input));
 export const llmIdentity = (input: string, cardId?: string): string =>

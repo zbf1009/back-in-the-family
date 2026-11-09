@@ -13,6 +13,7 @@ import {
   llmParseCard,
   llmPermutations,
   llmRenderPrompt,
+  llmRenderSystemOne,
   llmValidate,
 } from '../../src/simwasm.ts';
 
@@ -120,7 +121,7 @@ test('every dev-golden.json case matches through simwasm.ts', () => {
       else if (src.outcome !== undefined) vin.outcome = src.outcome;
       else assert.fail(`card ${id}: output ${o.output} needs raw or outcome`);
 
-      const validated = llmValidate(JSON.stringify(vin), id);
+      const validated = llmValidate(JSON.stringify(vin), 'json', id);
       check(id, 'llm_validate', o.output, validated, o.validate);
 
       const verdict = ok(id, 'llm_validate', validated).verdict as Json;
@@ -150,4 +151,38 @@ test('every dev-golden.json case matches through simwasm.ts', () => {
     checks++;
   }
   assert.ok(checks > 0, 'no golden entries were checked');
+});
+
+test('every system-one-golden.json case matches through simwasm.ts (raw_choice mode and llm_render_system_one)', () => {
+  const sys = JSON.parse(read('fixtures/grading/system-one-golden.json')) as {
+    mapping: string;
+    cards: {
+      card: string;
+      raw_choice: { label: string; raw: string; result: string }[];
+      render_system_one: { permutation: string; result: string }[];
+    }[];
+  };
+  const lines = new Map<string, string>();
+  for (const line of CARDS.split('\n').filter((l) => l.trim() !== '')) {
+    const meta = ok('?', 'llm_parse_card', llmParseCard(line)).meta as Obj;
+    lines.set(meta.id as string, line);
+  }
+  assert.equal(sys.cards.length, lines.size, 'golden and dev.jsonl card counts');
+  let checks = 0;
+  for (const entry of sys.cards) {
+    const line = lines.get(entry.card);
+    assert.ok(line !== undefined, `card ${entry.card}: in the golden file but not in dev.jsonl`);
+    const ctx = ok(entry.card, 'llm_parse_card', llmParseCard(line, entry.card)).frozen_context as Json;
+    for (const r of entry.raw_choice) {
+      const input = JSON.stringify({ frozen_context: ctx, raw: r.raw });
+      check(entry.card, 'llm_validate', `raw_choice ${r.label}`, llmValidate(input, 'raw_choice', entry.card), r.result);
+      checks++;
+    }
+    for (const r of entry.render_system_one) {
+      const input = JSON.stringify({ frozen_context: ctx, mapping: sys.mapping, permutation: r.permutation });
+      check(entry.card, 'llm_render_system_one', `permutation ${r.permutation}`, llmRenderSystemOne(input, entry.card), r.result);
+      checks++;
+    }
+  }
+  assert.ok(checks > 0, 'no system-one golden entries were checked');
 });

@@ -354,6 +354,16 @@ fn substitute(
     values: &Values<'_>,
     used: &mut BTreeSet<&'static str>,
 ) -> Result<String, RenderError> {
+    substitute_with(tpl, values, used, &[])
+}
+
+/// Like [`substitute`], but every name in `unknown` is an unknown placeholder.
+fn substitute_with(
+    tpl: &str,
+    values: &Values<'_>,
+    used: &mut BTreeSet<&'static str>,
+    unknown: &[&str],
+) -> Result<String, RenderError> {
     let mut out = String::new();
     let mut rest = tpl;
     while let Some((before, after)) = rest.split_once("{{") {
@@ -361,6 +371,11 @@ fn substitute(
         let Some((name, tail)) = after.split_once("}}") else {
             return Err(RenderError::new(RenderReason::UnterminatedPlaceholder));
         };
+        if unknown.contains(&name) {
+            return Err(RenderError::new(RenderReason::UnknownPlaceholder(
+                name.to_owned(),
+            )));
+        }
         let (key, value) = values.get(name)?;
         used.insert(key);
         out.push_str(value);
@@ -368,6 +383,54 @@ fn substitute(
     }
     out.push_str(rest);
     Ok(out)
+}
+
+/// Placeholders that exist in prompt templates but not in a System_One state text: the
+/// options travel in `criteria`, and there is no schema.
+const STATE_UNKNOWN: [&str; 2] = ["options", "schema"];
+
+/// Renders the `[state]` text of a System_One mapping for a D context: the same fixed fact
+/// blocks as [`render`], with `{{options}}` and `{{schema}}` as unknown placeholders. The
+/// text must use `{{tick}}`, and `{{events}}` when the context has events.
+pub fn render_state(
+    ctx: &FrozenContext,
+    state_tpl: &str,
+    perm: Permutation,
+) -> Result<String, RenderError> {
+    check_context(ctx)?;
+    let values = Values::build(ctx, None, perm);
+    let mut used = BTreeSet::new();
+    let state = substitute_with(state_tpl, &values, &mut used, &STATE_UNKNOWN)?;
+    if !used.contains("tick") {
+        return Err(RenderError::new(RenderReason::MissingPlaceholder("tick")));
+    }
+    if !ctx.events.is_empty() && !used.contains("events") {
+        return Err(RenderError::new(RenderReason::MissingPlaceholder("events")));
+    }
+    Ok(state)
+}
+
+/// Fails with the first placeholder of `text`, if any. Used for text that must be returned
+/// unchanged and so has no placeholders.
+pub fn reject_placeholders(text: &str) -> Result<(), RenderError> {
+    match text.split_once("{{") {
+        None => Ok(()),
+        Some((_, after)) => match after.split_once("}}") {
+            Some((name, _)) => Err(RenderError::new(RenderReason::UnknownPlaceholder(
+                name.to_owned(),
+            ))),
+            None => Err(RenderError::new(RenderReason::UnterminatedPlaceholder)),
+        },
+    }
+}
+
+/// `(option ID, label)` of a D context in the permutation's order: the labels the D prompt
+/// prints on its `- <id>: <label>` lines. Empty for S.
+pub fn criteria(ctx: &FrozenContext, perm: Permutation) -> Vec<(String, String)> {
+    permuted_options(ctx, perm)
+        .into_iter()
+        .map(|o| (o.id.as_str().to_owned(), o.label))
+        .collect()
 }
 
 fn none_text() -> String {

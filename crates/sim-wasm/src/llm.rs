@@ -47,3 +47,9 @@ pub fn llm_identity(input: &str) -> String {
 pub fn llm_contrast(input: &str) -> String {
     api::llm_contrast(input)
 }
+
+/// Renders the System_One_Mapping for a decision context. See [`api::llm_render_system_one`].
+#[wasm_bindgen]
+pub fn llm_render_system_one(input: &str) -> String {
+    api::llm_render_system_one(input)
+}

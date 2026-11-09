@@ -552,6 +552,8 @@ fn grading_generators_are_deterministic_and_match_the_committed_fixtures() {
     let dir = TempDir::new("grading");
     let (outputs, golden) = (dir.path("o.json"), dir.path("g.json"));
     let (outputs, golden) = (outputs.to_str().unwrap(), golden.to_str().unwrap());
+    let system_one = dir.path("s.json");
+    let system_one = system_one.to_str().unwrap();
     let o = sim_cli(&["grading-outputs", "--cards", cards, "--out", outputs]);
     assert_eq!(code(&o), 0, "{}", stderr(&o));
     let o = sim_cli(&[
@@ -564,9 +566,18 @@ fn grading_generators_are_deterministic_and_match_the_committed_fixtures() {
         golden,
     ]);
     assert_eq!(code(&o), 0, "{}", stderr(&o));
+    let o = sim_cli(&[
+        "grading-system-one-golden",
+        "--cards",
+        cards,
+        "--out",
+        system_one,
+    ]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
     for (made, committed) in [
         (outputs, "fixtures/grading/dev-outputs.json"),
         (golden, "fixtures/grading/dev-golden.json"),
+        (system_one, "fixtures/grading/system-one-golden.json"),
     ] {
         let made = fs::read(made).unwrap();
         assert!(made.ends_with(b"}\n"));

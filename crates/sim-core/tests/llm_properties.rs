@@ -2771,3 +2771,569 @@ fn every_dev_card_prompt_carries_ids_tick_and_due_days() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Property 42: Raw_Choice validation is exact, total and mode-selected
+// ---------------------------------------------------------------------------
+
+use sim_core::llm::api::llm_validate;
+use sim_core::llm::validate::validate_raw_choice;
+
+mod raw_choice {
+    use super::*;
+    use serde_json::{Value, json};
+    use sim_core::llm::api::{frozen_context_to_json, verdict_to_json};
+
+    /// Whether the API accepts the context (the generators also make contexts that the card
+    /// schema rejects, such as an event with no actors; those are skipped).
+    pub fn api_accepts(ctx: &FrozenContext) -> bool {
+        sim_core::llm::card::frozen_context_from_json(frozen_context_to_json(ctx)).is_ok()
+    }
+
+    /// The context with every event that has no actor given the first person as its actor,
+    /// which is the card-schema fault the generators produce most often.
+    pub fn with_actors(ctx: &FrozenContext) -> FrozenContext {
+        let mut c = ctx.clone();
+        if let Some(first) = c.people.first().map(|p| p.id) {
+            for e in c.events.iter_mut().filter(|e| e.actors.is_empty()) {
+                e.actors = vec![first];
+            }
+        }
+        c
+    }
+
+    pub fn ctx_value(ctx: &FrozenContext) -> Value {
+        serde_json::from_str(&json::write(&frozen_context_to_json(ctx))).expect("context JSON")
+    }
+
+    pub fn option_ids(ctx: &FrozenContext) -> Vec<String> {
+        match &ctx.spec {
+            TaskSpec::Decision { options } => {
+                options.iter().map(|o| o.id.as_str().to_owned()).collect()
+            }
+            TaskSpec::Synthesis { .. } => Vec::new(),
+        }
+    }
+
+    /// The `llm_validate` result for `input`, parsed.
+    pub fn call(input: &Value) -> Value {
+        serde_json::from_str(&llm_validate(&input.to_string())).expect("envelope JSON")
+    }
+
+    /// The verdict a Raw_Choice `s` must get, written out independently of the validator.
+    pub fn expected_verdict(ids: &[String], s: &str) -> Value {
+        if ids.iter().any(|i| i == s) {
+            json!({"kind": "decision", "option": s})
+        } else {
+            json!({"kind": "illegal", "reason": "out_of_set_option", "path": null})
+        }
+    }
+
+    pub fn to_value(v: &Verdict) -> Value {
+        serde_json::from_str(&json::write(&verdict_to_json(v))).expect("verdict JSON")
+    }
+
+    /// A string `s` near the option IDs of `ids`: exact, padded, recased, extended, cut,
+    /// empty, whitespace only, or any Unicode.
+    pub fn arb_choice(ids: Vec<String>) -> BoxedStrategy<String> {
+        let pick = prop::sample::select(ids);
+        prop_oneof![
+            3 => pick.clone(),
+            1 => pick.clone().prop_map(|i| format!(" {i}")),
+            1 => pick.clone().prop_map(|i| format!("{i} ")),
+            1 => pick.clone().prop_map(|i| format!("{i}\n")),
+            1 => pick.clone().prop_map(|i| format!("\t{i}\r\n")),
+            1 => pick.clone().prop_map(|i| i.to_uppercase()),
+            1 => pick.clone().prop_map(|i| {
+                let mut c = i.chars();
+                let first = c.next().map(|f| f.to_uppercase().collect::<String>());
+                first.unwrap_or_default() + c.as_str()
+            }),
+            1 => pick.clone().prop_map(|i| format!("{i}x")),
+            1 => pick.clone().prop_map(|i| i.chars().take(i.len().saturating_sub(1)).collect()),
+            1 => pick.prop_map(|i| format!("\"{i}\"")),
+            1 => Just(String::new()),
+            1 => "[ \t\r\n]{1,8}",
+            2 => "\\PC{0,40}",
+            1 => any::<String>(),
+        ]
+        .boxed()
+    }
+}
+
+proptest! {
+    // Feature: llm-probe, Property 42: Raw_Choice validation is exact, total and mode-selected
+    // **Validates: Requirements 4.16, 4.5, 4.8, 4.13**
+    #[test]
+    fn raw_choice_is_exact_total_and_mode_selected(
+        (ctx, s) in arb_decision_context().prop_flat_map(|ctx| {
+            let ids = raw_choice::option_ids(&ctx);
+            (Just(ctx), raw_choice::arb_choice(ids))
+        })
+    ) {
+        use raw_choice::*;
+        let ctx = with_actors(&ctx);
+        prop_assume!(api_accepts(&ctx));
+        let ids = option_ids(&ctx);
+        let fc = ctx_value(&ctx);
+        let rc = serde_json::json!({"frozen_context": fc, "raw": s, "mode": "raw_choice"});
+        let first = call(&rc);
+        prop_assert_eq!(&first["ok"], &serde_json::json!(true), "{}", first);
+        // Exactly the IDs, character for character; everything else is out of set.
+        prop_assert_eq!(&first["verdict"], &expected_verdict(&ids, &s));
+        // No parse-failure reason is possible in this mode.
+        prop_assert_ne!(first["verdict"]["reason"].as_str(), Some("parse_failure"));
+        // Same verdict on every call.
+        prop_assert_eq!(&call(&rc), &first);
+
+        // Without `mode` and with `mode: "json"` the existing validator answers.
+        let plain = serde_json::json!({"frozen_context": fc, "raw": s});
+        let json_mode = serde_json::json!({"frozen_context": fc, "raw": s, "mode": "json"});
+        let old = to_value(&validate_raw(&ctx, &s));
+        let (a, b) = (call(&plain), call(&json_mode));
+        prop_assert_eq!(&a["verdict"], &old);
+        prop_assert_eq!(&b, &a);
+    }
+
+    // Feature: llm-probe, Property 42: Raw_Choice validation is exact, total and mode-selected
+    // **Validates: Requirements 4.16, 4.5, 4.8, 4.13**
+    #[test]
+    fn raw_choice_needs_a_decision_context_and_a_known_mode(
+        ctx in arb_context(),
+        s in "\\PC{0,20}",
+        bad_mode in prop_oneof![
+            Just("".to_owned()), Just("RAW_CHOICE".to_owned()), Just("raw".to_owned()),
+            Just("json ".to_owned()), "\\PC{0,12}",
+        ],
+    ) {
+        use raw_choice::*;
+        let ctx = with_actors(&ctx);
+        prop_assume!(api_accepts(&ctx));
+        let fc = ctx_value(&ctx);
+        let is_d = matches!(ctx.spec, TaskSpec::Decision { .. });
+        let rc = call(&serde_json::json!({"frozen_context": fc, "raw": s, "mode": "raw_choice"}));
+        if is_d {
+            prop_assert_eq!(&rc["ok"], &serde_json::json!(true));
+        } else {
+            prop_assert_eq!(&rc["ok"], &serde_json::json!(false));
+            prop_assert_eq!(&rc["error"]["kind"], &serde_json::json!("input"));
+        }
+        if bad_mode != "json" && bad_mode != "raw_choice" {
+            let r = call(&serde_json::json!({"frozen_context": fc, "raw": s, "mode": bad_mode}));
+            prop_assert_eq!(&r["ok"], &serde_json::json!(false));
+            prop_assert_eq!(&r["error"]["kind"], &serde_json::json!("input"));
+        }
+        let r = call(&serde_json::json!({"frozen_context": fc, "raw": s, "mode": 5}));
+        prop_assert_eq!(&r["error"]["kind"], &serde_json::json!("input"));
+    }
+
+    // Feature: llm-probe, Property 42: Raw_Choice validation is exact, total and mode-selected
+    // **Validates: Requirements 4.16, 4.5, 4.8, 4.13**
+    #[test]
+    fn a_raw_choice_verdict_grades_like_the_json_verdict_naming_the_same_option(
+        (ctx, key, pick) in arb_decision_case().prop_flat_map(|(ctx, key)| {
+            let n = raw_choice::option_ids(&ctx).len();
+            (Just(ctx), Just(key), 0..n)
+        })
+    ) {
+        let TaskSpec::Decision { options } = &ctx.spec else {
+            return Err(TestCaseError::fail("decision case expected"));
+        };
+        let id = options[pick].id.as_str().to_owned();
+        let via_choice = validate_raw_choice(options, &id);
+        let via_json = validate_raw(&ctx, &format!("{{\"option\":\"{id}\"}}"));
+        prop_assert_eq!(&via_choice, &via_json);
+        let g1 = grade("p42", &via_choice, &key).map_err(|e| TestCaseError::fail(e.to_string()))?;
+        let g2 = grade("p42", &via_json, &key).map_err(|e| TestCaseError::fail(e.to_string()))?;
+        prop_assert_eq!(g1, g2);
+        prop_assert_eq!(identity(&via_choice), identity(&via_json));
+    }
+}
+
+// Feature: llm-probe, Property 42: Raw_Choice validation is exact, total and mode-selected
+// **Validates: Requirements 4.16, 4.5, 4.8, 4.13**
+#[test]
+fn raw_choice_handles_one_mebibyte_strings() {
+    use raw_choice::*;
+    let (_, ctx, ..) = dev_cards()
+        .into_iter()
+        .find(|c| matches!(c.1.spec, TaskSpec::Decision { .. }))
+        .expect("a D Dev_Card");
+    let ids = option_ids(&ctx);
+    let fc = ctx_value(&ctx);
+    let mib = 1024 * 1024;
+    let big = [
+        "a".repeat(mib),
+        ids[0].repeat(mib / ids[0].len()),
+        format!("{}{}", ids[0], " ".repeat(mib)),
+        "\u{1F642}".repeat(mib / 4),
+    ];
+    for s in big {
+        let rc = serde_json::json!({"frozen_context": fc, "raw": s, "mode": "raw_choice"});
+        let r = call(&rc);
+        assert_eq!(r["verdict"], expected_verdict(&ids, &s));
+        assert_eq!(call(&rc), r);
+    }
+}
+
+// Feature: llm-probe, Property 42: Raw_Choice validation is exact, total and mode-selected
+// **Validates: Requirements 4.16, 4.5, 4.8, 4.13**
+#[test]
+fn json_and_absent_mode_still_return_the_committed_dev_golden_bytes() {
+    use raw_choice::ctx_value;
+    use serde_json::Value;
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let read = |p: &str| -> Value {
+        let text = std::fs::read_to_string(root.join(p)).unwrap_or_else(|e| panic!("{p}: {e}"));
+        serde_json::from_str(&text).unwrap_or_else(|e| panic!("{p}: {e}"))
+    };
+    let golden = read("fixtures/grading/dev-golden.json");
+    let outputs = read("fixtures/grading/dev-outputs.json");
+    let mut contexts = std::collections::BTreeMap::new();
+    for (_, line) in dev_lines() {
+        let (meta, ctx, ..) = parse_card(&line, 1).expect("dev card");
+        contexts.insert(meta.id, ctx_value(&ctx));
+    }
+    let mut checked = 0usize;
+    for card in golden["cards"].as_array().expect("cards") {
+        let id = card["card"].as_str().expect("card id");
+        let entry = outputs["cards"]
+            .as_array()
+            .expect("output cards")
+            .iter()
+            .find(|e| e["card"] == id)
+            .expect("outputs for card");
+        for o in card["outputs"].as_array().expect("golden outputs") {
+            let src = entry["outputs"]
+                .as_array()
+                .expect("outputs")
+                .iter()
+                .find(|x| x["label"] == o["output"])
+                .expect("output");
+            let want = o["validate"].as_str().expect("validate bytes");
+            for mode in [None, Some("json")] {
+                let mut input = serde_json::Map::new();
+                input.insert("frozen_context".into(), contexts[id].clone());
+                for k in ["raw", "outcome"] {
+                    if let Some(v) = src.get(k) {
+                        input.insert(k.into(), v.clone());
+                    }
+                }
+                if let Some(m) = mode {
+                    input.insert("mode".into(), m.into());
+                }
+                assert_eq!(
+                    llm_validate(&Value::Object(input).to_string()),
+                    want,
+                    "card {id} output {} mode {mode:?}",
+                    o["output"]
+                );
+                checked += 1;
+            }
+        }
+    }
+    assert!(checked > 0);
+}
+
+// ---------------------------------------------------------------------------
+// Property 41 (Rust part): the System_One_Mapping depends only on the Frozen_Context,
+// the mapping bytes and the Permutation. The part on the real mapping file is task 30.2.
+// ---------------------------------------------------------------------------
+
+mod system_one_map {
+    use super::*;
+    use serde_json::{Value, json};
+    use sim_core::llm::api::llm_render_system_one;
+
+    pub const INSTRUCTIONS: &str =
+        "How to read the facts:\n- Test rule one.\nHow to choose:\n- Test rule two.";
+    pub const STATE: &str = "Today is day {{tick}}.\n{{situation}}\nPeople:\n{{people}}\nRelations:\n{{relations}}\nEvents:\n{{events}}\nInput: {{player_input}}\nSubject: {{subject}}";
+    pub const PLACEHOLDERS: [&str; 7] = [
+        "tick",
+        "situation",
+        "people",
+        "relations",
+        "events",
+        "player_input",
+        "subject",
+    ];
+
+    /// The test mapping; `state` and `instructions` can be swapped to inject faults.
+    pub fn mapping(instructions: &str, state: &str) -> String {
+        format!(
+            "[meta]\nformat_version: 1\nquestion_id: decision\ncriteria: option id -> option label, in the order of the Permutation\n[instructions]\n{instructions}\n[state]\n{state}\n"
+        )
+    }
+
+    pub fn test_mapping() -> String {
+        mapping(INSTRUCTIONS, STATE)
+    }
+
+    pub const PERMS: [Permutation; 4] = [
+        Permutation::Base,
+        Permutation::Reversed,
+        Permutation::Rotated1,
+        Permutation::Rotated2,
+    ];
+
+    pub fn call(ctx: &Value, mapping: &str, perm: &str) -> (String, Value) {
+        let input = json!({"frozen_context": ctx, "mapping": mapping, "permutation": perm});
+        let text = llm_render_system_one(&input.to_string());
+        let value = serde_json::from_str(&text).expect("envelope JSON");
+        (text, value)
+    }
+
+    pub fn error_message(v: &Value) -> String {
+        assert_eq!(v["ok"], json!(false), "{v}");
+        v["error"]["message"]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned()
+    }
+}
+
+/// The export's result bytes for each of the four permutations of the D card on this line;
+/// empty for an S card.
+fn system_one_line(line: &str) -> Result<Vec<String>, TestCaseError> {
+    use system_one_map::*;
+    let (_, ctx, _, _) = parse_card(line, 1).map_err(|e| TestCaseError::fail(e.to_string()))?;
+    if !matches!(ctx.spec, TaskSpec::Decision { .. }) {
+        return Ok(Vec::new());
+    }
+    let fc = raw_choice::ctx_value(&ctx);
+    Ok(PERMS
+        .iter()
+        .map(|p| call(&fc, &test_mapping(), p.name()).0)
+        .collect())
+}
+
+proptest! {
+    // Feature: llm-probe, Property 41: The System_One_Mapping depends only on the Frozen_Context, the mapping bytes and the Permutation
+    // **Validates: Requirements 19.7, 19.10, 7.1, 7.2, 7.3, 7.6, 7.10, 7.11**
+    #[test]
+    fn mapping_render_is_deterministic_ordered_and_verbatim(
+        ctx in arb_decision_context(),
+        mode in 0u8..3,
+    ) {
+        use system_one_map::*;
+        let ctx = raw_choice::with_actors(&blank_optionals(&ctx, mode));
+        prop_assume!(raw_choice::api_accepts(&ctx));
+        let TaskSpec::Decision { options } = &ctx.spec else {
+            return Err(TestCaseError::fail("decision context expected"));
+        };
+        let fc = raw_choice::ctx_value(&ctx);
+        let map = test_mapping();
+        for perm in PERMS {
+            let (text, v) = call(&fc, &map, perm.name());
+            prop_assert_eq!(&v["ok"], &json!(true), "{}", text);
+            prop_assert_eq!(&call(&fc, &map, perm.name()).0, &text);
+            prop_assert_eq!(v["instructions"].as_str(), Some(INSTRUCTIONS));
+            prop_assert_eq!(v["question_id"].as_str(), Some("decision"));
+            prop_assert_eq!(v["renderer_version"].as_i64(), Some(2));
+
+            // `criteria`: exactly the context's options, each once, in the Permutation's order.
+            let want: Vec<Value> = model_candidate(options, perm)
+                .iter()
+                .map(|o| json!({"id": o.id.as_str(), "label": o.label}))
+                .collect();
+            prop_assert_eq!(v["criteria"].as_array(), Some(&want));
+
+            // The state is the fixed fact blocks of the D prompt, and the criteria are the
+            // labels the D prompt prints.
+            let tpl = format!("[system]\ns\n[user]\n{STATE}\n{{{{options}}}}");
+            let prompt = render(&ctx, &tpl, None, perm)
+                .map_err(|e| TestCaseError::fail(format!("{e:?}")))?;
+            let state = v["state"].as_str().unwrap_or_default();
+            let lines: Vec<String> = options_in_order(options, perm)
+                .iter()
+                .map(|o| format!("- {}: {}", o.id.as_str(), o.label))
+                .collect();
+            prop_assert_eq!(&prompt.user, &format!("{state}\n{}", lines.join("\n")));
+            prop_assert!(!state.contains("Options:"));
+
+            // IDs, the tick and the due days are verbatim.
+            let today = format!("Today is day {}.", ctx.tick);
+            prop_assert!(state.contains(&today));
+            for o in options {
+                prop_assert!(text.contains(o.id.as_str()));
+            }
+            for p in &ctx.people {
+                let head = format!("#{} {},", p.id.0, p.name);
+                prop_assert!(state.lines().any(|l| l.starts_with(&head)), "{}", head);
+            }
+            for e in &ctx.events {
+                let head = format!("{} day {} ", e.id.as_str(), e.tick);
+                let found: Vec<&str> = state.lines().filter(|l| l.starts_with(&head)).collect();
+                prop_assert_eq!(found.len(), 1);
+                match e.due_tick {
+                    Some(d) => {
+                        let want = format!("due day {d}");
+                        prop_assert!(found[0].ends_with(&want));
+                    }
+                    None => prop_assert!(!found[0].contains("due day")),
+                }
+            }
+            if ctx.subject.is_none() {
+                prop_assert!(state.ends_with("Subject: none"));
+            }
+            if ctx.relations.is_empty() {
+                prop_assert!(state.contains("Relations:\nnone\n"));
+            }
+            let empty_input = ctx.player_input.as_ref()
+                .is_none_or(|i| i.intent.is_empty() && i.content.is_empty());
+            if empty_input {
+                prop_assert!(state.contains("\nInput: none\n"));
+            }
+        }
+    }
+
+    // Feature: llm-probe, Property 41: The System_One_Mapping depends only on the Frozen_Context, the mapping bytes and the Permutation
+    // **Validates: Requirements 19.7, 19.10, 7.1, 7.2, 7.3, 7.6, 7.10, 7.11**
+    #[test]
+    fn mapping_render_ignores_card_metadata_and_answer_key(
+        (card, new_key) in arb_card().prop_flat_map(|c| {
+            let k = arb_key(&c.1);
+            (Just(c), k)
+        }),
+        group in 1u32..=999,
+        scored in any::<bool>(),
+        note in "\\PC{1,60}",
+        drop_contrast in any::<bool>(),
+    ) {
+        let (meta, ctx, _, contrast) = card.clone();
+        let before = system_one_line(&card_line(&card))?;
+        prop_assert_eq!(&before, &system_one_line(&card_line(&card))?);
+        let prefix = &meta.id[..meta.id.len() - 3];
+        let new_meta = CardMeta {
+            id: format!("{prefix}{group:03}"),
+            scenario_group: format!("G{group:03}"),
+            split: Split::Dev,
+            scored,
+            author_note: note,
+        };
+        let new_contrast = if drop_contrast { None } else { contrast.clone() };
+        let changed = (new_meta, ctx.clone(), new_key, new_contrast);
+        prop_assert_eq!(&before, &system_one_line(&card_line(&changed))?);
+    }
+
+    // Feature: llm-probe, Property 41: The System_One_Mapping depends only on the Frozen_Context, the mapping bytes and the Permutation
+    // **Validates: Requirements 19.7, 19.10, 7.1, 7.2, 7.3, 7.6, 7.10, 7.11**
+    #[test]
+    fn unknown_placeholders_are_render_errors_naming_them(
+        ctx in arb_decision_context(),
+        name in prop_oneof![
+            Just("options".to_owned()), Just("schema".to_owned()),
+            "[a-z_]{1,10}".prop_filter("known", |n| !system_one_map::PLACEHOLDERS.contains(&n.as_str())),
+        ],
+        in_state in any::<bool>(),
+    ) {
+        use system_one_map::*;
+        let ctx = raw_choice::with_actors(&ctx);
+        prop_assume!(raw_choice::api_accepts(&ctx));
+        let fc = raw_choice::ctx_value(&ctx);
+        let ph = format!("{{{{{name}}}}}");
+        let map = if in_state {
+            mapping(INSTRUCTIONS, &format!("{STATE}\n{ph}"))
+        } else {
+            mapping(&format!("{INSTRUCTIONS}\n{ph}"), STATE)
+        };
+        let (_, v) = call(&fc, &map, "base");
+        prop_assert_eq!(&v["error"]["kind"], &json!("render"));
+        let msg = error_message(&v);
+        prop_assert!(msg.contains("unknown placeholder"), "{}", msg);
+        prop_assert!(msg.contains(&name), "{}", msg);
+    }
+}
+
+/// `options` in the permutation's order, written out with `model_candidate`.
+fn options_in_order(
+    options: &[sim_core::llm::OptionDef],
+    perm: Permutation,
+) -> Vec<sim_core::llm::OptionDef> {
+    model_candidate(options, perm)
+}
+
+// Feature: llm-probe, Property 41: The System_One_Mapping depends only on the Frozen_Context, the mapping bytes and the Permutation
+// **Validates: Requirements 19.7, 19.10, 7.1, 7.2, 7.3, 7.6, 7.10, 7.11**
+#[test]
+fn mapping_errors_name_their_cause() {
+    use system_one_map::*;
+    let cards = dev_cards();
+    let d = cards
+        .iter()
+        .find(|c| matches!(c.1.spec, TaskSpec::Decision { .. }))
+        .expect("a D Dev_Card");
+    let s = cards
+        .iter()
+        .find(|c| matches!(c.1.spec, TaskSpec::Synthesis { .. }))
+        .expect("an S Dev_Card");
+    let fc = raw_choice::ctx_value(&d.1);
+    let ok = |m: &str| call(&fc, m, "base").1;
+    assert_eq!(ok(&test_mapping())["ok"], json!(true));
+    // Structural faults of the mapping.
+    let faults = [
+        ("missing section [state]", "[instructions]\nx\n".to_owned()),
+        (
+            "missing section [instructions]",
+            "[state]\nDay {{tick}}\n".to_owned(),
+        ),
+        (
+            "appears twice",
+            format!("{}[state]\nDay {{{{tick}}}}\n", test_mapping()),
+        ),
+        (
+            "text before the first section header",
+            format!("oops\n{}", test_mapping()),
+        ),
+        (
+            "unsupported format_version 2",
+            test_mapping().replace("format_version: 1", "format_version: 2"),
+        ),
+        (
+            "question_id must be letters only",
+            test_mapping().replace("question_id: decision", "question_id: 7up"),
+        ),
+        (
+            "unterminated placeholder",
+            mapping(INSTRUCTIONS, "Day {{tick"),
+        ),
+        (
+            "no value",
+            mapping(INSTRUCTIONS, "Day {{tick}} {{options}}"),
+        ),
+    ];
+    for (needle, map) in faults {
+        let msg = error_message(&ok(&map));
+        assert!(
+            msg.contains(needle) || (needle == "no value" && msg.contains("options")),
+            "{needle}: {msg}"
+        );
+    }
+    // A state that drops the tick or the events is a structural error too.
+    let msg = error_message(&ok(&mapping(INSTRUCTIONS, "{{people}}")));
+    assert!(msg.contains("tick"), "{msg}");
+    // An S context, an unknown Permutation and a missing member are `input` errors.
+    let sv = raw_choice::ctx_value(&s.1);
+    for v in [
+        call(&sv, &test_mapping(), "base").1,
+        call(&fc, &test_mapping(), "sideways").1,
+    ] {
+        assert_eq!(v["error"]["kind"], json!("input"), "{v}");
+    }
+    let v: Value = serde_json::from_str(&sim_core::llm::api::llm_render_system_one(
+        &json!({"frozen_context": fc, "permutation": "base"}).to_string(),
+    ))
+    .expect("JSON");
+    assert_eq!(v["error"]["kind"], json!("input"));
+    // A mapping without [meta] still renders, with the default question ID.
+    let bare = format!("[instructions]\n{INSTRUCTIONS}\n[state]\n{STATE}\n");
+    assert_eq!(ok(&bare)["question_id"], json!("decision"));
+    // The state text of a D card with an empty `player_input` renders `none`.
+    let state = ok(&test_mapping())["state"]
+        .as_str()
+        .unwrap_or_default()
+        .to_owned();
+    assert!(state.starts_with(&format!("Today is day {}.", d.1.tick)));
+}
+
+use serde_json::{Value, json};

@@ -29,6 +29,7 @@ USAGE:
   sim-cli measure [--runs N] [--entities N]
   sim-cli grading-outputs --cards FILE --out FILE
   sim-cli grading-golden --cards FILE --outputs FILE --out FILE
+  sim-cli grading-system-one-golden --cards FILE --out FILE
   sim-cli --help
 
 record       Run N ticks from seed S and write a replay file (parent directories are
@@ -67,6 +68,8 @@ grading-outputs  Write the synthetic Dev_Card outputs (valid ones from each card
              fixtures. Deterministic. Run only by scripts/regen-grading-golden.sh.
 grading-golden   Run every sim_core::llm::api export on every card x fixture output and
              write the expected result bytes. Deterministic. Same script.
+grading-system-one-golden  Run the raw_choice mode of llm_validate and llm_render_system_one
+             on every Dev_Card and write the expected result bytes. Deterministic. Same script.
 
 EXIT CODES:
   0  success
@@ -103,6 +106,7 @@ fn dispatch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
         "measure" => measure::measure(rest, out, err),
         "grading-outputs" => grading::grading_outputs(rest, out, err),
         "grading-golden" => grading::grading_golden(rest, out, err),
+        "grading-system-one-golden" => grading::grading_system_one_golden(rest, out, err),
         other => {
             let _ = writeln!(err, "error: unknown subcommand {other:?}\n\n{USAGE}");
             commands::EXIT_USAGE_OR_MALFORMED

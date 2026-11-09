@@ -68,6 +68,18 @@ pub fn validate_raw(ctx: &FrozenContext, raw: &str) -> Verdict {
     result.unwrap_or_else(|f| illegal(f.reason, Some(f.path)))
 }
 
+/// Validates a Raw_Choice (R4.16): the verdict is `Decision{option: raw}` exactly when `raw`
+/// equals, byte for byte, one option ID of the D context, otherwise `Illegal{OutOfSetOption}`.
+/// No JSON is parsed, nothing is trimmed, and no parse-failure reason is possible.
+pub fn validate_raw_choice(options: &[super::OptionDef], raw: &str) -> Verdict {
+    match options.iter().find(|o| o.id.as_str() == raw) {
+        Some(o) => Verdict::Decision {
+            option: o.id.clone(),
+        },
+        None => illegal(IllegalReason::OutOfSetOption, None),
+    }
+}
+
 struct Fail {
     reason: IllegalReason,
     path: String,

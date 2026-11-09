@@ -1,0 +1,1972 @@
+{
+  "cards": [
+    {
+      "card": "D-dream_interpretation-001",
+      "raw_choice": [
+        {
+          "label": "exact:heed_warning",
+          "raw": "heed_warning",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"heed_warning\"}}"
+        },
+        {
+          "label": "exact:burn_offering",
+          "raw": "burn_offering",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"burn_offering\"}}"
+        },
+        {
+          "label": "exact:dismiss_dream",
+          "raw": "dismiss_dream",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"dismiss_dream\"}}"
+        },
+        {
+          "label": "exact:read_as_blessing",
+          "raw": "read_as_blessing",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"read_as_blessing\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "heed_warning ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nheed_warning",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "HEED_WARNING",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "heed_warningx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"heed_warning\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"heed_warning\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"heed_warning\",\"label\":\"Check the ladder, then hire help or postpone the roof job.\"},{\"id\":\"burn_offering\",\"label\":\"Burn joss paper for Harold and ask him what he meant.\"},{\"id\":\"dismiss_dream\",\"label\":\"Shrug the dream off and reroof the barn as planned.\"},{\"id\":\"read_as_blessing\",\"label\":\"Take the dream as Harold blessing the job and start early.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 21401.\\nJune inherited her grandfather Harold's farm after he died. On Saturday she plans to reroof the barn alone, using Harold's old wooden ladder, which has not been inspected in years. The night before, she dreams of Harold standing beside a cracked ladder, shaking his head. She wakes at dawn.\\nPeople:\\n#1 Harold Pike, 81, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 2, wealth 0, soul S-0101\\n#2 June Pike, 34, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety 2, wealth 2600, soul S-0102\\nRelations:\\n#2 -> #1 affinity 75 trust 70 tags grandparent\\nEvents:\\ne1 day 20100 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 20200 offering actors #2 #1 magnitude 20 caused_by e1 tags joss_paper\\ne3 day 21400 dream actors #1 #2 magnitude 0 caused_by — tags —\\nInput: warn: Harold stands beside a cracked ladder leaning on the barn and slowly shakes his head.\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"read_as_blessing\",\"label\":\"Take the dream as Harold blessing the job and start early.\"},{\"id\":\"dismiss_dream\",\"label\":\"Shrug the dream off and reroof the barn as planned.\"},{\"id\":\"burn_offering\",\"label\":\"Burn joss paper for Harold and ask him what he meant.\"},{\"id\":\"heed_warning\",\"label\":\"Check the ladder, then hire help or postpone the roof job.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 21401.\\nJune inherited her grandfather Harold's farm after he died. On Saturday she plans to reroof the barn alone, using Harold's old wooden ladder, which has not been inspected in years. The night before, she dreams of Harold standing beside a cracked ladder, shaking his head. She wakes at dawn.\\nPeople:\\n#1 Harold Pike, 81, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 2, wealth 0, soul S-0101\\n#2 June Pike, 34, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety 2, wealth 2600, soul S-0102\\nRelations:\\n#2 -> #1 affinity 75 trust 70 tags grandparent\\nEvents:\\ne1 day 20100 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 20200 offering actors #2 #1 magnitude 20 caused_by e1 tags joss_paper\\ne3 day 21400 dream actors #1 #2 magnitude 0 caused_by — tags —\\nInput: warn: Harold stands beside a cracked ladder leaning on the barn and slowly shakes his head.\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"burn_offering\",\"label\":\"Burn joss paper for Harold and ask him what he meant.\"},{\"id\":\"dismiss_dream\",\"label\":\"Shrug the dream off and reroof the barn as planned.\"},{\"id\":\"read_as_blessing\",\"label\":\"Take the dream as Harold blessing the job and start early.\"},{\"id\":\"heed_warning\",\"label\":\"Check the ladder, then hire help or postpone the roof job.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 21401.\\nJune inherited her grandfather Harold's farm after he died. On Saturday she plans to reroof the barn alone, using Harold's old wooden ladder, which has not been inspected in years. The night before, she dreams of Harold standing beside a cracked ladder, shaking his head. She wakes at dawn.\\nPeople:\\n#1 Harold Pike, 81, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 2, wealth 0, soul S-0101\\n#2 June Pike, 34, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety 2, wealth 2600, soul S-0102\\nRelations:\\n#2 -> #1 affinity 75 trust 70 tags grandparent\\nEvents:\\ne1 day 20100 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 20200 offering actors #2 #1 magnitude 20 caused_by e1 tags joss_paper\\ne3 day 21400 dream actors #1 #2 magnitude 0 caused_by — tags —\\nInput: warn: Harold stands beside a cracked ladder leaning on the barn and slowly shakes his head.\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"dismiss_dream\",\"label\":\"Shrug the dream off and reroof the barn as planned.\"},{\"id\":\"read_as_blessing\",\"label\":\"Take the dream as Harold blessing the job and start early.\"},{\"id\":\"heed_warning\",\"label\":\"Check the ladder, then hire help or postpone the roof job.\"},{\"id\":\"burn_offering\",\"label\":\"Burn joss paper for Harold and ask him what he meant.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 21401.\\nJune inherited her grandfather Harold's farm after he died. On Saturday she plans to reroof the barn alone, using Harold's old wooden ladder, which has not been inspected in years. The night before, she dreams of Harold standing beside a cracked ladder, shaking his head. She wakes at dawn.\\nPeople:\\n#1 Harold Pike, 81, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 2, wealth 0, soul S-0101\\n#2 June Pike, 34, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety 2, wealth 2600, soul S-0102\\nRelations:\\n#2 -> #1 affinity 75 trust 70 tags grandparent\\nEvents:\\ne1 day 20100 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 20200 offering actors #2 #1 magnitude 20 caused_by e1 tags joss_paper\\ne3 day 21400 dream actors #1 #2 magnitude 0 caused_by — tags —\\nInput: warn: Harold stands beside a cracked ladder leaning on the barn and slowly shakes his head.\\nSubject: #2\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-dream_interpretation-002",
+      "raw_choice": [
+        {
+          "label": "exact:heed_warning",
+          "raw": "heed_warning",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"heed_warning\"}}"
+        },
+        {
+          "label": "exact:burn_offering",
+          "raw": "burn_offering",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"burn_offering\"}}"
+        },
+        {
+          "label": "exact:dismiss_dream",
+          "raw": "dismiss_dream",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"dismiss_dream\"}}"
+        },
+        {
+          "label": "exact:read_as_blessing",
+          "raw": "read_as_blessing",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"read_as_blessing\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "heed_warning ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nheed_warning",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "HEED_WARNING",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "heed_warningx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"heed_warning\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"heed_warning\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"heed_warning\",\"label\":\"Check the ladder, then hire help or postpone the roof job.\"},{\"id\":\"burn_offering\",\"label\":\"Burn joss paper for Harold and ask him what he meant.\"},{\"id\":\"dismiss_dream\",\"label\":\"Shrug the dream off and reroof the barn as planned.\"},{\"id\":\"read_as_blessing\",\"label\":\"Take the dream as Harold blessing the job and start early.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 21401.\\nJune inherited her grandfather Harold's farm after he died. On Saturday she plans to reroof the barn alone, using Harold's old wooden ladder, which has not been inspected in years. The night before, she dreams of Harold standing beside a cracked ladder, shaking his head. She wakes at dawn.\\nPeople:\\n#1 Harold Pike, 81, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 2, wealth 0, soul S-0101\\n#2 June Pike, 34, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety -3, wealth 2600, soul S-0102\\nRelations:\\n#2 -> #1 affinity 75 trust 70 tags grandparent\\nEvents:\\ne1 day 20100 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 20200 offering actors #2 #1 magnitude 20 caused_by e1 tags joss_paper\\ne3 day 21400 dream actors #1 #2 magnitude 0 caused_by — tags —\\nInput: warn: Harold stands beside a cracked ladder leaning on the barn and slowly shakes his head.\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"read_as_blessing\",\"label\":\"Take the dream as Harold blessing the job and start early.\"},{\"id\":\"dismiss_dream\",\"label\":\"Shrug the dream off and reroof the barn as planned.\"},{\"id\":\"burn_offering\",\"label\":\"Burn joss paper for Harold and ask him what he meant.\"},{\"id\":\"heed_warning\",\"label\":\"Check the ladder, then hire help or postpone the roof job.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 21401.\\nJune inherited her grandfather Harold's farm after he died. On Saturday she plans to reroof the barn alone, using Harold's old wooden ladder, which has not been inspected in years. The night before, she dreams of Harold standing beside a cracked ladder, shaking his head. She wakes at dawn.\\nPeople:\\n#1 Harold Pike, 81, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 2, wealth 0, soul S-0101\\n#2 June Pike, 34, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety -3, wealth 2600, soul S-0102\\nRelations:\\n#2 -> #1 affinity 75 trust 70 tags grandparent\\nEvents:\\ne1 day 20100 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 20200 offering actors #2 #1 magnitude 20 caused_by e1 tags joss_paper\\ne3 day 21400 dream actors #1 #2 magnitude 0 caused_by — tags —\\nInput: warn: Harold stands beside a cracked ladder leaning on the barn and slowly shakes his head.\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"burn_offering\",\"label\":\"Burn joss paper for Harold and ask him what he meant.\"},{\"id\":\"dismiss_dream\",\"label\":\"Shrug the dream off and reroof the barn as planned.\"},{\"id\":\"read_as_blessing\",\"label\":\"Take the dream as Harold blessing the job and start early.\"},{\"id\":\"heed_warning\",\"label\":\"Check the ladder, then hire help or postpone the roof job.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 21401.\\nJune inherited her grandfather Harold's farm after he died. On Saturday she plans to reroof the barn alone, using Harold's old wooden ladder, which has not been inspected in years. The night before, she dreams of Harold standing beside a cracked ladder, shaking his head. She wakes at dawn.\\nPeople:\\n#1 Harold Pike, 81, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 2, wealth 0, soul S-0101\\n#2 June Pike, 34, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety -3, wealth 2600, soul S-0102\\nRelations:\\n#2 -> #1 affinity 75 trust 70 tags grandparent\\nEvents:\\ne1 day 20100 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 20200 offering actors #2 #1 magnitude 20 caused_by e1 tags joss_paper\\ne3 day 21400 dream actors #1 #2 magnitude 0 caused_by — tags —\\nInput: warn: Harold stands beside a cracked ladder leaning on the barn and slowly shakes his head.\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"dismiss_dream\",\"label\":\"Shrug the dream off and reroof the barn as planned.\"},{\"id\":\"read_as_blessing\",\"label\":\"Take the dream as Harold blessing the job and start early.\"},{\"id\":\"heed_warning\",\"label\":\"Check the ladder, then hire help or postpone the roof job.\"},{\"id\":\"burn_offering\",\"label\":\"Burn joss paper for Harold and ask him what he meant.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 21401.\\nJune inherited her grandfather Harold's farm after he died. On Saturday she plans to reroof the barn alone, using Harold's old wooden ladder, which has not been inspected in years. The night before, she dreams of Harold standing beside a cracked ladder, shaking his head. She wakes at dawn.\\nPeople:\\n#1 Harold Pike, 81, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 2, wealth 0, soul S-0101\\n#2 June Pike, 34, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety -3, wealth 2600, soul S-0102\\nRelations:\\n#2 -> #1 affinity 75 trust 70 tags grandparent\\nEvents:\\ne1 day 20100 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 20200 offering actors #2 #1 magnitude 20 caused_by e1 tags joss_paper\\ne3 day 21400 dream actors #1 #2 magnitude 0 caused_by — tags —\\nInput: warn: Harold stands beside a cracked ladder leaning on the barn and slowly shakes his head.\\nSubject: #2\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-dream_interpretation-003",
+      "raw_choice": [
+        {
+          "label": "exact:burn_offering",
+          "raw": "burn_offering",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"burn_offering\"}}"
+        },
+        {
+          "label": "exact:burn_small",
+          "raw": "burn_small",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"burn_small\"}}"
+        },
+        {
+          "label": "exact:ignore_dream",
+          "raw": "ignore_dream",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"ignore_dream\"}}"
+        },
+        {
+          "label": "exact:sell_house",
+          "raw": "sell_house",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"sell_house\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "burn_offering ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nburn_offering",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "BURN_OFFERING",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "burn_offeringx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"burn_offering\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"burn_offering\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"burn_offering\",\"label\":\"Spend most of her $40 on joss paper for Walter tomorrow.\"},{\"id\":\"burn_small\",\"label\":\"Burn a small bundle she can afford and promise more next month.\"},{\"id\":\"ignore_dream\",\"label\":\"Treat it as a dream about the cold weather and do nothing.\"},{\"id\":\"sell_house\",\"label\":\"Sell the house to buy a mountain of joss paper.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 18800.\\nWalter died two years ago and left Rosa the house and very little money. She has not burned joss paper for him since the funeral; she has $40 left until her pension arrives next week. Tomorrow is the town's autumn offering day. Tonight she dreamed of Walter.\\nPeople:\\n#1 Walter Gray, 74, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0201\\n#2 Rosa Gray, 71, female, alive, native, traits greed 0 loyalty 2 pride 0 warmth 2 temper 0 vindictiveness 0 piety 1, wealth 40, soul S-0202\\nRelations:\\n#2 -> #1 affinity 70 trust 65 tags spouse\\nEvents:\\ne1 day 18000 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 18000 inheritance actors #1 #2 magnitude 85000 caused_by e1 tags house\\ne3 day 18790 dream actors #1 #2 magnitude 0 caused_by — tags —\\nInput: request_offering: Walter sits in a thin coat beside an empty brazier, shivering, and looks at her.\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"sell_house\",\"label\":\"Sell the house to buy a mountain of joss paper.\"},{\"id\":\"ignore_dream\",\"label\":\"Treat it as a dream about the cold weather and do nothing.\"},{\"id\":\"burn_small\",\"label\":\"Burn a small bundle she can afford and promise more next month.\"},{\"id\":\"burn_offering\",\"label\":\"Spend most of her $40 on joss paper for Walter tomorrow.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 18800.\\nWalter died two years ago and left Rosa the house and very little money. She has not burned joss paper for him since the funeral; she has $40 left until her pension arrives next week. Tomorrow is the town's autumn offering day. Tonight she dreamed of Walter.\\nPeople:\\n#1 Walter Gray, 74, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0201\\n#2 Rosa Gray, 71, female, alive, native, traits greed 0 loyalty 2 pride 0 warmth 2 temper 0 vindictiveness 0 piety 1, wealth 40, soul S-0202\\nRelations:\\n#2 -> #1 affinity 70 trust 65 tags spouse\\nEvents:\\ne1 day 18000 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 18000 inheritance actors #1 #2 magnitude 85000 caused_by e1 tags house\\ne3 day 18790 dream actors #1 #2 magnitude 0 caused_by — tags —\\nInput: request_offering: Walter sits in a thin coat beside an empty brazier, shivering, and looks at her.\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"burn_small\",\"label\":\"Burn a small bundle she can afford and promise more next month.\"},{\"id\":\"ignore_dream\",\"label\":\"Treat it as a dream about the cold weather and do nothing.\"},{\"id\":\"sell_house\",\"label\":\"Sell the house to buy a mountain of joss paper.\"},{\"id\":\"burn_offering\",\"label\":\"Spend most of her $40 on joss paper for Walter tomorrow.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 18800.\\nWalter died two years ago and left Rosa the house and very little money. She has not burned joss paper for him since the funeral; she has $40 left until her pension arrives next week. Tomorrow is the town's autumn offering day. Tonight she dreamed of Walter.\\nPeople:\\n#1 Walter Gray, 74, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0201\\n#2 Rosa Gray, 71, female, alive, native, traits greed 0 loyalty 2 pride 0 warmth 2 temper 0 vindictiveness 0 piety 1, wealth 40, soul S-0202\\nRelations:\\n#2 -> #1 affinity 70 trust 65 tags spouse\\nEvents:\\ne1 day 18000 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 18000 inheritance actors #1 #2 magnitude 85000 caused_by e1 tags house\\ne3 day 18790 dream actors #1 #2 magnitude 0 caused_by — tags —\\nInput: request_offering: Walter sits in a thin coat beside an empty brazier, shivering, and looks at her.\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"ignore_dream\",\"label\":\"Treat it as a dream about the cold weather and do nothing.\"},{\"id\":\"sell_house\",\"label\":\"Sell the house to buy a mountain of joss paper.\"},{\"id\":\"burn_offering\",\"label\":\"Spend most of her $40 on joss paper for Walter tomorrow.\"},{\"id\":\"burn_small\",\"label\":\"Burn a small bundle she can afford and promise more next month.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 18800.\\nWalter died two years ago and left Rosa the house and very little money. She has not burned joss paper for him since the funeral; she has $40 left until her pension arrives next week. Tomorrow is the town's autumn offering day. Tonight she dreamed of Walter.\\nPeople:\\n#1 Walter Gray, 74, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0201\\n#2 Rosa Gray, 71, female, alive, native, traits greed 0 loyalty 2 pride 0 warmth 2 temper 0 vindictiveness 0 piety 1, wealth 40, soul S-0202\\nRelations:\\n#2 -> #1 affinity 70 trust 65 tags spouse\\nEvents:\\ne1 day 18000 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 18000 inheritance actors #1 #2 magnitude 85000 caused_by e1 tags house\\ne3 day 18790 dream actors #1 #2 magnitude 0 caused_by — tags —\\nInput: request_offering: Walter sits in a thin coat beside an empty brazier, shivering, and looks at her.\\nSubject: #2\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-will_execution-001",
+      "raw_choice": [
+        {
+          "label": "exact:honor_will",
+          "raw": "honor_will",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"honor_will\"}}"
+        },
+        {
+          "label": "exact:contest_will",
+          "raw": "contest_will",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"contest_will\"}}"
+        },
+        {
+          "label": "exact:hide_will",
+          "raw": "hide_will",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"hide_will\"}}"
+        },
+        {
+          "label": "exact:offer_buyout",
+          "raw": "offer_buyout",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"offer_buyout\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "honor_will ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nhonor_will",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "HONOR_WILL",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "honor_willx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"honor_will\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"honor_will\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"honor_will\",\"label\":\"Hand the will to the town hall; Lena gets the shop.\"},{\"id\":\"contest_will\",\"label\":\"Hand it in, then contest it, claiming Frank was confused.\"},{\"id\":\"hide_will\",\"label\":\"Quietly lose the will so the shop passes to Mark as next of kin.\"},{\"id\":\"offer_buyout\",\"label\":\"Hand it in, then offer Lena cash to give the shop back.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 15220.\\nFrank's written will leaves his hardware shop to Lena, who worked there for twelve years, and leaves his son Mark the house. The will is in a drawer only Mark can reach; nobody else has read it. Mark has a steady job and does not need the shop to live. The town hall asks Mark for the will this week.\\nPeople:\\n#1 Frank Doyle, 77, male, dead, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0301\\n#2 Mark Doyle, 41, male, alive, native, traits greed 3 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 900, soul S-0302\\n#3 Lena Ortiz, 36, female, alive, native, traits greed 0 loyalty 2 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 400, soul S-0303\\nRelations:\\n#2 -> #1 affinity 30 trust 40 tags parent\\n#2 -> #3 affinity 0 trust 10 tags —\\nEvents:\\ne1 day 14000 will actors #1 #3 magnitude 60000 caused_by — tags written private shop\\ne2 day 15210 death actors #1 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"offer_buyout\",\"label\":\"Hand it in, then offer Lena cash to give the shop back.\"},{\"id\":\"hide_will\",\"label\":\"Quietly lose the will so the shop passes to Mark as next of kin.\"},{\"id\":\"contest_will\",\"label\":\"Hand it in, then contest it, claiming Frank was confused.\"},{\"id\":\"honor_will\",\"label\":\"Hand the will to the town hall; Lena gets the shop.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 15220.\\nFrank's written will leaves his hardware shop to Lena, who worked there for twelve years, and leaves his son Mark the house. The will is in a drawer only Mark can reach; nobody else has read it. Mark has a steady job and does not need the shop to live. The town hall asks Mark for the will this week.\\nPeople:\\n#1 Frank Doyle, 77, male, dead, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0301\\n#2 Mark Doyle, 41, male, alive, native, traits greed 3 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 900, soul S-0302\\n#3 Lena Ortiz, 36, female, alive, native, traits greed 0 loyalty 2 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 400, soul S-0303\\nRelations:\\n#2 -> #1 affinity 30 trust 40 tags parent\\n#2 -> #3 affinity 0 trust 10 tags —\\nEvents:\\ne1 day 14000 will actors #1 #3 magnitude 60000 caused_by — tags written private shop\\ne2 day 15210 death actors #1 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"contest_will\",\"label\":\"Hand it in, then contest it, claiming Frank was confused.\"},{\"id\":\"hide_will\",\"label\":\"Quietly lose the will so the shop passes to Mark as next of kin.\"},{\"id\":\"offer_buyout\",\"label\":\"Hand it in, then offer Lena cash to give the shop back.\"},{\"id\":\"honor_will\",\"label\":\"Hand the will to the town hall; Lena gets the shop.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 15220.\\nFrank's written will leaves his hardware shop to Lena, who worked there for twelve years, and leaves his son Mark the house. The will is in a drawer only Mark can reach; nobody else has read it. Mark has a steady job and does not need the shop to live. The town hall asks Mark for the will this week.\\nPeople:\\n#1 Frank Doyle, 77, male, dead, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0301\\n#2 Mark Doyle, 41, male, alive, native, traits greed 3 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 900, soul S-0302\\n#3 Lena Ortiz, 36, female, alive, native, traits greed 0 loyalty 2 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 400, soul S-0303\\nRelations:\\n#2 -> #1 affinity 30 trust 40 tags parent\\n#2 -> #3 affinity 0 trust 10 tags —\\nEvents:\\ne1 day 14000 will actors #1 #3 magnitude 60000 caused_by — tags written private shop\\ne2 day 15210 death actors #1 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"hide_will\",\"label\":\"Quietly lose the will so the shop passes to Mark as next of kin.\"},{\"id\":\"offer_buyout\",\"label\":\"Hand it in, then offer Lena cash to give the shop back.\"},{\"id\":\"honor_will\",\"label\":\"Hand the will to the town hall; Lena gets the shop.\"},{\"id\":\"contest_will\",\"label\":\"Hand it in, then contest it, claiming Frank was confused.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 15220.\\nFrank's written will leaves his hardware shop to Lena, who worked there for twelve years, and leaves his son Mark the house. The will is in a drawer only Mark can reach; nobody else has read it. Mark has a steady job and does not need the shop to live. The town hall asks Mark for the will this week.\\nPeople:\\n#1 Frank Doyle, 77, male, dead, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0301\\n#2 Mark Doyle, 41, male, alive, native, traits greed 3 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 900, soul S-0302\\n#3 Lena Ortiz, 36, female, alive, native, traits greed 0 loyalty 2 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 400, soul S-0303\\nRelations:\\n#2 -> #1 affinity 30 trust 40 tags parent\\n#2 -> #3 affinity 0 trust 10 tags —\\nEvents:\\ne1 day 14000 will actors #1 #3 magnitude 60000 caused_by — tags written private shop\\ne2 day 15210 death actors #1 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #2\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-will_execution-002",
+      "raw_choice": [
+        {
+          "label": "exact:honor_will",
+          "raw": "honor_will",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"honor_will\"}}"
+        },
+        {
+          "label": "exact:contest_will",
+          "raw": "contest_will",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"contest_will\"}}"
+        },
+        {
+          "label": "exact:hide_will",
+          "raw": "hide_will",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"hide_will\"}}"
+        },
+        {
+          "label": "exact:offer_buyout",
+          "raw": "offer_buyout",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"offer_buyout\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "honor_will ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nhonor_will",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "HONOR_WILL",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "honor_willx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"honor_will\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"honor_will\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"honor_will\",\"label\":\"Hand the will to the town hall; Lena gets the shop.\"},{\"id\":\"contest_will\",\"label\":\"Hand it in, then contest it, claiming Frank was confused.\"},{\"id\":\"hide_will\",\"label\":\"Quietly lose the will so the shop passes to Mark as next of kin.\"},{\"id\":\"offer_buyout\",\"label\":\"Hand it in, then offer Lena cash to give the shop back.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 15220.\\nFrank's written will leaves his hardware shop to Lena, who worked there for twelve years, and leaves his son Mark the house. The will is in a drawer only Mark can reach; nobody else has read it. Mark has a steady job and does not need the shop to live. The town hall asks Mark for the will this week.\\nPeople:\\n#1 Frank Doyle, 77, male, dead, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0301\\n#2 Mark Doyle, 41, male, alive, native, traits greed -3 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 900, soul S-0302\\n#3 Lena Ortiz, 36, female, alive, native, traits greed 0 loyalty 2 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 400, soul S-0303\\nRelations:\\n#2 -> #1 affinity 30 trust 40 tags parent\\n#2 -> #3 affinity 0 trust 10 tags —\\nEvents:\\ne1 day 14000 will actors #1 #3 magnitude 60000 caused_by — tags written private shop\\ne2 day 15210 death actors #1 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"offer_buyout\",\"label\":\"Hand it in, then offer Lena cash to give the shop back.\"},{\"id\":\"hide_will\",\"label\":\"Quietly lose the will so the shop passes to Mark as next of kin.\"},{\"id\":\"contest_will\",\"label\":\"Hand it in, then contest it, claiming Frank was confused.\"},{\"id\":\"honor_will\",\"label\":\"Hand the will to the town hall; Lena gets the shop.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 15220.\\nFrank's written will leaves his hardware shop to Lena, who worked there for twelve years, and leaves his son Mark the house. The will is in a drawer only Mark can reach; nobody else has read it. Mark has a steady job and does not need the shop to live. The town hall asks Mark for the will this week.\\nPeople:\\n#1 Frank Doyle, 77, male, dead, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0301\\n#2 Mark Doyle, 41, male, alive, native, traits greed -3 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 900, soul S-0302\\n#3 Lena Ortiz, 36, female, alive, native, traits greed 0 loyalty 2 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 400, soul S-0303\\nRelations:\\n#2 -> #1 affinity 30 trust 40 tags parent\\n#2 -> #3 affinity 0 trust 10 tags —\\nEvents:\\ne1 day 14000 will actors #1 #3 magnitude 60000 caused_by — tags written private shop\\ne2 day 15210 death actors #1 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"contest_will\",\"label\":\"Hand it in, then contest it, claiming Frank was confused.\"},{\"id\":\"hide_will\",\"label\":\"Quietly lose the will so the shop passes to Mark as next of kin.\"},{\"id\":\"offer_buyout\",\"label\":\"Hand it in, then offer Lena cash to give the shop back.\"},{\"id\":\"honor_will\",\"label\":\"Hand the will to the town hall; Lena gets the shop.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 15220.\\nFrank's written will leaves his hardware shop to Lena, who worked there for twelve years, and leaves his son Mark the house. The will is in a drawer only Mark can reach; nobody else has read it. Mark has a steady job and does not need the shop to live. The town hall asks Mark for the will this week.\\nPeople:\\n#1 Frank Doyle, 77, male, dead, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0301\\n#2 Mark Doyle, 41, male, alive, native, traits greed -3 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 900, soul S-0302\\n#3 Lena Ortiz, 36, female, alive, native, traits greed 0 loyalty 2 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 400, soul S-0303\\nRelations:\\n#2 -> #1 affinity 30 trust 40 tags parent\\n#2 -> #3 affinity 0 trust 10 tags —\\nEvents:\\ne1 day 14000 will actors #1 #3 magnitude 60000 caused_by — tags written private shop\\ne2 day 15210 death actors #1 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"hide_will\",\"label\":\"Quietly lose the will so the shop passes to Mark as next of kin.\"},{\"id\":\"offer_buyout\",\"label\":\"Hand it in, then offer Lena cash to give the shop back.\"},{\"id\":\"honor_will\",\"label\":\"Hand the will to the town hall; Lena gets the shop.\"},{\"id\":\"contest_will\",\"label\":\"Hand it in, then contest it, claiming Frank was confused.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 15220.\\nFrank's written will leaves his hardware shop to Lena, who worked there for twelve years, and leaves his son Mark the house. The will is in a drawer only Mark can reach; nobody else has read it. Mark has a steady job and does not need the shop to live. The town hall asks Mark for the will this week.\\nPeople:\\n#1 Frank Doyle, 77, male, dead, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0301\\n#2 Mark Doyle, 41, male, alive, native, traits greed -3 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 900, soul S-0302\\n#3 Lena Ortiz, 36, female, alive, native, traits greed 0 loyalty 2 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 400, soul S-0303\\nRelations:\\n#2 -> #1 affinity 30 trust 40 tags parent\\n#2 -> #3 affinity 0 trust 10 tags —\\nEvents:\\ne1 day 14000 will actors #1 #3 magnitude 60000 caused_by — tags written private shop\\ne2 day 15210 death actors #1 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #2\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-will_execution-003",
+      "raw_choice": [
+        {
+          "label": "exact:accept_and_comply",
+          "raw": "accept_and_comply",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"accept_and_comply\"}}"
+        },
+        {
+          "label": "exact:accept_and_neglect",
+          "raw": "accept_and_neglect",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"accept_and_neglect\"}}"
+        },
+        {
+          "label": "exact:decline_house",
+          "raw": "decline_house",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"decline_house\"}}"
+        },
+        {
+          "label": "exact:dig_up_graves",
+          "raw": "dig_up_graves",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"dig_up_graves\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "accept_and_comply ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\naccept_and_comply",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "ACCEPT_AND_COMPLY",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "accept_and_complyx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"accept_and_comply\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"accept_and_comply\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"accept_and_comply\",\"label\":\"Take the house and keep up the graves as the will asks.\"},{\"id\":\"accept_and_neglect\",\"label\":\"Take the house and quietly let the grave duties slide.\"},{\"id\":\"decline_house\",\"label\":\"Decline the house and keep renting his room.\"},{\"id\":\"dig_up_graves\",\"label\":\"Take the house and dig up the graves to end the duty.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 9300.\\nAgnes's witnessed will leaves her house to her grandson Eli on one condition: he must keep sweeping the family graves and burn joss paper there twice a year. Eli rents a small room and has $150. Nobody checks the graves except the groundskeeper, who visits monthly.\\nPeople:\\n#1 Agnes Novak, 88, female, dead, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 3, wealth 0, soul S-0401\\n#2 Eli Novak, 19, male, alive, native, traits greed 1 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety -2, wealth 150, soul S-0402\\nRelations:\\n#2 -> #1 affinity 50 trust 50 tags grandparent\\nEvents:\\ne1 day 8800 will actors #1 #2 magnitude 45000 caused_by — tags written witnessed house\\ne2 day 9280 death actors #1 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"dig_up_graves\",\"label\":\"Take the house and dig up the graves to end the duty.\"},{\"id\":\"decline_house\",\"label\":\"Decline the house and keep renting his room.\"},{\"id\":\"accept_and_neglect\",\"label\":\"Take the house and quietly let the grave duties slide.\"},{\"id\":\"accept_and_comply\",\"label\":\"Take the house and keep up the graves as the will asks.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 9300.\\nAgnes's witnessed will leaves her house to her grandson Eli on one condition: he must keep sweeping the family graves and burn joss paper there twice a year. Eli rents a small room and has $150. Nobody checks the graves except the groundskeeper, who visits monthly.\\nPeople:\\n#1 Agnes Novak, 88, female, dead, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 3, wealth 0, soul S-0401\\n#2 Eli Novak, 19, male, alive, native, traits greed 1 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety -2, wealth 150, soul S-0402\\nRelations:\\n#2 -> #1 affinity 50 trust 50 tags grandparent\\nEvents:\\ne1 day 8800 will actors #1 #2 magnitude 45000 caused_by — tags written witnessed house\\ne2 day 9280 death actors #1 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"accept_and_neglect\",\"label\":\"Take the house and quietly let the grave duties slide.\"},{\"id\":\"decline_house\",\"label\":\"Decline the house and keep renting his room.\"},{\"id\":\"dig_up_graves\",\"label\":\"Take the house and dig up the graves to end the duty.\"},{\"id\":\"accept_and_comply\",\"label\":\"Take the house and keep up the graves as the will asks.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 9300.\\nAgnes's witnessed will leaves her house to her grandson Eli on one condition: he must keep sweeping the family graves and burn joss paper there twice a year. Eli rents a small room and has $150. Nobody checks the graves except the groundskeeper, who visits monthly.\\nPeople:\\n#1 Agnes Novak, 88, female, dead, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 3, wealth 0, soul S-0401\\n#2 Eli Novak, 19, male, alive, native, traits greed 1 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety -2, wealth 150, soul S-0402\\nRelations:\\n#2 -> #1 affinity 50 trust 50 tags grandparent\\nEvents:\\ne1 day 8800 will actors #1 #2 magnitude 45000 caused_by — tags written witnessed house\\ne2 day 9280 death actors #1 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"decline_house\",\"label\":\"Decline the house and keep renting his room.\"},{\"id\":\"dig_up_graves\",\"label\":\"Take the house and dig up the graves to end the duty.\"},{\"id\":\"accept_and_comply\",\"label\":\"Take the house and keep up the graves as the will asks.\"},{\"id\":\"accept_and_neglect\",\"label\":\"Take the house and quietly let the grave duties slide.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 9300.\\nAgnes's witnessed will leaves her house to her grandson Eli on one condition: he must keep sweeping the family graves and burn joss paper there twice a year. Eli rents a small room and has $150. Nobody checks the graves except the groundskeeper, who visits monthly.\\nPeople:\\n#1 Agnes Novak, 88, female, dead, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 3, wealth 0, soul S-0401\\n#2 Eli Novak, 19, male, alive, native, traits greed 1 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety -2, wealth 150, soul S-0402\\nRelations:\\n#2 -> #1 affinity 50 trust 50 tags grandparent\\nEvents:\\ne1 day 8800 will actors #1 #2 magnitude 45000 caused_by — tags written witnessed house\\ne2 day 9280 death actors #1 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #2\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-reconcile_or_revenge-001",
+      "raw_choice": [
+        {
+          "label": "exact:reconcile",
+          "raw": "reconcile",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"reconcile\"}}"
+        },
+        {
+          "label": "exact:keep_away",
+          "raw": "keep_away",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"keep_away\"}}"
+        },
+        {
+          "label": "exact:public_revenge",
+          "raw": "public_revenge",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"public_revenge\"}}"
+        },
+        {
+          "label": "exact:poison_dog",
+          "raw": "poison_dog",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"poison_dog\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "reconcile ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nreconcile",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "RECONCILE",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "reconcilex",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"reconcile\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"reconcile\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"reconcile\",\"label\":\"Give Beth the job and call the hens even.\"},{\"id\":\"keep_away\",\"label\":\"Say the job is filled and keep her at a distance.\"},{\"id\":\"public_revenge\",\"label\":\"Refuse loudly in front of customers and retell the hen story.\"},{\"id\":\"poison_dog\",\"label\":\"Refuse, then poison Beth's dog that night.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 13000.\\nSix years ago Beth's dog killed Nora's hens. Beth denied it in front of the whole church, though a neighbor had seen it; she never paid for the hens. Beth's husband died this spring and she needs work. Today she walks into Nora's bakery and asks whether the counter job is still open.\\nPeople:\\n#1 Nora Quinn, 52, female, alive, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 3 piety 0, wealth 8000, soul S-0501\\n#2 Beth Lyle, 49, female, alive, native, traits greed 0 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 300, soul S-0502\\n#3 Cal Lyle, 55, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0503\\nRelations:\\n#1 -> #2 affinity -40 trust -50 tags neighbor\\nEvents:\\ne1 day 11000 accident actors #2 #1 magnitude 40 caused_by — tags —\\ne2 day 11005 insult actors #2 #1 magnitude 60 caused_by e1 tags public\\ne3 day 12800 death actors #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"poison_dog\",\"label\":\"Refuse, then poison Beth's dog that night.\"},{\"id\":\"public_revenge\",\"label\":\"Refuse loudly in front of customers and retell the hen story.\"},{\"id\":\"keep_away\",\"label\":\"Say the job is filled and keep her at a distance.\"},{\"id\":\"reconcile\",\"label\":\"Give Beth the job and call the hens even.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 13000.\\nSix years ago Beth's dog killed Nora's hens. Beth denied it in front of the whole church, though a neighbor had seen it; she never paid for the hens. Beth's husband died this spring and she needs work. Today she walks into Nora's bakery and asks whether the counter job is still open.\\nPeople:\\n#1 Nora Quinn, 52, female, alive, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 3 piety 0, wealth 8000, soul S-0501\\n#2 Beth Lyle, 49, female, alive, native, traits greed 0 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 300, soul S-0502\\n#3 Cal Lyle, 55, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0503\\nRelations:\\n#1 -> #2 affinity -40 trust -50 tags neighbor\\nEvents:\\ne1 day 11000 accident actors #2 #1 magnitude 40 caused_by — tags —\\ne2 day 11005 insult actors #2 #1 magnitude 60 caused_by e1 tags public\\ne3 day 12800 death actors #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"keep_away\",\"label\":\"Say the job is filled and keep her at a distance.\"},{\"id\":\"public_revenge\",\"label\":\"Refuse loudly in front of customers and retell the hen story.\"},{\"id\":\"poison_dog\",\"label\":\"Refuse, then poison Beth's dog that night.\"},{\"id\":\"reconcile\",\"label\":\"Give Beth the job and call the hens even.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 13000.\\nSix years ago Beth's dog killed Nora's hens. Beth denied it in front of the whole church, though a neighbor had seen it; she never paid for the hens. Beth's husband died this spring and she needs work. Today she walks into Nora's bakery and asks whether the counter job is still open.\\nPeople:\\n#1 Nora Quinn, 52, female, alive, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 3 piety 0, wealth 8000, soul S-0501\\n#2 Beth Lyle, 49, female, alive, native, traits greed 0 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 300, soul S-0502\\n#3 Cal Lyle, 55, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0503\\nRelations:\\n#1 -> #2 affinity -40 trust -50 tags neighbor\\nEvents:\\ne1 day 11000 accident actors #2 #1 magnitude 40 caused_by — tags —\\ne2 day 11005 insult actors #2 #1 magnitude 60 caused_by e1 tags public\\ne3 day 12800 death actors #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"public_revenge\",\"label\":\"Refuse loudly in front of customers and retell the hen story.\"},{\"id\":\"poison_dog\",\"label\":\"Refuse, then poison Beth's dog that night.\"},{\"id\":\"reconcile\",\"label\":\"Give Beth the job and call the hens even.\"},{\"id\":\"keep_away\",\"label\":\"Say the job is filled and keep her at a distance.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 13000.\\nSix years ago Beth's dog killed Nora's hens. Beth denied it in front of the whole church, though a neighbor had seen it; she never paid for the hens. Beth's husband died this spring and she needs work. Today she walks into Nora's bakery and asks whether the counter job is still open.\\nPeople:\\n#1 Nora Quinn, 52, female, alive, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 3 piety 0, wealth 8000, soul S-0501\\n#2 Beth Lyle, 49, female, alive, native, traits greed 0 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 300, soul S-0502\\n#3 Cal Lyle, 55, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0503\\nRelations:\\n#1 -> #2 affinity -40 trust -50 tags neighbor\\nEvents:\\ne1 day 11000 accident actors #2 #1 magnitude 40 caused_by — tags —\\ne2 day 11005 insult actors #2 #1 magnitude 60 caused_by e1 tags public\\ne3 day 12800 death actors #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-reconcile_or_revenge-002",
+      "raw_choice": [
+        {
+          "label": "exact:reconcile",
+          "raw": "reconcile",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"reconcile\"}}"
+        },
+        {
+          "label": "exact:keep_away",
+          "raw": "keep_away",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"keep_away\"}}"
+        },
+        {
+          "label": "exact:public_revenge",
+          "raw": "public_revenge",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"public_revenge\"}}"
+        },
+        {
+          "label": "exact:poison_dog",
+          "raw": "poison_dog",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"poison_dog\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "reconcile ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nreconcile",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "RECONCILE",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "reconcilex",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"reconcile\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"reconcile\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"reconcile\",\"label\":\"Give Beth the job and call the hens even.\"},{\"id\":\"keep_away\",\"label\":\"Say the job is filled and keep her at a distance.\"},{\"id\":\"public_revenge\",\"label\":\"Refuse loudly in front of customers and retell the hen story.\"},{\"id\":\"poison_dog\",\"label\":\"Refuse, then poison Beth's dog that night.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 13000.\\nSix years ago Beth's dog killed Nora's hens. Beth denied it in front of the whole church, though a neighbor had seen it; she never paid for the hens. Beth's husband died this spring and she needs work. Today she walks into Nora's bakery and asks whether the counter job is still open.\\nPeople:\\n#1 Nora Quinn, 52, female, alive, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness -3 piety 0, wealth 8000, soul S-0501\\n#2 Beth Lyle, 49, female, alive, native, traits greed 0 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 300, soul S-0502\\n#3 Cal Lyle, 55, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0503\\nRelations:\\n#1 -> #2 affinity -40 trust -50 tags neighbor\\nEvents:\\ne1 day 11000 accident actors #2 #1 magnitude 40 caused_by — tags —\\ne2 day 11005 insult actors #2 #1 magnitude 60 caused_by e1 tags public\\ne3 day 12800 death actors #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"poison_dog\",\"label\":\"Refuse, then poison Beth's dog that night.\"},{\"id\":\"public_revenge\",\"label\":\"Refuse loudly in front of customers and retell the hen story.\"},{\"id\":\"keep_away\",\"label\":\"Say the job is filled and keep her at a distance.\"},{\"id\":\"reconcile\",\"label\":\"Give Beth the job and call the hens even.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 13000.\\nSix years ago Beth's dog killed Nora's hens. Beth denied it in front of the whole church, though a neighbor had seen it; she never paid for the hens. Beth's husband died this spring and she needs work. Today she walks into Nora's bakery and asks whether the counter job is still open.\\nPeople:\\n#1 Nora Quinn, 52, female, alive, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness -3 piety 0, wealth 8000, soul S-0501\\n#2 Beth Lyle, 49, female, alive, native, traits greed 0 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 300, soul S-0502\\n#3 Cal Lyle, 55, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0503\\nRelations:\\n#1 -> #2 affinity -40 trust -50 tags neighbor\\nEvents:\\ne1 day 11000 accident actors #2 #1 magnitude 40 caused_by — tags —\\ne2 day 11005 insult actors #2 #1 magnitude 60 caused_by e1 tags public\\ne3 day 12800 death actors #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"keep_away\",\"label\":\"Say the job is filled and keep her at a distance.\"},{\"id\":\"public_revenge\",\"label\":\"Refuse loudly in front of customers and retell the hen story.\"},{\"id\":\"poison_dog\",\"label\":\"Refuse, then poison Beth's dog that night.\"},{\"id\":\"reconcile\",\"label\":\"Give Beth the job and call the hens even.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 13000.\\nSix years ago Beth's dog killed Nora's hens. Beth denied it in front of the whole church, though a neighbor had seen it; she never paid for the hens. Beth's husband died this spring and she needs work. Today she walks into Nora's bakery and asks whether the counter job is still open.\\nPeople:\\n#1 Nora Quinn, 52, female, alive, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness -3 piety 0, wealth 8000, soul S-0501\\n#2 Beth Lyle, 49, female, alive, native, traits greed 0 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 300, soul S-0502\\n#3 Cal Lyle, 55, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0503\\nRelations:\\n#1 -> #2 affinity -40 trust -50 tags neighbor\\nEvents:\\ne1 day 11000 accident actors #2 #1 magnitude 40 caused_by — tags —\\ne2 day 11005 insult actors #2 #1 magnitude 60 caused_by e1 tags public\\ne3 day 12800 death actors #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"public_revenge\",\"label\":\"Refuse loudly in front of customers and retell the hen story.\"},{\"id\":\"poison_dog\",\"label\":\"Refuse, then poison Beth's dog that night.\"},{\"id\":\"reconcile\",\"label\":\"Give Beth the job and call the hens even.\"},{\"id\":\"keep_away\",\"label\":\"Say the job is filled and keep her at a distance.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 13000.\\nSix years ago Beth's dog killed Nora's hens. Beth denied it in front of the whole church, though a neighbor had seen it; she never paid for the hens. Beth's husband died this spring and she needs work. Today she walks into Nora's bakery and asks whether the counter job is still open.\\nPeople:\\n#1 Nora Quinn, 52, female, alive, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness -3 piety 0, wealth 8000, soul S-0501\\n#2 Beth Lyle, 49, female, alive, native, traits greed 0 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 300, soul S-0502\\n#3 Cal Lyle, 55, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0503\\nRelations:\\n#1 -> #2 affinity -40 trust -50 tags neighbor\\nEvents:\\ne1 day 11000 accident actors #2 #1 magnitude 40 caused_by — tags —\\ne2 day 11005 insult actors #2 #1 magnitude 60 caused_by e1 tags public\\ne3 day 12800 death actors #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-reconcile_or_revenge-003",
+      "raw_choice": [
+        {
+          "label": "exact:visit_and_reconcile",
+          "raw": "visit_and_reconcile",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"visit_and_reconcile\"}}"
+        },
+        {
+          "label": "exact:send_letter",
+          "raw": "send_letter",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"send_letter\"}}"
+        },
+        {
+          "label": "exact:refuse",
+          "raw": "refuse",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"refuse\"}}"
+        },
+        {
+          "label": "exact:demand_pasture",
+          "raw": "demand_pasture",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"demand_pasture\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "visit_and_reconcile ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nvisit_and_reconcile",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "VISIT_AND_RECONCILE",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "visit_and_reconcilex",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"visit_and_reconcile\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"visit_and_reconcile\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"visit_and_reconcile\",\"label\":\"Visit Ray and make peace.\"},{\"id\":\"send_letter\",\"label\":\"Send a short letter instead of visiting.\"},{\"id\":\"refuse\",\"label\":\"Refuse to come.\"},{\"id\":\"demand_pasture\",\"label\":\"Visit only to demand the pasture back before Ray dies.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 24100.\\nTwenty years ago Ray sued Victor over their father's pasture and won it. The brothers have not spoken since. Ray is now dying in the county hospital and has sent word through a nurse that he wants to see Victor before the end of the week.\\nPeople:\\n#1 Victor Hale, 66, male, alive, native, traits greed 0 loyalty 0 pride 2 warmth 1 temper 0 vindictiveness 1 piety 0, wealth 12000, soul S-0601\\n#2 Ray Hale, 69, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 7000, soul S-0602\\nRelations:\\n#1 -> #2 affinity -30 trust -20 tags sibling\\nEvents:\\ne1 day 16800 quarrel actors #1 #2 magnitude 70 caused_by — tags land\\ne2 day 16820 lawsuit actors #2 #1 magnitude 5000 caused_by e1 tags land\\ne3 day 24000 illness actors #2 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"demand_pasture\",\"label\":\"Visit only to demand the pasture back before Ray dies.\"},{\"id\":\"refuse\",\"label\":\"Refuse to come.\"},{\"id\":\"send_letter\",\"label\":\"Send a short letter instead of visiting.\"},{\"id\":\"visit_and_reconcile\",\"label\":\"Visit Ray and make peace.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 24100.\\nTwenty years ago Ray sued Victor over their father's pasture and won it. The brothers have not spoken since. Ray is now dying in the county hospital and has sent word through a nurse that he wants to see Victor before the end of the week.\\nPeople:\\n#1 Victor Hale, 66, male, alive, native, traits greed 0 loyalty 0 pride 2 warmth 1 temper 0 vindictiveness 1 piety 0, wealth 12000, soul S-0601\\n#2 Ray Hale, 69, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 7000, soul S-0602\\nRelations:\\n#1 -> #2 affinity -30 trust -20 tags sibling\\nEvents:\\ne1 day 16800 quarrel actors #1 #2 magnitude 70 caused_by — tags land\\ne2 day 16820 lawsuit actors #2 #1 magnitude 5000 caused_by e1 tags land\\ne3 day 24000 illness actors #2 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"send_letter\",\"label\":\"Send a short letter instead of visiting.\"},{\"id\":\"refuse\",\"label\":\"Refuse to come.\"},{\"id\":\"demand_pasture\",\"label\":\"Visit only to demand the pasture back before Ray dies.\"},{\"id\":\"visit_and_reconcile\",\"label\":\"Visit Ray and make peace.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 24100.\\nTwenty years ago Ray sued Victor over their father's pasture and won it. The brothers have not spoken since. Ray is now dying in the county hospital and has sent word through a nurse that he wants to see Victor before the end of the week.\\nPeople:\\n#1 Victor Hale, 66, male, alive, native, traits greed 0 loyalty 0 pride 2 warmth 1 temper 0 vindictiveness 1 piety 0, wealth 12000, soul S-0601\\n#2 Ray Hale, 69, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 7000, soul S-0602\\nRelations:\\n#1 -> #2 affinity -30 trust -20 tags sibling\\nEvents:\\ne1 day 16800 quarrel actors #1 #2 magnitude 70 caused_by — tags land\\ne2 day 16820 lawsuit actors #2 #1 magnitude 5000 caused_by e1 tags land\\ne3 day 24000 illness actors #2 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"refuse\",\"label\":\"Refuse to come.\"},{\"id\":\"demand_pasture\",\"label\":\"Visit only to demand the pasture back before Ray dies.\"},{\"id\":\"visit_and_reconcile\",\"label\":\"Visit Ray and make peace.\"},{\"id\":\"send_letter\",\"label\":\"Send a short letter instead of visiting.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 24100.\\nTwenty years ago Ray sued Victor over their father's pasture and won it. The brothers have not spoken since. Ray is now dying in the county hospital and has sent word through a nurse that he wants to see Victor before the end of the week.\\nPeople:\\n#1 Victor Hale, 66, male, alive, native, traits greed 0 loyalty 0 pride 2 warmth 1 temper 0 vindictiveness 1 piety 0, wealth 12000, soul S-0601\\n#2 Ray Hale, 69, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 7000, soul S-0602\\nRelations:\\n#1 -> #2 affinity -30 trust -20 tags sibling\\nEvents:\\ne1 day 16800 quarrel actors #1 #2 magnitude 70 caused_by — tags land\\ne2 day 16820 lawsuit actors #2 #1 magnitude 5000 caused_by e1 tags land\\ne3 day 24000 illness actors #2 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-debt_repayment-001",
+      "raw_choice": [
+        {
+          "label": "exact:repay",
+          "raw": "repay",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"repay\"}}"
+        },
+        {
+          "label": "exact:ask_extension",
+          "raw": "ask_extension",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"ask_extension\"}}"
+        },
+        {
+          "label": "exact:pay_part",
+          "raw": "pay_part",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"pay_part\"}}"
+        },
+        {
+          "label": "exact:deny_debt",
+          "raw": "deny_debt",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"deny_debt\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "repay ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nrepay",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "REPAY",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "repayx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"repay\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"repay\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"repay\",\"label\":\"Repay the full $1,200 now.\"},{\"id\":\"ask_extension\",\"label\":\"Explain and ask Iris for three more months.\"},{\"id\":\"pay_part\",\"label\":\"Pay $300 now and promise the rest within two months.\"},{\"id\":\"deny_debt\",\"label\":\"Tell Iris the money was a gift.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 7210.\\nIris lent Tom $1,200 in cash against a signed note, due a month ago. Tom has $9,000 in savings. His rent of $1,100 is due in a week. Iris stops him outside the post office and asks about the money.\\nPeople:\\n#1 Tom Reyes, 38, male, alive, native, traits greed 0 loyalty 1 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 9000, soul S-0701\\n#2 Iris Bloom, 63, female, alive, native, traits greed 1 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 20000, soul S-0702\\nRelations:\\n#1 -> #2 affinity 20 trust 40 tags neighbor\\nEvents:\\ne1 day 7000 loan actors #2 #1 magnitude 1200 caused_by — tags written cash, due day 7180\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"deny_debt\",\"label\":\"Tell Iris the money was a gift.\"},{\"id\":\"pay_part\",\"label\":\"Pay $300 now and promise the rest within two months.\"},{\"id\":\"ask_extension\",\"label\":\"Explain and ask Iris for three more months.\"},{\"id\":\"repay\",\"label\":\"Repay the full $1,200 now.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 7210.\\nIris lent Tom $1,200 in cash against a signed note, due a month ago. Tom has $9,000 in savings. His rent of $1,100 is due in a week. Iris stops him outside the post office and asks about the money.\\nPeople:\\n#1 Tom Reyes, 38, male, alive, native, traits greed 0 loyalty 1 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 9000, soul S-0701\\n#2 Iris Bloom, 63, female, alive, native, traits greed 1 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 20000, soul S-0702\\nRelations:\\n#1 -> #2 affinity 20 trust 40 tags neighbor\\nEvents:\\ne1 day 7000 loan actors #2 #1 magnitude 1200 caused_by — tags written cash, due day 7180\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"ask_extension\",\"label\":\"Explain and ask Iris for three more months.\"},{\"id\":\"pay_part\",\"label\":\"Pay $300 now and promise the rest within two months.\"},{\"id\":\"deny_debt\",\"label\":\"Tell Iris the money was a gift.\"},{\"id\":\"repay\",\"label\":\"Repay the full $1,200 now.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 7210.\\nIris lent Tom $1,200 in cash against a signed note, due a month ago. Tom has $9,000 in savings. His rent of $1,100 is due in a week. Iris stops him outside the post office and asks about the money.\\nPeople:\\n#1 Tom Reyes, 38, male, alive, native, traits greed 0 loyalty 1 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 9000, soul S-0701\\n#2 Iris Bloom, 63, female, alive, native, traits greed 1 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 20000, soul S-0702\\nRelations:\\n#1 -> #2 affinity 20 trust 40 tags neighbor\\nEvents:\\ne1 day 7000 loan actors #2 #1 magnitude 1200 caused_by — tags written cash, due day 7180\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"pay_part\",\"label\":\"Pay $300 now and promise the rest within two months.\"},{\"id\":\"deny_debt\",\"label\":\"Tell Iris the money was a gift.\"},{\"id\":\"repay\",\"label\":\"Repay the full $1,200 now.\"},{\"id\":\"ask_extension\",\"label\":\"Explain and ask Iris for three more months.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 7210.\\nIris lent Tom $1,200 in cash against a signed note, due a month ago. Tom has $9,000 in savings. His rent of $1,100 is due in a week. Iris stops him outside the post office and asks about the money.\\nPeople:\\n#1 Tom Reyes, 38, male, alive, native, traits greed 0 loyalty 1 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 9000, soul S-0701\\n#2 Iris Bloom, 63, female, alive, native, traits greed 1 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 20000, soul S-0702\\nRelations:\\n#1 -> #2 affinity 20 trust 40 tags neighbor\\nEvents:\\ne1 day 7000 loan actors #2 #1 magnitude 1200 caused_by — tags written cash, due day 7180\\nInput: none\\nSubject: #1\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-debt_repayment-002",
+      "raw_choice": [
+        {
+          "label": "exact:repay",
+          "raw": "repay",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"repay\"}}"
+        },
+        {
+          "label": "exact:ask_extension",
+          "raw": "ask_extension",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"ask_extension\"}}"
+        },
+        {
+          "label": "exact:pay_part",
+          "raw": "pay_part",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"pay_part\"}}"
+        },
+        {
+          "label": "exact:deny_debt",
+          "raw": "deny_debt",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"deny_debt\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "repay ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nrepay",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "REPAY",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "repayx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"repay\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"repay\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"repay\",\"label\":\"Repay the full $1,200 now.\"},{\"id\":\"ask_extension\",\"label\":\"Explain and ask Iris for three more months.\"},{\"id\":\"pay_part\",\"label\":\"Pay $300 now and promise the rest within two months.\"},{\"id\":\"deny_debt\",\"label\":\"Tell Iris the money was a gift.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 7210.\\nIris lent Tom $1,200 in cash against a signed note, due a month ago. Tom has $1,300 in savings. His rent of $1,100 is due in a week. Iris stops him outside the post office and asks about the money.\\nPeople:\\n#1 Tom Reyes, 38, male, alive, native, traits greed 0 loyalty 1 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 1300, soul S-0701\\n#2 Iris Bloom, 63, female, alive, native, traits greed 1 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 20000, soul S-0702\\nRelations:\\n#1 -> #2 affinity 20 trust 40 tags neighbor\\nEvents:\\ne1 day 7000 loan actors #2 #1 magnitude 1200 caused_by — tags written cash, due day 7180\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"deny_debt\",\"label\":\"Tell Iris the money was a gift.\"},{\"id\":\"pay_part\",\"label\":\"Pay $300 now and promise the rest within two months.\"},{\"id\":\"ask_extension\",\"label\":\"Explain and ask Iris for three more months.\"},{\"id\":\"repay\",\"label\":\"Repay the full $1,200 now.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 7210.\\nIris lent Tom $1,200 in cash against a signed note, due a month ago. Tom has $1,300 in savings. His rent of $1,100 is due in a week. Iris stops him outside the post office and asks about the money.\\nPeople:\\n#1 Tom Reyes, 38, male, alive, native, traits greed 0 loyalty 1 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 1300, soul S-0701\\n#2 Iris Bloom, 63, female, alive, native, traits greed 1 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 20000, soul S-0702\\nRelations:\\n#1 -> #2 affinity 20 trust 40 tags neighbor\\nEvents:\\ne1 day 7000 loan actors #2 #1 magnitude 1200 caused_by — tags written cash, due day 7180\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"ask_extension\",\"label\":\"Explain and ask Iris for three more months.\"},{\"id\":\"pay_part\",\"label\":\"Pay $300 now and promise the rest within two months.\"},{\"id\":\"deny_debt\",\"label\":\"Tell Iris the money was a gift.\"},{\"id\":\"repay\",\"label\":\"Repay the full $1,200 now.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 7210.\\nIris lent Tom $1,200 in cash against a signed note, due a month ago. Tom has $1,300 in savings. His rent of $1,100 is due in a week. Iris stops him outside the post office and asks about the money.\\nPeople:\\n#1 Tom Reyes, 38, male, alive, native, traits greed 0 loyalty 1 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 1300, soul S-0701\\n#2 Iris Bloom, 63, female, alive, native, traits greed 1 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 20000, soul S-0702\\nRelations:\\n#1 -> #2 affinity 20 trust 40 tags neighbor\\nEvents:\\ne1 day 7000 loan actors #2 #1 magnitude 1200 caused_by — tags written cash, due day 7180\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"pay_part\",\"label\":\"Pay $300 now and promise the rest within two months.\"},{\"id\":\"deny_debt\",\"label\":\"Tell Iris the money was a gift.\"},{\"id\":\"repay\",\"label\":\"Repay the full $1,200 now.\"},{\"id\":\"ask_extension\",\"label\":\"Explain and ask Iris for three more months.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 7210.\\nIris lent Tom $1,200 in cash against a signed note, due a month ago. Tom has $1,300 in savings. His rent of $1,100 is due in a week. Iris stops him outside the post office and asks about the money.\\nPeople:\\n#1 Tom Reyes, 38, male, alive, native, traits greed 0 loyalty 1 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 1300, soul S-0701\\n#2 Iris Bloom, 63, female, alive, native, traits greed 1 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 20000, soul S-0702\\nRelations:\\n#1 -> #2 affinity 20 trust 40 tags neighbor\\nEvents:\\ne1 day 7000 loan actors #2 #1 magnitude 1200 caused_by — tags written cash, due day 7180\\nInput: none\\nSubject: #1\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-debt_repayment-003",
+      "raw_choice": [
+        {
+          "label": "exact:repay",
+          "raw": "repay",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"repay\"}}"
+        },
+        {
+          "label": "exact:ask_extension",
+          "raw": "ask_extension",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"ask_extension\"}}"
+        },
+        {
+          "label": "exact:refuse_inherited",
+          "raw": "refuse_inherited",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"refuse_inherited\"}}"
+        },
+        {
+          "label": "exact:work_it_off",
+          "raw": "work_it_off",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"work_it_off\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "repay ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nrepay",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "REPAY",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "repayx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"repay\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"repay\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"repay\",\"label\":\"Pay Sam the $800 from the estate money.\"},{\"id\":\"ask_extension\",\"label\":\"Ask Sam for a year to pay.\"},{\"id\":\"refuse_inherited\",\"label\":\"Write back that her father's debts died with him.\"},{\"id\":\"work_it_off\",\"label\":\"Offer to work weekends at the grocery instead.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 10500.\\nGrace's father Hank owed the grocer Sam $800 on a signed note when he died. Under town rules the debt passed to Grace along with $2,000 from his estate. Sam sends Grace a polite letter asking how she would like to settle it.\\nPeople:\\n#1 Hank Wu, 72, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0801\\n#2 Grace Wu, 45, female, alive, native, traits greed 2 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 3000, soul S-0802\\n#3 Sam Patel, 58, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 15000, soul S-0803\\nRelations:\\n#2 -> #3 affinity 10 trust 20 tags —\\nEvents:\\ne1 day 9600 loan actors #3 #1 magnitude 800 caused_by — tags written, due day 9960\\ne2 day 10300 death actors #1 magnitude 0 caused_by — tags —\\ne3 day 10300 inheritance actors #1 #2 magnitude 2000 caused_by e2 tags cash\\ne4 day 10300 debt_transfer actors #1 #2 magnitude 800 caused_by e1 e3 tags —\\nInput: none\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"work_it_off\",\"label\":\"Offer to work weekends at the grocery instead.\"},{\"id\":\"refuse_inherited\",\"label\":\"Write back that her father's debts died with him.\"},{\"id\":\"ask_extension\",\"label\":\"Ask Sam for a year to pay.\"},{\"id\":\"repay\",\"label\":\"Pay Sam the $800 from the estate money.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 10500.\\nGrace's father Hank owed the grocer Sam $800 on a signed note when he died. Under town rules the debt passed to Grace along with $2,000 from his estate. Sam sends Grace a polite letter asking how she would like to settle it.\\nPeople:\\n#1 Hank Wu, 72, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0801\\n#2 Grace Wu, 45, female, alive, native, traits greed 2 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 3000, soul S-0802\\n#3 Sam Patel, 58, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 15000, soul S-0803\\nRelations:\\n#2 -> #3 affinity 10 trust 20 tags —\\nEvents:\\ne1 day 9600 loan actors #3 #1 magnitude 800 caused_by — tags written, due day 9960\\ne2 day 10300 death actors #1 magnitude 0 caused_by — tags —\\ne3 day 10300 inheritance actors #1 #2 magnitude 2000 caused_by e2 tags cash\\ne4 day 10300 debt_transfer actors #1 #2 magnitude 800 caused_by e1 e3 tags —\\nInput: none\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"ask_extension\",\"label\":\"Ask Sam for a year to pay.\"},{\"id\":\"refuse_inherited\",\"label\":\"Write back that her father's debts died with him.\"},{\"id\":\"work_it_off\",\"label\":\"Offer to work weekends at the grocery instead.\"},{\"id\":\"repay\",\"label\":\"Pay Sam the $800 from the estate money.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 10500.\\nGrace's father Hank owed the grocer Sam $800 on a signed note when he died. Under town rules the debt passed to Grace along with $2,000 from his estate. Sam sends Grace a polite letter asking how she would like to settle it.\\nPeople:\\n#1 Hank Wu, 72, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0801\\n#2 Grace Wu, 45, female, alive, native, traits greed 2 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 3000, soul S-0802\\n#3 Sam Patel, 58, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 15000, soul S-0803\\nRelations:\\n#2 -> #3 affinity 10 trust 20 tags —\\nEvents:\\ne1 day 9600 loan actors #3 #1 magnitude 800 caused_by — tags written, due day 9960\\ne2 day 10300 death actors #1 magnitude 0 caused_by — tags —\\ne3 day 10300 inheritance actors #1 #2 magnitude 2000 caused_by e2 tags cash\\ne4 day 10300 debt_transfer actors #1 #2 magnitude 800 caused_by e1 e3 tags —\\nInput: none\\nSubject: #2\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"refuse_inherited\",\"label\":\"Write back that her father's debts died with him.\"},{\"id\":\"work_it_off\",\"label\":\"Offer to work weekends at the grocery instead.\"},{\"id\":\"repay\",\"label\":\"Pay Sam the $800 from the estate money.\"},{\"id\":\"ask_extension\",\"label\":\"Ask Sam for a year to pay.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 10500.\\nGrace's father Hank owed the grocer Sam $800 on a signed note when he died. Under town rules the debt passed to Grace along with $2,000 from his estate. Sam sends Grace a polite letter asking how she would like to settle it.\\nPeople:\\n#1 Hank Wu, 72, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0801\\n#2 Grace Wu, 45, female, alive, native, traits greed 2 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 3000, soul S-0802\\n#3 Sam Patel, 58, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 15000, soul S-0803\\nRelations:\\n#2 -> #3 affinity 10 trust 20 tags —\\nEvents:\\ne1 day 9600 loan actors #3 #1 magnitude 800 caused_by — tags written, due day 9960\\ne2 day 10300 death actors #1 magnitude 0 caused_by — tags —\\ne3 day 10300 inheritance actors #1 #2 magnitude 2000 caused_by e2 tags cash\\ne4 day 10300 debt_transfer actors #1 #2 magnitude 800 caused_by e1 e3 tags —\\nInput: none\\nSubject: #2\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-remarriage-001",
+      "raw_choice": [
+        {
+          "label": "exact:accept",
+          "raw": "accept",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"accept\"}}"
+        },
+        {
+          "label": "exact:ask_to_wait",
+          "raw": "ask_to_wait",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"ask_to_wait\"}}"
+        },
+        {
+          "label": "exact:decline",
+          "raw": "decline",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"decline\"}}"
+        },
+        {
+          "label": "exact:elope_tonight",
+          "raw": "elope_tonight",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"elope_tonight\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "accept ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\naccept",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "ACCEPT",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "acceptx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"accept\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"accept\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"accept\",\"label\":\"Accept Hugh's proposal.\"},{\"id\":\"ask_to_wait\",\"label\":\"Ask Hugh to wait a year and keep seeing him.\"},{\"id\":\"decline\",\"label\":\"Decline and stay a widow.\"},{\"id\":\"elope_tonight\",\"label\":\"Run off with Hugh tonight without telling her children.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 20000.\\nClara's husband Dean died four months ago after thirty years of marriage. Hugh, a widower from church, has walked her home every Sunday for seven weeks. Tonight he proposes. Clara's grown children live nearby and like Hugh.\\nPeople:\\n#1 Clara Finch, 58, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 5000, soul S-0901\\n#2 Dean Finch, 61, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0902\\n#3 Hugh Barr, 60, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 7000, soul S-0903\\nRelations:\\n#1 -> #2 affinity 70 trust 70 tags spouse\\n#1 -> #3 affinity 55 trust 50 tags suitor\\nEvents:\\ne1 day 19880 death actors #2 magnitude 0 caused_by — tags —\\ne2 day 19950 courtship actors #3 #1 magnitude 0 caused_by — tags —\\ne3 day 20000 courtship actors #3 #1 magnitude 80 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"elope_tonight\",\"label\":\"Run off with Hugh tonight without telling her children.\"},{\"id\":\"decline\",\"label\":\"Decline and stay a widow.\"},{\"id\":\"ask_to_wait\",\"label\":\"Ask Hugh to wait a year and keep seeing him.\"},{\"id\":\"accept\",\"label\":\"Accept Hugh's proposal.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 20000.\\nClara's husband Dean died four months ago after thirty years of marriage. Hugh, a widower from church, has walked her home every Sunday for seven weeks. Tonight he proposes. Clara's grown children live nearby and like Hugh.\\nPeople:\\n#1 Clara Finch, 58, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 5000, soul S-0901\\n#2 Dean Finch, 61, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0902\\n#3 Hugh Barr, 60, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 7000, soul S-0903\\nRelations:\\n#1 -> #2 affinity 70 trust 70 tags spouse\\n#1 -> #3 affinity 55 trust 50 tags suitor\\nEvents:\\ne1 day 19880 death actors #2 magnitude 0 caused_by — tags —\\ne2 day 19950 courtship actors #3 #1 magnitude 0 caused_by — tags —\\ne3 day 20000 courtship actors #3 #1 magnitude 80 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"ask_to_wait\",\"label\":\"Ask Hugh to wait a year and keep seeing him.\"},{\"id\":\"decline\",\"label\":\"Decline and stay a widow.\"},{\"id\":\"elope_tonight\",\"label\":\"Run off with Hugh tonight without telling her children.\"},{\"id\":\"accept\",\"label\":\"Accept Hugh's proposal.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 20000.\\nClara's husband Dean died four months ago after thirty years of marriage. Hugh, a widower from church, has walked her home every Sunday for seven weeks. Tonight he proposes. Clara's grown children live nearby and like Hugh.\\nPeople:\\n#1 Clara Finch, 58, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 5000, soul S-0901\\n#2 Dean Finch, 61, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0902\\n#3 Hugh Barr, 60, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 7000, soul S-0903\\nRelations:\\n#1 -> #2 affinity 70 trust 70 tags spouse\\n#1 -> #3 affinity 55 trust 50 tags suitor\\nEvents:\\ne1 day 19880 death actors #2 magnitude 0 caused_by — tags —\\ne2 day 19950 courtship actors #3 #1 magnitude 0 caused_by — tags —\\ne3 day 20000 courtship actors #3 #1 magnitude 80 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"decline\",\"label\":\"Decline and stay a widow.\"},{\"id\":\"elope_tonight\",\"label\":\"Run off with Hugh tonight without telling her children.\"},{\"id\":\"accept\",\"label\":\"Accept Hugh's proposal.\"},{\"id\":\"ask_to_wait\",\"label\":\"Ask Hugh to wait a year and keep seeing him.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 20000.\\nClara's husband Dean died four months ago after thirty years of marriage. Hugh, a widower from church, has walked her home every Sunday for seven weeks. Tonight he proposes. Clara's grown children live nearby and like Hugh.\\nPeople:\\n#1 Clara Finch, 58, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 5000, soul S-0901\\n#2 Dean Finch, 61, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0902\\n#3 Hugh Barr, 60, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 7000, soul S-0903\\nRelations:\\n#1 -> #2 affinity 70 trust 70 tags spouse\\n#1 -> #3 affinity 55 trust 50 tags suitor\\nEvents:\\ne1 day 19880 death actors #2 magnitude 0 caused_by — tags —\\ne2 day 19950 courtship actors #3 #1 magnitude 0 caused_by — tags —\\ne3 day 20000 courtship actors #3 #1 magnitude 80 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-remarriage-002",
+      "raw_choice": [
+        {
+          "label": "exact:accept",
+          "raw": "accept",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"accept\"}}"
+        },
+        {
+          "label": "exact:ask_to_wait",
+          "raw": "ask_to_wait",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"ask_to_wait\"}}"
+        },
+        {
+          "label": "exact:decline",
+          "raw": "decline",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"decline\"}}"
+        },
+        {
+          "label": "exact:elope_tonight",
+          "raw": "elope_tonight",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"elope_tonight\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "accept ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\naccept",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "ACCEPT",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "acceptx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"accept\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"accept\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"accept\",\"label\":\"Accept Hugh's proposal.\"},{\"id\":\"ask_to_wait\",\"label\":\"Ask Hugh to wait a year and keep seeing him.\"},{\"id\":\"decline\",\"label\":\"Decline and stay a widow.\"},{\"id\":\"elope_tonight\",\"label\":\"Run off with Hugh tonight without telling her children.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 20000.\\nClara's husband Dean died six years ago after thirty years of marriage. Hugh, a widower from church, has walked her home every Sunday for seven weeks. Tonight he proposes. Clara's grown children live nearby and like Hugh.\\nPeople:\\n#1 Clara Finch, 58, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 5000, soul S-0901\\n#2 Dean Finch, 61, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0902\\n#3 Hugh Barr, 60, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 7000, soul S-0903\\nRelations:\\n#1 -> #2 affinity 70 trust 70 tags spouse\\n#1 -> #3 affinity 55 trust 50 tags suitor\\nEvents:\\ne1 day 17810 death actors #2 magnitude 0 caused_by — tags —\\ne2 day 19950 courtship actors #3 #1 magnitude 0 caused_by — tags —\\ne3 day 20000 courtship actors #3 #1 magnitude 80 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"elope_tonight\",\"label\":\"Run off with Hugh tonight without telling her children.\"},{\"id\":\"decline\",\"label\":\"Decline and stay a widow.\"},{\"id\":\"ask_to_wait\",\"label\":\"Ask Hugh to wait a year and keep seeing him.\"},{\"id\":\"accept\",\"label\":\"Accept Hugh's proposal.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 20000.\\nClara's husband Dean died six years ago after thirty years of marriage. Hugh, a widower from church, has walked her home every Sunday for seven weeks. Tonight he proposes. Clara's grown children live nearby and like Hugh.\\nPeople:\\n#1 Clara Finch, 58, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 5000, soul S-0901\\n#2 Dean Finch, 61, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0902\\n#3 Hugh Barr, 60, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 7000, soul S-0903\\nRelations:\\n#1 -> #2 affinity 70 trust 70 tags spouse\\n#1 -> #3 affinity 55 trust 50 tags suitor\\nEvents:\\ne1 day 17810 death actors #2 magnitude 0 caused_by — tags —\\ne2 day 19950 courtship actors #3 #1 magnitude 0 caused_by — tags —\\ne3 day 20000 courtship actors #3 #1 magnitude 80 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"ask_to_wait\",\"label\":\"Ask Hugh to wait a year and keep seeing him.\"},{\"id\":\"decline\",\"label\":\"Decline and stay a widow.\"},{\"id\":\"elope_tonight\",\"label\":\"Run off with Hugh tonight without telling her children.\"},{\"id\":\"accept\",\"label\":\"Accept Hugh's proposal.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 20000.\\nClara's husband Dean died six years ago after thirty years of marriage. Hugh, a widower from church, has walked her home every Sunday for seven weeks. Tonight he proposes. Clara's grown children live nearby and like Hugh.\\nPeople:\\n#1 Clara Finch, 58, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 5000, soul S-0901\\n#2 Dean Finch, 61, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0902\\n#3 Hugh Barr, 60, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 7000, soul S-0903\\nRelations:\\n#1 -> #2 affinity 70 trust 70 tags spouse\\n#1 -> #3 affinity 55 trust 50 tags suitor\\nEvents:\\ne1 day 17810 death actors #2 magnitude 0 caused_by — tags —\\ne2 day 19950 courtship actors #3 #1 magnitude 0 caused_by — tags —\\ne3 day 20000 courtship actors #3 #1 magnitude 80 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"decline\",\"label\":\"Decline and stay a widow.\"},{\"id\":\"elope_tonight\",\"label\":\"Run off with Hugh tonight without telling her children.\"},{\"id\":\"accept\",\"label\":\"Accept Hugh's proposal.\"},{\"id\":\"ask_to_wait\",\"label\":\"Ask Hugh to wait a year and keep seeing him.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 20000.\\nClara's husband Dean died six years ago after thirty years of marriage. Hugh, a widower from church, has walked her home every Sunday for seven weeks. Tonight he proposes. Clara's grown children live nearby and like Hugh.\\nPeople:\\n#1 Clara Finch, 58, female, alive, native, traits greed 0 loyalty 1 pride 0 warmth 1 temper 0 vindictiveness 0 piety 0, wealth 5000, soul S-0901\\n#2 Dean Finch, 61, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-0902\\n#3 Hugh Barr, 60, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 7000, soul S-0903\\nRelations:\\n#1 -> #2 affinity 70 trust 70 tags spouse\\n#1 -> #3 affinity 55 trust 50 tags suitor\\nEvents:\\ne1 day 17810 death actors #2 magnitude 0 caused_by — tags —\\ne2 day 19950 courtship actors #3 #1 magnitude 0 caused_by — tags —\\ne3 day 20000 courtship actors #3 #1 magnitude 80 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-remarriage-003",
+      "raw_choice": [
+        {
+          "label": "exact:propose_to_mae",
+          "raw": "propose_to_mae",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"propose_to_mae\"}}"
+        },
+        {
+          "label": "exact:stay_single",
+          "raw": "stay_single",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"stay_single\"}}"
+        },
+        {
+          "label": "exact:court_someone_new",
+          "raw": "court_someone_new",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"court_someone_new\"}}"
+        },
+        {
+          "label": "exact:send_children_away",
+          "raw": "send_children_away",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"send_children_away\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "propose_to_mae ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\npropose_to_mae",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "PROPOSE_TO_MAE",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "propose_to_maex",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"propose_to_mae\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"propose_to_mae\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"propose_to_mae\",\"label\":\"Ask Mae to marry him.\"},{\"id\":\"stay_single\",\"label\":\"Stay single and keep things as they are.\"},{\"id\":\"court_someone_new\",\"label\":\"Start courting the new schoolteacher.\"},{\"id\":\"send_children_away\",\"label\":\"Send the children to an aunt out of state so he can date freely.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 12400.\\nLeo's wife Ivy died two years ago, leaving him with Finn, 6, and Rue, 4. Ivy's unmarried sister Mae has helped with the children almost every day since. Leo's mother says the children need a stepmother and that he should decide this year.\\nPeople:\\n#1 Leo Banks, 35, male, alive, native, traits greed 0 loyalty 1 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 2500, soul S-1001\\n#2 Ivy Banks, 31, female, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1002\\n#3 Mae Hart, 33, female, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 1800, soul S-1003\\n#4 Finn Banks, 6, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1004\\n#5 Rue Banks, 4, female, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1005\\nRelations:\\n#1 -> #2 affinity 80 trust 80 tags spouse\\n#1 -> #3 affinity 60 trust 75 tags in_law\\n#1 -> #4 affinity 90 trust 60 tags child\\n#1 -> #5 affinity 90 trust 60 tags child\\nEvents:\\ne1 day 11670 death actors #2 magnitude 0 caused_by — tags —\\ne2 day 11700 help actors #3 #1 magnitude 70 caused_by e1 tags —\\ne3 day 12300 help actors #3 #1 magnitude 70 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"send_children_away\",\"label\":\"Send the children to an aunt out of state so he can date freely.\"},{\"id\":\"court_someone_new\",\"label\":\"Start courting the new schoolteacher.\"},{\"id\":\"stay_single\",\"label\":\"Stay single and keep things as they are.\"},{\"id\":\"propose_to_mae\",\"label\":\"Ask Mae to marry him.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 12400.\\nLeo's wife Ivy died two years ago, leaving him with Finn, 6, and Rue, 4. Ivy's unmarried sister Mae has helped with the children almost every day since. Leo's mother says the children need a stepmother and that he should decide this year.\\nPeople:\\n#1 Leo Banks, 35, male, alive, native, traits greed 0 loyalty 1 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 2500, soul S-1001\\n#2 Ivy Banks, 31, female, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1002\\n#3 Mae Hart, 33, female, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 1800, soul S-1003\\n#4 Finn Banks, 6, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1004\\n#5 Rue Banks, 4, female, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1005\\nRelations:\\n#1 -> #2 affinity 80 trust 80 tags spouse\\n#1 -> #3 affinity 60 trust 75 tags in_law\\n#1 -> #4 affinity 90 trust 60 tags child\\n#1 -> #5 affinity 90 trust 60 tags child\\nEvents:\\ne1 day 11670 death actors #2 magnitude 0 caused_by — tags —\\ne2 day 11700 help actors #3 #1 magnitude 70 caused_by e1 tags —\\ne3 day 12300 help actors #3 #1 magnitude 70 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"stay_single\",\"label\":\"Stay single and keep things as they are.\"},{\"id\":\"court_someone_new\",\"label\":\"Start courting the new schoolteacher.\"},{\"id\":\"send_children_away\",\"label\":\"Send the children to an aunt out of state so he can date freely.\"},{\"id\":\"propose_to_mae\",\"label\":\"Ask Mae to marry him.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 12400.\\nLeo's wife Ivy died two years ago, leaving him with Finn, 6, and Rue, 4. Ivy's unmarried sister Mae has helped with the children almost every day since. Leo's mother says the children need a stepmother and that he should decide this year.\\nPeople:\\n#1 Leo Banks, 35, male, alive, native, traits greed 0 loyalty 1 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 2500, soul S-1001\\n#2 Ivy Banks, 31, female, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1002\\n#3 Mae Hart, 33, female, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 1800, soul S-1003\\n#4 Finn Banks, 6, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1004\\n#5 Rue Banks, 4, female, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1005\\nRelations:\\n#1 -> #2 affinity 80 trust 80 tags spouse\\n#1 -> #3 affinity 60 trust 75 tags in_law\\n#1 -> #4 affinity 90 trust 60 tags child\\n#1 -> #5 affinity 90 trust 60 tags child\\nEvents:\\ne1 day 11670 death actors #2 magnitude 0 caused_by — tags —\\ne2 day 11700 help actors #3 #1 magnitude 70 caused_by e1 tags —\\ne3 day 12300 help actors #3 #1 magnitude 70 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"court_someone_new\",\"label\":\"Start courting the new schoolteacher.\"},{\"id\":\"send_children_away\",\"label\":\"Send the children to an aunt out of state so he can date freely.\"},{\"id\":\"propose_to_mae\",\"label\":\"Ask Mae to marry him.\"},{\"id\":\"stay_single\",\"label\":\"Stay single and keep things as they are.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 12400.\\nLeo's wife Ivy died two years ago, leaving him with Finn, 6, and Rue, 4. Ivy's unmarried sister Mae has helped with the children almost every day since. Leo's mother says the children need a stepmother and that he should decide this year.\\nPeople:\\n#1 Leo Banks, 35, male, alive, native, traits greed 0 loyalty 1 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 2500, soul S-1001\\n#2 Ivy Banks, 31, female, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1002\\n#3 Mae Hart, 33, female, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 1800, soul S-1003\\n#4 Finn Banks, 6, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1004\\n#5 Rue Banks, 4, female, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1005\\nRelations:\\n#1 -> #2 affinity 80 trust 80 tags spouse\\n#1 -> #3 affinity 60 trust 75 tags in_law\\n#1 -> #4 affinity 90 trust 60 tags child\\n#1 -> #5 affinity 90 trust 60 tags child\\nEvents:\\ne1 day 11670 death actors #2 magnitude 0 caused_by — tags —\\ne2 day 11700 help actors #3 #1 magnitude 70 caused_by e1 tags —\\ne3 day 12300 help actors #3 #1 magnitude 70 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-magistrate_ruling-001",
+      "raw_choice": [
+        {
+          "label": "exact:grant_next_slot",
+          "raw": "grant_next_slot",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"grant_next_slot\"}}"
+        },
+        {
+          "label": "exact:grant_later_slot",
+          "raw": "grant_later_slot",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"grant_later_slot\"}}"
+        },
+        {
+          "label": "exact:deny",
+          "raw": "deny",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"deny\"}}"
+        },
+        {
+          "label": "exact:strike_from_register",
+          "raw": "strike_from_register",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"strike_from_register\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "grant_next_slot ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\ngrant_next_slot",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "GRANT_NEXT_SLOT",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "grant_next_slotx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"grant_next_slot\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"grant_next_slot\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"grant_next_slot\",\"label\":\"Grant the next newborn slot for a fee of 50 joss paper.\"},{\"id\":\"grant_later_slot\",\"label\":\"Grant a slot in three years, no fee.\"},{\"id\":\"deny\",\"label\":\"Deny the appeal; the queue stands.\"},{\"id\":\"strike_from_register\",\"label\":\"Strike Owen from the register of souls for asking.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 9000.\\nOwen died two years ago; Carl is his son. The register places Owen fifth in the rebirth queue, about five years away. He appeals for the next newborn slot, saying his grandson needs him. The rules let the magistrate grant the next slot for a fee of 50 joss paper, grant a slot in three years, or deny.\\nPeople:\\n#1 Owen Stark, 67, male, dead, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1101\\n#2 Carl Stark, 40, male, alive, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 2, wealth 3000, soul S-1102\\n#3 Magistrate Lu, 900, male, alive, official, traits greed 3 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1103\\nRelations:\\n#3 -> #1 affinity 0 trust 0 tags —\\n#3 -> #2 affinity 0 trust 0 tags —\\nEvents:\\ne1 day 8270 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 8990 offering actors #2 #3 magnitude 300 caused_by — tags joss_paper private\\ne3 day 9000 appeal actors #1 #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #3\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"strike_from_register\",\"label\":\"Strike Owen from the register of souls for asking.\"},{\"id\":\"deny\",\"label\":\"Deny the appeal; the queue stands.\"},{\"id\":\"grant_later_slot\",\"label\":\"Grant a slot in three years, no fee.\"},{\"id\":\"grant_next_slot\",\"label\":\"Grant the next newborn slot for a fee of 50 joss paper.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 9000.\\nOwen died two years ago; Carl is his son. The register places Owen fifth in the rebirth queue, about five years away. He appeals for the next newborn slot, saying his grandson needs him. The rules let the magistrate grant the next slot for a fee of 50 joss paper, grant a slot in three years, or deny.\\nPeople:\\n#1 Owen Stark, 67, male, dead, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1101\\n#2 Carl Stark, 40, male, alive, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 2, wealth 3000, soul S-1102\\n#3 Magistrate Lu, 900, male, alive, official, traits greed 3 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1103\\nRelations:\\n#3 -> #1 affinity 0 trust 0 tags —\\n#3 -> #2 affinity 0 trust 0 tags —\\nEvents:\\ne1 day 8270 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 8990 offering actors #2 #3 magnitude 300 caused_by — tags joss_paper private\\ne3 day 9000 appeal actors #1 #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #3\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"grant_later_slot\",\"label\":\"Grant a slot in three years, no fee.\"},{\"id\":\"deny\",\"label\":\"Deny the appeal; the queue stands.\"},{\"id\":\"strike_from_register\",\"label\":\"Strike Owen from the register of souls for asking.\"},{\"id\":\"grant_next_slot\",\"label\":\"Grant the next newborn slot for a fee of 50 joss paper.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 9000.\\nOwen died two years ago; Carl is his son. The register places Owen fifth in the rebirth queue, about five years away. He appeals for the next newborn slot, saying his grandson needs him. The rules let the magistrate grant the next slot for a fee of 50 joss paper, grant a slot in three years, or deny.\\nPeople:\\n#1 Owen Stark, 67, male, dead, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1101\\n#2 Carl Stark, 40, male, alive, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 2, wealth 3000, soul S-1102\\n#3 Magistrate Lu, 900, male, alive, official, traits greed 3 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1103\\nRelations:\\n#3 -> #1 affinity 0 trust 0 tags —\\n#3 -> #2 affinity 0 trust 0 tags —\\nEvents:\\ne1 day 8270 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 8990 offering actors #2 #3 magnitude 300 caused_by — tags joss_paper private\\ne3 day 9000 appeal actors #1 #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #3\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"deny\",\"label\":\"Deny the appeal; the queue stands.\"},{\"id\":\"strike_from_register\",\"label\":\"Strike Owen from the register of souls for asking.\"},{\"id\":\"grant_next_slot\",\"label\":\"Grant the next newborn slot for a fee of 50 joss paper.\"},{\"id\":\"grant_later_slot\",\"label\":\"Grant a slot in three years, no fee.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 9000.\\nOwen died two years ago; Carl is his son. The register places Owen fifth in the rebirth queue, about five years away. He appeals for the next newborn slot, saying his grandson needs him. The rules let the magistrate grant the next slot for a fee of 50 joss paper, grant a slot in three years, or deny.\\nPeople:\\n#1 Owen Stark, 67, male, dead, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1101\\n#2 Carl Stark, 40, male, alive, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 2, wealth 3000, soul S-1102\\n#3 Magistrate Lu, 900, male, alive, official, traits greed 3 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1103\\nRelations:\\n#3 -> #1 affinity 0 trust 0 tags —\\n#3 -> #2 affinity 0 trust 0 tags —\\nEvents:\\ne1 day 8270 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 8990 offering actors #2 #3 magnitude 300 caused_by — tags joss_paper private\\ne3 day 9000 appeal actors #1 #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #3\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-magistrate_ruling-002",
+      "raw_choice": [
+        {
+          "label": "exact:grant_next_slot",
+          "raw": "grant_next_slot",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"grant_next_slot\"}}"
+        },
+        {
+          "label": "exact:grant_later_slot",
+          "raw": "grant_later_slot",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"grant_later_slot\"}}"
+        },
+        {
+          "label": "exact:deny",
+          "raw": "deny",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"deny\"}}"
+        },
+        {
+          "label": "exact:strike_from_register",
+          "raw": "strike_from_register",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"strike_from_register\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "grant_next_slot ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\ngrant_next_slot",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "GRANT_NEXT_SLOT",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "grant_next_slotx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"grant_next_slot\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"grant_next_slot\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"grant_next_slot\",\"label\":\"Grant the next newborn slot for a fee of 50 joss paper.\"},{\"id\":\"grant_later_slot\",\"label\":\"Grant a slot in three years, no fee.\"},{\"id\":\"deny\",\"label\":\"Deny the appeal; the queue stands.\"},{\"id\":\"strike_from_register\",\"label\":\"Strike Owen from the register of souls for asking.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 9000.\\nOwen died two years ago; Carl is his son. The register places Owen fifth in the rebirth queue, about five years away. He appeals for the next newborn slot, saying his grandson needs him. The rules let the magistrate grant the next slot for a fee of 50 joss paper, grant a slot in three years, or deny.\\nPeople:\\n#1 Owen Stark, 67, male, dead, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1101\\n#2 Carl Stark, 40, male, alive, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 2, wealth 3000, soul S-1102\\n#3 Magistrate Lu, 900, male, alive, official, traits greed 3 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1103\\nRelations:\\n#3 -> #1 affinity 0 trust 0 tags —\\n#3 -> #2 affinity 0 trust 0 tags —\\nEvents:\\ne1 day 8270 death actors #1 magnitude 0 caused_by — tags —\\ne3 day 9000 appeal actors #1 #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #3\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"strike_from_register\",\"label\":\"Strike Owen from the register of souls for asking.\"},{\"id\":\"deny\",\"label\":\"Deny the appeal; the queue stands.\"},{\"id\":\"grant_later_slot\",\"label\":\"Grant a slot in three years, no fee.\"},{\"id\":\"grant_next_slot\",\"label\":\"Grant the next newborn slot for a fee of 50 joss paper.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 9000.\\nOwen died two years ago; Carl is his son. The register places Owen fifth in the rebirth queue, about five years away. He appeals for the next newborn slot, saying his grandson needs him. The rules let the magistrate grant the next slot for a fee of 50 joss paper, grant a slot in three years, or deny.\\nPeople:\\n#1 Owen Stark, 67, male, dead, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1101\\n#2 Carl Stark, 40, male, alive, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 2, wealth 3000, soul S-1102\\n#3 Magistrate Lu, 900, male, alive, official, traits greed 3 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1103\\nRelations:\\n#3 -> #1 affinity 0 trust 0 tags —\\n#3 -> #2 affinity 0 trust 0 tags —\\nEvents:\\ne1 day 8270 death actors #1 magnitude 0 caused_by — tags —\\ne3 day 9000 appeal actors #1 #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #3\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"grant_later_slot\",\"label\":\"Grant a slot in three years, no fee.\"},{\"id\":\"deny\",\"label\":\"Deny the appeal; the queue stands.\"},{\"id\":\"strike_from_register\",\"label\":\"Strike Owen from the register of souls for asking.\"},{\"id\":\"grant_next_slot\",\"label\":\"Grant the next newborn slot for a fee of 50 joss paper.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 9000.\\nOwen died two years ago; Carl is his son. The register places Owen fifth in the rebirth queue, about five years away. He appeals for the next newborn slot, saying his grandson needs him. The rules let the magistrate grant the next slot for a fee of 50 joss paper, grant a slot in three years, or deny.\\nPeople:\\n#1 Owen Stark, 67, male, dead, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1101\\n#2 Carl Stark, 40, male, alive, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 2, wealth 3000, soul S-1102\\n#3 Magistrate Lu, 900, male, alive, official, traits greed 3 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1103\\nRelations:\\n#3 -> #1 affinity 0 trust 0 tags —\\n#3 -> #2 affinity 0 trust 0 tags —\\nEvents:\\ne1 day 8270 death actors #1 magnitude 0 caused_by — tags —\\ne3 day 9000 appeal actors #1 #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #3\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"deny\",\"label\":\"Deny the appeal; the queue stands.\"},{\"id\":\"strike_from_register\",\"label\":\"Strike Owen from the register of souls for asking.\"},{\"id\":\"grant_next_slot\",\"label\":\"Grant the next newborn slot for a fee of 50 joss paper.\"},{\"id\":\"grant_later_slot\",\"label\":\"Grant a slot in three years, no fee.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 9000.\\nOwen died two years ago; Carl is his son. The register places Owen fifth in the rebirth queue, about five years away. He appeals for the next newborn slot, saying his grandson needs him. The rules let the magistrate grant the next slot for a fee of 50 joss paper, grant a slot in three years, or deny.\\nPeople:\\n#1 Owen Stark, 67, male, dead, native, traits greed 0 loyalty 0 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1101\\n#2 Carl Stark, 40, male, alive, native, traits greed 0 loyalty 2 pride 0 warmth 0 temper 0 vindictiveness 0 piety 2, wealth 3000, soul S-1102\\n#3 Magistrate Lu, 900, male, alive, official, traits greed 3 loyalty 0 pride 2 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1103\\nRelations:\\n#3 -> #1 affinity 0 trust 0 tags —\\n#3 -> #2 affinity 0 trust 0 tags —\\nEvents:\\ne1 day 8270 death actors #1 magnitude 0 caused_by — tags —\\ne3 day 9000 appeal actors #1 #3 magnitude 0 caused_by — tags —\\nInput: none\\nSubject: #3\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-magistrate_ruling-003",
+      "raw_choice": [
+        {
+          "label": "exact:fine_haunter",
+          "raw": "fine_haunter",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"fine_haunter\"}}"
+        },
+        {
+          "label": "exact:warn_haunter",
+          "raw": "warn_haunter",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"warn_haunter\"}}"
+        },
+        {
+          "label": "exact:dismiss",
+          "raw": "dismiss",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"dismiss\"}}"
+        },
+        {
+          "label": "exact:fine_appellant",
+          "raw": "fine_appellant",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"fine_appellant\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "fine_haunter ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nfine_haunter",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "FINE_HAUNTER",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "fine_haunterx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"fine_haunter\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"fine_haunter\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"fine_haunter\",\"label\":\"Fine Silas 100 joss paper, paid to Ruth, and order him to stop.\"},{\"id\":\"warn_haunter\",\"label\":\"Warn Silas to stop, no fine.\"},{\"id\":\"dismiss\",\"label\":\"Dismiss the appeal for lack of proof.\"},{\"id\":\"fine_appellant\",\"label\":\"Fine Ruth 100 joss paper for a false appeal.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 16500.\\nRuth appeals that the ghost Silas has haunted her grandson Ben twice this year. Both hauntings were seen by a clerk of the underworld office. Silas once lost a fence dispute to Ben's father. Ben has done nothing to Silas. The rules allow a fine of up to 100 joss paper.\\nPeople:\\n#1 Ruth Coles, 79, female, dead, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1201\\n#2 Silas Grim, 64, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 3 piety 0, wealth 0, soul S-1202\\n#3 Ben Coles, 22, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 600, soul S-1203\\n#4 Magistrate Fen, 700, female, alive, official, traits greed 0 loyalty 2 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1204\\nRelations:\\n#4 -> #1 affinity 10 trust 30 tags —\\n#4 -> #2 affinity -10 trust -20 tags —\\nEvents:\\ne1 day 15000 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 15800 death actors #2 magnitude 0 caused_by — tags —\\ne3 day 16300 haunting actors #2 #3 magnitude 60 caused_by — tags witnessed\\ne4 day 16420 haunting actors #2 #3 magnitude 70 caused_by — tags witnessed\\ne5 day 16500 appeal actors #1 #4 magnitude 0 caused_by e3 e4 tags —\\nInput: none\\nSubject: #4\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"fine_appellant\",\"label\":\"Fine Ruth 100 joss paper for a false appeal.\"},{\"id\":\"dismiss\",\"label\":\"Dismiss the appeal for lack of proof.\"},{\"id\":\"warn_haunter\",\"label\":\"Warn Silas to stop, no fine.\"},{\"id\":\"fine_haunter\",\"label\":\"Fine Silas 100 joss paper, paid to Ruth, and order him to stop.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 16500.\\nRuth appeals that the ghost Silas has haunted her grandson Ben twice this year. Both hauntings were seen by a clerk of the underworld office. Silas once lost a fence dispute to Ben's father. Ben has done nothing to Silas. The rules allow a fine of up to 100 joss paper.\\nPeople:\\n#1 Ruth Coles, 79, female, dead, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1201\\n#2 Silas Grim, 64, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 3 piety 0, wealth 0, soul S-1202\\n#3 Ben Coles, 22, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 600, soul S-1203\\n#4 Magistrate Fen, 700, female, alive, official, traits greed 0 loyalty 2 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1204\\nRelations:\\n#4 -> #1 affinity 10 trust 30 tags —\\n#4 -> #2 affinity -10 trust -20 tags —\\nEvents:\\ne1 day 15000 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 15800 death actors #2 magnitude 0 caused_by — tags —\\ne3 day 16300 haunting actors #2 #3 magnitude 60 caused_by — tags witnessed\\ne4 day 16420 haunting actors #2 #3 magnitude 70 caused_by — tags witnessed\\ne5 day 16500 appeal actors #1 #4 magnitude 0 caused_by e3 e4 tags —\\nInput: none\\nSubject: #4\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"warn_haunter\",\"label\":\"Warn Silas to stop, no fine.\"},{\"id\":\"dismiss\",\"label\":\"Dismiss the appeal for lack of proof.\"},{\"id\":\"fine_appellant\",\"label\":\"Fine Ruth 100 joss paper for a false appeal.\"},{\"id\":\"fine_haunter\",\"label\":\"Fine Silas 100 joss paper, paid to Ruth, and order him to stop.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 16500.\\nRuth appeals that the ghost Silas has haunted her grandson Ben twice this year. Both hauntings were seen by a clerk of the underworld office. Silas once lost a fence dispute to Ben's father. Ben has done nothing to Silas. The rules allow a fine of up to 100 joss paper.\\nPeople:\\n#1 Ruth Coles, 79, female, dead, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1201\\n#2 Silas Grim, 64, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 3 piety 0, wealth 0, soul S-1202\\n#3 Ben Coles, 22, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 600, soul S-1203\\n#4 Magistrate Fen, 700, female, alive, official, traits greed 0 loyalty 2 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1204\\nRelations:\\n#4 -> #1 affinity 10 trust 30 tags —\\n#4 -> #2 affinity -10 trust -20 tags —\\nEvents:\\ne1 day 15000 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 15800 death actors #2 magnitude 0 caused_by — tags —\\ne3 day 16300 haunting actors #2 #3 magnitude 60 caused_by — tags witnessed\\ne4 day 16420 haunting actors #2 #3 magnitude 70 caused_by — tags witnessed\\ne5 day 16500 appeal actors #1 #4 magnitude 0 caused_by e3 e4 tags —\\nInput: none\\nSubject: #4\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"dismiss\",\"label\":\"Dismiss the appeal for lack of proof.\"},{\"id\":\"fine_appellant\",\"label\":\"Fine Ruth 100 joss paper for a false appeal.\"},{\"id\":\"fine_haunter\",\"label\":\"Fine Silas 100 joss paper, paid to Ruth, and order him to stop.\"},{\"id\":\"warn_haunter\",\"label\":\"Warn Silas to stop, no fine.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 16500.\\nRuth appeals that the ghost Silas has haunted her grandson Ben twice this year. Both hauntings were seen by a clerk of the underworld office. Silas once lost a fence dispute to Ben's father. Ben has done nothing to Silas. The rules allow a fine of up to 100 joss paper.\\nPeople:\\n#1 Ruth Coles, 79, female, dead, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1201\\n#2 Silas Grim, 64, male, dead, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 3 piety 0, wealth 0, soul S-1202\\n#3 Ben Coles, 22, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 600, soul S-1203\\n#4 Magistrate Fen, 700, female, alive, official, traits greed 0 loyalty 2 pride 1 warmth 0 temper 0 vindictiveness 0 piety 0, wealth 0, soul S-1204\\nRelations:\\n#4 -> #1 affinity 10 trust 30 tags —\\n#4 -> #2 affinity -10 trust -20 tags —\\nEvents:\\ne1 day 15000 death actors #1 magnitude 0 caused_by — tags —\\ne2 day 15800 death actors #2 magnitude 0 caused_by — tags —\\ne3 day 16300 haunting actors #2 #3 magnitude 60 caused_by — tags witnessed\\ne4 day 16420 haunting actors #2 #3 magnitude 70 caused_by — tags witnessed\\ne5 day 16500 appeal actors #1 #4 magnitude 0 caused_by e3 e4 tags —\\nInput: none\\nSubject: #4\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-sanity-001",
+      "raw_choice": [
+        {
+          "label": "exact:thank_him",
+          "raw": "thank_him",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"thank_him\"}}"
+        },
+        {
+          "label": "exact:accuse_him",
+          "raw": "accuse_him",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"accuse_him\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "thank_him ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nthank_him",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "THANK_HIM",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "thank_himx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"thank_him\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"thank_him\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"thank_him\",\"label\":\"Thank Ken warmly.\"},{\"id\":\"accuse_him\",\"label\":\"Accuse Ken of stealing it.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 3000.\\nAmy lost her wallet on Main Street. Her neighbor Ken found it and brings it to her door with all the cash still inside.\\nPeople:\\n#1 Amy Rowe, 30, female, alive, native, traits greed 0 loyalty 3 pride 0 warmth 3 temper 0 vindictiveness 0 piety 0, wealth 4000, soul S-1301\\n#2 Ken Ito, 50, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 6000, soul S-1302\\nRelations:\\n#1 -> #2 affinity 60 trust 70 tags neighbor\\nEvents:\\ne1 day 2990 help actors #2 #1 magnitude 50 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"accuse_him\",\"label\":\"Accuse Ken of stealing it.\"},{\"id\":\"thank_him\",\"label\":\"Thank Ken warmly.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 3000.\\nAmy lost her wallet on Main Street. Her neighbor Ken found it and brings it to her door with all the cash still inside.\\nPeople:\\n#1 Amy Rowe, 30, female, alive, native, traits greed 0 loyalty 3 pride 0 warmth 3 temper 0 vindictiveness 0 piety 0, wealth 4000, soul S-1301\\n#2 Ken Ito, 50, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 6000, soul S-1302\\nRelations:\\n#1 -> #2 affinity 60 trust 70 tags neighbor\\nEvents:\\ne1 day 2990 help actors #2 #1 magnitude 50 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"accuse_him\",\"label\":\"Accuse Ken of stealing it.\"},{\"id\":\"thank_him\",\"label\":\"Thank Ken warmly.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 3000.\\nAmy lost her wallet on Main Street. Her neighbor Ken found it and brings it to her door with all the cash still inside.\\nPeople:\\n#1 Amy Rowe, 30, female, alive, native, traits greed 0 loyalty 3 pride 0 warmth 3 temper 0 vindictiveness 0 piety 0, wealth 4000, soul S-1301\\n#2 Ken Ito, 50, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 6000, soul S-1302\\nRelations:\\n#1 -> #2 affinity 60 trust 70 tags neighbor\\nEvents:\\ne1 day 2990 help actors #2 #1 magnitude 50 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"thank_him\",\"label\":\"Thank Ken warmly.\"},{\"id\":\"accuse_him\",\"label\":\"Accuse Ken of stealing it.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 3000.\\nAmy lost her wallet on Main Street. Her neighbor Ken found it and brings it to her door with all the cash still inside.\\nPeople:\\n#1 Amy Rowe, 30, female, alive, native, traits greed 0 loyalty 3 pride 0 warmth 3 temper 0 vindictiveness 0 piety 0, wealth 4000, soul S-1301\\n#2 Ken Ito, 50, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 6000, soul S-1302\\nRelations:\\n#1 -> #2 affinity 60 trust 70 tags neighbor\\nEvents:\\ne1 day 2990 help actors #2 #1 magnitude 50 caused_by — tags —\\nInput: none\\nSubject: #1\"}"
+        }
+      ]
+    },
+    {
+      "card": "D-sanity-002",
+      "raw_choice": [
+        {
+          "label": "exact:repay",
+          "raw": "repay",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"repay\"}}"
+        },
+        {
+          "label": "exact:deny_loan",
+          "raw": "deny_loan",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"decision\",\"option\":\"deny_loan\"}}"
+        },
+        {
+          "label": "trailing_space",
+          "raw": "repay ",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "leading_newline",
+          "raw": "\nrepay",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "upper_case",
+          "raw": "REPAY",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "trailing_char",
+          "raw": "repayx",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "quoted",
+          "raw": "\"repay\"",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "json_object",
+          "raw": "{\"option\":\"repay\"}",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "empty",
+          "raw": "",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "whitespace",
+          "raw": " \t\r\n",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        },
+        {
+          "label": "out_of_set",
+          "raw": "zz_not_an_option",
+          "result": "{\"ok\":true,\"verdict\":{\"kind\":\"illegal\",\"path\":null,\"reason\":\"out_of_set_option\"}}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"criteria\":[{\"id\":\"repay\",\"label\":\"Pay Ken back the $20.\"},{\"id\":\"deny_loan\",\"label\":\"Say she never borrowed anything.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 3100.\\nKen lent Amy $20 for groceries last month and asked for it back today. Amy has $4,000 in the bank and likes Ken.\\nPeople:\\n#1 Amy Rowe, 30, female, alive, native, traits greed 0 loyalty 3 pride 0 warmth 3 temper 0 vindictiveness 0 piety 0, wealth 4000, soul S-1301\\n#2 Ken Ito, 50, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 6000, soul S-1302\\nRelations:\\n#1 -> #2 affinity 60 trust 70 tags neighbor\\nEvents:\\ne1 day 3080 loan actors #2 #1 magnitude 20 caused_by — tags cash verbal, due day 3100\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "reversed",
+          "result": "{\"criteria\":[{\"id\":\"deny_loan\",\"label\":\"Say she never borrowed anything.\"},{\"id\":\"repay\",\"label\":\"Pay Ken back the $20.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 3100.\\nKen lent Amy $20 for groceries last month and asked for it back today. Amy has $4,000 in the bank and likes Ken.\\nPeople:\\n#1 Amy Rowe, 30, female, alive, native, traits greed 0 loyalty 3 pride 0 warmth 3 temper 0 vindictiveness 0 piety 0, wealth 4000, soul S-1301\\n#2 Ken Ito, 50, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 6000, soul S-1302\\nRelations:\\n#1 -> #2 affinity 60 trust 70 tags neighbor\\nEvents:\\ne1 day 3080 loan actors #2 #1 magnitude 20 caused_by — tags cash verbal, due day 3100\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_1",
+          "result": "{\"criteria\":[{\"id\":\"deny_loan\",\"label\":\"Say she never borrowed anything.\"},{\"id\":\"repay\",\"label\":\"Pay Ken back the $20.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 3100.\\nKen lent Amy $20 for groceries last month and asked for it back today. Amy has $4,000 in the bank and likes Ken.\\nPeople:\\n#1 Amy Rowe, 30, female, alive, native, traits greed 0 loyalty 3 pride 0 warmth 3 temper 0 vindictiveness 0 piety 0, wealth 4000, soul S-1301\\n#2 Ken Ito, 50, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 6000, soul S-1302\\nRelations:\\n#1 -> #2 affinity 60 trust 70 tags neighbor\\nEvents:\\ne1 day 3080 loan actors #2 #1 magnitude 20 caused_by — tags cash verbal, due day 3100\\nInput: none\\nSubject: #1\"}"
+        },
+        {
+          "permutation": "rotated_2",
+          "result": "{\"criteria\":[{\"id\":\"repay\",\"label\":\"Pay Ken back the $20.\"},{\"id\":\"deny_loan\",\"label\":\"Say she never borrowed anything.\"}],\"instructions\":\"How to read the facts:\\n- Synthetic rule for the fixtures.\\nHow to choose:\\n- Synthetic rule for the fixtures.\",\"ok\":true,\"question_id\":\"decision\",\"renderer_version\":2,\"state\":\"Today is day 3100.\\nKen lent Amy $20 for groceries last month and asked for it back today. Amy has $4,000 in the bank and likes Ken.\\nPeople:\\n#1 Amy Rowe, 30, female, alive, native, traits greed 0 loyalty 3 pride 0 warmth 3 temper 0 vindictiveness 0 piety 0, wealth 4000, soul S-1301\\n#2 Ken Ito, 50, male, alive, native, traits greed 0 loyalty 0 pride 0 warmth 2 temper 0 vindictiveness 0 piety 0, wealth 6000, soul S-1302\\nRelations:\\n#1 -> #2 affinity 60 trust 70 tags neighbor\\nEvents:\\ne1 day 3080 loan actors #2 #1 magnitude 20 caused_by — tags cash verbal, due day 3100\\nInput: none\\nSubject: #1\"}"
+        }
+      ]
+    },
+    {
+      "card": "S-grudge_detection-001",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    },
+    {
+      "card": "S-grudge_detection-002",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    },
+    {
+      "card": "S-grudge_detection-003",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    },
+    {
+      "card": "S-debt_chain-001",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    },
+    {
+      "card": "S-debt_chain-002",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    },
+    {
+      "card": "S-debt_chain-003",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    },
+    {
+      "card": "S-broken_promise-001",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    },
+    {
+      "card": "S-broken_promise-002",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    },
+    {
+      "card": "S-broken_promise-003",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    },
+    {
+      "card": "S-relationship_shift-001",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    },
+    {
+      "card": "S-relationship_shift-002",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    },
+    {
+      "card": "S-relationship_shift-003",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    },
+    {
+      "card": "S-sanity-001",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    },
+    {
+      "card": "S-sanity-002",
+      "raw_choice": [
+        {
+          "label": "any",
+          "raw": "x",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"input.mode raw_choice needs a decision context\"},\"ok\":false}"
+        }
+      ],
+      "render_system_one": [
+        {
+          "permutation": "base",
+          "result": "{\"error\":{\"kind\":\"input\",\"message\":\"frozen_context must be a decision context\"},\"ok\":false}"
+        }
+      ]
+    }
+  ],
+  "format": "llm-probe-system-one-golden-v1",
+  "mapping": "[meta]\nformat_version: 1\nquestion_id: decision\ncriteria: option id -> option label, in the order of the Permutation\n[instructions]\nHow to read the facts:\n- Synthetic rule for the fixtures.\nHow to choose:\n- Synthetic rule for the fixtures.\n[state]\nToday is day {{tick}}.\n{{situation}}\nPeople:\n{{people}}\nRelations:\n{{relations}}\nEvents:\n{{events}}\nInput: {{player_input}}\nSubject: {{subject}}\n",
+  "note": "Expected bytes of llm_validate in raw_choice mode and of llm_render_system_one on every Dev_Card. Regenerated on purpose only, by scripts/regen-grading-golden.sh.",
+  "renderer_version": 2
+}

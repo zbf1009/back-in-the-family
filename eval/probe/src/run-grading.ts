@@ -83,7 +83,7 @@ function validateInput(facts: CardFacts, r: ResultRecord): string {
 }
 
 function verdictOf(facts: CardFacts, input: string): JsonValue {
-  const env = parseEnvelope(llmValidate(input, facts.card.id), facts.card.id, 'llm_validate');
+  const env = parseEnvelope(llmValidate(input, 'json', facts.card.id), facts.card.id, 'llm_validate');
   return env['verdict'] as JsonValue;
 }
 

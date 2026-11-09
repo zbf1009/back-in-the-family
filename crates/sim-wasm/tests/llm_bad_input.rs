@@ -15,7 +15,7 @@
 use serde_json::{Value, json};
 use sim_wasm::llm::{
     llm_contrast, llm_grade, llm_identity, llm_parse_card, llm_permutations, llm_render_prompt,
-    llm_validate,
+    llm_render_system_one, llm_validate,
 };
 use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -24,11 +24,13 @@ const CASES: u64 = 256;
 const KINDS: [&str; 4] = ["input", "card", "answer_key", "render"];
 
 type Export = fn(&str) -> String;
-const EXPORTS: [(&str, Export); 7] = [
+const EXPORTS: [(&str, Export); 9] = [
     ("llm_parse_card", llm_parse_card),
     ("llm_permutations", llm_permutations),
     ("llm_render_prompt", llm_render_prompt),
     ("llm_validate", llm_validate),
+    ("llm_validate (raw_choice)", llm_validate),
+    ("llm_render_system_one", llm_render_system_one),
     ("llm_grade", llm_grade),
     ("llm_identity", llm_identity),
     ("llm_contrast", llm_contrast),
@@ -47,6 +49,8 @@ fn golden_inputs() -> Vec<String> {
     let parsed: Value = serde_json::from_str(&llm_parse_card(card(D1))).expect("parse_card JSON");
     let ctx = parsed["frozen_context"].clone();
     let verdict = json!({"kind": "decision", "option": "heed_warning"});
+    let mapping =
+        "[instructions]\nRead the facts.\n[state]\nDay {{tick}}.\n{{people}}\n{{events}}\n";
     let template = "[system]\nDay {{tick}}.\n[user]\n{{situation}}\n{{people}}\n{{relations}}\n{{events}}\n{{options}}\n";
     vec![
         card(D1).to_owned(),
@@ -55,6 +59,8 @@ fn golden_inputs() -> Vec<String> {
                "permutation": "reversed"})
         .to_string(),
         json!({"frozen_context": ctx, "raw": "{\"option\":\"heed_warning\"}"}).to_string(),
+        json!({"frozen_context": ctx, "raw": "heed_warning", "mode": "raw_choice"}).to_string(),
+        json!({"frozen_context": ctx, "mapping": mapping, "permutation": "reversed"}).to_string(),
         json!({"card": card(D1), "verdict": verdict}).to_string(),
         json!({"card": card(D1), "verdict": verdict}).to_string(),
         json!({"card_a": card(D1), "verdict_a": verdict,
@@ -116,7 +122,9 @@ const UNICODE: [char; 10] = [
     '\u{10ffff}',
     '\u{202e}',
 ];
-const KEYS: [&str; 12] = [
+const KEYS: [&str; 14] = [
+    "mapping",
+    "mode",
     "frozen_context",
     "card",
     "verdict",

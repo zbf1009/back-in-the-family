@@ -27,6 +27,7 @@ use crate::commands::{EXIT_OK, EXIT_USAGE_OR_MALFORMED};
 
 pub const OUTPUTS_FORMAT: &str = "llm-probe-grading-outputs-v1";
 pub const GOLDEN_FORMAT: &str = "llm-probe-grading-golden-v1";
+pub const SYSTEM_ONE_GOLDEN_FORMAT: &str = "llm-probe-system-one-golden-v1";
 
 pub const OUTPUTS_USAGE: &str = "usage: sim-cli grading-outputs --cards FILE --out FILE";
 pub const GOLDEN_USAGE: &str =
@@ -37,6 +38,16 @@ pub const GOLDEN_USAGE: &str =
 const TEMPLATE_DECISION: &str = "[system]\nYou decide.\n[user]\nToday is day {{tick}}.\n{{situation}}\nPeople:\n{{people}}\nRelations:\n{{relations}}\nEvents:\n{{events}}\nOptions:\n{{options}}\nInput: {{player_input}}\nSubject: {{subject}}\n";
 const TEMPLATE_SYNTHESIS: &str = "[system]\nYou summarize.\n[user]\nToday is day {{tick}}.\n{{situation}}\nPeople:\n{{people}}\nRelations:\n{{relations}}\nEvents:\n{{events}}\nInput: {{player_input}}\nSubject: {{subject}}\nSchema:\n{{schema}}\n";
 const SCHEMA_TEXT: &str = "(synthetic schema text for the grading fixtures)";
+
+pub const SYSTEM_ONE_USAGE: &str =
+    "usage: sim-cli grading-system-one-golden --cards FILE --out FILE";
+
+/// A synthetic System_One_Mapping for the golden entries (not the real mapping file of the
+/// probe, which is written in a later task). Uses every state placeholder.
+const MAPPING_SYSTEM_ONE: &str = "[meta]\nformat_version: 1\nquestion_id: decision\ncriteria: option id -> option label, in the order of the Permutation\n[instructions]\nHow to read the facts:\n- Synthetic rule for the fixtures.\nHow to choose:\n- Synthetic rule for the fixtures.\n[state]\nToday is day {{tick}}.\n{{situation}}\nPeople:\n{{people}}\nRelations:\n{{relations}}\nEvents:\n{{events}}\nInput: {{player_input}}\nSubject: {{subject}}\n";
+
+/// The four permutation names of a D card, in the fixed order.
+const SYSTEM_ONE_PERMUTATIONS: [&str; 4] = ["base", "reversed", "rotated_1", "rotated_2"];
 
 type Res<T> = Result<T, String>;
 
@@ -632,6 +643,74 @@ fn build_golden(cards: &[CardLine], outputs: &Value) -> Res<Value> {
 }
 
 // ---------------------------------------------------------------------------------------
+// System_One golden (raw_choice mode and llm_render_system_one)
+// ---------------------------------------------------------------------------------------
+
+/// Raw_Choice strings tried on a D card: every option ID exactly, then near misses.
+fn raw_choices(card: &CardLine) -> Res<Vec<(String, String)>> {
+    let mut out = Vec::new();
+    for opt in list_of(&card.value["options"], "options")? {
+        let id = str_of(&opt["id"], "option id")?;
+        out.push((format!("exact:{id}"), id.to_owned()));
+    }
+    let first = str_of(&card.value["options"][0]["id"], "option id")?.to_owned();
+    out.push(("trailing_space".to_owned(), format!("{first} ")));
+    out.push(("leading_newline".to_owned(), format!("\n{first}")));
+    out.push(("upper_case".to_owned(), first.to_uppercase()));
+    out.push(("trailing_char".to_owned(), format!("{first}x")));
+    out.push(("quoted".to_owned(), format!("\"{first}\"")));
+    out.push((
+        "json_object".to_owned(),
+        format!("{{\"option\":\"{first}\"}}"),
+    ));
+    out.push(("empty".to_owned(), String::new()));
+    out.push(("whitespace".to_owned(), " \t\r\n".to_owned()));
+    out.push(("out_of_set".to_owned(), "zz_not_an_option".to_owned()));
+    Ok(out)
+}
+
+fn build_system_one_golden(cards: &[CardLine]) -> Res<Value> {
+    let mut entries = Vec::new();
+    for card in cards {
+        let ctx = &card.context;
+        let is_decision = card.value["task"] == "decision";
+        // An S card gets the `input` errors the exports give, so they are fixed too.
+        let raws = if is_decision {
+            raw_choices(card)?
+        } else {
+            vec![("any".to_owned(), "x".to_owned())]
+        };
+        let mut validates = Vec::new();
+        for (label, raw) in raws {
+            let input = json!({"frozen_context": ctx, "raw": raw, "mode": "raw_choice"});
+            let (text, _) = run(api::llm_validate, &input)?;
+            validates.push(json!({"label": label, "raw": raw, "result": text}));
+        }
+        let perms: &[&str] = if is_decision {
+            &SYSTEM_ONE_PERMUTATIONS
+        } else {
+            &SYSTEM_ONE_PERMUTATIONS[..1]
+        };
+        let mut renders = Vec::new();
+        for p in perms {
+            let input = json!({"frozen_context": ctx, "mapping": MAPPING_SYSTEM_ONE,
+                               "permutation": p});
+            let (text, _) = run(api::llm_render_system_one, &input)?;
+            renders.push(json!({"permutation": p, "result": text}));
+        }
+        entries.push(json!({"card": card.id, "raw_choice": validates,
+            "render_system_one": renders}));
+    }
+    Ok(json!({
+        "format": SYSTEM_ONE_GOLDEN_FORMAT,
+        "note": "Expected bytes of llm_validate in raw_choice mode and of llm_render_system_one on every Dev_Card. Regenerated on purpose only, by scripts/regen-grading-golden.sh.",
+        "renderer_version": RENDERER_VERSION,
+        "mapping": MAPPING_SYSTEM_ONE,
+        "cards": entries,
+    }))
+}
+
+// ---------------------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------------------
 
@@ -692,4 +771,19 @@ pub fn grading_golden(args: &[String], out: &mut dyn Write, err: &mut dyn Write)
         Ok(format!("wrote golden for {} cards -> {path}", cards.len()))
     };
     finish(run(), GOLDEN_USAGE, out, err)
+}
+
+pub fn grading_system_one_golden(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let run = || -> Res<String> {
+        let p = args::parse(args, &["cards", "out"])?;
+        let cards = load_cards(require(&p, "cards")?)?;
+        let value = build_system_one_golden(&cards)?;
+        let path = require(&p, "out")?;
+        write_json(path, &value)?;
+        Ok(format!(
+            "wrote system-one golden for {} cards -> {path}",
+            cards.len()
+        ))
+    };
+    finish(run(), SYSTEM_ONE_USAGE, out, err)
 }

@@ -7,6 +7,9 @@
 //! `cargo test -p sim-wasm --target wasm32-unknown-unknown` they run in Node. Fixtures are
 //! compiled in with `include_str!` because wasm32 tests cannot read the filesystem.
 //!
+//! `fixtures/grading/system-one-golden.json` does the same for `llm_validate` in `raw_choice`
+//! mode and for `llm_render_system_one` (llm-probe task 28.5; requirements 4.16, 19.7).
+//!
 //! Inputs are rebuilt from the golden header exactly as `fixtures/grading/README.md`
 //! describes. A mismatch panics with the Card ID and the export name. The fixtures are
 //! never written by this test.
@@ -16,13 +19,14 @@ use std::collections::BTreeMap;
 use serde_json::{Map, Value, json};
 use sim_wasm::llm::{
     llm_contrast, llm_grade, llm_identity, llm_parse_card, llm_permutations, llm_render_prompt,
-    llm_validate,
+    llm_render_system_one, llm_validate,
 };
 use wasm_bindgen_test::wasm_bindgen_test;
 
 const CARDS: &str = include_str!("../../../eval/cards/cards/dev.jsonl");
 const OUTPUTS: &str = include_str!("../../../fixtures/grading/dev-outputs.json");
 const GOLDEN: &str = include_str!("../../../fixtures/grading/dev-golden.json");
+const SYSTEM_ONE_GOLDEN: &str = include_str!("../../../fixtures/grading/system-one-golden.json");
 
 fn parse(text: &str, what: &str) -> Value {
     match serde_json::from_str(text) {
@@ -197,4 +201,47 @@ fn grading_exports_match_golden_bytes() {
         checks += 1;
     }
     assert!(checks > 0, "no golden entries were checked");
+}
+
+#[wasm_bindgen_test(unsupported = test)]
+fn system_one_exports_match_golden_bytes() {
+    let golden = parse(SYSTEM_ONE_GOLDEN, "system-one-golden.json");
+    let lines = card_lines();
+    let mapping = &golden["mapping"];
+    let cards = list(&golden["cards"], "golden.cards");
+    assert_eq!(cards.len(), lines.len(), "golden and dev.jsonl card counts");
+    let mut checks = 0usize;
+    for entry in cards {
+        let id = text(&entry["card"], "golden card");
+        let Some(line) = lines.get(id) else {
+            panic!("card {id}: in the system-one golden file but not in dev.jsonl");
+        };
+        let ctx = parse(&llm_parse_card(line), "llm_parse_card")["frozen_context"].clone();
+        for r in list(&entry["raw_choice"], "raw_choice") {
+            let label = text(&r["label"], "raw_choice label");
+            let input = compact(&json!({"frozen_context": ctx, "raw": r["raw"],
+                "mode": "raw_choice"}));
+            check(
+                id,
+                "llm_validate",
+                &format!("raw_choice {label}"),
+                &llm_validate(&input),
+                &r["result"],
+            );
+            checks += 1;
+        }
+        for r in list(&entry["render_system_one"], "render_system_one") {
+            let input = compact(&json!({"frozen_context": ctx, "mapping": mapping,
+                "permutation": r["permutation"]}));
+            check(
+                id,
+                "llm_render_system_one",
+                &format!("permutation {}", r["permutation"]),
+                &llm_render_system_one(&input),
+                &r["result"],
+            );
+            checks += 1;
+        }
+    }
+    assert!(checks > 0, "no system-one golden entries were checked");
 }

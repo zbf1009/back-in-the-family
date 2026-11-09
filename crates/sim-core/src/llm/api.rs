@@ -1,6 +1,6 @@
 //! JSON-in / JSON-out API of the llm module (R6.1, R6.6, R6.7).
 //!
-//! Seven plain-Rust functions, each taking one JSON text and returning one canonical JSON
+//! Eight plain-Rust functions, each taking one JSON text and returning one canonical JSON
 //! text. `sim-wasm` exports exactly these, so native tests and the browser run the same
 //! code. Every result is
 //!
@@ -12,7 +12,8 @@
 //! | [`llm_parse_card`] | one card line | `card`, `frozen_context`, `meta`, `random_baseline_parts` |
 //! | [`llm_permutations`] | `{"frozen_context":…}` | `permutations` |
 //! | [`llm_render_prompt`] | `{"frozen_context":…,"template":…,"schema_text":…,"permutation":…}` | `system`, `user`, `renderer_version` |
-//! | [`llm_validate`] | `{"frozen_context":…,"raw":…}` or `{"frozen_context":…,"outcome":{…}}` | `verdict` |
+//! | [`llm_render_system_one`] | `{"frozen_context":…,"mapping":…,"permutation":…}` | `state`, `instructions`, `question_id`, `criteria`, `renderer_version` |
+//! | [`llm_validate`] | `{"frozen_context":…,"raw":…,"mode":…?}` or `{"frozen_context":…,"outcome":{…}}` | `verdict` |
 //! | [`llm_grade`] | `{"card":"<line>","verdict":…}` | `grade` |
 //! | [`llm_identity`] | `{"card":"<line>","verdict":…}` | `identity` |
 //! | [`llm_contrast`] | `{"card_a":…,"verdict_a":…,"card_b":…,"verdict_b":…}` | `contrast` |
@@ -51,6 +52,7 @@ use super::grade;
 use super::json::{self, Json};
 use super::key::{AnswerKey, Grade};
 use super::render::{self, Permutation, RENDERER_VERSION};
+use super::system_one;
 use super::validate::{self, Outcome};
 use super::{FrozenContext, IdentityTuple, IdentityValue, IllegalReason, Task, TaskSpec, Verdict};
 
@@ -515,7 +517,7 @@ fn identity_to_json(v: &IdentityValue) -> Json {
 }
 
 // ---------------------------------------------------------------------------------------
-// The seven functions
+// The eight functions
 // ---------------------------------------------------------------------------------------
 
 /// Parses one card line. Result members: `card` (the line as canonical JSON), `frozen_context`,
@@ -624,7 +626,53 @@ fn render_inner(input: &str) -> Res {
     }
 }
 
+/// Renders the System_One_Mapping for a D context. Input:
+/// `{"frozen_context":…,"mapping":"<mapping text>","permutation":"base"|…}`. Result members:
+/// `state`, `instructions`, `question_id`, `criteria` (`[{"id","label"},…]` in the
+/// permutation's option order) and `renderer_version`. Unknown placeholders, including
+/// `{{options}}`, are `render` errors naming the placeholder.
+pub fn llm_render_system_one(input: &str) -> String {
+    envelope(render_system_one_inner(input))
+}
+
+fn render_system_one_inner(input: &str) -> Res {
+    let mut f = read_input(input)?;
+    let ctx = read_context(f.req("frozen_context")?)?;
+    let mapping = f.string("mapping")?;
+    let name = f.string("permutation")?;
+    let Some(perm) = Permutation::from_name(&name) else {
+        return input_err("input.permutation is not a known permutation");
+    };
+    f.finish()?;
+    match system_one::render_system_one(&ctx, &mapping, perm) {
+        Ok(r) => Ok(vec![
+            ("state", Json::Str(r.state)),
+            ("instructions", Json::Str(r.instructions)),
+            ("question_id", Json::Str(r.question_id)),
+            (
+                "criteria",
+                Json::Array(
+                    r.criteria
+                        .iter()
+                        .map(|(id, label)| object(vec![("id", text(id)), ("label", text(label))]))
+                        .collect(),
+                ),
+            ),
+            ("renderer_version", Json::int(i64::from(RENDERER_VERSION))),
+        ]),
+        Err(system_one::MapError::NotDecision) => {
+            input_err("frozen_context must be a decision context")
+        }
+        Err(e) => err("render", e.to_string()),
+    }
+}
+
 /// Validates one raw output or one non-text outcome. Result member: `verdict`.
+///
+/// The optional `mode` member is `json` (the default, and today's behaviour) or
+/// `raw_choice`: `raw` is then a Raw_Choice string, and the verdict is `Decision` exactly
+/// when it equals an option ID byte for byte (R4.16). `raw_choice` needs a D context; an
+/// unknown `mode` is an `input` error.
 pub fn llm_validate(input: &str) -> String {
     envelope(validate_inner(input))
 }
@@ -632,11 +680,28 @@ pub fn llm_validate(input: &str) -> String {
 fn validate_inner(input: &str) -> Res {
     let mut f = read_input(input)?;
     let ctx = read_context(f.req("frozen_context")?)?;
+    let raw_choice = match f.opt("mode") {
+        None => false,
+        Some(Json::Str(m)) if m == "json" => false,
+        Some(Json::Str(m)) if m == "raw_choice" => true,
+        Some(Json::Str(_)) => return input_err("input.mode must be json or raw_choice"),
+        Some(_) => return input_err("input.mode must be a string"),
+    };
     let raw = f.opt("raw");
     let outcome = f.opt("outcome");
     f.finish()?;
+    let options = match (&ctx.spec, raw_choice) {
+        (TaskSpec::Decision { options }, true) => Some(options.as_slice()),
+        (TaskSpec::Synthesis { .. }, true) => {
+            return input_err("input.mode raw_choice needs a decision context");
+        }
+        (_, false) => None,
+    };
     let verdict = match (raw, outcome) {
-        (Some(Json::Str(raw)), None) => validate::validate(&ctx, Outcome::Text(&raw)),
+        (Some(Json::Str(raw)), None) => match options {
+            Some(options) => validate::validate_raw_choice(options, &raw),
+            None => validate::validate(&ctx, Outcome::Text(&raw)),
+        },
         (None, Some(o)) => {
             let mut of = Fields::new("outcome", o)?;
             let kind = of.string("kind")?;
