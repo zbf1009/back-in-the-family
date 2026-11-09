@@ -961,13 +961,13 @@ Two new records in `combinations.json`, both `phase1_locked: false` and both wit
   "constraint": "system_one_choice",
   "context_window_tokens": 24576,
   "context_window_source": "https://developers.cloudflare.com/workers-ai/models/clef-flash/ (retrieved 2026-11-09)",
-  "max_bytes_per_token": 8,
+  "max_bytes_per_token": 6,
   "prices": { "input": 3455, "output": 0, "source": "https://developers.cloudflare.com/workers-ai/platform/pricing/", "read_on": "2026-11-09" },
   "license": { "name": "Apache-2.0", "osi": true, "url": "https://developers.cloudflare.com/changelog/post/2026-10-01-clef-workers-ai/", "declared_by": "model", "accepted": null }
 }
 ```
 
-The `clef` record is the same with `id: "workers-ai/clef"`, `model_id: "@cf/cloudflare/clef"`, `model_selector: "clef"`, `context_window_tokens: 65536`, `context_window_source` its own model page, and `prices.input: 21818`. `max_bytes_per_token: 8` is the provisional value; after the Smoke_Calls and Dev_Run it is replaced by the rule in the adapter section and then frozen. The Model_Key of each is `{ runtime: "workers-ai", model_id: "@cf/cloudflare/<model>", quantization: "", revision: "server-side, not pinnable" }`, so the two Decision_Models have different keys from each other and from the branch-B model (R19.1), and the once-only rule of the ledger applies to each separately for Task_Type D.
+The `clef` record is the same with `id: "workers-ai/clef"`, `model_id: "@cf/cloudflare/clef"`, `model_selector: "clef"`, `context_window_tokens: 65536`, `context_window_source` its own model page, and `prices.input: 21818`. `max_bytes_per_token: 6` since 2026-11-09 (was the provisional 8; see the V9 to V13 note after the verification table); after the Dev_Run it is checked again by the rule by the rule in the adapter section and then frozen. The Model_Key of each is `{ runtime: "workers-ai", model_id: "@cf/cloudflare/<model>", quantization: "", revision: "server-side, not pinnable" }`, so the two Decision_Models have different keys from each other and from the branch-B model (R19.1), and the once-only rule of the ledger applies to each separately for Task_Type D.
 
 The Model_Fingerprint of a Decision_Model run differs from the generative one only in these members: `sampling` has `null` for temperature, seed and token cap; `chat_template_kwargs` is `null`; `constraint` is `"system_one_choice"`; `template_hashes` is `{ "decision": "<sha256 of the mapping file>" }` and `warmup_hashes` is `null`; and a new member `"system_one": { "response_shape": "system_one", "model_selector": "clef-flash", "question_id": "decision", "context_window_tokens": 24576, "max_bytes_per_token": 8, "lower_bound_rule": "floor(body_bytes / max_bytes_per_token)" }`. `model.revision` is `server-side, not pinnable` (R11.21).
 
@@ -1524,6 +1524,14 @@ The Author listed these unverified items on 2026-11-06 (review 2). Each one beco
 | V12 | Is the Free-plan rate limit for the Clef models hit by 74 or 236 sequential requests? | Smoke_Calls and the Dev_Run | the runner has no retry (R11.9); a 429 pattern means pausing between requests, a design change to ask the Author about |
 | V13 | Free plan availability of both models (R19.2(a)) is an inference from the exclusion list, accepted by the Author 2026-11-09 | the first Smoke_Call of each model | if a Smoke_Call fails with a plan or billing error, stop and record the model as not measured (R19.3) |
 | V14 | Is `choice` identical for repeated identical requests? (not tested by the Smoke_Calls; the Report says "not tested") | optional, one extra Smoke_Call pair if the Author wants it | none needed; recorded as a limitation |
+
+**Note 2026-11-09 (task 33, V9 to V13 from the Smoke_Calls).** Five D Dev_Card Smoke_Calls on each Decision_Model (the same first five D Dev_Cards, base permutation; 10 sent, 10 HTTP 200, 10 `outcome: text`, `verdict: decision`, 10 `shape_check: ok`; records in `eval/results/smoke/2026-11-09.jsonl`).
+- **V9: confirmed.** The envelope, member types and `usage.input_tokens` / `output_tokens` match the declared `system_one` shape for both models (no `mismatch`, no change to the shape check or the adapter). `output_tokens` is 0 and `reasoning_tokens` is absent, as the no-output-term pricing assumes.
+- **V10: measured.** Body bytes per input token over the 10 calls: 3.236 to 3.338 (max 3.338, from 3,011 bytes / 902 tokens). Rule: `max(6, ceil(1.5 × 3.338)) = max(6, 6) = 6`. `max_bytes_per_token` is changed from 8 to 6 in both `combinations.json` records, so the `system_one` member of the Model_Fingerprint changes and so does the fingerprint ID. The two example tests that pinned 8 were updated (the boundary test now uses `floor(W / 6) + 1` tokens). To be checked again after the Dev_Run.
+- **V11: reservation covers usage.** Per call the reservation was 12 neurons (`clef-flash`) and 71 to 72 (`clef`); the usage-based cost was at most 4 and 20 neurons per call (`ceil(tokens × rate / 1e6)`). Tokens (902 or 942) are far below body bytes (about 3,000), so the wrapper is inside the 256-token allowance and each byte counts as at most one token with a wide margin. No change to the allowance or to Property 45.
+- **Neuron rate observed.** Settled 122 neurons for 10 calls (4,098 to 4,220 on the day counter): 20 for `clef-flash` and 102 for `clef` (4,590 input tokens each). That equals `ceil` of the posted 3,455 and 21,818 neurons per million input tokens; no deviation seen.
+- **V12:** no 429 in 10 sequential calls (latency 326 to 913 ms); not a test of 74 or 236 calls. **V13:** both models answered on the Free plan; no plan or billing error. **V14:** not tested.
+- **DA-20 proxies.** Mean measured input size is 918 tokens (902 for three cards, 942 for two) against the 973.6 proxy for the Dev_Run (-5.7%) and 1,075.6 for the Locked_Run (-14.7%). Both are within 25%, so the DA-20 figures are not recomputed. The sample is five cards from two scenario families, not the whole Dev set.
 
 ### Gates added (R16.1) and their fault injections (R16.6)
 

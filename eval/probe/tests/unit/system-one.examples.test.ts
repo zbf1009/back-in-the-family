@@ -64,7 +64,7 @@ describe('29.1 Decision_Model Combination records', () => {
     for (const c of [flash, clef]) {
       assert.equal(c.response_shape, 'system_one');
       assert.equal(c.validator_mode, 'raw_choice');
-      assert.equal(c.max_bytes_per_token, 8);
+      assert.equal(c.max_bytes_per_token, 6);
       assert.equal(c.phase1_locked, false);
       assert.equal(c['task_subset_allowed'], 'D');
       assert.equal(c.prices.output, 0);
@@ -103,7 +103,7 @@ describe('29.1 Decision_Model Combination records', () => {
       model_selector: 'clef-flash',
       question_id: 'decision',
       context_window_tokens: 24576,
-      max_bytes_per_token: 8,
+      max_bytes_per_token: 6,
       lower_bound_rule: 'floor(body_bytes / max_bytes_per_token)',
     });
   });
@@ -289,7 +289,7 @@ describe('29.3 truncation pre-check and post-check', () => {
     test(`${id}: a body of exactly ${W} bytes is accepted, one byte more is refused with nothing sent`, async () => {
       const exact = requestOfBytes(combo.model_selector, W);
       assert.equal(bodyBytesOf(buildSystemOneBody(combo.model_selector, exact)), W);
-      const ok = fakeFetch(200, answerBody({ choice: 'a', inputTokens: Math.floor(W / 8) + 1 }));
+      const ok = fakeFetch(200, answerBody({ choice: 'a', inputTokens: Math.floor(W / 6) + 1 }));
       assert.equal((await adapterFor(combo, ok.fetch).complete(exact, OPTS)).kind, 'text');
       assert.equal(ok.calls.length, 1);
 

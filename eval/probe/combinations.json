@@ -364,7 +364,7 @@
     "constraint": "system_one_choice",
     "context_window_tokens": 24576,
     "context_window_source": "https://developers.cloudflare.com/workers-ai/models/clef-flash/ (retrieved 2026-11-09)",
-    "max_bytes_per_token": 8,
+    "max_bytes_per_token": 6,
     "prices": {
       "input": 3455,
       "output": 0,
@@ -406,7 +406,7 @@
     "constraint": "system_one_choice",
     "context_window_tokens": 65536,
     "context_window_source": "https://developers.cloudflare.com/workers-ai/models/clef/ (retrieved 2026-11-09)",
-    "max_bytes_per_token": 8,
+    "max_bytes_per_token": 6,
     "prices": {
       "input": 21818,
       "output": 0,
