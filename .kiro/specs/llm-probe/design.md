@@ -1880,6 +1880,8 @@ Status: accepted as proposed (Author, 2026-11-09).
 
 The instructions are the "How to read the facts" and "How to choose" sections of the D template, verbatim, in a separate file so that the frozen `decision.v1.txt` (used in the Locked_Runs already recorded) is not touched. The five Author template rules are kept by a test, not by copying a test's list into the mapping (see the adapter section).
 
+**Note (2026-11-09, task 30): section form fixed.** The mapping file uses the form of the System_One_Mapping section of the adapter design: `[meta]`, `[instructions]`, `[state]`, in that order. Task 30.1 of tasks.md lists `[state]`, `[instructions]`, `[criteria]`; that wording is superseded by this note. The `[criteria]` section is not written: the option-to-label mapping rule is stated in `[meta]` (`criteria:` line) and implemented by `llm_render_system_one` (the parser still accepts and ignores an optional `[criteria]`). `[instructions]` holds the two sections "How to read the facts:" and "How to choose:" of `decision.v1.txt`, headings included, byte for byte; "How to reply:" is not copied because the reply format is fixed by System One itself.
+
 ### DA-19: Truncation and over-context handling (R19.11, 2026-11-09)
 
 Status: accepted as proposed (Author, 2026-11-09).

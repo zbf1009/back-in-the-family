@@ -4,6 +4,7 @@
 // they are sent after every engine create or rebuild and never recorded as results.
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { TaskType } from './cards.ts';
 import type { Prompt } from './adapters/interface.ts';
@@ -41,6 +42,12 @@ export const templateHashes = (dir: string = TEMPLATES_DIR): Record<TaskType, st
   decision: loadTemplate('decision', dir).sha256,
   synthesis: loadTemplate('synthesis', dir).sha256,
 });
+
+/**
+ * A System_One_Mapping file (R19.7, R19.10): the text and its Template_Hash, the sha256 of the exact file bytes.
+ * `file` is the repository-relative path named by the Combination's `mapping.file`.
+ */
+export const loadSystemOneMapping = (repoDir: string, file: string): TextWithHash => load(join(repoDir, file));
 
 /** Warm-up hash per Task_Type. */
 export const warmupHashes = (dir: string = WARMUP_DIR): Record<TaskType, string> => ({

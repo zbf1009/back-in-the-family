@@ -6,26 +6,10 @@ import { parseCombinations } from '../../src/phase.ts';
 import { llmParseCard, llmRenderPrompt } from '../../src/simwasm.ts';
 import { loadTemplate, loadWarmup, templateHashes, warmupHashes } from '../../src/templates.ts';
 import type { TaskType } from '../../src/cards.ts';
+import { STATEMENTS } from './templates.statements.ts';
 
 const TASKS: TaskType[] = ['decision', 'synthesis'];
 const read = (rel: string): string => readFileSync(new URL(rel, import.meta.url), 'utf8');
-
-// The five mandatory statements (Author steering 2026-11-07), as stable key phrases that both templates contain.
-const STATEMENTS: Record<string, string[]> = {
-  '1 relation direction': [
-    `means #2 is #1's parent, not that #1 is #2's parent`,
-    'Tags say what the second person (#2) is to the first person (#1)',
-    'The first person is the one who feels it',
-  ],
-  '2 magnitude units': [
-    'dollars for money events',
-    'joss paper sheet counts for offerings',
-    'intensity from 1 to 100 for social events',
-  ],
-  '3 official alive': ['alive means in office, not living'],
-  '4 tick is a day': ['One tick is one day', 'Today is day {{tick}}.'],
-  '5 actor order': ['loan: lender, then borrower', 'promise and promise_kept: promisor, then promisee'],
-};
 
 for (const task of TASKS) {
   test(`${task} template states all five Author-steering facts`, () => {

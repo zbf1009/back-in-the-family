@@ -7,7 +7,6 @@
 //
 // Design rule: all grading goes through Sim_Wasm (run-grading.ts); this file holds no validation or
 // scoring logic. All output goes through RunLogger, which has no method for prompt or output text.
-import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import path from 'node:path';
 import type { AdapterResult, LateAnswer, Prompt, RuntimeAdapter, SamplingParams, OutputConstraint } from './adapters/interface.ts';
@@ -75,7 +74,7 @@ import {
 import { GradingError, cardFacts, gradeRecords, hasOutput, type CardFacts } from './run-grading.ts';
 import { RunLogger, renderReasonCategory, type FailureCode, type FailureArgs, type TaskProgress } from './run-logger.ts';
 import { llmPermutations, llmRenderPrompt, wasmSha256 } from './simwasm.ts';
-import { TEMPLATES_DIR, WARMUP_DIR, loadTemplate, loadWarmup, loadWarmupPrompt, type TextWithHash } from './templates.ts';
+import { TEMPLATES_DIR, WARMUP_DIR, loadSystemOneMapping, loadTemplate, loadWarmup, loadWarmupPrompt, type TextWithHash } from './templates.ts';
 
 // ---------------------------------------------------------------- public types
 
@@ -502,7 +501,7 @@ function mappingHashOf(repoDir: string, combo: Combination): string | null {
   const file = asRecord(combo['mapping'])?.['file'];
   if (typeof file !== 'string') return null;
   try {
-    return createHash('sha256').update(fs.readFileSync(path.join(repoDir, file))).digest('hex');
+    return loadSystemOneMapping(repoDir, file).sha256;
   } catch {
     return null;
   }
