@@ -7,7 +7,7 @@ import type { TaskType } from '../../src/cards.ts';
 import { deriveEntries, LEDGER_SCHEMA, type LedgerEvent } from '../../src/ledger.ts';
 import type { MetricCard } from '../../src/metrics.ts';
 import type { Combination } from '../../src/phase.ts';
-import { analyzeRun, buildReport, DEV_SECTION_TITLE, type ReportInput, type RunAnalysis } from '../../src/report.ts';
+import { analyzeRun, buildReport, DEV_SECTION_TITLE, modelKeyText, passMarkText, RECOMMENDATION_SCOPE, type ReportInput, type RunAnalysis } from '../../src/report.ts';
 import { SCHEMA, type ContrastLine, type GradeLine, type JsonValue, type ResultRecord, type ResultsHeader, type SmokeRecord, type TaskSubset } from '../../src/results.ts';
 
 const REV = 'b'.repeat(40);
@@ -187,4 +187,26 @@ test('an Exclusion_Record removes a passing Combination from the support marks',
   assert.match(report, /Exclusion_Record \(vram\)/);
   assert.match(report, /VRAM need \(MiB\): value 3000, limit 2600/);
   assert.doesNotMatch(report, /\*\*webllm\/qwen\/nvidia/);
+});
+
+test('section 9 repeats the Author\'s scope statement exactly', () => {
+  const report = buildReport(input(true));
+  const section9 = report.slice(report.indexOf('\n## 9. '), report.indexOf('\n## 10. '));
+  assert.ok(section9.includes('The in-browser conclusion covers only Qwen3.5 on WebLLM. The Workers AI conclusion covers only gemma-4-26b-a4b-it with the frozen templates, thinking disabled and one call per request; it does not represent other models on Workers AI or other ways of calling them.'));
+  assert.ok(RECOMMENDATION_SCOPE.startsWith('The in-browser conclusion'));
+});
+
+test('a pass whose lower bound is under the Threshold states the lower bound and the interval method', () => {
+  assert.equal(passMarkText({ k: 769, m: 1000 }, 80, 'Cluster_Bootstrap'), 'pass (point estimate; 95% Cluster_Bootstrap lower bound 76.9% < 80%)');
+  assert.equal(passMarkText({ k: 744, m: 1000 }, 80, 'pair bootstrap'), 'pass (point estimate; 95% pair bootstrap lower bound 74.4% < 80%)');
+  assert.equal(passMarkText({ k: 650, m: 1000 }, 80, 'Cluster_Bootstrap'), 'pass with weak evidence (point estimate; 95% Cluster_Bootstrap lower bound 65.0% < 80%)');
+  assert.equal(passMarkText({ k: 800, m: 1000 }, 80, 'Cluster_Bootstrap'), 'pass');
+});
+
+test('Model_Key text omits empty segments and keeps a text revision whole', () => {
+  assert.equal(
+    modelKeyText({ runtime: 'workers-ai', model_id: '@cf/google/gemma-4-26b-a4b-it', quantization: '', revision: 'server-side, not pinnable' }),
+    'workers-ai / @cf/google/gemma-4-26b-a4b-it / server-side, not pinnable',
+  );
+  assert.equal(modelKeyText({ runtime: 'webllm', model_id: 'm', quantization: 'q4f16', revision: 'a'.repeat(40) }), `webllm / m / q4f16 / ${'a'.repeat(12)}`);
 });

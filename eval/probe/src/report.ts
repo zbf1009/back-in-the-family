@@ -109,6 +109,10 @@ export interface TaskAnalysis {
   readonly acceptableLabel: PassLabel | null;
   /** R13.9 label, only when contrast consistency passes. */
   readonly contrastLabel: PassLabel | null;
+  /** Rendered mark text for a passing acceptable rate (states the lower bound when it is under the Threshold). */
+  readonly acceptableMark: string | null;
+  /** Rendered mark text for a passing contrast consistency. */
+  readonly contrastMark: string | null;
 }
 
 export interface ExcludedPair {
@@ -198,6 +202,8 @@ export function analyzeRun(input: RunInputs): RunAnalysis {
       latency,
       acceptableLabel: m.acceptable.verdict === 'pass' && acceptable.cluster !== null ? weakEvidenceLabel(acceptable.cluster.lower, THRESHOLDS.acceptablePct) : null,
       contrastLabel: m.contrast.verdict === 'pass' && contrastInterval !== null ? weakEvidenceLabel(contrastInterval.lower, THRESHOLDS.contrastPct) : null,
+      acceptableMark: m.acceptable.verdict === 'pass' && acceptable.cluster !== null ? passMarkText(acceptable.cluster.lower, THRESHOLDS.acceptablePct, 'Cluster_Bootstrap') : null,
+      contrastMark: m.contrast.verdict === 'pass' && contrastInterval !== null ? passMarkText(contrastInterval.lower, THRESHOLDS.contrastPct, 'pair bootstrap') : null,
     };
   });
   return {
@@ -288,6 +294,23 @@ function pct(num: number, den: number): string {
   return `${Math.floor(t / 10)}.${t % 10}%`;
 }
 const fracPct = (f: Frac): string => pct(f.k, f.m);
+
+/**
+ * Mark of a passing Metric from its interval lower bound (R13.9). At or above the Threshold: "pass".
+ * Under it: the R13.9 label, followed by the point-estimate statement with the actual lower bound.
+ */
+export function passMarkText(lower: Frac, thresholdPct: number, method: string): string {
+  const label = weakEvidenceLabel(lower, thresholdPct);
+  if (label === 'pass') return 'pass';
+  const detail = `point estimate; 95% ${method} lower bound ${fracPct(lower)} < ${thresholdPct}%`;
+  return label === 'pass with weak evidence' ? `pass with weak evidence (${detail})` : `pass (${detail})`;
+}
+
+/** Model_Key as text: empty segments are omitted; a commit hash is shortened, a text revision is kept whole. */
+export function modelKeyText(k: { runtime: string; model_id: string; quantization: string; revision: string }): string {
+  const revision = /^[0-9a-f]{40}$/.test(k.revision) ? k.revision.slice(0, 12) : k.revision;
+  return [k.runtime, k.model_id, k.quantization, revision].filter((x) => x !== '').join(' / ');
+}
 const ratioText = (r: Ratio): string => (r.den === 0 ? `${r.num}/${r.den} (not computable)` : `${r.num}/${r.den}`);
 const ratioPct = (r: Ratio): string => pct(r.num, r.den);
 
@@ -298,6 +321,9 @@ function mib(bytes: number): string {
 
 const taskLetter = (t: TaskType): string => (t === 'decision' ? 'D' : 'S');
 const taskTitle = (t: TaskType): string => `Task_Type ${taskLetter(t)} (${t})`;
+/** Author's scope statement, repeated in section 9 (Author review of docs/llm-probe.md). */
+export const RECOMMENDATION_SCOPE =
+  'The in-browser conclusion covers only Qwen3.5 on WebLLM. The Workers AI conclusion covers only gemma-4-26b-a4b-it with the frozen templates, thinking disabled and one call per request; it does not represent other models on Workers AI or other ways of calling them.';
 const TASKS: readonly TaskType[] = ['decision', 'synthesis'];
 
 const verdictText = (v: Verdict): string => (v === 'not_computable' ? 'not computable' : v);
@@ -320,10 +346,10 @@ function latencyText(v: number | 'no data'): string {
 function marks(t: TaskAnalysis): { acceptable: string; severe: string; flip: string; contrast: string; overall: string } {
   const m = t.metrics;
   return {
-    acceptable: m.acceptable.verdict === 'pass' ? (t.acceptableLabel ?? 'pass') : verdictText(m.acceptable.verdict),
+    acceptable: m.acceptable.verdict === 'pass' ? (t.acceptableMark ?? 'pass') : verdictText(m.acceptable.verdict),
     severe: verdictText(m.severe.verdict),
     flip: verdictText(m.flip.verdict),
-    contrast: m.contrast.verdict === 'pass' ? (t.contrastLabel ?? 'pass') : verdictText(m.contrast.verdict),
+    contrast: m.contrast.verdict === 'pass' ? (t.contrastMark ?? 'pass') : verdictText(m.contrast.verdict),
     overall: !m.usableForMark ? 'not used for a mark (missing outputs or engine faults)' : m.passes ? 'pass' : 'fail',
   };
 }
@@ -679,7 +705,7 @@ export function buildReport(input: ReportInput): string {
     return `acceptable ${ratioText(m.acceptable)} (${ratioPct(m.acceptable)}), severe ${m.severe.count}, flips ${ratioText(m.flip)}, contrast ${ratioText(m.contrast)}; ${marks(t).overall}`;
   };
   for (const c of choices) {
-    const keyText = `${c.model_key.runtime} / ${c.model_key.model_id}${c.model_key.quantization === '' ? '' : ` / ${c.model_key.quantization}`} / ${c.model_key.revision.slice(0, 12)}`;
+    const keyText = modelKeyText(c.model_key);
     if (c.used === null) ledgerRows.push([keyText, taskLetter(c.task), '—', 'none', 'no complete entry', '—']);
     else {
       const e = entryById.get(c.used);
@@ -762,6 +788,7 @@ export function buildReport(input: ReportInput): string {
     }
     return cmp(a.combo.id, b.combo.id);
   };
+  para(RECOMMENDATION_SCOPE);
   para('Selection among passing Combinations of a link: highest acceptable rate, then fewest severe outputs, then lowest p95 latency, then Combination ID.');
   for (const task of TASKS) {
     h3(taskTitle(task));
