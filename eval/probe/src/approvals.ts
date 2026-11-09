@@ -8,7 +8,10 @@ import { printErrorLine } from './sink.ts';
 export const APPROVALS_SCHEMA = 'llm-probe-approvals-v1';
 export const APPROVALS_PATH = 'eval/probe/approvals.json';
 
-export type ApprovalKind = 'smoke' | 'dev' | 'locked' | 'phase2';
+export type ApprovalKind = 'smoke' | 'dev' | 'locked' | 'phase2' | 'decision_model' | 'withdrawal';
+
+/** Steps a `decision_model` entry can name. There is no `smoke` step: a Decision_Model Smoke_Call needs no approval (RC-10). */
+export type DecisionStep = 'dev' | 'locked';
 
 export interface Approval {
   readonly id: string;
@@ -19,8 +22,14 @@ export interface Approval {
   readonly task_subset?: string | null;
   readonly max_requests?: number;
   readonly phase2?: string;
-  readonly approved_on: string;
-  readonly note: string;
+  /** `decision_model` only: the one step the entry covers (R19.4). */
+  readonly step?: DecisionStep;
+  /** `withdrawal` only: IDs of the approvals it withdraws (DA-21). */
+  readonly withdraws?: readonly string[];
+  readonly withdrawn_on?: string;
+  /** Present on every kind except `withdrawal`. */
+  readonly approved_on?: string;
+  readonly note?: string;
 }
 
 export type ApprovalsResult =
@@ -34,7 +43,32 @@ export interface ApprovalsOptions {
   readonly print?: (line: string) => void;
 }
 
-const KINDS: readonly string[] = ['smoke', 'dev', 'locked', 'phase2'];
+const KINDS: readonly string[] = ['smoke', 'dev', 'locked', 'phase2', 'decision_model', 'withdrawal'];
+
+const nonEmpty = (v: unknown): v is string => typeof v === 'string' && v !== '';
+
+/** Strict checks for the R19.4 kinds (DA-21). Older kinds keep their existing, looser reading. */
+function checkDecisionModel(r: Record<string, unknown>, at: string): void {
+  for (const k of ['combination', 'step', 'task_subset', 'max_requests', 'approved_on'] as const) {
+    if (r[k] === undefined) throw new Error(`${at} (decision_model) is missing ${k}`);
+  }
+  if (!nonEmpty(r['combination'])) throw new Error(`${at}.combination is not a non-empty string`);
+  if (r['step'] === 'smoke') throw new Error(`${at}.step is smoke; a Decision_Model Smoke_Call needs no approval (RC-10)`);
+  if (r['step'] !== 'dev' && r['step'] !== 'locked') throw new Error(`${at}.step is not dev or locked`);
+  if (r['task_subset'] !== 'D') throw new Error(`${at}.task_subset is not D (R19.1)`);
+  if (typeof r['max_requests'] !== 'number' || !Number.isInteger(r['max_requests']) || r['max_requests'] < 1) throw new Error(`${at}.max_requests is not a positive integer`);
+  if (!nonEmpty(r['approved_on'])) throw new Error(`${at}.approved_on is not a non-empty string`);
+  if ('phase2' in r) throw new Error(`${at} (decision_model) has a phase2 member`);
+}
+
+function checkWithdrawal(r: Record<string, unknown>, at: string): void {
+  for (const k of ['withdraws', 'withdrawn_on'] as const) {
+    if (r[k] === undefined) throw new Error(`${at} (withdrawal) is missing ${k}`);
+  }
+  const w = r['withdraws'];
+  if (!Array.isArray(w) || w.length === 0 || !w.every(nonEmpty)) throw new Error(`${at}.withdraws is not a non-empty list of IDs`);
+  if (!nonEmpty(r['withdrawn_on'])) throw new Error(`${at}.withdrawn_on is not a non-empty string`);
+}
 
 function git(repoDir: string, args: readonly string[]): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -66,6 +100,14 @@ export function parseApprovals(text: string): Approval[] {
     if (seen.has(r['id'])) throw new Error(`approvals[${i}].id is a duplicate`);
     seen.add(r['id']);
     if (typeof r['kind'] !== 'string' || !KINDS.includes(r['kind'])) throw new Error(`approvals[${i}].kind is not legal`);
+    if (r['kind'] === 'decision_model') checkDecisionModel(r, `approvals[${i}]`);
+    if (r['kind'] === 'withdrawal') checkWithdrawal(r, `approvals[${i}]`);
+  }
+  // A withdrawal names existing decision_model entries of the same file (DA-21).
+  const dm = new Set((list as Record<string, unknown>[]).filter((e) => e['kind'] === 'decision_model').map((e) => e['id'] as string));
+  for (const [i, e] of (list as Record<string, unknown>[]).entries()) {
+    if (e['kind'] !== 'withdrawal') continue;
+    for (const id of e['withdraws'] as string[]) if (!dm.has(id)) throw new Error(`approvals[${i}].withdraws names ${id}, which is not a decision_model entry`);
   }
   return list as Approval[];
 }

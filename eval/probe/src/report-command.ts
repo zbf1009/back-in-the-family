@@ -12,7 +12,7 @@ import { DEFAULT_CARDS_DIR, loadCards, type LoadedCard, type LoadedCards } from 
 import { decisionFactsFromLoaded, type DecisionCardFacts } from './diagnosis.ts';
 import { readLedger, type LedgerEntry } from './ledger.ts';
 import { metricCardFromLoaded, type FaultRecord, type MetricCard } from './metrics.ts';
-import { defaultPaths, printPhaseStatus, readPhaseState, type PassLoader, type PhasePaths } from './phase-commands.ts';
+import { defaultPaths, printPhaseStatus, readPhaseState, readTechMd, type PassLoader, type PhasePaths } from './phase-commands.ts';
 import { analyzeRun, buildReport, entryPassesFrom, scanFaults, TARGET_MACHINE, type ReportInput, type RunAnalysis, type RuntimeLibrary } from './report.ts';
 import {
   gradesPathFor,
@@ -236,7 +236,7 @@ export async function loadPhaseState(paths: ReportPaths): Promise<PhaseState> {
 /** `phase-status` with pass results loaded. The Manifest_Check has already passed (cli.ts). */
 export async function phaseStatusWithPasses(paths: ReportPaths): Promise<number> {
   try {
-    printPhaseStatus(await loadPhaseState(paths));
+    printPhaseStatus(await loadPhaseState(paths), readTechMd(paths.repoDir));
     return 0;
   } catch (error) {
     printErrorLine(`probe: phase-status: ${error instanceof Error ? error.message : String(error)}`);

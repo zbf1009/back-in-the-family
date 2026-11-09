@@ -6,8 +6,8 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { loadApprovals } from './approvals.ts';
 import { readLedger } from './ledger.ts';
-import { formatLedger, formatPhaseStatus, parseCombinations, phase2ResultLines, phaseStatus, type EntryPasses, type PhaseState } from './phase.ts';
-import { readExclusions, readFailures, readSmoke } from './results.ts';
+import { formatDecisionModels, formatLedger, formatPhaseStatus, parseCombinations, phase2ResultLines, phaseStatus, techRuntimeWarning, type DevRunInfo, type EntryPasses, type PhaseState } from './phase.ts';
+import { readExclusions, readFailures, readResultsFile, readSmoke } from './results.ts';
 import { printErrorLine, printLine } from './sink.ts';
 import type { LedgerEntry } from './ledger.ts';
 
@@ -18,6 +18,8 @@ export interface PhasePaths {
   readonly exclusions: string;
   readonly smokeDir: string;
   readonly combinations: string;
+  /** Dev_Run Results directory; read for the Decision_Model gate. */
+  readonly devDir?: string;
 }
 
 export function defaultPaths(repoDir: string): PhasePaths {
@@ -28,6 +30,7 @@ export function defaultPaths(repoDir: string): PhasePaths {
     exclusions: path.join(repoDir, 'eval/results/exclusions.jsonl'),
     smokeDir: path.join(repoDir, 'eval/results/smoke'),
     combinations: path.join(repoDir, 'eval/probe/combinations.json'),
+    devDir: path.join(repoDir, 'eval/results/dev'),
   };
 }
 
@@ -48,6 +51,21 @@ function readSmokeDir(dir: string): ReturnType<typeof readSmoke> {
     .flatMap((f) => readSmoke(path.join(dir, f)));
 }
 
+/** Dev_Run headers in file-name order (oldest first), as the Dev_Run precondition reads them (R3.12). Unreadable files are skipped here. */
+function readDevRuns(dir: string | undefined): DevRunInfo[] {
+  if (dir === undefined || !fs.existsSync(dir)) return [];
+  const out: DevRunInfo[] = [];
+  for (const name of fs.readdirSync(dir).filter((n) => n.endsWith('.jsonl') && !n.endsWith('.grades.jsonl')).sort()) {
+    try {
+      const h = readResultsFile(path.join(dir, name)).header;
+      out.push({ run_id: h.run_id, combination: h.combination, task_subset: h.task_subset, template_hashes: h.template_hashes });
+    } catch {
+      // The Dev_Run precondition reports unreadable files; the gate then finds no matching header and refuses.
+    }
+  }
+  return out;
+}
+
 /** Low level: the state with an injected pass loader. Callers that need pass results use `loadPhaseState` in report-command.ts. */
 export async function readPhaseState(paths: PhasePaths, loadPasses: PassLoader = noPasses): Promise<PhaseState> {
   const combinations = parseCombinations(fs.readFileSync(paths.combinations, 'utf8'));
@@ -62,14 +80,27 @@ export async function readPhaseState(paths: PhasePaths, loadPasses: PassLoader =
     approvals,
     passes: loadPasses(entries),
     overLimit: new Set(),
+    devRuns: readDevRuns(paths.devDir),
   };
 }
 
 /** Prints the `phase-status` lines for a state. */
-export function printPhaseStatus(state: PhaseState): void {
+export function printPhaseStatus(state: PhaseState, techText: string | null = null): void {
   for (const line of formatPhaseStatus(phaseStatus(state))) printLine(line);
   for (const line of phase2ResultLines(state)) printLine(line);
+  for (const line of formatDecisionModels(state)) printLine(line);
+  const warning = techRuntimeWarning(state, techText);
+  if (warning !== null) printErrorLine(`phase-status: warning: ${warning}`);
   printLine('Scope: the D and S lines above are the Phase_1 in-browser result only (R18.2); Workers AI Locked_Runs appear in the Phase_2 lines and in the Report.');
+}
+
+/** Text of `.kiro/steering/tech.md`, or null when it cannot be read (only the hold warning uses it). */
+export function readTechMd(repoDir: string): string | null {
+  try {
+    return fs.readFileSync(path.join(repoDir, '.kiro/steering/tech.md'), 'utf8');
+  } catch {
+    return null;
+  }
 }
 
 /** `phase-status`: prints the per-Task_Type result and the branch that follows. Returns the exit code. */
@@ -79,7 +110,7 @@ export async function phaseStatusCommand(paths: PhasePaths, loadPasses: PassLoad
     if (loadPasses === noPasses && state.entries.some((e) => e.status === 'complete')) {
       printErrorLine('phase-status: warning: no pass results are loaded, so no complete entry counts as a pass yet');
     }
-    printPhaseStatus(state);
+    printPhaseStatus(state, readTechMd(paths.repoDir));
     return 0;
   } catch (error) {
     printErrorLine(`probe: phase-status: ${error instanceof Error ? error.message : String(error)}`);

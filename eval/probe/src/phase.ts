@@ -110,6 +110,16 @@ export interface PhaseState {
   readonly passes: ReadonlyMap<string, EntryPasses>;
   /** Combination IDs whose measured download is over the In_Browser_Size_Limits (R9.11). */
   readonly overLimit: ReadonlySet<string>;
+  /** Dev_Run headers, oldest first. Read by the Decision_Model gate only (R19.5); absent means none. */
+  readonly devRuns?: readonly DevRunInfo[];
+}
+
+/** What the Decision_Model gate needs from a Dev_Run Results header. */
+export interface DevRunInfo {
+  readonly run_id: string;
+  readonly combination: string;
+  readonly task_subset: string;
+  readonly template_hashes: Readonly<Record<string, string>>;
 }
 
 export type Branch = 'A' | 'B';
@@ -444,4 +454,125 @@ export function formatLedger(entries: readonly LedgerEntry[]): string[] {
   const rows = ledgerRows(entries);
   if (rows.length === 0) return ['ledger: no entries'];
   return rows.map((r) => `${r.entry_id}  ${r.combination}  subset ${r.task_subset}  ${r.status}  ${r.detail}${r.rerun_of === null ? '' : `  re-run of ${r.rerun_of}`}`);
+}
+
+// ---------------------------------------------------------------- Decision_Models (R19, DA-21, DA-22)
+
+/** A Decision_Model is a Workers AI Combination with the `system_one` Response_Shape (design: Decision_Model Combination records). */
+export const isDecisionModel = (c: Combination): boolean => isWorkersAi(c) && (c.response_shape as string | undefined) === 'system_one';
+
+/** IDs withdrawn by some `withdrawal` entry (DA-21). A withdrawal of a withdrawal does nothing: only `decision_model` entries are looked up. */
+export function withdrawnIds(approvals: readonly Approval[]): Set<string> {
+  const out = new Set<string>();
+  for (const a of approvals) if (a.kind === 'withdrawal') for (const id of a.withdraws ?? []) out.add(id);
+  return out;
+}
+
+/** Unwithdrawn `decision_model` entries, optionally for one Combination and one step. */
+export function decisionModelApprovals(approvals: readonly Approval[], combinationId?: string, step?: 'dev' | 'locked'): Approval[] {
+  const gone = withdrawnIds(approvals);
+  return approvals.filter((a) => a.kind === 'decision_model' && !gone.has(a.id) && (combinationId === undefined || a.combination === combinationId) && (step === undefined || a.step === step));
+}
+
+export type DecisionStepKind = 'smoke' | 'dev' | 'locked';
+
+/** What the caller knows about the planned run: the request count and the mapping file's Template_Hash. */
+export interface DecisionPlan {
+  readonly count: number;
+  readonly mappingHash: string;
+}
+
+export type DecisionGate =
+  /** Task_Type_Subset contains S: exit non-zero, write nothing at all (R19.1). Nothing else was read. */
+  | { readonly outcome: 'wrong_subset'; readonly reason: string }
+  /** A refused run: no request, `not_run` with `not_approved`, no ledger entry for a Locked_Run, non-zero exit. */
+  | { readonly outcome: 'refused'; readonly reason: string }
+  | { readonly outcome: 'allowed'; readonly reason: string; readonly approval: string | null };
+
+/**
+ * The gate for the Decision_Models (R19.1, R19.4, R19.5, R18.1, R18.3, R18.4, DA-21). It never looks at the
+ * branch, the `phase2` entry or an approval of another kind. Order of checks:
+ * (1) subset exactly D; (2) Phase_1 ended; (3) an unwithdrawn `decision_model` entry for this Combination and step;
+ * (4) smoke, Dev_Run, Locked_Run order; (5) planned count within the entry's `max_requests`.
+ * A `smoke` step needs no approval (RC-10): the 10-per-UTC-day count and the budget caps are the budget's business.
+ * `plan` is required for `dev` and `locked`.
+ */
+export function allowDecisionModel(step: DecisionStepKind, combo: Combination, task_subset: TaskSubset, state: PhaseState, plan?: DecisionPlan): DecisionGate {
+  if (task_subset !== 'D') {
+    return { outcome: 'wrong_subset', reason: `task_subset: ${combo.id} accepts Task_Type D only; requested ${task_subset}` };
+  }
+  if (!isDecisionModel(combo)) return { outcome: 'refused', reason: `${combo.id} is not a Decision_Model (response_shape system_one)` };
+  if (step === 'smoke') return { outcome: 'allowed', reason: 'Decision_Model Smoke_Calls need no approval (RC-10); the daily count and the budget caps apply', approval: null };
+
+  if (!phase1Ended(state)) {
+    const names = phase1Pending(state).map((c) => c.id).join(', ');
+    return { outcome: 'refused', reason: `Phase_1 has not ended; waiting for: ${names}` };
+  }
+  if (!state.approvals.approved) return { outcome: 'refused', reason: `approvals.json is not usable: ${state.approvals.reason}` };
+  const entries = decisionModelApprovals(state.approvals.approvals, combo.id, step);
+  if (entries.length === 0) return { outcome: 'refused', reason: `no unwithdrawn decision_model ${step} approval for ${combo.id}` };
+
+  const shape = shapeGate(combo, state.smoke);
+  if (shape !== null) return { outcome: 'refused', reason: shape };
+  if (plan === undefined) return { outcome: 'refused', reason: 'the planned request count and mapping Template_Hash were not given' };
+  if (step === 'locked') {
+    const mine = (state.devRuns ?? []).filter((d) => d.combination === combo.id);
+    const newest = mine[mine.length - 1];
+    if (newest === undefined) return { outcome: 'refused', reason: `no Dev_Run of ${combo.id} precedes the Locked_Run (R19.5)` };
+    if (newest.template_hashes['decision'] !== plan.mappingHash) {
+      return { outcome: 'refused', reason: `mapping Template_Hash differs from the newest Dev_Run ${newest.run_id} (recorded ${newest.template_hashes['decision'] ?? 'none'}, current ${plan.mappingHash})` };
+    }
+  }
+  const fit = entries.find((a) => a.max_requests !== undefined && plan.count <= a.max_requests);
+  if (fit === undefined) {
+    return { outcome: 'refused', reason: `planned ${plan.count} requests exceed max_requests of ${entries.map((a) => `${a.id} (${String(a.max_requests)})`).join(', ')}` };
+  }
+  return { outcome: 'allowed', reason: `${step} approval ${fit.id} for ${combo.id}, ${plan.count} requests`, approval: fit.id };
+}
+
+/**
+ * R19.17: true exactly when some Decision_Model has an unwithdrawn `decision_model` entry and none of: a `complete`
+ * ledger entry for D, a non-transient locked failure record (the DA-15 rule), an Exclusion_Record.
+ */
+export function decisionHold(state: PhaseState): boolean {
+  if (!state.approvals.approved) return false;
+  const approvals = state.approvals.approvals;
+  return state.combinations.some(
+    (c) => isDecisionModel(c) && decisionModelApprovals(approvals, c.id).length > 0 && !completeCoverage(c, state).has('decision') && !hasFailure(c, state) && !hasExclusion(c, state),
+  );
+}
+
+/** The `decision_models:` block and the hold line of `phase-status` (DA-22). */
+export function formatDecisionModels(state: PhaseState): string[] {
+  const out: string[] = ['decision_models:'];
+  const models = state.combinations.filter(isDecisionModel);
+  if (models.length === 0) out.push('  none');
+  const approvals = state.approvals.approved ? state.approvals.approvals : [];
+  const gone = withdrawnIds(approvals);
+  for (const c of models) {
+    const mine = approvals.filter((a) => a.kind === 'decision_model' && a.combination === c.id);
+    const text = (step: 'dev' | 'locked'): string => {
+      const list = mine.filter((a) => a.step === step).map((a) => `${a.id} (max ${String(a.max_requests)})${gone.has(a.id) ? ' withdrawn' : ''}`);
+      return `${step}: ${list.length === 0 ? 'none' : list.join(', ')}`;
+    };
+    const ledger = [...state.entries].filter((e) => e.start.combination === c.id).sort((a, b) => a.order - b.order);
+    const last = ledger[ledger.length - 1];
+    const end = hasExclusion(c, state) ? 'Exclusion_Record' : hasFailure(c, state) ? 'failure record' : null;
+    out.push(`  ${c.id}  approvals ${text('dev')}; ${text('locked')}  ledger: ${last === undefined ? 'none' : `${last.entry_id} ${last.status}`}${end === null ? '' : `  ended by: ${end}`}`);
+  }
+  out.push(decisionHold(state) ? 'runtime decision: ON HOLD (R19.17)' : 'runtime decision: not on hold');
+  return out;
+}
+
+/** Text the "LLM runtime" row of tech.md starts with while the decision is pending. */
+export const TECH_PENDING_TEXT = 'Pending';
+
+/** Warning (not a gate) when the hold is on and the tech.md "LLM runtime" row no longer starts with its pending text. */
+export function techRuntimeWarning(state: PhaseState, techText: string | null): string | null {
+  if (!decisionHold(state)) return null;
+  if (techText === null) return 'runtime decision is on hold but .kiro/steering/tech.md could not be read';
+  const row = techText.split('\n').find((l) => /^\|\s*LLM runtime\s*\|/.test(l));
+  const cell = row?.split('|')[2]?.trim();
+  if (cell !== undefined && cell.startsWith(TECH_PENDING_TEXT)) return null;
+  return 'runtime decision is on hold (R19.17) but the tech.md "LLM runtime" row no longer starts with "Pending"';
 }
