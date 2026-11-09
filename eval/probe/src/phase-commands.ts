@@ -6,7 +6,7 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { loadApprovals } from './approvals.ts';
 import { readLedger } from './ledger.ts';
-import { formatLedger, formatPhaseStatus, parseCombinations, phaseStatus, type EntryPasses, type PhaseState } from './phase.ts';
+import { formatLedger, formatPhaseStatus, parseCombinations, phase2ResultLines, phaseStatus, type EntryPasses, type PhaseState } from './phase.ts';
 import { readExclusions, readFailures, readSmoke } from './results.ts';
 import { printErrorLine, printLine } from './sink.ts';
 import type { LedgerEntry } from './ledger.ts';
@@ -72,6 +72,8 @@ export async function phaseStatusCommand(paths: PhasePaths, loadPasses: PassLoad
       printErrorLine('phase-status: warning: no pass results are loaded, so no complete entry counts as a pass yet');
     }
     for (const line of formatPhaseStatus(phaseStatus(state))) printLine(line);
+    for (const line of phase2ResultLines(state)) printLine(line);
+    printLine('Scope: the D and S lines above are the Phase_1 in-browser result only (R18.2); Workers AI Locked_Runs appear in the Phase_2 lines and in the Report.');
     return 0;
   } catch (error) {
     printErrorLine(`probe: phase-status: ${error instanceof Error ? error.message : String(error)}`);

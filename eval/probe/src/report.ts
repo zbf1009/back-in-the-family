@@ -51,7 +51,12 @@ export const NVIDIA_MEMORY_COLUMN = 'NVIDIA device memory.used delta, MiB';
 export const INTEL_MEMORY_QUANTITY = 'Chrome GPU process peak RSS (excludes unmapped GEM buffers)';
 /** The Author's reading of the iteration-2 Dev_Runs (2026-11-08); fixed text, the figures are checked by hand in docs/kiro-log.md. */
 export const DEV_D_FINDING =
-  'Reading of the Dev_Runs with the frozen D template (Author, 2026-11-08): Qwen3.5-0.8B 43/74 and Qwen3.5-2B 38/74 acceptable D requests are at random level (see the request-level random baseline below, about 41 of 74); contrast-pair consistency is 0 of the pairs; and the gain from the first template to the frozen one came mainly from fewer Illegal outputs (the model stopped writing a leading dash and a wrong ID), not from better judgement. The final Dev_Runs with the frozen hashes gave the same picture: Qwen3.5-0.8B 43/74 on NVIDIA and, with identical outputs, on the Intel iGPU, and Qwen3.5-2B 34/74 (8 Illegal, mostly Timeouts; run-to-run latency noise moved it from 38/74).';
+  'Reading of the Dev_Runs with the frozen D template (Author, 2026-11-08): Qwen3.5-0.8B 43/74 and Qwen3.5-2B 38/74 acceptable D requests are at random level (see the request-level random baseline below, about 41 of 74); contrast-pair consistency is 0 of the pairs; and the gain from the first template to the frozen one came mainly from fewer Illegal outputs (the model stopped writing a leading dash and a wrong ID), not from better judgement. The final Dev_Runs with the frozen hashes gave the same picture: Qwen3.5-0.8B 43/74 on NVIDIA (the two earlier Intel-labelled runs with the same 43/74 are INVALID: they ran on the NVIDIA GPU, see the Intel finding below) and Qwen3.5-2B 34/74 (8 Illegal, mostly Timeouts; run-to-run latency noise moved it from 38/74).';
+
+/** The corrected Intel Dev_Run (dev-20261108T044612Z): a latency finding, checked against its Results file and in docs/kiro-log.md. */
+export const INTEL_TIMEOUT_RUN_ID = 'dev-20261108T044612Z-webllm-qwen3-5-0-8b-q4f32-intel';
+export const INTEL_TIMEOUT_FINDING =
+  'Intel iGPU finding (Dev_Run, corrected run dev-20261108T044612Z-webllm-qwen3-5-0-8b-q4f32-intel, device_mismatch false): all 74 D requests hit the 10 s timeout; the Late_Answers arrived after 11,975 / 14,955 / 17,495 ms (min / median / max), about 6.7 times the 2,245 ms NVIDIA median of the same Combination. In S, 3 requests timed out and 27 ended in `runtime_error` ("The current Object has already been disposed") after the repeated timeouts; the cause was not investigated. So no Intel quality figure exists for the frozen templates; the run shows a latency result only: the Intel iGPU cannot meet the 10 s limit for the 0.8B. The two earlier Intel-labelled runs are INVALID (device_mismatch) and show no Intel figure.';
 
 /**
  * Author's condition 3 (2026-11-08). The dev figures are from `dev.jsonl` (checked 2026-11-08: 15 scored four-option D cards
@@ -887,6 +892,7 @@ export function buildReport(input: ReportInput): string {
   h2(DEV_SECTION_TITLE);
   para('These are Dev_Run figures. They are kept out of every mark and out of the recommendation. The Intel iGPU Dev_Run appears only here.');
   para(DEV_CONFOUND_NOTE);
+  if (input.devRuns.some((r) => r.id === INTEL_TIMEOUT_RUN_ID)) para(INTEL_TIMEOUT_FINDING);
   const devRows = input.devRuns.flatMap((r) => {
     const workers = isWorkersAi(comboById.get(r.combination) ?? ({ runtime: '' } as Combination));
     const mem = memoryCells(r, workers);

@@ -26,12 +26,14 @@ export async function requireManifest(): Promise<void> {
 
 const REPO_DIR = fileURLToPath(new URL('../../../', import.meta.url));
 
-// `phase-status` and `ledger` read no cards, so they skip the Manifest_Check.
+// `ledger` reads no cards, so it skips the Manifest_Check; `phase-status` reads them for statistics and runs it.
 const COMMANDS: Record<string, () => Promise<void>> = {
   'check-manifest': requireManifest,
   'phase-status': async () => {
-    const { phaseStatusCommand, defaultPaths } = await import('./phase-commands.ts');
-    process.exitCode = await phaseStatusCommand(defaultPaths(REPO_DIR));
+    // Pass results come from the stored grades, which needs the Card_Set for statistics only: Manifest_Check first.
+    await requireManifest();
+    const { phaseStatusWithPasses, reportPaths } = await import('./report-command.ts');
+    process.exitCode = await phaseStatusWithPasses(reportPaths(REPO_DIR));
   },
   // `report` reads the Card_Set for grading and statistics only (R3.1), so the Manifest_Check comes first.
   report: async () => {

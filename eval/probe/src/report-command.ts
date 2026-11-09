@@ -12,8 +12,8 @@ import { DEFAULT_CARDS_DIR, loadCards, type LoadedCard, type LoadedCards } from 
 import { decisionFactsFromLoaded, type DecisionCardFacts } from './diagnosis.ts';
 import { readLedger, type LedgerEntry } from './ledger.ts';
 import { metricCardFromLoaded, type FaultRecord, type MetricCard } from './metrics.ts';
-import { defaultPaths, loadPhaseState, type PhasePaths } from './phase-commands.ts';
-import { analyzeRun, buildReport, scanFaults, TARGET_MACHINE, type ReportInput, type RunAnalysis, type RuntimeLibrary } from './report.ts';
+import { defaultPaths, loadPhaseState, phaseStatusCommand, type PassLoader, type PhasePaths } from './phase-commands.ts';
+import { analyzeRun, buildReport, entryPassesFrom, scanFaults, TARGET_MACHINE, type ReportInput, type RunAnalysis, type RuntimeLibrary } from './report.ts';
 import {
   gradesPathFor,
   readGradesFile,
@@ -189,6 +189,45 @@ export function markInvalid(perf: PerfRecord | null, invalid: boolean): PerfReco
   if (!invalid || perf === null) return perf;
   const memory = typeof perf.memory === 'object' && perf.memory !== null && !Array.isArray(perf.memory) ? perf.memory : {};
   return { ...perf, memory: { ...memory, device_mismatch: true } };
+}
+
+/**
+ * Pass per Task_Type of every `complete` ledger entry, from the stored Results and grades (the same analysis the
+ * Report uses), so `phase-status` and the Report agree. Reads the Card_Set for statistics only (R3.1).
+ */
+export function lockedPassLoader(paths: ReportPaths, cards: ReportCards): PassLoader {
+  return (entries) => {
+    const runs: RunAnalysis[] = [];
+    for (const e of entries) {
+      if (e.status !== 'complete') continue;
+      const file = lockedResultsFile(paths, e);
+      const results = readResultsFile(file);
+      runs.push(
+        analyzeRun({
+          kind: 'locked',
+          id: e.entry_id,
+          cards: cards.locked,
+          ...(cards.lockedDecision !== undefined ? { decisionCards: cards.lockedDecision } : {}),
+          header: results.header,
+          records: results.records,
+          grades: readGradesFile(gradesPathFor(file)),
+          perf: readPerfIfExists(perfPathFor(file)),
+        }),
+      );
+    }
+    return entryPassesFrom(runs);
+  };
+}
+
+/** `phase-status` with pass results loaded. The Manifest_Check has already passed (cli.ts). */
+export async function phaseStatusWithPasses(paths: ReportPaths): Promise<number> {
+  try {
+    const cards = reportCardsFrom(loadCards({ cardsDir: paths.cardsDir, splits: ['dev', 'locked'] }));
+    return await phaseStatusCommand(paths, lockedPassLoader(paths, cards));
+  } catch (error) {
+    printErrorLine(`probe: phase-status: ${error instanceof Error ? error.message : String(error)}`);
+    return 1;
+  }
 }
 
 /** `report`: writes `docs/llm-probe.md`. Returns the exit code. The Manifest_Check has already passed. */

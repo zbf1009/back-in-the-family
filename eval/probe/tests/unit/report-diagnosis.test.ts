@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import type { DecisionCardFacts } from '../../src/diagnosis.ts';
 import type { MetricCard } from '../../src/metrics.ts';
 import type { Combination } from '../../src/phase.ts';
-import { analyzeRun, buildReport, DEV_D_FINDING, type ReportInput } from '../../src/report.ts';
+import { analyzeRun, buildReport, DEV_D_FINDING, INTEL_TIMEOUT_FINDING, type ReportInput } from '../../src/report.ts';
 import { SCHEMA, type GradeLine, type ResultRecord, type ResultsHeader } from '../../src/results.ts';
 
 const QWEN: Combination = { id: 'webllm/qwen/nvidia', runtime: 'webllm', model_id: 'Model-q', quantization: 'q4f32_1', revision: 'b'.repeat(40), phase1_locked: true };
@@ -79,4 +79,10 @@ test('the Dev section states the position/content confound, and the note matches
   const withSevere = dev.filter((c) => c.task === 'decision' && c.scored && c.severe.length > 0);
   assert.equal(withSevere.length, 15);
   assert.ok(withSevere.every((c) => c.severe.length === 1 && c.options.findIndex((o) => o.id === c.severe[0]) === c.options.length - 1));
+});
+
+test('the Intel timeout finding is printed only when its Dev_Run is in the Report, and it does not claim an Intel quality figure', () => {
+  assert.ok(!devReport(false).includes(INTEL_TIMEOUT_FINDING));
+  for (const needle of ['all 74 D requests hit the 10 s timeout', '11,975 / 14,955 / 17,495 ms', 'no Intel quality figure', 'INVALID']) assert.ok(INTEL_TIMEOUT_FINDING.includes(needle), needle);
+  assert.ok(!DEV_D_FINDING.includes('identical outputs, on the Intel iGPU'));
 });

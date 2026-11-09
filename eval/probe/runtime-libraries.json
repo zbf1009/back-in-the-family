@@ -1,0 +1,6 @@
+[
+  { "name": "@mlc-ai/web-llm", "version": "0.2.87", "license": "Apache-2.0 (OSI-approved; stated in the package.json of the installed package)", "url": "https://github.com/mlc-ai/web-llm" },
+  { "name": "@huggingface/transformers", "version": "4.3.2", "license": "Apache-2.0 (OSI-approved; stated in the package.json of the installed package)", "url": "https://github.com/huggingface/transformers.js" },
+  { "name": "@huggingface/transformers-structured-output", "version": "4.3.2", "license": "Apache-2.0 (OSI-approved; as listed in README.md)", "url": "https://www.npmjs.com/package/@huggingface/transformers-structured-output" },
+  { "name": "onnxruntime-web", "version": "1.31.0-dev.20260914-8d85527a0", "license": "MIT (OSI-approved; stated in the package.json of the installed package; pulled in by @huggingface/transformers)", "url": "https://github.com/microsoft/onnxruntime" }
+]

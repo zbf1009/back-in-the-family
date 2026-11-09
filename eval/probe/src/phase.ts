@@ -393,6 +393,23 @@ export function formatPhaseStatus(status: PhaseStatus): string[] {
   return out;
 }
 
+/**
+ * Phase_2 result lines: one per `complete` Workers AI ledger entry, with its pass or fail per Task_Type under R13.4.
+ * `phase-status` above covers the Phase_1 browser question only (R18.2); this keeps a Phase_2 Locked_Run visible.
+ */
+export function phase2ResultLines(state: PhaseState): string[] {
+  const out: string[] = [];
+  for (const e of [...state.entries].sort((a, b) => a.order - b.order)) {
+    if (e.status !== 'complete') continue;
+    const combo = state.combinations.find((c) => c.id === e.start.combination);
+    if (combo === undefined || !isWorkersAi(combo)) continue;
+    const passes = state.passes.get(e.entry_id);
+    const marks = subsetTaskTypes(e.start.task_subset).map((t) => `${taskLetter(t)} ${passes?.[t] === undefined ? 'unknown' : passes[t] ? 'pass' : 'fail'}`);
+    out.push(`Phase_2 Locked_Run: ${combo.id} ${e.entry_id} (subset ${e.start.task_subset}): ${marks.join(', ')}`);
+  }
+  return out;
+}
+
 export interface LedgerRow {
   readonly entry_id: string;
   readonly combination: string;

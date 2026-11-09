@@ -9,6 +9,7 @@ import {
   formatPhaseStatus,
   parseCombinations,
   phase1Ended,
+  phase2ResultLines,
   phaseStatus,
   type Combination,
   type EntryPasses,
@@ -243,4 +244,16 @@ test('parseCombinations accepts a list and refuses bad shapes', () => {
   assert.throws(() => parseCombinations(JSON.stringify([{ ...BROWSER[0], phase1_locked: 'yes' }])), /phase1_locked/);
   assert.throws(() => parseCombinations(JSON.stringify([BROWSER[0], BROWSER[0]])), /duplicate/);
   assert.throws(() => parseCombinations(JSON.stringify([{ ...WAI, response_shape: 'json' }])), /response_shape/);
+});
+
+test('phase2ResultLines: a complete Workers AI Locked_Run shows its pass or fail per Task_Type; browser entries are not listed', () => {
+  const entries = deriveEntries([
+    ...BROWSER.flatMap((c, i) => entryEvents(c, `L-${i + 1}`, 'DS', `2026-11-0${i + 1}T09:00:00Z`)),
+    ...entryEvents(WAI, 'L-W', 'DS', '2026-11-09T01:00:00Z'),
+    ...entryEvents(WAI, 'L-W2', 'D', '2026-11-09T02:00:00Z', false),
+  ]);
+  const lines = phase2ResultLines(state({ entries, passing: { 'L-W': { decision: false, synthesis: false } } }));
+  assert.deepEqual(lines, [`Phase_2 Locked_Run: ${WAI.id} L-W (subset DS): D fail, S fail`]);
+  assert.match(phase2ResultLines(state({ entries }))[0] as string, /D unknown, S unknown/);
+  assert.deepEqual(phase2ResultLines(state()), []);
 });
