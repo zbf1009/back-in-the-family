@@ -699,14 +699,14 @@ Execution notes for the orchestrator:
     - Injection 1: the ingest accepts a wrong `ledger` sha256 (R16.6). The gates must fail with a Property 46 counterexample at the Unit_Tests gate. Injection 2: import `external.ts` from the Phase_2 branch code; the import-graph test fails. Revert each, green, log each. One `feat(probe)` commit for task 31. Never edit a file under `eval/cards/`.
     - _Requirements: 19.15, 19.16, 16.1, 16.3, 16.6, 16.7, 16.10_
 
-- [ ] 32. Pre-run verifications V9 to V14 that can be done offline
-  - [~] 32.1 Re-read the official Clef pages
+- [x] 32. Pre-run verifications V9 to V14 that can be done offline
+  - [x] 32.1 Re-read the official Clef pages
     - With Exa MCP (official domains only; not preview mirrors), re-check the changelog, `developers.cloudflare.com/workers-ai/models/clef-flash/` and `…/clef/` and the pricing page against the design's research section (REST path, body, window sizes, rates, license link). If anything changed, add a dated note to `design.md` and stop to tell the Author before continuing. Log the retrieval date.
     - _Requirements: 19.2, 19.3_
-  - [~] 32.2 Offline checks for V10 to V14
+  - [x] 32.2 Offline checks for V10 to V14
     - V10: the provisional `max_bytes_per_token` 8 is in the fingerprint and a changed value changes the fingerprint ID (test exists from 29). V11: recompute the reservation against the recorded gemma usage from the stored Dev_Run and Locked_Run Results (aggregate token counts only, no card content), showing the 256-token allowance is not already exceeded by a plausible wrapper. V12: confirm the runner has no retry (R11.9) and that a 429 produces the documented record. V13: confirm the plan or billing error path writes "not measured" and the Report lists it. V14: confirm the Report prints "not tested". Write each conclusion (done offline, or pending the first Smoke_Call) in `docs/kiro-log.md`; V9 and the online half of V10 to V13 are done in task 33.
     - _Requirements: 19.3, 19.11, 19.12, 11.9_
-  - [~] 32.3 Gates green and commit
+  - [x] 32.3 Gates green and commit
     - Run `scripts/gates.sh` to exit 0 from the working tree; confirm `git diff 091d1d7 -- eval/cards` is empty and no `env` read happened; one `docs(llm-probe)` commit (or `chore(llm-probe)` if code changed).
     - _Requirements: 16.4, 16.5, 16.9, 17.7_
 
