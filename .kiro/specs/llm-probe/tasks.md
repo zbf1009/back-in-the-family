@@ -546,19 +546,19 @@ Execution notes for the orchestrator:
     - After the Author's decision in the conversation, add the `phase2` entry (`branch`, and for B the model and `task_subset`, `approved_on`) to `eval/probe/approvals.json` and commit it; confirm `phase-status` reads it from `HEAD`; log.
     - _Requirements: 11.20, 18.2, 18.4, 18.8_
 
-- [ ] 23. STOP-AND-ASK: Phase_2 (exactly one branch)
+- [x] 23. STOP-AND-ASK: Phase_2 (exactly one branch)
   - [x] 23.1 Branch A: Smoke_Calls only
     - If branch A: up to 10 Smoke_Calls on the branch-B default model (for example 5 D and 5 S Dev_Cards) within the daily count, to show the link is reachable and returns output the Output_Validator accepts; no Workers AI Dev_Run or Locked_Run. Commit the smoke records; log sent and accepted counts. If branch B, mark this sub-task not applicable.
     - _Requirements: 18.3, 18.6_
   - [x] 23.2 Branch B: approved Dev_Run
     - If branch B: ask the Author to approve the `dev` run (combination, `task_subset`, `max_requests`); after approval add the `dev` entry to `approvals.json` in its own commit; confirm a current `ok` Response_Shape Smoke_Call; run `probe dev-run --combo … --task <subset> --approval <id>` within the budget; commit Results; log. If branch A, not applicable.
     - _Requirements: 11.5, 11.6, 11.7, 11.8, 11.13, 11.14, 11.19, 18.4, 17.1_
-  - [-] 23.3 Branch B: approved Locked_Run
+  - [x] 23.3 Branch B: approved Locked_Run
     - If branch B: ask the Author to approve the `locked` run; after approval add the `locked` entry in its own commit; append the start entry to `docs/kiro-log.md`, run `probe locked-run --combo … --task <subset> --approval <id>` (start at 00:00 UTC of a fresh day per the DA-8 schedule; a budget stop is resumed with `--resume` on a later UTC day after asking again), append the end entry, commit. If branch A, not applicable.
     - _Requirements: 3.9, 11.5, 11.13, 11.14, 17.1, 17.6, 18.4, 18.5_
 
 - [ ] 24. Report
-  - [ ] 24.1 Generate `docs/llm-probe.md`
+  - [x] 24.1 Generate `docs/llm-probe.md`
     - Run `probe report`. Check it against R15.1 to R15.12 and R18.6 to R18.8: every section present, only Locked_Run figures in marks and recommendations, Dev_Run figures labelled, no card content other than IDs, licenses and the LFM acceptance, the Workers AI note. Run `probe regrade` on every Locked_Run Results file and confirm byte-equal grades and identical Metrics.
     - _Requirements: 12.6, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 18.6, 18.7, 18.8_
   - [ ] 24.2 STOP-AND-ASK: the Author reviews the Report
