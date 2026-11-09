@@ -156,6 +156,11 @@ export interface DevRunInfo {
   readonly combination: string;
   readonly task_subset: string;
   readonly template_hashes: Readonly<Record<string, string>>;
+  /**
+   * False when the Results file holds only `not_run` / `not_approved` records, i.e. the gate refused the run and nothing
+   * was sent. Absent means true. Read by `phase2Candidates` only.
+   */
+  readonly attempted?: boolean;
 }
 
 export type Branch = 'A' | 'B';
@@ -571,12 +576,33 @@ export function allowDecisionModel(step: DecisionStepKind, combo: Combination, t
  * ledger entry for D, a non-transient locked failure record (the DA-15 rule), an Exclusion_Record.
  */
 export function decisionHold(state: PhaseState): boolean {
-  if (!state.approvals.approved) return false;
-  const approvals = state.approvals.approvals;
-  return state.combinations.some(
-    (c) => isDecisionModel(c) && decisionModelApprovals(approvals, c.id).length > 0 && !completeCoverage(c, state).has('decision') && !hasFailure(c, state) && !hasExclusion(c, state),
-  );
+  return decisionHoldPending(state).length > 0;
 }
+
+/** The Decision_Models that keep the hold on (R19.17), in `combinations.json` order. */
+export function decisionHoldPending(state: PhaseState): string[] {
+  if (!state.approvals.approved) return [];
+  const approvals = state.approvals.approvals;
+  return state.combinations
+    .filter((c) => isDecisionModel(c) && decisionModelApprovals(approvals, c.id).length > 0 && !completeCoverage(c, state).has('decision') && !hasFailure(c, state) && !hasExclusion(c, state))
+    .map((c) => c.id);
+}
+
+/**
+ * The distinct Workers AI Combinations tried in Phase_2 (R19.13): at least one ledger entry, or one Dev_Run Results file
+ * in which something was actually attempted. A Combination that only had Smoke_Calls, or whose Dev_Run the gate refused
+ * (all records `not_run` / `not_approved`), is not counted. Sorted by Combination ID.
+ */
+export function phase2Candidates(state: PhaseState): string[] {
+  const workers = new Set(state.combinations.filter(isWorkersAi).map((c) => c.id));
+  const tried = new Set<string>();
+  for (const e of state.entries) if (workers.has(e.start.combination)) tried.add(e.start.combination);
+  for (const d of state.devRuns ?? []) if (workers.has(d.combination) && d.attempted !== false) tried.add(d.combination);
+  return [...tried].sort();
+}
+
+/** The number printed in section 2 of the Report. */
+export const phase2CandidatesTried = (state: PhaseState): number => phase2Candidates(state).length;
 
 /** The `decision_models:` block and the hold line of `phase-status` (DA-22). */
 export function formatDecisionModels(state: PhaseState): string[] {

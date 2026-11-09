@@ -57,8 +57,9 @@ function readDevRuns(dir: string | undefined): DevRunInfo[] {
   const out: DevRunInfo[] = [];
   for (const name of fs.readdirSync(dir).filter((n) => n.endsWith('.jsonl') && !n.endsWith('.grades.jsonl')).sort()) {
     try {
-      const h = readResultsFile(path.join(dir, name)).header;
-      out.push({ run_id: h.run_id, combination: h.combination, task_subset: h.task_subset, template_hashes: h.template_hashes });
+      const h = readResultsFile(path.join(dir, name));
+      const attempted = h.records.length === 0 || h.records.some((r) => !(r.outcome.kind === 'not_run' && r.outcome.reason === 'not_approved'));
+      out.push({ run_id: h.header.run_id, combination: h.header.combination, task_subset: h.header.task_subset, template_hashes: h.header.template_hashes, attempted });
     } catch {
       // The Dev_Run precondition reports unreadable files; the gate then finds no matching header and refuses.
     }

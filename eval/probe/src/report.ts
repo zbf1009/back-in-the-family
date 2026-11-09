@@ -16,11 +16,17 @@ import { diagnoseDecisions, diagnosisLines, type DecisionCardFacts, type Decisio
 import { computeMetrics, THRESHOLDS, type FaultRecord, type MetricCard, type Ratio, type SanityResult, type TaskMetrics, type Verdict } from './metrics.ts';
 import {
   browserPassEntry,
+  decisionHold,
+  decisionHoldPending,
+  decisionModelApprovals,
   describeBranch,
   hasFailure,
+  isDecisionModel,
   isWorkersAi,
+  phase2Candidates,
   phaseStatus,
   usedEntryId,
+  withdrawnIds,
   IN_BROWSER_DOWNLOAD_LIMIT_BYTES,
   type Combination,
   type EntryPasses,
@@ -270,6 +276,41 @@ export interface ReportInput {
   /** VRAM_Preflight results by Combination ID. */
   readonly preflights: ReadonlyMap<string, PreflightRecord>;
   readonly runtimeLibraries: readonly RuntimeLibrary[];
+  /**
+   * Ingested External_References (R19.16), as plain data read by the CLI. Printed in section 12 only. `report.ts` does not
+   * import `external.ts`: nothing in the marks, the link marks, the recommendations or the Phase_2 branch can see them.
+   */
+  readonly external?: readonly ExternalReferenceView[];
+}
+
+/** The Metric figures of an External_Reference (integers; the names are those of the Metrics). */
+export interface ExternalFiguresView {
+  readonly acceptable: number;
+  readonly scored_cards: number;
+  readonly severe: number;
+  readonly illegal: number;
+  readonly flip_perms: number;
+  readonly flips: number;
+  readonly consistent_pairs: number;
+  readonly pairs: number;
+}
+
+/** What section 12 prints about one stored External_Reference (the shape of its `record.json`). */
+export interface ExternalReferenceView {
+  readonly label: string;
+  readonly reference_model: string;
+  readonly task_type: 'D' | 'S';
+  readonly pinned_manifest_hash: string;
+  readonly reference_sha256: string;
+  readonly config: { readonly file: string; readonly sha256: string };
+  readonly ledger: { readonly file: string; readonly sha256: string };
+  readonly results: { readonly file: string; readonly sha256: string };
+  readonly raw_outputs: { readonly file: string; readonly sha256: string; readonly answer_mode: string } | null;
+  readonly supplied: ExternalFiguresView;
+  readonly regrade: 'match' | 'mismatch' | null;
+  readonly regrade_figures: ExternalFiguresView | null;
+  readonly differing: readonly string[];
+  readonly raw_output_count: number | null;
 }
 
 // ---------------------------------------------------------------- small helpers
@@ -325,6 +366,100 @@ const taskTitle = (t: TaskType): string => `Task_Type ${taskLetter(t)} (${t})`;
 export const RECOMMENDATION_SCOPE =
   'The in-browser conclusion covers only Qwen3.5 on WebLLM. The Workers AI conclusion covers only gemma-4-26b-a4b-it with the frozen templates, thinking disabled and one call per request; it does not represent other models on Workers AI or other ways of calling them.';
 const TASKS: readonly TaskType[] = ['decision', 'synthesis'];
+
+/** Section 2: printed exactly when two or more Phase_2 candidates were tried (R19.13). The Thresholds are not adjusted. */
+export const SELECTION_BIAS_NOTE =
+  'Several candidates were tried against the same Locked_Cards. This creates a selection bias through multiple comparisons. The Thresholds were not adjusted for it. A pass of the best of several candidates is weaker evidence than a pass of a single pre-chosen one.';
+
+/** Section 9: printed exactly while `decisionHold(state)` is true (R19.17). */
+export const HOLD_BANNER_PREFIX = 'Runtime decision on hold (R19.17): Decision_Model(s) pending: ';
+
+export const EXTERNAL_SECTION_TITLE = '12. External reference (not a repo Combination)';
+export const EXTERNAL_SENTENCE =
+  'This is an external reference measurement, not a Combination of this repository; it is not part of any mark, link mark, recommendation, Phase_2 branch logic or the Locked_Run_Ledger.';
+
+/** V14: repeated identical requests giving the same `choice`. Printed "not tested" unless a Smoke record carries a `repeat_pair` result. */
+function repeatDeterminismText(state: PhaseState, comboId: string): string {
+  const pairs = state.smoke.filter((r) => r['combination'] === comboId && asRec(r['repeat_pair']) !== null);
+  if (pairs.length === 0) return 'not tested';
+  const same = pairs.filter((r) => asRec(r['repeat_pair'])?.['same_choice'] === true).length;
+  return `measured: the same choice in ${same} of ${pairs.length} repeated pair(s)`;
+}
+
+function notMeasuredReason(c: Combination, state: PhaseState): string {
+  const shapes = state.smoke.filter((s) => s['combination'] === c.id && s['shape_check'] !== undefined);
+  const newest = shapes[shapes.length - 1];
+  if (newest !== undefined && newest['shape_check'] !== 'ok') {
+    return `the newest Smoke_Call shape check is ${String(newest['shape_check'])} (HTTP status ${String(newest['http_status'] ?? 'unknown')})`;
+  }
+  return 'no Dev_Run or Locked_Run approval has been recorded for it (R19.4), so nothing beyond the Smoke_Calls has been run';
+}
+
+/** The Additional_Candidate_Set of section 2: each Decision_Model with its approval IDs and dates, or "not measured" with the reason (R19.13, R19.3). */
+export function additionalCandidateLines(state: PhaseState): string[] {
+  const models = state.combinations.filter(isDecisionModel);
+  if (models.length === 0) return ['- none is defined in `combinations.json`'];
+  const approvals = state.approvals.approved ? state.approvals.approvals : [];
+  const gone = withdrawnIds(approvals);
+  return models.map((c) => {
+    const live = decisionModelApprovals(approvals, c.id);
+    const withdrawn = approvals.filter((a) => a.kind === 'decision_model' && a.combination === c.id && gone.has(a.id));
+    const complete = [...state.entries]
+      .filter((e) => e.start.combination === c.id && e.status === 'complete' && subsetTaskTypes(e.start.task_subset).includes('decision'))
+      .sort((a, b) => a.order - b.order);
+    const exclusion = state.exclusions.find((x) => x.combination === c.id);
+    const failures = state.failures.filter((f) => f.combination === c.id && countsForGate(f));
+    const parts: string[] = [];
+    if (live.length > 0) parts.push(`approval IDs ${live.map((a) => `${a.id} (${a.step ?? 'step not recorded'}, ${a.approved_on ?? 'date not recorded'})`).join(', ')}`);
+    if (withdrawn.length > 0) parts.push(`withdrawn ${withdrawn.map((a) => a.id).join(', ')}`);
+    const last = complete[complete.length - 1];
+    if (last !== undefined) parts.push(`Locked_Run entry ${last.entry_id} complete (its figures are in section 4)`);
+    else if (exclusion !== undefined) parts.push(`Exclusion_Record (${exclusion.check})`);
+    else if (failures.length > 0) parts.push(`non-transient failure record (${failures.map((f) => f.kind).join(', ')})`);
+    else if (live.length > 0) parts.push('approved, no completed Locked_Run yet');
+    else parts.push(`not measured: ${notMeasuredReason(c, state)}`);
+    return `- ${c.id} (Task_Type D only): ${parts.join('; ')}. Repeat-request determinism of \`choice\` (V14): ${repeatDeterminismText(state, c.id)}.`;
+  });
+}
+
+/** Figure names that decide each row of the section 12 table. */
+const EXTERNAL_ROWS: readonly { readonly label: string; readonly names: readonly (keyof ExternalFiguresView)[]; readonly show: (f: ExternalFiguresView) => string }[] = [
+  { label: 'Acceptable rate', names: ['acceptable', 'scored_cards'], show: (f) => `${f.acceptable}/${f.scored_cards} = ${pct(f.acceptable, f.scored_cards)}` },
+  { label: 'Severe count', names: ['severe', 'scored_cards'], show: (f) => `${f.severe} of ${f.scored_cards} cards` },
+  { label: 'Illegal rate', names: ['illegal', 'scored_cards'], show: (f) => `${f.illegal}/${f.scored_cards} = ${pct(f.illegal, f.scored_cards)}` },
+  { label: 'Flip rate', names: ['flips', 'flip_perms'], show: (f) => `${f.flips}/${f.flip_perms} = ${pct(f.flips, f.flip_perms)}` },
+  { label: 'Contrast consistency', names: ['consistent_pairs', 'pairs'], show: (f) => `${f.consistent_pairs}/${f.pairs} pairs = ${pct(f.consistent_pairs, f.pairs)}` },
+];
+
+/** Section 12 (R19.16): every ingested External_Reference, labelled, with its hashes and its Metrics as supplied or re-graded. */
+export function externalSectionLines(records: readonly ExternalReferenceView[]): string[] {
+  const out: string[] = [`## ${EXTERNAL_SECTION_TITLE}`, ''];
+  if (records.length === 0) {
+    out.push('No External_Reference has been ingested.', '');
+    return out;
+  }
+  out.push(EXTERNAL_SENTENCE, '');
+  for (const r of records) {
+    out.push(`### ${r.label} (external reference, not a repo Combination)`, '');
+    out.push(`- Reference model, as given: ${r.reference_model}`);
+    out.push(`- Task_Type: ${r.task_type}`);
+    out.push(`- Pinned_Manifest_Hash of the Card_Set it ran on: ${r.pinned_manifest_hash}`);
+    out.push(`- sha256 of the reference file: ${r.reference_sha256}`);
+    out.push(`- sha256 of its frozen configuration (${r.config.file}): ${r.config.sha256}`);
+    out.push(`- sha256 of its ledger (${r.ledger.file}): ${r.ledger.sha256}`);
+    out.push(`- sha256 of its results (${r.results.file}): ${r.results.sha256}`);
+    out.push(r.raw_outputs === null ? '- Raw outputs: none supplied, so the figures below are as supplied and were not re-graded' : `- sha256 of its raw outputs (${r.raw_outputs.file}, answer mode ${r.raw_outputs.answer_mode}): ${r.raw_outputs.sha256}; ${r.raw_output_count ?? 0} outputs re-graded through Sim_Wasm`, '');
+    const rows = EXTERNAL_ROWS.map((row) => {
+      const differs = r.regrade_figures !== null && row.names.some((n) => r.supplied[n] !== (r.regrade_figures as ExternalFiguresView)[n]);
+      return [row.label, row.show(r.supplied), r.regrade_figures === null ? 'not re-graded' : row.show(r.regrade_figures), r.regrade_figures === null ? 'as supplied' : differs ? 'MISMATCH' : 'match'];
+    });
+    out.push(`Task_Type ${r.task_type}, Metrics as supplied${r.regrade_figures === null ? '' : ' and as re-graded'}:`, '');
+    out.push(...table(['Metric', 'Supplied', 'Re-graded', 'Flag'], rows));
+    if (r.regrade === 'mismatch') out.push(`Re-grade: MISMATCH in ${r.differing.join(', ')}. Both sets of figures are shown; the supplied figures were not changed.`, '');
+    else if (r.regrade === 'match') out.push('Re-grade: match. Every supplied figure equals the re-graded one.', '');
+  }
+  return out;
+}
 
 const verdictText = (v: Verdict): string => (v === 'not_computable' ? 'not computable' : v);
 const cmp = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0);
@@ -563,6 +698,11 @@ export function buildReport(input: ReportInput): string {
   }
   if (status.mismatch !== null) para(`**Branch mismatch:** ${status.mismatch}.`);
   if (status.approvalsProblem !== null) para(`Approvals could not be read from \`HEAD\`: ${status.approvalsProblem}.`);
+  const tried = phase2Candidates(state);
+  para(`Phase_2 candidates tried: ${tried.length} (${tried.length === 0 ? 'none' : tried.join(', ')}). A Workers AI Combination counts when it has a Dev_Run or Locked_Run Results file, or a ledger entry, made in Phase_2; a Combination with Smoke_Calls only, or whose Dev_Run the gate refused, does not count.`);
+  if (tried.length >= 2) para(SELECTION_BIAS_NOTE);
+  para('Additional_Candidate_Set (Decision_Models, Task_Type D only, each approved by the Author by name):');
+  out.push(...additionalCandidateLines(state), '');
 
   // ---- 3. Candidate table (R9.2, R9.3, R9.10, R9.17, R15.6)
   h2('3. Candidates, size limits, pinned revisions and licenses');
@@ -774,6 +914,7 @@ export function buildReport(input: ReportInput): string {
 
   // ---- 9. Recommendations (R15.3, R15.5, R15.6, R15.12, R18.7)
   h2('9. Recommendation per Task_Type');
+  if (decisionHold(state)) para(`${HOLD_BANNER_PREFIX}${decisionHoldPending(state).join(', ')}`);
   const better = (a: { combo: Combination; entry: string }, b: { combo: Combination; entry: string }, task: TaskType): number => {
     const ma = taskAnalysis(a.entry, task);
     const mb = taskAnalysis(b.entry, task);
@@ -909,6 +1050,9 @@ export function buildReport(input: ReportInput): string {
     '',
   );
   para('None of these is decided here.');
+
+  // ---- 12. External reference (R19.16): the only place an External_Reference appears
+  out.push(...externalSectionLines(input.external ?? []));
 
   // ---- quality without timeout (R13.12)
   h2(QUALITY_WITHOUT_TIMEOUT_TITLE);

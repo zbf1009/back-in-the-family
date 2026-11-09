@@ -7,6 +7,10 @@
 // A Dev_Run passes `splits: ['dev']` and never opens locked.jsonl (R3.2). A Locked_Run passes
 // `['dev', 'locked']`, so the duplicate-ID check across splits sees both. Callers pass the
 // card directory, so unit tests can point at temporary directories.
+//
+// Who may read locked.jsonl (R3.1, with RC-13): a Locked_Run (which also renders prompts from it), and, for grading and
+// statistics only, never rendering a prompt and printing only Card IDs, pair_ids and scenario group IDs: `ingest` and
+// `regrade` (ingest.ts), `report` and `phase-status` (report-command.ts) and `ingest-reference` (external.ts).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

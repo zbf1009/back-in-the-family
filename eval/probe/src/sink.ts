@@ -51,6 +51,12 @@ export function appendTextFile(file: string, text: string): void {
   fs.appendFileSync(file, scrub(text));
 }
 
+/** Copies a file byte for byte (no redaction: the bytes are a supplied file that must stay unchanged), creating parent directories. */
+export function copyFileUnchanged(from: string, to: string): void {
+  fs.mkdirSync(path.dirname(to), { recursive: true });
+  fs.copyFileSync(from, to, fs.constants.COPYFILE_EXCL);
+}
+
 /** Appends to a file and `fsync`s it before returning (R3.3: the ledger `start` line). */
 export function appendTextFileDurable(file: string, text: string): void {
   fs.mkdirSync(path.dirname(file), { recursive: true });

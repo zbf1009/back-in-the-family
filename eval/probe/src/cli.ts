@@ -39,7 +39,9 @@ const COMMANDS: Record<string, () => Promise<void>> = {
   report: async () => {
     await requireManifest();
     const { reportCommand, reportPaths } = await import('./report-command.ts');
-    process.exitCode = await reportCommand(reportPaths(REPO_DIR));
+    // The stored External_References go into section 12 only; they are read here so that report-command.ts never imports external.ts.
+    const { loadExternalRecords } = await import('./external-command.ts');
+    process.exitCode = await reportCommand(reportPaths(REPO_DIR), loadExternalRecords);
   },
   // Reads no cards and no env, so no Manifest_Check (R3.16).
   'check-web-imports': async () => {
@@ -61,7 +63,7 @@ const COMMANDS: Record<string, () => Promise<void>> = {
     process.exitCode = await smokeCommand(process.argv.slice(3), defaultSmokeDeps(REPO_DIR));
   },
   // These three read the Card_Set (page-bundle to render, ingest and regrade to grade only, R3.1) and do
-  // their own Manifest_Check before any card is read (R1.1).
+  // their own Manifest_Check before any card is read (R1.1). `ingest-reference` below is the fourth grading-only reader.
   'page-bundle': async () => {
     const { pageBundleCommand } = await import('./ingest-command.ts');
     const { defaultRunDeps } = await import('./run-command.ts');
@@ -76,6 +78,14 @@ const COMMANDS: Record<string, () => Promise<void>> = {
     const { regradeCommand } = await import('./ingest-command.ts');
     const { defaultRunDeps } = await import('./run-command.ts');
     process.exitCode = await regradeCommand(process.argv.slice(3), defaultRunDeps(REPO_DIR));
+  },
+  // Ingests an External_Reference_File (R19.15): runs its own Manifest_Check first, sends no request, reads no env, and
+  // writes only under eval/results/external/<label>/. With raw outputs it re-grades through Sim_Wasm, which reads
+  // locked.jsonl for grading only (R3.1, RC-13), like ingest, regrade and report.
+  'ingest-reference': async () => {
+    const { ingestReferenceCommand } = await import('./external-command.ts');
+    const { defaultRunDeps } = await import('./run-command.ts');
+    process.exitCode = await ingestReferenceCommand(process.argv.slice(3), defaultRunDeps(REPO_DIR));
   },
   // Builds and serves the Probe_Page on localhost:4318 and prints a new empty Fresh_Profile directory.
   // Reads no cards and no env, so no Manifest_Check. Long-running: stops on Ctrl-C.
