@@ -79,6 +79,10 @@
     "31.5 Write property test for the Report amendments": {
       "status": "passed",
       "lastRunTimestamp": 1794205873421
+    },
+    "43.2 Write property test for the External reference (Property 56)": {
+      "status": "passed",
+      "lastRunTimestamp": 1794229232125
     }
   },
   "executionHistory": {
@@ -3384,6 +3388,452 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794216989552
+      }
+    ],
+    "39.1 Write `crates/sim-core/src/llm/aggregate.rs` and its export": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465520
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221475551
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794222652444
+      }
+    ],
+    "39.2 Write property tests for the aggregation (Properties 49 and 50)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465529
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794222657707
+      }
+    ],
+    "39.3 Fixtures, regeneration, native and wasm32 parity, TS parity": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465537
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794222662318
+      }
+    ],
+    "39.4 Write the rule text, the `rule_version` check (V18) and the Aggregation_Hash": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465548
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794222666743
+      }
+    ],
+    "39.5 Gates green and commit": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465557
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794222671627
+      }
+    ],
+    "40.1 Extend `combinations.json` and `phase.ts` validation": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465567
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794222676770
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794223425841
+      }
+    ],
+    "40.2 Results additions in `results.ts` and `run.ts`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465575
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794223430681
+      }
+    ],
+    "40.3 Write property test extension for the Results round trip": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465583
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794223435991
+      }
+    ],
+    "40.4 Gates green and commit": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465591
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794223441634
+      }
+    ],
+    "41.1 Write `eval/probe/src/derive.ts` and the `derive` command": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465601
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794223446329
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794224594454
+      }
+    ],
+    "41.2 `metrics.ts`: flip `by_construction` and `passLabel`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465609
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794224599935
+      }
+    ],
+    "41.3 Write property tests for derive and the metrics flip (Properties 51 and 52)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465617
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794224604377
+      }
+    ],
+    "41.4 Gates green and commit": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465625
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794224608933
+      }
+    ],
+    "42.1 `approvals.ts` and `phase.ts`: `variant`, `derive_dev`, `derive_locked`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465633
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794224613808
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794228965236
+      }
+    ],
+    "42.2 Write property test for the variant gate (Property 53)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465643
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794228972242
+      }
+    ],
+    "42.3 `report.ts`: sections 2, 4, 4a, 4b, 4c, 9, 12 and the `perm_avg_mark`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465651
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794228977788
+      }
+    ],
+    "42.4 Write property tests for the Report additions (Properties 54 and 55)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465659
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794228983942
+      }
+    ],
+    "42.5 Gates green and commit": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465667
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794228989539
+      }
+    ],
+    "43.1 Write `eval/results/external/teacher-upper-bound/author-supplied.json` and its reader": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465675
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794228995739
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794233825056
+      }
+    ],
+    "43.2 Write property test for the External reference (Property 56)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465683
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794233831327
+      }
+    ],
+    "43.3 Gates green and commit": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465694
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794233837690
+      }
+    ],
+    "44.1 Fault injections for the R20 code": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465701
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794233845460
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794234423290
+      }
+    ],
+    "44.2 V16: confirm the registry is committed before any Decision_Model Dev_Run result": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465709
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794234428297
+      }
+    ],
+    "45.1 V15 over the first real `clef-flash` Dev_Run bodies": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465717
+      }
+    ],
+    "45.2 Ask for the `derive_dev` approval for `workers-ai/clef-flash/perm_avg`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465725
+      }
+    ],
+    "45.3 Record the `derive_dev` approval": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465735
+      }
+    ],
+    "45.4 Run `probe derive` for the Dev split and verify": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465743
+      }
+    ],
+    "46.1 V15 over the first real `clef` Dev_Run bodies": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465750
+      }
+    ],
+    "46.2 Ask for the `derive_dev` approval for `workers-ai/clef/perm_avg`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465758
+      }
+    ],
+    "46.3 Record the `derive_dev` approval": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465765
+      }
+    ],
+    "46.4 Run `probe derive` for the Dev split and verify": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465773
+      }
+    ],
+    "47.1 Ask for the `derive_locked` approval for `workers-ai/clef-flash/perm_avg`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465783
+      }
+    ],
+    "47.2 Record the approval and run `probe derive --split locked`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465791
+      }
+    ],
+    "48.1 Ask for the `derive_locked` approval for `workers-ai/clef/perm_avg`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465799
+      }
+    ],
+    "48.2 Record the approval and run `probe derive --split locked`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465807
+      }
+    ],
+    "50.1 Ask the Author for the RC-20 wording": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465814
+      }
+    ],
+    "50.2 Apply the answer and regenerate the Report section 12": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794221465825
+      }
+    ],
+    "39. R20 core: `llm_aggregate_perm_avg`, golden fixtures, parity and the rule text (R20.3 to R20.8, R20.17; DA-25, V18)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794222671637
+      }
+    ],
+    "40. R20 registry: variant Combination records, Results members and the fingerprint (R20.1, R20.2, R20.7; DA-24, DA-26, V16)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794223441643
+      }
+    ],
+    "41. `probe derive`, the Derived_Run and the metrics flip (R20.7, R20.9, R20.11, R20.12; DA-26, Properties 51, 52)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794224608941
+      }
+    ],
+    "42. Approvals, phase gate and Report for the variants (R20.1, R20.10, R20.13 to R20.16, R19.4; DA-27, DA-28, Properties 53 to 55)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794228989548
+      }
+    ],
+    "43. Author-supplied External reference file (R20.18 to R20.20; DA-29, Property 56)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794233837698
+      }
+    ],
+    "44. R20 fault injections, registry freeze check and gate wiring (R20.1, R20.17; V16, V18)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794234428306
       }
     ]
   }
