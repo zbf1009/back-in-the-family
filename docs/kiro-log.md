@@ -1138,3 +1138,15 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
   5. Token search by the Author: `CLOUDFLARE_API_TOKEN` and `WORKERS_AI_TOKEN` have no hits in the workspace (including eval/results, docs, web/dist, .kiro, target/wasm-pkg), the full git history, the kiro sessions and the console logs. The Cloudflare account ID appears only in this log (historical commits 0c217f8 and 7f8361a); it is not a credential. Decision by the Author: no action, history is not rewritten.
   6. Bug fixed in the generator: the section 7 Model_Key cut every revision to 12 characters, which turned `server-side, not pinnable` into `server-side,`. A commit hash is still shortened; a text revision is kept whole and empty segments are omitted. New test. No other section used the same joining.
 - Results files and eval/cards were not touched. Generator fix commit: see the next log line; regenerated report commit follows it.
+
+### Spec: llm-probe — task 25.1 deferred; steering records facts only (2026-11-09)
+
+- The Author deferred task 25.1: there is no runtime decision yet. Steering now records facts only, in commit `01abd93`: the "LLM runtime" row in `tech.md` says no Combination met the thresholds for D or S, the shipped default path is the Rules_Default, and the LLM-layer decision is pending; `structure.md` "Next steps" is re-dated 2026-11-09 and the stale "Next is spec 3" and "cards still being authored" bullets are removed. No recommendation is made. `.kiro/specs/**` was not edited by this change and no task was marked.
+- The Author's plan for additional Phase_2 candidates (to be added to the llm-probe spec before approval):
+  - Workers AI decision models Clef and Clef-flash, task D only, with a new `system_one` Response_Shape and input mapping. Sequence: smoke, then Dev_Run(D), then Locked_Run(D).
+  - Budget estimate about 18 neurons per request for Clef and about 3 for Clef-flash, to be corrected by the smoke run.
+  - `typesafe/jev` is excluded because it needs AI Gateway prepaid credit.
+  - No further generative models beyond gemma; `glm-4.7-flash` only as an S candidate, and only if any S candidate is kept.
+  - Report section 9 must state how many Phase_2 candidates were tried, noting the possible selection bias.
+- External reference measurement plan: a teacher-model locked upper bound, run elsewhere with its own frozen config and ledger. It is not a repo Combination. It will be handed over with hashes for the decision and the Report.
+- Note on the Author's review item 3 (logged above): its text was later restated without the clause "it does not represent other models on Workers AI or other ways of calling them". The Report keeps the longer version from the first statement, pending the Author's confirmation.
