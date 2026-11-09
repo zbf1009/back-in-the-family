@@ -724,22 +724,22 @@ Execution notes for the orchestrator:
     - _Requirements: 19.2, 19.3, 19.11, 19.12, 11.19, 16.9_
 
 - [ ] 34. STOP-AND-ASK: Decision_Model Dev_Runs, mapping tuning and freeze [Target_Machine]
-  - [-] 34.1 Ask for the `clef-flash` Dev_Run approval
+  - [x] 34.1 Ask for the `clef-flash` Dev_Run approval
     - Present the Combination, `task_subset: "D"`, `max_requests` (74), the expected neurons (about 249 typical, 518 planning bound, recomputed from 33.3 if needed), the Neuron_Cap, and that the mapping is tuned on Dev_Cards only. Do nothing until the Author approves in the conversation at that moment.
     - _Requirements: 19.4, 19.5, 17.1, 17.2_
-  - [~] 34.2 Record the `clef-flash` `dev` approval
+  - [x] 34.2 Record the `clef-flash` `dev` approval
     - Add the `decision_model` entry (`step: "dev"`) to `eval/probe/approvals.json` in its own commit; confirm `phase-status` reads it from `HEAD`; log.
     - _Requirements: 19.4, 11.20_
-  - [~] 34.3 Run the `clef-flash` Dev_Run
+  - [x] 34.3 Run the `clef-flash` Dev_Run
     - `probe dev-run --combo workers-ai/clef-flash --task D --approval <id>` within the budget; check `over_context`, `truncated_state`, V10 (final `max_bytes_per_token`) and V12 (rate-limit; a 429 pattern is a design change to ask the Author about, not a retry). Commit Results; log.
     - _Requirements: 19.5, 19.11, 19.12, 11.5, 11.6, 11.13, 11.14, 17.1_
-  - [~] 34.4 Ask for the `clef` Dev_Run approval
+  - [x] 34.4 Ask for the `clef` Dev_Run approval
     - Same as 34.1 for `clef` (74 requests, about 1,572 neurons typical, 3,256 planning bound). Its own approval: the `clef-flash` approval covers nothing here.
     - _Requirements: 19.4, 19.5, 17.1, 17.2_
-  - [~] 34.5 Record the `clef` `dev` approval
+  - [x] 34.5 Record the `clef` `dev` approval
     - As 34.2, for `clef`.
     - _Requirements: 19.4, 11.20_
-  - [~] 34.6 Run the `clef` Dev_Run
+  - [x] 34.6 Run the `clef` Dev_Run
     - As 34.3, for `clef` (on UTC day 1 together with the Smoke_Calls, or later; the Locked_Run goes on a later UTC day per DA-20).
     - _Requirements: 19.5, 19.11, 19.12, 11.5, 11.6, 11.13, 11.14, 17.1_
   - [~] 34.7 Tune the System_One_Mapping on Dev_Cards only
@@ -878,25 +878,25 @@ Execution notes for the orchestrator:
     - Check with `git log` that tasks 39 to 43 are committed, that `combinations.json` holds the four records and the pinned Aggregation_Hash, and that no Decision_Model Dev_Run Results file exists yet (`eval/results/dev/` listing, names and headers only). Run `probe phase-status` and `scripts/gates.sh` to exit 0. Record the Aggregation_Hash and the commit in `docs/kiro-log.md`. Task 34.1 may complete only after this sub-task (R20.1). If a Decision_Model Dev_Run result already exists, stop and tell the Author: a later change needs an Author amendment.
     - _Requirements: 20.1, 17.7_
 
-- [ ] 45. STOP-AND-ASK: derive the `clef-flash` Dev_Run into `perm_avg`
-  - [~] 45.1 V15 over the first real `clef-flash` Dev_Run bodies
+- [x] 45. STOP-AND-ASK: derive the `clef-flash` Dev_Run into `perm_avg`
+  - [x] 45.1 V15 over the first real `clef-flash` Dev_Run bodies
     - After 34.3. Read-only count over the stored `system_one.response_text` bodies (counts only, no Card content): `probabilities` present for every Permutation of every D Card, keys exactly equal to the Card's option IDs, every lexeme inside the accepted grammar (none above 1, none with more than 40 significant digits). Write the counts and the conclusion in `docs/kiro-log.md`. If V15 fails, stop and tell the Author; do not ask for the derive approval.
     - _Requirements: 20.3, 20.4, 20.6_
-  - [~] 45.2 Ask for the `derive_dev` approval for `workers-ai/clef-flash/perm_avg`
+  - [x] 45.2 Ask for the `derive_dev` approval for `workers-ai/clef-flash/perm_avg`
     - Present the Combination, the source run and its hash, the Aggregation_Hash, 0 requests and 0 neurons, and that the figures are Dev_Run figures not used for a mark. Do nothing until the Author approves in the conversation at that moment. Its own approval: the `dev` approval of the `single` variant covers nothing here.
     - _Requirements: 20.9, 20.10, 17.1, 17.2_
-  - [~] 45.3 Record the `derive_dev` approval
+  - [x] 45.3 Record the `derive_dev` approval
     - Add the entry to `eval/probe/approvals.json` in its own commit; confirm `phase-status` reads it from `HEAD`; log.
     - _Requirements: 20.10, 11.20_
-  - [~] 45.4 Run `probe derive` for the Dev split and verify
+  - [x] 45.4 Run `probe derive` for the Dev split and verify
     - `timeout 120 pnpm --dir eval/probe run probe derive --combo workers-ai/clef-flash/perm_avg --split dev --approval <id>` then the same with `--verify`. Read the Dev figures as Dev_Run figures. If the mapping is tuned later (34.7, 34.8), a derived file from the superseded source is not overwritten: ask the Author before deriving from the final Dev_Run. Commit the derived Results and grades; log.
     - _Requirements: 20.7, 20.9, 20.11, 20.12, 15.2_
 
 - [ ] 46. STOP-AND-ASK: derive the `clef` Dev_Run into `perm_avg`
-  - [~] 46.1 V15 over the first real `clef` Dev_Run bodies
+  - [x] 46.1 V15 over the first real `clef` Dev_Run bodies
     - After 34.6. Same read-only counts as 45.1 for `clef`. Log; stop and tell the Author on a failure.
     - _Requirements: 20.3, 20.4, 20.6_
-  - [~] 46.2 Ask for the `derive_dev` approval for `workers-ai/clef/perm_avg`
+  - [-] 46.2 Ask for the `derive_dev` approval for `workers-ai/clef/perm_avg`
     - As 45.2, for `clef`; its own approval.
     - _Requirements: 20.9, 20.10, 17.1, 17.2_
   - [~] 46.3 Record the `derive_dev` approval
