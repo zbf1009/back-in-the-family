@@ -557,11 +557,11 @@ Execution notes for the orchestrator:
     - If branch B: ask the Author to approve the `locked` run; after approval add the `locked` entry in its own commit; append the start entry to `docs/kiro-log.md`, run `probe locked-run --combo … --task <subset> --approval <id>` (start at 00:00 UTC of a fresh day per the DA-8 schedule; a budget stop is resumed with `--resume` on a later UTC day after asking again), append the end entry, commit. If branch A, not applicable.
     - _Requirements: 3.9, 11.5, 11.13, 11.14, 17.1, 17.6, 18.4, 18.5_
 
-- [ ] 24. Report
+- [x] 24. Report
   - [x] 24.1 Generate `docs/llm-probe.md`
     - Run `probe report`. Check it against R15.1 to R15.12 and R18.6 to R18.8: every section present, only Locked_Run figures in marks and recommendations, Dev_Run figures labelled, no card content other than IDs, licenses and the LFM acceptance, the Workers AI note. Run `probe regrade` on every Locked_Run Results file and confirm byte-equal grades and identical Metrics.
     - _Requirements: 12.6, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 18.6, 18.7, 18.8_
-  - [ ] 24.2 STOP-AND-ASK: the Author reviews the Report
+  - [x] 24.2 STOP-AND-ASK: the Author reviews the Report
     - Present the Report and ask the Author to review it; apply only corrections to the generator or its inputs (never to Results), regenerate, then commit. Ask the Author to run a search for the exact token and account ID strings over `eval/results/`, `docs/`, the console logs and `web/dist` (the agent never opens `env`); record the result.
     - _Requirements: 11.3, 17.1_
 
@@ -572,6 +572,9 @@ Execution notes for the orchestrator:
   - [ ] 25.2 Update `tech.md` and `structure.md` in one change
     - `tech.md` "LLM runtime" row names the decision per Task_Type and links to `docs/llm-probe.md`; `structure.md` "Next steps" states the decision and links to the Report. Log the steering change; one `docs(llm-probe)` commit.
     - _Requirements: 15.8_
+  - [ ] 25.3 Fix the run gate's missing pass results (after 25.1)
+    - The run gate in `eval/probe/src/run-command.ts` builds its PhaseState without pass results (grades), so it always recomputes Phase_2 branch B (fails safe: a real branch A shows a mismatch and refuses to run). Load pass results through the same analysis `phase-status` uses (fixed in commit 80f4d50); add a test that the gate computes branch A when an in-browser Combination passes; gates green; `fix(probe)` commit; log. Recorded at the Author's request during the 24.2 review.
+    - _Requirements: 18.2, 11.20_
 
 - [ ] 26. Final audit
   - [ ] 26.1 Run the gates from a clean build
@@ -744,7 +747,7 @@ Each leaf runs in its own wave because nearly every task edits shared files (`sc
     { "id": 141, "tasks": ["24.1"] },
     { "id": 142, "tasks": ["24.2"] },
     { "id": 143, "tasks": ["25.1"] },
-    { "id": 144, "tasks": ["25.2"] },
+    { "id": 144, "tasks": ["25.2", "25.3"] },
     { "id": 145, "tasks": ["26.1"] },
     { "id": 146, "tasks": ["26.2"] },
     { "id": 147, "tasks": ["26.3"] },
