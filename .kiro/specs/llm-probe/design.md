@@ -58,6 +58,31 @@ All open points and design questions below were decided by the Author on 2026-11
 
 > **Revised 2026-11-06 (third review): Author decisions recorded; two-phase plan.** The Author decided DA-1 (option M, five in-browser Combinations plus one Intel iGPU Dev_Run, LFM Open License v1.0 accepted), adopted the recommendations of DA-2 to DA-14, approved RC-1 to RC-9 (now applied to `requirements.md`), and chose the two-phase, browser-first plan of Requirement 18. Changed as a result: the status columns of both decision tables; the Q-open-1 and Q-open-8 rows; the IllegalReason comment; the Probe_Runner CLI (`--task D|S|DS`, `phase-status`, Phase_2 gating); `budget.ts` (the Neuron_Cap of R11.13 and R11.14); the Report outline (Phase_2 branch, "not measured (browser passed)", Smoke_Call counts, custom-license acceptance, over-limit downloads); the data models (Task_Type_Subset in the Results header and the ledger key, the size-limit fields of a Combination, the `neurons` counter field, Phase_2 approvals); Properties 25, 27, 28, 36 and 37 and the new Property 38; Error Handling; Testing Strategy; DA-1 (Workers AI models are Phase_2 branch-B candidates only); DA-8 (the 4-UTC-day schedule is replaced by the two-phase plan, with branch-B estimates per Task_Type_Subset); DA-14 (Phase_2 approval entries); the Headless_Launch_Flags in Mechanical choices (reduced to the three flags verified on the Target_Machine). The section "Proposed requirement changes" is kept as a record and marked applied.
 
+> **Revised 2026-11-09 (Requirement 19: Decision_Models and External_Reference).** After the Phase_1 and Phase_2 (branch B) Locked_Runs, where no Combination passed, the Author deferred the runtime decision and asked for two Workers AI Decision_Models (`@cf/cloudflare/clef-flash`, `@cf/cloudflare/clef`, Task_Type D only) and an External_Reference ingest. `requirements.md` was updated first (new Requirement 19; amendments to R4.16, R11.15, R11.18, R12.2, R18.1, R18.3, R18.4, R18.8). This pass brings the design in line. Nothing earlier in this document was removed; every addition is dated and sits next to the section it extends. The new decisions are DA-16 to DA-23 (accepted by the Author, 2026-11-09; see the second note below), the new Properties are 41 to 48, the new pre-run items are V9 to V14, and the new requirement changes RC-10 to RC-17 (applied to `requirements.md`, 2026-11-09). Changed as a result:
+>
+> | Item | Design sections changed |
+> |---|---|
+> | R19.2 / R19.3 verification | new [Research findings: Decision_Models](#research-findings-decision_models-r192-verified-2026-11-09) (facts, URLs, retrieval date, unverified list) |
+> | R19.1, R19.6 to R19.9 adapter, mapping, Raw_Choice | [Decision_Model adapter and System_One_Mapping](#decision_model-adapter-and-system_one_mapping-r19-2026-11-09), [`sim-wasm` exports](#sim-wasm-exports-r61), [Decision_Model Combination records](#decision_model-combination-records-and-fingerprint-r19-2026-11-09), Results record, DA-16, DA-17, DA-18 |
+> | R19.11 truncation | [adapter section](#decision_model-adapter-and-system_one_mapping-r19-2026-11-09), Error Handling, DA-19, Properties 44, 45 |
+> | R19.12 budget | [Budget](#budget-budgetts) (2026-11-09 amendment), DA-20 (expected neurons), Property 45 |
+> | R19.4, R19.5, R19.17, R18.1, R18.3, R18.4 gate and approvals | [Phase gate](#locked-run-flow-runts), [Approvals](#approvals-evalprobeapprovalsjson-da-14), [Probe_Runner CLI](#probe_runner-cli), DA-21, DA-23, Property 47 |
+> | R19.13, R19.15, R19.16 Report and External_Reference | [Report](#report-reportts-r15) amendment, [External_Reference_File](#external_reference_file-and-ingest-r19-2026-11-09), DA-22, Properties 46, 48 |
+> | R4.16, R11.15, R11.18, R12.2 amendments | Raw_Choice mode in the exports table, adapter section, Results record, Properties 42, 43 |
+> | R19.18 tests | Testing Strategy (2026-11-09 bullets), Gates added |
+> | Known run-gate defect (task 25.3) | DA-23 |
+>
+> Every Workers AI Dev_Run and Locked_Run of a Decision_Model still needs its own named Author approval (R19.4); a Smoke_Call needs none (RC-10, below). This revision approves nothing and sends no request.
+
+> **Revised 2026-11-09 (Author decisions on the Decision_Model proposals).** The Author decided four things; `requirements.md` already carries the amended text (R3.1, R11.17, R19.2 to R19.5, R19.8, R19.11 to R19.13), and this pass makes the design consistent with it. Nothing earlier was removed; changes are dated in place.
+>
+> | Decision | Effect on the design |
+> |---|---|
+> | (1) Free plan availability of both Clef models is accepted as an inference | Item (a) of the research table is recorded as "inferred, accepted by the Author 2026-11-09" and is no longer an unverified item (R19.2, R19.3). Proceed. If a Smoke_Call fails with a plan or billing error, stop, record the model as not measured with that reason and apply R19.3 (V13). |
+> | (2) RC-10: Decision_Model Smoke_Calls need no approval | R11.8 applies within the count of 10 Smoke_Calls per UTC day (shared with every other Workers AI Smoke_Call); the developer tells the Author the model and the number of calls before sending. The `smoke` step is removed from the approval kinds: `approvals.json` holds `decision_model` entries for `dev` and `locked` only. Changed: CLI amendment, [Decision_Model gate](#locked-run-flow-runts), [Approvals](#approvals-evalprobeapprovalsjson-da-14) amendment, [Budget](#budget-budgetts) amendment, Additional_Candidate_Set steps, V9, V13, DA-20, DA-21, Property 47, Error Handling. |
+> | (3) RC-11 to RC-17 applied to `requirements.md` as proposed | Marked applied in [Proposed requirement changes](#proposed-requirement-changes); where the section above already used the wording, nothing else changed. |
+> | (4) DA-16 to DA-23 approved as proposed | Status lines changed from "proposed, awaiting the Author" to "accepted (Author, 2026-11-09)". |
+
 ### Resolution of the open points
 
 | Point | Decision | Status |
@@ -83,8 +108,9 @@ New questions that came up during design:
 | How the Author's approval of a Workers AI run reaches the runner | A tracked `eval/probe/approvals.json` entry, added only in a commit the Author approved in the conversation, plus a matching `--approval <id>` flag. The runner reads the file only from git `HEAD` and only when it has no uncommitted changes (R11.20). See [DA-14](#da-14-how-workers-ai-approval-reaches-the-runner) | decided: A (Author, 2026-11-06) |
 | Workers AI plan | **Free** (Author, 2026-11-06). 10,000 neurons per UTC day, operations above it fail. Server models whose locked run does not fit one UTC day at the typical estimate, or that need a paid billing method, are dropped. See [DA-8](#da-8-request_budget-values-and-expected-cost-q-open-8) | closed: Free |
 | Measurement plan | Two phases, browser first, server only where the browser fails (Requirement 18). See [DA-8](#da-8-request_budget-values-and-expected-cost-q-open-8) and [Probe_Runner CLI](#probe_runner-cli) | decided: two-phase (Author, 2026-11-06) |
+| Decision_Models and External_Reference (R19), added 2026-11-09 | `clef-flash` and `clef` are two Workers AI Combinations with `response_shape: "system_one"`, Task_Type D only. A new Rust export renders the request pieces, the Output_Validator gets an explicit Raw_Choice mode, truncation is checked before and after each request, and the budget estimate is byte based with no output term. Dev_Run and Locked_Run approvals are per model and per step; a Smoke_Call needs none (RC-10). The External_Reference is ingested from a hashed JSON file and kept apart from every mark. See DA-16 to DA-23 | accepted: DA-16 to DA-23 as proposed (Author, 2026-11-09); Free plan availability accepted as an inference; Smoke_Calls need no approval (RC-10) |
 
-The proposed requirement changes RC-1 to RC-9 in [Proposed requirement changes](#proposed-requirement-changes) were approved by the Author and applied to `requirements.md` on 2026-11-06.
+The proposed requirement changes RC-1 to RC-9 in [Proposed requirement changes](#proposed-requirement-changes) were approved by the Author and applied to `requirements.md` on 2026-11-06. RC-10 to RC-17 were approved and applied to `requirements.md` on 2026-11-09.
 
 ### Research findings used here
 
@@ -119,6 +145,36 @@ All facts checked on 2026-11-06. Model licenses are listed in DA-1.
   | `--enable-unsafe-webgpu --enable-features=Vulkan --use-angle=vulkan` | `nvidia` / `ampere`, no `shader-f16` | `intel` / `gen-12lp`, has `shader-f16` |
 
   `adapter.info.device` and `adapter.info.description` were empty strings on both GPUs. `vulkaninfo --summary` lists the RTX 3050 Ti Laptop GPU (NVIDIA driver) and Intel UHD Graphics (TGL GT1, Mesa). Consequences used below: headless Playwright works (C3 first branch) with the third flag set; a SwiftShader adapter must be rejected as a non-GPU path; on the NVIDIA adapter only `q4f32` (WebLLM) and `q4` (transformers.js) builds can run, because `q4f16` builds need `shader-f16`.
+
+### Research findings: Decision_Models (R19.2, verified 2026-11-09)
+
+Retrieved on **2026-11-09** from official Cloudflare pages only, through the Exa MCP fetch tool (no preview-branch mirror, no second-hand page). Pages used:
+
+- Changelog: <https://developers.cloudflare.com/changelog/post/2026-10-01-clef-workers-ai/> (published 2026-10-01).
+- Model pages: <https://developers.cloudflare.com/workers-ai/models/clef-flash/> and <https://developers.cloudflare.com/workers-ai/models/clef/>.
+- Raw API schemas linked from those model pages: <https://developers.cloudflare.com/workers-ai/models/clef/schema-input.json>, <https://developers.cloudflare.com/workers-ai/models/clef/schema-output.json>, <https://developers.cloudflare.com/workers-ai/models/clef-flash/schema-output.json> (the two models' output schemas are identical; the `clef-flash` input schema was not fetched separately, because its model page lists the same parameters).
+- Pricing: <https://developers.cloudflare.com/workers-ai/platform/pricing/> ("Last updated Oct 20, 2026" on the page).
+
+| R19.2 item | Verified fact | Source (all retrieved 2026-11-09) | Status |
+|---|---|---|---|
+| (a) Free plan availability | The pricing page states that Workers AI "is included in both the Free and Paid Workers plans", gives the Free allocation as 10,000 neurons per day, and lists the only models that need a paid billing method: `kimi-k2.6`, `kimi-k2.7-code`, `glm-5.2`, `glm-5.3`, `glm-5.3-flash`, `deepseek-v4-flash-0731`, `deepseek-v4.1-flash-1017`, `deepseek-v4-pro-0813`. Neither Clef model is in that list, and both are priced in the same LLM table. **Neither the model pages nor the changelog says "available on the Free plan" in so many words.** | pricing page; model pages; changelog | **inferred, accepted by the Author 2026-11-09.** An inference from the pricing page's exclusion list, not an official statement; the Author accepted it and it is not treated as unverified under R19.3. A plan or billing error in a Smoke_Call stops the work for that model (R19.3) |
+| (b) Billing on input tokens only | Both model pages: "Clef models do not charge for output tokens"; media inputs are converted to input tokens and billed at the input rate. The pricing page lists only a per-M-input-token price for both models. | both model pages; pricing page | verified |
+| (c) Neuron rate per input token | `@cf/cloudflare/clef`: $0.240 per M input tokens = **21,818 neurons per M input tokens**. `@cf/cloudflare/clef-flash`: $0.038 per M input tokens = **3,455 neurons per M input tokens**. Check: 0.240 / 0.011 × 1,000 = 21,818.2. Output rate: none (0). | pricing page, "Other model pricing" table | verified |
+| (d) System One request and response schema | Request (`schema-input.json`): required `model` (pattern `^\s*(clef\|clef-flash)\s*$`), required `state` (string or structured data), required `questions` (object, 1 to 64 questions; ids use letters, digits, `_`, `.`, `-`, at most 100 characters); a `choice` question has required `type: "choice"`, `instructions` (non-empty string, or object or array) and `criteria` (map from option id, a non-empty string, to a description that may be a string, object, array or `null`; 2 to 255 options); optional `images` (not used). Response (`schema-output.json`): required `model` (string), `answers` (object keyed by the request's question ids) and `usage`. A choice answer has required `type: "choice"`, `choice` (string, "the highest-probability option"), `probabilities` (map from option to a number in [0, 1], summing to 1) and `confidence` (number in [0, 1]). **`usage` has required integer fields `input_tokens` and `output_tokens`** (not `prompt_tokens` and `completion_tokens` as in the chat shape). | `schema-input.json`, `schema-output.json`, both model pages, changelog | verified |
+| (e) Context window | `clef`: **65,536 tokens** (model page; the changelog table says "64K tokens", and 64 × 1,024 = 65,536). `clef-flash`: **24,576 tokens** on the model page, while the changelog table lists "64K tokens" for it too. The two Cloudflare pages disagree for `clef-flash`; the design uses the model page's lower figure, which is also the safe one (R19.11). | both model pages; changelog | verified for `clef` (65,536); for `clef-flash` verified on the model page and **contradicted by the changelog** (recorded; resolved in favour of the model page, RC-16 applied 2026-11-09) |
+| (e) Truncation | Both model pages: media tokens "count toward the model's context window, together with the questions. If they exceed the context window, the request fails. Otherwise, the text `state` is truncated to fit the remaining space." The documented output schema has **no** field that reports truncation, and `schema-input.json` says "Long text state is truncated to fit the model's token limit." So `state` is truncated without a documented signal; the word "silently" is an inference from the absent field. | both model pages; both schema files | verified (the absence of a signal is read from the schema) |
+
+Other documented facts used: the weights are Apache-2.0 per the changelog, and the model pages link a license file at `https://huggingface.co/Cloudflare/clef/blob/main/LICENSE` (not fetched); latency in the changelog (median 38.8 ms for `clef-flash`, 209.3 ms for `clef`) is the vendor's own figure, not a probe result; at most 64 questions per request (the probe asks one).
+
+**Unverified or only indirectly verified (R19.3).** Items (a) to (e) are all covered above. Item (a) is an inference from the exclusion list, accepted by the Author on 2026-11-09, so it is not listed as unverified. These facts are not on any official page I read, are needed for the build, and are confirmed by the first Smoke_Call (no approval needed, RC-10) (items V9 to V14 in [Pre-run verification items](#pre-run-verification-items)):
+
+1. Whether the REST response wraps the System One object in the usual `result` envelope (the model pages print `response.json()` and show no envelope). The adapter reads `result.answers` and the Smoke_Call's shape check fails (`mismatch`) if the object is at the top level.
+2. The Free-plan rate limit for the Clef models (the rate-limit page was not read for them). A 429 is recorded as an error and graded Illegal (R11.9); the Smoke_Call shows whether it occurs.
+3. How many bytes per input token the service sees for the System_One_Mapping text, and whether `usage.input_tokens` includes the service's own wrapper tokens. The lower bound of R19.11 is derived from the Smoke_Calls and Dev_Run, not from a document.
+4. Whether `choice` is deterministic for identical requests (the model returns a probability argmax; GPU non-determinism is not ruled out). The Smoke_Call does not test it; the Report says it was not tested.
+5. Any truncation flag: none is documented. The adapter checks a top-level or `usage` field named `truncated` with value `true` as a defensive contract only (R19.11), and the Report says so.
+
+Per R19.3 as amended on 2026-11-09, item (a) is an Author-accepted inference and is not a reason to withhold approval. If a Smoke_Call of either model fails with a plan or billing error, the developer stops, records that model as not measured with that reason (the Report lists it as "not measured: plan or billing error on the Free plan") and asks for no approval for it. Nothing else in the table is unverified.
 
 ## Architecture
 
@@ -182,6 +238,7 @@ sequenceDiagram
 - Floating point is allowed only in the TypeScript statistics and timing code of the Probe_Runner (`stats.ts`, `metrics.ts`, `perf.ts`). It never feeds back into `sim-core`. Pass or fail decisions compare integer counts (R13.4); the bootstrap uses an integer PRNG so its draws are bit-identical (R13.8).
 - The locked split is rendered into prompts only inside a Locked_Run, including `page-bundle --split locked`, which starts one (R3.1). `ingest`, `regrade` and `report` read `cards/locked.jsonl` for grading and statistics only: they call `llm_parse_card`, `llm_grade`, `llm_identity` and `llm_contrast`, never `llm_render_prompt` on a locked card, and they print and write no card content other than Card IDs, `pair_id`s and scenario group IDs. The Manifest_Check hashes the file without printing it. Dev runs, the VRAM_Preflight and every gate use `cards/dev.jsonl` only.
 - Nothing from `eval/` is imported by `web/`, and a gate checks it (R3.16). The Probe_Page is a separate Vite project; `web/dist` stays the only Deploy_Directory, and its checks gain two leak checks.
+- **Amended 2026-11-09 (R19).** The Output_Validator stays in `sim-core` and is reached through `sim-wasm` (B1). The Raw_Choice of a Decision_Model is validated by the same `llm_validate` export, in an explicit `raw_choice` mode chosen by the Probe_Runner from the Combination's `response_shape` and never inferred from the output (R4.16; DA-17). The System_One_Mapping pieces (`state`, `instructions`, ordered `criteria`) are rendered in Rust by a new export so that the fixed fact blocks, the permutations and the ID rules are the ones already tested (DA-18). The TypeScript side only assembles the JSON request body and parses the response. A Decision_Model never gets an S request (R19.1), and the External_Reference ingest is kept out of every ledger, mark and branch function (R19.16).
 
 ## Components and Interfaces
 
@@ -391,6 +448,16 @@ All take one JSON string and return one JSON string; none throws. Each has a pla
 
 The existing exports (`WasmSim`, `submit`, `step`, `tick`, `run_ticks`, `verify_replay`) are unchanged (R6.9).
 
+
+**Amended 2026-11-09 (R19, DA-17, DA-18).** Two additive changes; no existing export changes its result for an existing input, so `fixtures/grading/dev-golden.json` and the parity goldens stay byte-identical, and `RENDERER_VERSION` stays 2.
+
+| Export | Input | Result |
+|---|---|---|
+| `llm_validate(input)`, new optional member | `{"frozen_context":…,"raw":"…","mode":"json"\|"raw_choice"}`; `mode` absent means `json` (today's behaviour) | `verdict`. In `raw_choice` mode, `raw` is a Raw_Choice string: the verdict is `Decision{option}` if and only if `raw` equals, character for character, one option ID of the D Frozen_Context, otherwise `Illegal{reason: OutOfSetOption}`. No JSON is parsed, no whitespace is trimmed, no other member exists (R4.16). An S context with `mode: "raw_choice"`, or an unknown `mode` value, is `{"ok":false,"error":{"kind":"input",…}}` |
+| `llm_render_system_one(input)`, new | `{"frozen_context":…,"mapping":"<mapping file text>","permutation":"base"}` | `state` (string), `instructions` (string), `question_id` (string), `criteria` (array of `{"id","label"}` in the Permutation's option order), `renderer_version` |
+
+`renderer_version` in the new result is the existing `RENDERER_VERSION` (2): the fixed fact blocks are the same functions as in `llm_render_prompt`. What is new (the assembly of `state`, the `criteria` list and the mapping-file parser) is covered by the mapping file's `format_version` line, by the Template_Hash of the mapping file, and by `sim_wasm_sha256` in the Model_Fingerprint; a change to the assembly code that does not change the mapping file therefore still changes the fingerprint through the `.wasm` hash. The module follows the determinism rules of `sim_core::llm` and is covered by `source_guard.rs` without change.
+
 ### Probe_Runner CLI
 
 Run as `mise exec -- pnpm --dir eval/probe run probe <command>`. Every command that touches cards first runs the Manifest_Check (R1.1).
@@ -412,6 +479,13 @@ Run as `mise exec -- pnpm --dir eval/probe run probe <command>`. Every command t
 | `phase-status` | Derive the phase from the ledger, failure records, `combinations.json` and `approvals.json`; print, per Task_Type, whether an in-browser Combination passed, with ledger entry IDs, and the Phase_2 branch that follows (R18.2) | no | no |
 | `report` | Write `docs/llm-probe.md` from the ledger, Results, `combinations.json` and `approvals.json` | no | no |
 | `ledger` | List ledger entries with their Task_Type_Subset and derived status | no | no |
+| `ingest-reference --file <path>` (added 2026-11-09, R19.15) | Check an External_Reference_File and its named files; write the checked record under `eval/results/external/`; re-grade raw outputs through Sim_Wasm where the file has them. Reads `locked.jsonl` for grading only (RC-13) | no | no |
+
+**Amended 2026-11-09 (R19).**
+
+- A Combination record may carry `task_subset_allowed` (`"D"` for both Decision_Models). For such a Combination `smoke`, `dev-run` and `locked-run` take `--task D` (the default; the default for every other Combination stays `DS`). `--task S` or `--task DS` exits non-zero with `probe: task_subset: <combination> accepts Task_Type D only; requested <S|DS>`, before the Manifest_Check, `env`, the budget counter, the ledger, the Results writer or any request is touched (R19.1). `smoke` for a Decision_Model sends D Dev_Cards only.
+- Amended 2026-11-09 (Author, RC-10). A Decision_Model `dev-run` and `locked-run` need an `--approval <id>` that names the Combination and the step (R19.4). `smoke` for a Decision_Model needs none: R11.8 applies, within the 10 Smoke_Calls per UTC day (the count is shared with all other Workers AI Smoke_Calls), and `smoke` takes no `--approval`. Before sending, the developer tells the Author the model and the number of calls (R19.5).
+- `phase-status` gains a block `decision_models:` and a line `runtime decision: ON HOLD (R19.17)` or `runtime decision: not on hold` (see DA-22).
 
 Exit status is non-zero on every failure listed in Error Handling. During a Locked_Run, standard output and standard error carry only progress counts (`D 120/244 S 40/164`), aggregate Metrics, Card IDs in errors and error messages (R3.11). The logger for locked runs has no method that accepts prompt or output text.
 
@@ -444,6 +518,13 @@ The cold-start figures therefore belong to the Locked_Run (R14.10), and the ledg
 - A refused run is handled as an unapproved run under R11.8: it sends at most the Smoke_Calls left in the day's count, records every other Card × Permutation as `not_run` with reason `not_approved`, prints the gate condition, and exits non-zero. A refused Locked_Run writes no ledger entry and sends nothing, because Smoke_Calls never use Locked_Cards.
 - Smoke_Call outputs are graded and stored under `eval/results/smoke/`, never in a Dev_Run or Locked_Run file, so they cannot enter a Metric (R18.6).
 - Response_Shape gate (R11.19): a Workers AI `dev-run` or `locked-run` needs a Smoke_Call record for the same Combination whose `shape_check` is `ok` and whose `declared_shape` equals the Combination's current `response_shape`. A mismatch is reported with the Combination and the HTTP status, and the gate refuses until `combinations.json` declares a shape that a later Smoke_Call confirms.
+- **Decision_Model gate (added 2026-11-09, R19.1, R19.4, R19.5, R18.1, R18.3, R18.4).** A second function `allowDecisionModel(step, combo, task_subset, state)` (same file, same `state`) covers the two Decision_Models; a Decision_Model request never goes through the branch A or B logic of `allowWorkersAi`, because the Additional_Candidate_Set is outside the Phase_2 branch (R18.3, R18.4 amendments). A `smoke` step is not checked here for approval (RC-10): it follows the R11.8 rules and `allowWorkersAi('smoke', …)` (count of 10 per UTC day, allowed in Phase_1, R18.1), after the task-subset check of item 1. For the `dev` and `locked` steps it allows a request only if all of the following hold, and otherwise handles the run as a refused run (the rules above: no request, `not_run` with reason `not_approved`, no ledger entry for a Locked_Run, non-zero exit):
+  1. `task_subset` is exactly `D` (R19.1). A subset containing S is refused first, with the message of the CLI amendment, and writes nothing at all (not even `not_run` records).
+  2. Phase_1 has ended (R18.1 amendment; `dev` and `locked` only). The branch and the `phase2` entry are not consulted.
+  3. `approvals.json` as read from `HEAD` (R11.20) holds an entry of kind `decision_model` that names this Combination and this `step` (`dev` or `locked`; there is no `smoke` step entry) and has not been withdrawn (DA-21). An entry of another Combination, of another step, a `phase2` entry or a `dev`/`locked` entry of branch B covers nothing (R19.4).
+  4. The steps follow the order smoke, Dev_Run, Locked_Run (R19.5); the smoke is first but needs no approval: a `dev` step needs a Smoke_Call record of the same Combination with `shape_check: "ok"` and `declared_shape: "system_one"`; a `locked` step needs, besides the R3.12 Dev_Run precondition, that Dev_Run's header to carry the same mapping Template_Hash. The Response_Shape gate above applies unchanged.
+  5. The run's request count is at most the entry's `max_requests`.
+- `decisionHold(state)` (DA-22) is computed from the same `state` and is used by `phase-status`, `report` and a steering guard test.
 
 ### Adapter_Interface (`adapters/interface.ts`, R8)
 
@@ -640,6 +721,76 @@ try {
 - HTTP error or rate limit → `error` with `remote.status` and the first `errors[].code`; no headers, no token, no retry (R11.9). Timeout → `AbortController.abort()`, `timeout` with `late = none (aborted)`, the request still counts (R11.11).
 - Model_Fingerprint `model.revision` is `server-side, not pinnable` (R11.21).
 
+### Decision_Model adapter and System_One_Mapping (R19, 2026-11-09)
+
+Proposed in DA-16 (separate file, shared helpers), DA-17 (validator mode), DA-18 (mapping in Rust) and DA-19 (truncation). Nothing here changes the chat or text shapes of the adapter above.
+
+**Request.** `eval/probe/src/adapters/system-one.ts` implements the Adapter_Interface for Combinations with `response_shape: "system_one"`. It reuses `env.ts`, `redact.ts`, `sink.ts`, `budget.ts` and the HTTP error mapping of `workers-ai.ts` (exported unchanged, no behaviour change). The Adapter_Interface request is a union: today's `{ kind: "chat", system, user }` and a transport-neutral `{ kind: "decision", state, instructions, questionId, options: [{ id, label }, ...] }` (no Workers AI field, R8.11). Path and body:
+
+- URL `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/cloudflare/<model>` where `<model>` is `clef-flash` or `clef` (the path keeps the literal `@cf/cloudflare/` prefix, as the model pages' `curl` example does).
+- Body, built with an ordered list (never a map sorted by key), serialized once with `JSON.stringify` and sent as exactly those bytes:
+
+```json
+{
+  "model": "clef-flash",
+  "state": "<rendered facts>",
+  "questions": {
+    "decision": {
+      "type": "choice",
+      "instructions": "<How to read / How to choose text>",
+      "criteria": { "<option id 1>": "<label 1>", "<option id 2>": "<label 2>" }
+    }
+  }
+}
+```
+
+- `model` is the Combination's `model_selector` (`clef-flash` or `clef`, matching the schema pattern). No `temperature`, `seed`, `max_*`, `response_format`, `chat_template_kwargs` or `images` member is sent: System One has none of them. The question ID is the fixed string `decision` (letters only, inside the schema's id alphabet), one `choice` question per request. Option IDs match `^[a-z][a-z_]*$`, so they are never integer-like JavaScript keys and `Object.fromEntries` keeps the Permutation's insertion order in `criteria` (a unit test checks this with every option ID of the Dev_Cards).
+- `criteria` values are the option labels exactly as the `- <id>: <label>` lines of the D prompt print them.
+
+**System_One_Mapping (R19.7, R19.10).** The mapping is one tracked text file, `eval/probe/templates/decision.system_one.v1.txt`, next to the existing templates. Format (UTF-8, three sections introduced by their own lines, like the existing templates):
+
+```text
+[meta]
+format_version: 1
+question_id: decision
+criteria: option id -> option label, in the order of the Permutation
+[instructions]
+<the "How to read the facts:" and "How to choose:" sections of decision.v1.txt, verbatim, and nothing else>
+[state]
+Today is day {{tick}}.
+{{situation}}
+People:
+{{people}}
+Relations:
+{{relations}}
+Events:
+{{events}}
+Input: {{player_input}}
+Subject: {{subject}}
+```
+
+- `llm_render_system_one` fills the `[state]` placeholders with the same fixed-code blocks as `llm_render_prompt` (R7.6, R7.10, R7.11: IDs verbatim, `due day N`, `none` for empty optional fields, the tick as `Today is day N.`). `{{options}}` is not a placeholder of this format (it is an unknown-placeholder render error naming it), because the options travel in `criteria`. `[instructions]` is returned unchanged. The `criteria` list is the base option order or the reversed, rotated-by-one or rotated-by-two order of R7.3 (DA-9); the S permutations do not exist for a Decision_Model.
+- Only the Frozen_Context, the mapping bytes and the Permutation are inputs (R7.1, R7.2): the same test as Property 12 (Card-only fields do not change the output) holds for the new export (Property 41).
+- **The five Author template rules** (tasks.md 13.1: relation direction, magnitude units, underworld officials' `alive`, one tick is one day with the current day given, event actor order) are all bullets of "How to read the facts", so they land in `[instructions]`; the current day is in the first `[state]` line. A unit test applies the existing rule predicates (the same function that checks `decision.v1.txt`) to `[instructions]` plus the `Today is day {{tick}}.` line of every `decision.system_one.v*.txt` file. For `v1` only, a second test checks that `[instructions]` equals the two named sections of `decision.v1.txt` byte for byte, so the first mapping adds no wording of its own. A task-20-style tuning of the wording on Dev_Cards makes a new file `decision.system_one.v2.txt`; a file used in any Dev_Run or Locked_Run is never edited afterwards.
+- **Template_Hash (R19.10)** = sha256 of the exact bytes of the mapping file. The file holds both the template text and the mapping specification (the `[meta]` section names the question ID and the rule for `criteria`; the assembly code is identified by `format_version` and `sim_wasm_sha256`). The hash is recorded under the key `decision` of `template_hashes` in the Results header, the fingerprint and the ledger entry, so the Dev_Run precondition (R3.12) and the resume check (R3.10) work unchanged. "Frozen after tuning on Dev_Cards only" is enforced by R3.12: the Locked_Run must carry the Template_Hash of the newest Dev_Run, and the mapping file must be committed before the Locked_Run's `start` entry.
+
+**Response, Raw_Choice and the separate field (R19.8, R19.9).** The adapter takes the Cloudflare envelope's `result` and reads, in this order, nothing else into the outcome:
+
+1. `result.answers` must be an object that has the own property `decision`; `result.answers.decision.choice` must be present and a JSON string. Otherwise the adapter returns the error `system_one_shape` (detail: which of the three is missing or has which type). The runner grades it Illegal as a parse failure with detail `system_one_shape` (the same grade path as `non_text_response`, R11.18 amendment: the Raw_Choice is a text value of the structured `answers` object, not a serialized value, so R11.18 does not apply).
+2. A string `choice`, including `""`, is the Raw_Choice and becomes `outcome: { "kind": "text", "text": "<Raw_Choice>" }` byte for byte (R12.2 amendment). The adapter does not check membership; `llm_validate` in `raw_choice` mode does (R4.16), so a `choice` outside the option set is Illegal `OutOfSetOption`.
+3. `confidence` and `probabilities` are not read into the outcome and not used for validation, grading or any Metric. They are stored exactly as received by keeping the verbatim response body text in a Results field separate from the outcome: `system_one: { "response_text": "<byte-exact HTTP body>", "usage_reported": true }`. A parsed copy would lose number lexemes (`0.10` becomes `0.1`), so no parsed copy is stored. A test (Property 43) changes `confidence` and `probabilities` to random values and checks that outcome, verdict, grade and every Metric stay equal.
+4. Usage: `inputTokens ← result.usage.input_tokens`, `outputTokens ← result.usage.output_tokens`, `reasoningTokens ← null` (R11.17 amendment: the System One shape names its counts `input_tokens` and `output_tokens`). Missing or non-integer usage sets `usage_reported: false` and stores `usage: null`.
+5. HTTP errors, rate limits, timeouts and the redaction rules are those of R11.9 to R11.11 (a Decision_Model request aborts at the Timeout; `late` is `{ "kind": "none", "reason": "aborted" }`).
+
+**Shape check in a Smoke_Call (R11.19, R19.6).** For `system_one` the declared shape is checked as: `result.model` is a string; `result.answers.decision.type === "choice"`, `choice` is a string, `probabilities` is an object whose values are numbers, `confidence` is a number; `result.usage.input_tokens` and `output_tokens` are integers. The record stores `shape_check: "ok" | "mismatch"`, `declared_shape: "system_one"`, the HTTP status, and the measured `bytes_per_token = body_bytes / usage.input_tokens` (as an exact fraction of integers) for the truncation lower bound below.
+
+**Truncation (R19.11, DA-19).** Two checks, both integer, both before and after the request:
+
+- *Pre-check.* `body_bytes` is the UTF-8 length of the serialized body (`model`, `state`, `questions` with `instructions` and `criteria`). If `body_bytes > context_window_tokens` of the Combination (24,576 for `clef-flash`, 65,536 for `clef`; a byte count at least equals a token count, so this is conservative and it is not a proof that no truncation happens), no request is sent. In a Dev_Run the Card × Permutation is recorded as `not_run` with reason `over_context`. In a Locked_Run the check is part of the pre-render step (step 5 of the locked run flow): any `over_context` request refuses the run before the `start` entry, with the Card IDs listed, like a render error (R3.15; RC-11). A body of exactly `context_window_tokens` bytes is accepted; one byte more is refused.
+- *Post-check, from the response.* The request is recorded as an engine fault `truncated_state` (outcome kind `engine_fault`, `code: "truncated_state"`) if any of these holds: the response carries a top-level or `usage` member named `truncated` with value `true` (undocumented, defensive); `usage.input_tokens < floor(body_bytes / max_bytes_per_token)`; or `usage.input_tokens > context_window_tokens`. `max_bytes_per_token` is a Combination field: provisionally 8 until the Smoke_Calls, then fixed as `max(6, ceil(3 × max measured bytes_per_token / 2))` (1.5 times the largest ratio measured in the Smoke_Calls and the Dev_Run, never below 6), and frozen with the fingerprint (a changed value is a different fingerprint, so a resume with a different value is refused, R3.10). The gemma prompts of the earlier runs measured 3.3 to 3.8 bytes per token, which is why 8 is the provisional cap.
+- A `truncated_state` fault is not graded, not counted as Illegal, kept out of the latency percentiles, counted in the Metric denominators as not acceptable (the existing rule for a Card with no output, B3), and listed in the Report with its count. An entry with such a record is never `complete` (R3.5), so the Report does not use its Metrics for a mark. Resuming sends the missing requests again; the same request will fault again, so the Author decides what to do (the runner does not retry).
+- Where a response reports no usage (`usage_reported: false`), the post-check is skipped for that request, the fact is stored with the record, and the Report states that truncation for those requests rests on the pre-check alone.
+
 ### Budget (`budget.ts`)
 
 - Counter file `eval/results/budget/workers-ai.json`: `{"schema":"llm-probe-budget-v1","days":{"2026-11-06":{"requests":12,"smoke":4,"neurons":318}}}`, keyed by UTC calendar day. Unreadable or unparsable, including a missing or non-integer `neurons` field on any day or a missing schema identifier → exit before any request, file untouched (R11.12).
@@ -652,6 +803,8 @@ try {
 - The per-run count of a Locked_Run is the sum over its ledger entry, so resumes share one cap.
 - Over a request cap → no further requests in that run; each remaining Card × Permutation gets a `not_run` record with reason `budget`; the message names the cap (per-run or daily) and its value (R11.5).
 - A Locked_Run stopped by any cap gets an `abort` ledger event with reason `budget` and stays incomplete; `locked-run --resume` on a later UTC day sends only the missing outputs (R3.9).
+
+- **Amended 2026-11-09 (R19.12, DA-20).** For a `system_one` Combination the neuron estimate in step 2 is `estimate = ceil((body_bytes + 256) × input_price / 1,000,000)` with `BigInt`, where `body_bytes` is the UTF-8 length of the serialized request body, `256` is the same fixed allowance as for chat requests (here for the service's own wrapper text; RC-15), and `input_price` is the Combination's verified integer rate (21,818 for `clef`, 3,455 for `clef-flash`). There is no output-token term, because the service bills input tokens only (R19.2(b)); the Combination's `prices.output` is `0`. Each byte counts as at most one token, so the estimate is an upper bound unless the wrapper exceeds the allowance, which the Smoke_Calls check by comparing the reservation with the cost from `usage`. After a response with `usage.input_tokens`, the reservation is replaced by `ceil(input_tokens × input_price / 1,000,000)` (no output term; `output_tokens` is recorded and costs nothing). Without usage the estimate stays. The request caps, the daily cap, the 10 Smoke_Calls per UTC day rule (which a Decision_Model Smoke_Call uses like any other, with no approval, RC-10) and the Neuron_Cap of 9,000 per UTC day are unchanged and shared with every other Workers AI Combination (Property 45).
 
 ### Metrics and statistics (`metrics.ts`, `stats.ts`)
 
@@ -677,6 +830,14 @@ try {
 9. The recommendation per Task_Type, with the full Model_Fingerprint of each recommended Combination (R15.3, R15.5, R15.6, R18.7). If a recommended Combination is flagged for CPU-placed nodes, a "Risks" line under that recommendation lists those nodes with operator types and counts (R15.12).
 10. Void cards, excluded pairs, failed Combinations (load failure, out of GPU memory, engine rebuild failure, failed Thresholds), every `runtime_stuck` engine fault, re-runs with the earlier entry ID, and incomplete entries, with reasons (R15.7).
 11. The Workers AI note: measurements (or Smoke_Calls) used the REST API from the local Probe_Runner; a production server path still has to decide or measure the added latency of a Worker proxy, keeping the Workers_AI_Token out of the browser, and the request budget and rate limits from `tech.md` (R15.10).
+
+**Amended 2026-11-09 (R19.13, R19.16, R18.8, DA-22).**
+
+- *Section 2 (Measurement plan) is the Report's Phase_2 section.* It additionally states the Additional_Candidate_Set (`clef-flash`, `clef`, each with its approval IDs and dates, or "not measured" with the reason of R19.3), the **total number of Phase_2 candidates tried**, and the multiple-comparison note. The count is computed by `phase2CandidatesTried(state)`: the number of distinct Workers AI Combinations that have at least one Dev_Run or Locked_Run Results file or ledger entry in Phase_2 (the branch-B model, `clef-flash`, `clef`, and an S candidate only if one was kept under R19.14); Smoke_Calls alone do not count. The note is printed whenever the count is 2 or more: "Several candidates were tried against the same Locked_Cards. This creates a selection bias through multiple comparisons. The Thresholds were not adjusted for it. A pass of the best of several candidates is weaker evidence than a pass of a single pre-chosen one." (The requirement calls this the "Phase_2 section (section 9)"; in this Report section 9 is the recommendation and the Phase_2 text lives in section 2, see RC-12.)
+- Section 4 shows a Decision_Model's D table like any other Combination (Metrics, Thresholds, intervals, Random_Baseline); it has no S table, and section 8 marks its link for D only. The `confidence` and `probabilities` values appear nowhere in the Report (R19.8).
+- Section 10 lists every `truncated_state` fault with its count and every Decision_Model "not measured" reason (R19.3, R19.11). Where a Decision_Model's responses reported no usage, section 10 says that truncation for those requests rests on the pre-check alone.
+- Section 9 prints the banner `Runtime decision on hold (R19.17): Decision_Model(s) pending: <ids>` above the recommendations while `decisionHold(state)` is true.
+- **New section 12, "External reference (not a repo Combination)"**, after section 11. For each ingested External_Reference it prints the label, the reference model name, the Task_Type, the Pinned_Manifest_Hash, the sha256 of the frozen configuration, of the ledger and of the results, and, per Task_Type, its Metrics as supplied or, where raw outputs were re-graded, as re-graded together with the supplied figures and a `match` or `MISMATCH` flag. The sentence "This is an external reference measurement, not a Combination of this repository; it is not part of any mark, link mark, recommendation, Phase_2 branch logic or the Locked_Run_Ledger." is printed with it. `report.ts` builds this section with `external.ts`, and the mark, recommendation and branch functions do not import `external.ts` (an import-graph test, Property 46).
 
 Dev_Run figures, if shown, sit in a section titled "Dev_Run figures (not used for the recommendation)" (R15.2); the Intel iGPU Dev_Run appears only there. The "quality without timeout" figures (R13.12) sit in their own section and never feed a mark.
 
@@ -710,6 +871,7 @@ The Report recommends; it does not decide. `tech.md` keeps "Decided by the W1 pr
 - `source`: `headless`, `probe_page` or `node`.
 - The first line of every Results file is a header `{"schema":"llm-probe-results-header-v1","run_id":…,"split":…,"combination":…,"model_key":…,"task_subset":"DS","fingerprint":{…},"template_hashes":{…},"timeout_ms":…,"placement":{"method":…,"cpu_nodes":[{"op_type":…,"count":…}]}}`, where `task_subset` is `D`, `S` or `DS` (Task_Type_Subset, R3.14) and `placement` is the R9.1 record (`null` for Workers AI); records refer to the header through `fingerprint_id`, which keeps lines short while every record still resolves to the complete Model_Fingerprint (R12.1).
 - One file per run, never shared between splits (R12.3). Files are opened append-only; a run never opens another run's file for writing (R12.8).
+- **Amended 2026-11-09 (R19).** New optional members and values, all additive, so records written before this revision still read back byte for byte (Property 32): in the header, `response_shape` and `validator_mode` (`"json"` or `"raw_choice"`; absent means `"json"`, and `regrade` and `report` read the mode from here, never from the output); in a result record, `system_one` (`{ "response_text": "<verbatim HTTP body>", "usage_reported": true|false }`, present only for `system_one` requests, outside `outcome`); `outcome.kind: "error"` with the new `code: "system_one_shape"`; `outcome.kind: "engine_fault"` with the new `code: "truncated_state"` (with `detail` holding `body_bytes`, `input_tokens` and the failed condition); `not_run` with the new `reason: "over_context"`; and `usage` with `input_tokens` and `output_tokens` read from the System One names. For a Decision_Model the `outcome.text` of a `text` outcome is the Raw_Choice and nothing else.
 
 ### Grades file (`<run>.grades.jsonl`)
 
@@ -775,6 +937,39 @@ Every record of every file under `eval/results/` starts with a `schema` value th
 - WebLLM's field is labelled MB; the design treats the number as MiB, which overstates the need if it is decimal megabytes, so the check errs on the safe side.
 - `phase1_locked: true` marks the five NVIDIA Combinations that get a Locked_Run in Phase_1. The Intel iGPU Combination has `false` (Dev_Run only) and does not hold up the end of Phase_1. Workers AI Combinations have `false`, `revision: "server-side, not pinnable"`, `response_shape` (`chat` or `text`), `max_output_param` with its source URL, and `prices: { "input": 9091, "output": 27273, "source": "<pricing URL>", "read_on": "2026-11-06" }` in integer neurons per million tokens (see [Workers AI adapter](#workers-ai-adapter-adaptersworkers-aits-r11)).
 - For a custom license, `license` is `{ "name": "LFM Open License v1.0", "osi": false, "url": "https://huggingface.co/LiquidAI/LFM2.5-1.2B-Instruct/blob/main/LICENSE", "declared_by": "base_model", "accepted": "2026-11-06" }`, which the Report prints (R15.6). `declared_by: "base_model"` means the run repository declares no license of its own and the URL is the base model's (as for `onnx-community/Qwen3.5-2B-ONNX`).
+
+### Decision_Model Combination records and fingerprint (R19, 2026-11-09)
+
+Two new records in `combinations.json`, both `phase1_locked: false` and both with the Task_Type_Subset {D}. They are not Combinations of branch B; `browserPass` ignores them, and Phase_1 does not wait for them.
+
+```json
+{
+  "id": "workers-ai/clef-flash",
+  "runtime": "workers-ai",
+  "model_id": "@cf/cloudflare/clef-flash",
+  "model_selector": "clef-flash",
+  "quantization": "",
+  "revision": "server-side, not pinnable",
+  "model_lib_url": null,
+  "phase1_locked": false,
+  "task_subset_allowed": "D",
+  "response_shape": "system_one",
+  "question_id": "decision",
+  "mapping": { "file": "eval/probe/templates/decision.system_one.v1.txt", "format_version": 1 },
+  "sampling": { "temperature": null, "top_p": null, "seed": null, "max_output_tokens": null },
+  "chat_template_kwargs": null,
+  "constraint": "system_one_choice",
+  "context_window_tokens": 24576,
+  "context_window_source": "https://developers.cloudflare.com/workers-ai/models/clef-flash/ (retrieved 2026-11-09)",
+  "max_bytes_per_token": 8,
+  "prices": { "input": 3455, "output": 0, "source": "https://developers.cloudflare.com/workers-ai/platform/pricing/", "read_on": "2026-11-09" },
+  "license": { "name": "Apache-2.0", "osi": true, "url": "https://developers.cloudflare.com/changelog/post/2026-10-01-clef-workers-ai/", "declared_by": "model", "accepted": null }
+}
+```
+
+The `clef` record is the same with `id: "workers-ai/clef"`, `model_id: "@cf/cloudflare/clef"`, `model_selector: "clef"`, `context_window_tokens: 65536`, `context_window_source` its own model page, and `prices.input: 21818`. `max_bytes_per_token: 8` is the provisional value; after the Smoke_Calls and Dev_Run it is replaced by the rule in the adapter section and then frozen. The Model_Key of each is `{ runtime: "workers-ai", model_id: "@cf/cloudflare/<model>", quantization: "", revision: "server-side, not pinnable" }`, so the two Decision_Models have different keys from each other and from the branch-B model (R19.1), and the once-only rule of the ledger applies to each separately for Task_Type D.
+
+The Model_Fingerprint of a Decision_Model run differs from the generative one only in these members: `sampling` has `null` for temperature, seed and token cap; `chat_template_kwargs` is `null`; `constraint` is `"system_one_choice"`; `template_hashes` is `{ "decision": "<sha256 of the mapping file>" }` and `warmup_hashes` is `null`; and a new member `"system_one": { "response_shape": "system_one", "model_selector": "clef-flash", "question_id": "decision", "context_window_tokens": 24576, "max_bytes_per_token": 8, "lower_bound_rule": "floor(body_bytes / max_bytes_per_token)" }`. `model.revision` is `server-side, not pinnable` (R11.21).
 
 ### Exclusion_Record (`eval/results/exclusions.jsonl`)
 
@@ -843,6 +1038,45 @@ See [Budget](#budget-budgetts). Per UTC day it holds `requests`, `smoke` and `ne
 A `phase2` entry has `branch` `A` (no `model`, `task_subset` null) or `B` (one model and the failing Task_Type_Subset). `dev` and `locked` entries name their `phase2` entry. Entries are added only in a commit made after the Author approves the action in the conversation (R17.1).
 
 `approvals.ts` reads the file only from git (R11.20): `git status --porcelain -- eval/probe/approvals.json` must print nothing (no change in the index or the working tree, and the file is not untracked), and the content is taken from `git show HEAD:eval/probe/approvals.json`, never from the working tree. Both are run with `execFile` and fixed arguments. If either step fails, or the file is not in `HEAD`, every Workers AI run is treated as not approved (Smoke_Calls only) and the reason is printed.
+
+
+**Amended 2026-11-09 (R19.4, R19.17, DA-21).** The schema identifier stays `llm-probe-approvals-v1`; the change is additive (two new `kind` values; amended by RC-10: the `decision_model` `step` is `dev` or `locked` only, there is no smoke approval), so every entry written before this revision is read unchanged (a test reads the current committed file with the new reader and compares). New entries:
+
+```json
+{ "id": "DM-001", "kind": "decision_model", "step": "dev",    "combination": "workers-ai/clef-flash", "task_subset": "D", "max_requests": 74,  "approved_on": "…", "note": "…" }
+{ "id": "DM-002", "kind": "decision_model", "step": "locked", "combination": "workers-ai/clef-flash", "task_subset": "D", "max_requests": 236, "approved_on": "…", "note": "…" }
+{ "id": "DM-W01", "kind": "withdrawal", "withdraws": ["DM-002"], "withdrawn_on": "…", "note": "…" }
+```
+
+- A `decision_model` entry names exactly one Combination and one step. It has no `phase2` member and needs none. `task_subset` must be `"D"`, and `step` must be `"dev"` or `"locked"`; the reader rejects anything else, including a `smoke` step (Smoke_Calls need no approval, RC-10, and the 10-call allowance is enforced by the budget counter). The caps of 74 and 236 are the planned request counts of DA-20 (one Dev_Run over `dev.jsonl`, one Locked_Run of the D cards); the runner refuses a run whose planned count is larger.
+- Each entry covers one run of its step. A tuning loop (a second Dev_Run with a `v2` mapping) needs a second `dev` entry, approved by the Author in the conversation first (R17.1).
+- A `withdrawal` entry lists the IDs it withdraws; the gate and `decisionHold` treat a withdrawn entry as absent. Withdrawing is the Author's act, recorded in a commit like any other entry.
+- The reader keeps the R11.20 rule: only the clean `HEAD` content counts.
+
+### External_Reference_File and ingest (R19, 2026-11-09)
+
+Proposed in DA-22. An External_Reference is a measurement run elsewhere (for example a teacher model's locked upper bound) with its own frozen configuration and ledger. It is handed over as one JSON file plus the files it names, all in the same directory:
+
+```json
+{
+  "schema": "llm-probe-external-reference-v1",
+  "label": "teacher-upper-bound-d",
+  "reference_model": "<model name as given by the Author>",
+  "task_type": "D",
+  "pinned_manifest_hash": "<64 hex, must equal the single constant of R1.4>",
+  "config":  { "file": "config.json",  "sha256": "<64 hex>" },
+  "ledger":  { "file": "ledger.jsonl", "sha256": "<64 hex>" },
+  "results": { "file": "results.jsonl", "sha256": "<64 hex>" },
+  "raw_outputs": { "file": "raw-outputs.jsonl", "sha256": "<64 hex>", "answer_mode": "json" },
+  "figures": { "acceptable": 0, "scored_cards": 0, "severe": 0, "illegal": 0, "flip_perms": 0, "flips": 0, "consistent_pairs": 0, "pairs": 0 }
+}
+```
+
+- `task_type` is `D` or `S`; one file covers one Task_Type. `raw_outputs` is `null` when the reference supplies figures only. `figures` holds integers only (numerators and denominators, no ratios), the same names the Metrics use, so the Report can print them next to the repository's own marks without recomputing percentages from floats. Each raw-output line is `{"card_id":"…","permutation":"base","raw":"<byte-exact text>"}`; `answer_mode` is `json` or `raw_choice` and selects the Output_Validator mode (R4.16).
+- File names are relative, without `..`, without a drive or leading `/`, and must stay inside the file's directory (the same path rule as R1.9); an absolute or escaping name fails before any file is read.
+- **Command** `probe ingest-reference --file <path>`. It runs the Manifest_Check (R1.1) first, because a re-grade reads the Card_Set, sends no request to any Runtime, reads no `env`, and writes only under `eval/results/external/`. Order of checks, stopping at the first failure with `probe: external_reference: <field>: <reason>` and exit status 1, and writing nothing: schema identifier and member types; `pinned_manifest_hash` equal to the constant; each named path; each given sha256 equal to the sha256 of the file it names; the format of each named file (ledger and results lines are JSON; raw-output lines have the three members). The first failing field is the one printed. A rejected file leaves `eval/results/external/` untouched.
+- **Accepted file.** The command copies the checked reference file and the named files unchanged to `eval/results/external/<label>/`, and writes `eval/results/external/<label>/record.json` (`llm-probe-external-v1`): the label, the hashes, the supplied figures and, where `raw_outputs` is present, the re-grade. The re-grade validates each raw output through `llm_validate` in the stated mode, grades through `llm_grade` and computes the same Metrics as `metrics.ts` on the Locked_Cards of that Task_Type (reading `locked.jsonl` for grading only, rendering nothing from it, printing only Card IDs, `pair_id`s and scenario group IDs, R3.1; RC-13). A difference between the re-graded and the supplied figures does not reject the file: the record stores both with `regrade: "match" | "mismatch"` and the list of differing figure names, the command prints that list and exits 0, and the Report shows both.
+- **Isolation.** `external.ts` is the only module that reads or writes `eval/results/external/`. `ledger.ts`, `phase.ts`, `budget.ts`, `browserPass`, the mark and recommendation code of `report.ts`, and the branch logic do not import it. An External_Reference therefore creates no `llm-probe-ledger-v1` line, no support mark, no entry in `phase-status` and no budget counter change (Property 46). The new records carry the Schema_Prefix `llm-probe-` and are covered by the existing Deploy_Directory marker check (R12.11).
 
 ## Correctness Properties
 
@@ -1091,6 +1325,58 @@ For any Card × Permutation plan and any fake engine sequence in which requests 
 
 **Validates: Requirements 8.5, 8.13, 15.7**
 
+### Property 41: The System_One_Mapping depends only on the Frozen_Context, the mapping bytes and the Permutation
+
+For any D Frozen_Context with 2 to 5 options, any valid mapping file and any of the four D Permutations: `llm_render_system_one` returns identical `state`, `instructions` and `criteria` on every call and in native Rust and Sim_Wasm; changing any Card-only field (`id`, `scenario_group`, `split`, `scored`, `contrast`, `author_note`, `acceptable`, `severe`) while keeping `task`, `family` and the context the same leaves the output unchanged; `criteria` has exactly the context's option IDs, each once, with the label the D prompt prints for it, in the Permutation's order (base, reversed, left-rotated by one, left-rotated by two, as in Property 13); every option ID, person ID and event ID appears verbatim in the output, the context tick appears as `Today is day <tick>.` and every `due_tick` appears as `due day <N>` (Property 14); `none` replaces an empty `player_input`, `subject` or `relations`; a mapping that contains `{{options}}` or any other unknown placeholder yields a render error naming it; the mapping file's Template_Hash equals the sha256 of its bytes; and for every `decision.system_one.v*.txt` file in the repository, `[instructions]` together with the `Today is day {{tick}}.` line satisfies the five Author template rules.
+
+**Validates: Requirements 19.7, 19.10, 7.1, 7.2, 7.3, 7.6, 7.10, 7.11**
+
+### Property 42: Raw_Choice validation is exact, total and mode-selected
+
+For any D Frozen_Context and any string `s` (empty, whitespace only, an option ID with added spaces, newline, case change or a trailing character, a very long string up to 1 MiB, strings with any Unicode): in `raw_choice` mode the verdict is `Decision{option: s}` if and only if `s` equals one of the context's option IDs character for character, and otherwise `Illegal{OutOfSetOption}`; the call never panics and returns the same verdict on every call, native and Sim_Wasm; no input in `raw_choice` mode yields a parse-failure reason; the same inputs without `mode`, or with `mode: "json"`, return exactly the verdicts the existing `llm_validate` returns (the committed `dev-golden.json` bytes are unchanged); an S context or an unknown `mode` value gives the `input` error; and grading a `raw_choice` verdict gives the same grade as grading a `json`-mode verdict that names the same option.
+
+**Validates: Requirements 4.16, 4.5, 4.8, 4.13**
+
+### Property 43: A System_One response yields a Raw_Choice or a named error, and confidence never leaks
+
+For any REST response body generated for the `system_one` shape, with random `answers.decision.choice` values (a string including `""`, `null`, a number, an object, an array, absent), a missing `answers`, a missing `decision` entry, extra unknown members, random `confidence` and `probabilities` values (including numbers with trailing zeros and text-like markers) and `usage` with or without `input_tokens` and `output_tokens`: the adapter returns the `text` outcome exactly when `choice` is a string, and then the text equals that string byte for byte; it returns `system_one_shape` when `answers`, `answers.decision` or `choice` is missing or `choice` is not a string; the stored `system_one.response_text` equals the response body byte for byte and contains `confidence` and `probabilities` with their original lexemes; replacing `confidence` and `probabilities` by any other random values leaves the outcome, the verdict, the grade and every Metric unchanged and puts no marker from any other member into the outcome; usage maps `input_tokens` and `output_tokens` to input and output tokens with `reasoning_tokens` null, and a missing or non-integer usage sets `usage_reported: false`; and the smoke shape check reports `ok` exactly when every member listed in the adapter section is present with the right type.
+
+**Validates: Requirements 19.6, 19.8, 19.9, 11.15, 11.17, 11.18, 12.2, 11.19**
+
+### Property 44: Truncation checks are exact at the boundary and never grade a possibly cut request
+
+For any request body, `context_window_tokens` `W`, `max_bytes_per_token` `K` and response usage: the pre-check accepts exactly when `body_bytes ≤ W` (a body of exactly `W` bytes is accepted, `W + 1` is refused, and a refused request sends nothing); in a Dev_Run a refused Card × Permutation is a `not_run` with reason `over_context`, and in a Locked_Run any refusal stops the run before the `start` entry with every Card ID listed; the post-check records `truncated_state` exactly when the response flags `truncated: true`, or `usage.input_tokens < floor(body_bytes / K)`, or `usage.input_tokens > W` (equality at either boundary is not a fault); a `truncated_state` record has no grade line, adds nothing to any numerator or to the latency percentiles, stays in every denominator as not acceptable, is counted and listed in the Report, and prevents the entry from being `complete`; a response with no usage is not a fault by itself, is stored with `usage_reported: false`, and the Report states that truncation for it rests on the pre-check alone; and changing `K` changes the fingerprint ID.
+
+**Validates: Requirements 19.11, 3.5, 3.15, 13.1, 14.1, 12.9**
+
+### Property 45: The System One budget estimate is an exact byte-based upper bound with no output term
+
+For any body byte length `b`, any integer input price `p` and any sequence of Decision_Model and other Workers AI requests with random usage reports (some missing): the reservation of a `system_one` request equals `ceil((b + 256) × p / 1,000,000)` computed in `BigInt`, is non-decreasing in `b`, contains no output-token term whatever `output_tokens` the response reports, and is at least `ceil(t × p / 1,000,000)` for every `t ≤ b + 256`; after a response with usage the counted cost is `ceil(input_tokens × p / 1,000,000)` and replaces the reservation; without usage the reservation stays; the persisted neuron count after every step equals the sum of settled costs and open reservations; and no request is sent when the day's counted neurons plus its reservation exceed 9,000, after which no later Workers AI request is sent that UTC day and every unsent Card × Permutation is a `not_run` with reason `budget`.
+
+**Validates: Requirements 19.12, 11.5, 11.6, 11.13, 11.14, 11.17**
+
+### Property 46: An External_Reference is accepted only whole and never touches a mark
+
+For any generated External_Reference_File with at most one injected fault drawn from {a wrong `pinned_manifest_hash`, a wrong sha256 for each of `config`, `ledger`, `results` and `raw_outputs`, a missing member, a member of the wrong type, an absolute or `..` path, a ledger or raw-output line that is not valid, none}: the command accepts the file exactly when no fault is injected; a rejected file makes the command exit non-zero, name the first failing field in the documented order and write nothing under `eval/results/`; an accepted file writes only under `eval/results/external/<label>/`, sends no request, reads no `env`, and prints no Card content other than Card IDs, `pair_id`s and scenario group IDs; where raw outputs are present the stored re-grade equals the Metrics computed by `metrics.ts` on the same outputs, and a difference from the supplied figures is stored as `mismatch` with the differing names; and ingesting any number of External_References leaves the ledger bytes, the budget counter, the output of `phase-status`, every pass or fail mark, every link mark, every recommendation and the Phase_2 branch exactly as they were, while the Report's section 12 lists each reference with its hashes and no other section mentions it.
+
+**Validates: Requirements 19.15, 19.16, 3.1**
+
+### Property 47: A Decision_Model step needs its own approval, its own order and Task_Type D
+
+For any ledger, failure records, Exclusion_Records, smoke shape checks, `combinations.json`, approvals content in `HEAD` (including entries for other Combinations, other steps, `phase2` entries, branch-B `dev` and `locked` entries and withdrawals) and requested Decision_Model step: a `smoke` request is allowed exactly when the Task_Type_Subset is `D` and the R11.8 count (10 Smoke_Calls per UTC day) and the budget caps allow it, with no approval entry consulted; a `dev` or `locked` request is allowed exactly when the Task_Type_Subset is `D`, Phase_1 has ended, an unwithdrawn `decision_model` entry names this Combination and this step, the order smoke then Dev_Run then Locked_Run holds with a `shape_check: "ok"` record for the declared shape and the same mapping Template_Hash in the newest Dev_Run, and the planned count is at most the entry's `max_requests`; a request whose Task_Type_Subset contains S exits non-zero naming the Decision_Model and the Task_Type and writes no Results, no `not_run` record, no ledger line and no budget counter change; the approvals reader rejects a `decision_model` entry whose step is `smoke`; an approval of one Combination or one step never allows another; neither a branch-B approval nor the existence of the Additional_Candidate_Set allows any step; and `decisionHold(state)` is true exactly when some Decision_Model has at least one unwithdrawn `decision_model` entry and no `complete` ledger entry for D, no non-transient locked failure record and no Exclusion_Record.
+
+**Validates: Requirements 19.1, 19.4, 19.5, 19.17, 18.1, 18.3, 18.4, 11.8, 11.20**
+
+### Property 48: The Report counts Phase_2 candidates and prints the selection-bias note
+
+For any ledger, Results and approvals content: the count in the Report's section 2 equals the number of distinct Workers AI Combinations with at least one Dev_Run or Locked_Run Results file or ledger entry made in Phase_2 (Smoke_Call-only Combinations are not counted); the multiple-comparison note appears exactly when that count is 2 or more; the Additional_Candidate_Set is stated with each Decision_Model's approval IDs or its "not measured" reason; the Phase_2 branch, approval date and branch-B model of R18.8 are still printed unchanged; and the hold banner of section 9 appears exactly when `decisionHold(state)` is true.
+
+**Validates: Requirements 19.13, 19.3, 19.17, 18.8**
+
+### Amended properties (2026-11-09)
+
+Properties 1 to 40 keep their statements. The following also cover the new shape, without changing what they say for the old shapes: Property 5 (totality and determinism) also holds in `raw_choice` mode (Property 42 states it); Property 28 (budget accounting) also holds for `system_one` requests (Property 45); Property 32 (Results round trip) includes the new optional members of the 2026-11-09 Results amendment, and a Results file written before it still reads back byte for byte; Property 35 (leak checks) is unchanged because the new schema identifiers carry the Schema_Prefix; Property 38 (phase gate) is unchanged for generative Workers AI models, and the Decision_Model gate is Property 47; Property 39 (Workers AI responses) is unchanged for the `chat` and `text` shapes, and the `system_one` shape is Property 43.
+
 ## Error Handling
 
 ### Probe_Runner exits
@@ -1125,6 +1411,10 @@ Every failure below exits non-zero, prints one line starting with `probe: <check
 | Probe_Page export rejected | first failing entry and reason | no Results (R10.5) |
 | Headless adapter missing or software adapter; backend not WebGPU; placement not logged | the cause | failure record; no Results for that Combination (R9.6, R10.6, R9.1) |
 | Results file unreadable or schema error (regrade, report) | file and first failing record | file untouched (R12.7) |
+| Smoke_Call, Dev_Run or Locked_Run of a Decision_Model with a Task_Type_Subset that contains S (added 2026-11-09, R19.1) | `probe: task_subset: <combination> accepts Task_Type D only; requested <S\|DS>` | none: no request, no Results, no ledger line, no `not_run` record, no budget counter change; checked before the Manifest_Check |
+| Decision_Model `dev` or `locked` step without a matching, unwithdrawn `decision_model` approval, out of order, or over `max_requests` (R19.4, R19.5; a Smoke_Call is not covered, RC-10) | the missing approval, the step, or the missing earlier step | handled as a refused run under the phase gate: Locked_Run writes no ledger entry |
+| Locked_Run of a Decision_Model with any request whose body is longer than the context window (R19.11) | every Card ID and permutation, `body_bytes` and the window | none: no ledger entry, no Results (like a render error, R3.15) |
+| External_Reference_File rejected (R19.15) | `probe: external_reference: <first failing field>: <reason>` | nothing written under `eval/results/` |
 
 ### Conditions recorded in Results instead of exiting
 
@@ -1141,6 +1431,12 @@ Every failure below exits non-zero, prints one line starting with `probe: <check
 | Not approved beyond Smoke_Calls | `not_run`, reason `not_approved` (R11.8) |
 | Model load failure or GPU out of memory | Combination failure record with message, phase (`load` or `inference`) and cards answered; remaining Card × Permutations `not_run` (`load_failed` or `oom`); the ledger entry gets `abort` and stays incomplete; next Combination continues (R9.4) |
 | Storage quota not greater than the expected download | failure record `model_load_failed`, reason `quota`, with both values; nothing downloaded; no ledger entry; next Combination continues (R14.9) |
+| `system_one_shape` (response lacks `answers.decision` or `choice`, or `choice` is not a string; added 2026-11-09, R19.9) | `outcome.kind = error`, code `system_one_shape`, with which member is missing or its type; graded Illegal as a parse failure with that detail; no retry |
+| `choice` outside the option set (R19.9) | the text outcome is stored; the Output_Validator in `raw_choice` mode returns Illegal `OutOfSetOption` |
+| Request body longer than the context window in a Dev_Run (R19.11) | `not_run`, reason `over_context`; not Illegal; the run continues |
+| `truncated_state` (flag, input tokens below the lower bound, or above the window; R19.11) | `outcome.kind = engine_fault`, code `truncated_state`; not graded, not Illegal, out of the latency percentiles, in the denominators as not acceptable; listed in the Report; the entry cannot be `complete` |
+| System One response without usage (R19.11) | the record is stored with `usage_reported: false`; the Report notes that truncation rests on the pre-check alone |
+| Free-plan rate limit or HTTP error on a Decision_Model request (R11.9) | `outcome.kind = error` with the HTTP status and the first API error code; graded Illegal; no retry |
 
 ### Validator and exports
 
@@ -1163,11 +1459,26 @@ Every failure below exits non-zero, prints one line starting with `probe: <check
 - `dev-outputs.json` is synthetic: valid outputs come from each card's acceptable options and gold patterns, Illegal ones from fixed mutations. No model output is committed as a fixture.
 - Existing tests (`source_guard.rs`, replay parity, fixtures in `fixtures/parity/`) run unchanged (R6.9). `source_guard.rs` already scans every file under `sim-core/src`, so it covers `llm/`.
 
+- **Added 2026-11-09 (R19.18).** Properties 41 and 42 run under `proptest` (256 cases, tagged `// Feature: llm-probe, Property N: <title>`) in `llm_properties.rs`, with example tests in `llm_examples.rs` for: a valid Raw_Choice; a Raw_Choice outside the option set (the empty string, an ID with a trailing space, an ID in another case); an S context in `raw_choice` mode; an unknown `mode`; `mode` absent giving today's verdict; the mapping parser on a missing section, an unknown placeholder and `{{options}}`; and `llm_render_system_one` on one Dev_Card per Permutation. `llm_parity.rs` gets a second golden file, `fixtures/grading/dev-system-one-golden.json`, with the `llm_render_system_one` and `raw_choice` verdict bytes for every Dev_Card D context; it runs natively and on wasm32 like the existing one. `dev-golden.json` is not regenerated. `scripts/regen-grading-golden.sh` writes both files on purpose only, and the commit message says so.
+
 ### TypeScript (`eval/probe`, Node's test runner)
 
 - `fast-check` runs Properties 16 to 40 with `numRuns: 200` (minimum 100), each tagged `// Feature: llm-probe, Property N: <title>`.
 - Example tests: Wilson values 8/10 → about [0.4902, 0.9433], 0/10 lower 0, 10/10 upper 1, within 0.0005 (R13.11); hand-computed Metrics with an Illegal output, a Void_Card, a Sanity_Card and a zero denominator; latency percentiles for n = 60 (p50 index 29, p95 index 56) and n = 10,000 (p50 index 4,999, p95 index 9,499) on hand-built lists (R13.13); the weak-evidence labels at a lower bound exactly at the Threshold ("pass"), exactly 10 points under ("pass (interval overlaps threshold)") and one resample step more than 10 points under ("pass with weak evidence") (R13.13); the dev Random_Baseline equals 55.6% (from `LOCK.md`); `env.ts` parsing; the Workers AI adapter against a fake `fetch` (chat success, text-shape success, HTTP 400, 429, timeout with `late = none (aborted)`, `content: null`, `finish_reason: "length"`, a parsed-object `response` giving `non_text_response`, a body with a reasoning field that must not reach the text); the fallback-chain cases of R8.9; warm-up: a fake engine create and a rebuild each send the D and S Warm_Up_Prompts before the first Card prompt and the Results writer receives no record for them (R9.13); the request bodies of both in-browser adapters with a fake engine carry `enable_thinking: false` and the fingerprint records `chat_template_kwargs` and `seed` (`null` for transformers.js) (R9.14, R12.12); the VRAM_Preflight with a fake adapter sends no card prompt, writes no Results record, uses a prompt of at least `max(8,000, 2 × longest Dev_Card prompt)` bytes whose synthetic context has at least 8 events and 6 persons, requests 1,024 new tokens with `min_new_tokens` 1,024, writes `prompt_bytes`, `event_count`, `person_count`, `new_tokens` and `eos_disabled` to the preflight record, and no Dev_Run or Locked_Run request carries `min_new_tokens` (R9.9, R9.16); Idle_Cap handling with a fake engine that stays busy: the timed-out request is recorded as a Timeout (Illegal), the engine is rebuilt and both Warm_Up_Prompts are sent before the next Card prompt, and no record is `runtime_stuck`; a rebuild failure produces exactly one Combination failure record `rebuild_failed`, an `abort` ledger event, `not_run` (`rebuild_failed`) for every remaining Card × Permutation and no per-card Illegal grade (R8.13); a forced `runtime_stuck` refusal is written as `engine_fault`, gets no grade line and leaves every Metric unchanged (R8.5); placement-log parsing on recorded ONNX Runtime log samples (R9.1); approvals read from a temporary git repository in four states (committed and clean → accepted; modified, staged, or untracked → not approved) (R11.20); the quota check with a fake `navigator.storage.estimate()` below, equal to and above the expected download (R14.9); ledger start-before-request ordering, ledger write failure and the `task_subset` and `model_key` fields of the start entry (R3.3); the counter file with a missing `neurons` field is refused untouched (R11.12); `phase-status` output on a fixture ledger for both branches and with an Exclusion_Record; report sections against a fixture ledger, including the Phase_2 branch and approval date (R18.8), the "not measured (browser passed)" mark with Smoke_Call counts (R18.6), the LFM license line marked custom, not OSI, accepted 2026-11-06, the `Qwen3.5-2B-ONNX` line citing the base model's license (R15.6), and the NVIDIA and Intel memory figures in separate columns with the Intel quantity named (R14.7), the "not pure-WebGPU results" note on the latency rows of a CPU-flagged Combination (R15.11), the "Risks" line with operator types and counts when a CPU-flagged Combination is recommended and its absence otherwise (R15.12), and the rebuild-failure and `runtime_stuck` entries in section 10 (R15.7).
 - A TS-side parity test loads `target/wasm-pkg/sim_wasm_bg.wasm` with `initSync` and checks the same golden file, so the exact bytes the runner uses are tested too.
+
+- **Added 2026-11-09 (R19.18).** `fast-check` runs Properties 43 to 48 with `numRuns: 200`, each tagged `// Feature: llm-probe, Property N: <title>`. The Decision_Model adapter and the System_One_Mapping are covered with a fake Runtime (a fake `fetch`) and no network request, at least by these cases:
+  - a valid Raw_Choice; a `choice` outside the option set (adapter returns the text, the validator returns Illegal); a missing `answers`; a missing `answers.decision`; a missing `choice`; a non-string `choice`; a truncation flag (`truncated: true`); an `over_context` refusal with nothing sent;
+  - a request body of exactly the context window in bytes (accepted) and one byte longer (refused), for both windows (24,576 and 65,536);
+  - input usage below the lower bound and above the context window (both `truncated_state`), and equal to each boundary (no fault); a response with no usage;
+  - `confidence` and `probabilities` stored in `system_one.response_text` outside the outcome, with the lexeme `0.10` surviving, and changed to other values without changing outcome, grade or Metrics;
+  - the request body: only `model`, `state` and `questions` members, the question ID `decision`, `criteria` in Permutation order for every option ID of the Dev_Cards, and no `temperature`, `seed`, `response_format` or `chat_template_kwargs`; the URL path `/ai/run/@cf/cloudflare/<model>`;
+  - the budget estimate: `ceil((b + 256) × p / 1,000,000)` for both prices, the replacement by the usage-based cost, the 9,000 cap, and no output term;
+  - the gate: a Decision_Model step with a branch-B approval only, with another model's entry, with another step's entry, with a withdrawn entry and with the right entry; an S or DS subset giving the documented message and writing nothing; the order smoke, Dev_Run, Locked_Run; `decisionHold` before approval, after approval, after a `complete` entry, after a locked failure, after an Exclusion_Record and after a withdrawal;
+  - the External_Reference ingest for a valid file (figures only, and with raw outputs and a match), a wrong Pinned_Manifest_Hash, and a wrong file hash for each of the three named files and the raw outputs; plus an absolute path and a `..` path;
+  - the five template rules on every `decision.system_one.v*.txt`, and the `v1` equality with the two sections of `decision.v1.txt`;
+  - the Report's section 2 count and note for 1, 2 and 3 candidates, the hold banner, and section 12; an import-graph test that `phase.ts`, `ledger.ts`, `budget.ts`, `browserPass` and the mark code do not import `external.ts`.
+  Requirement 16 criteria 6 and 7 apply to each new check: each is shown to fail once by an injected fault and the fault is reverted (see Gates added).
 - No unit test makes a network request, starts a browser or reads `env`; the Workers AI tests inject a fake `fetch` and a fake env reader.
 
 ### Integration and manual runs (not gates)
@@ -1185,6 +1496,14 @@ Two-phase plan (R18). Each step that needs the Author's approval is named; nothi
 - The headed Probe_Page is used only if headless WebGPU stops working (C3 second branch).
 - **Note 2026-11-08 (Author, task 20.6): plan Phase_2 for both D and S on Workers AI.** The in-browser Dev_Runs with the frozen templates show D at random level (0.8B 43/74, 2B 38/74 against about 41/74 expected) and S far below its Threshold, so Phase_2 must assume that both Task_Types may fail in the browser and both may go to Workers AI (branch B with subset `DS`). The budget estimate presented for the Phase_2 approval (tasks 22 and 23) therefore covers D and S together, not only the failing subset: for each candidate model, the Dev_Run + Locked_Run request counts per Task_Type, the typical and upper-bound neurons from the DA-8 table (for the default gemma-4-26b-a4b-it: D and S together 7,576 typical / 15,282 upper bound, one UTC day at the typical estimate and two at the upper bound), the per-run cap (410), the daily cap (600) and the Neuron_Cap (9,000 per UTC day). The figures are shown at approval time; no Workers AI request is sent before the Author approves them. A `probe` command that estimates from the cards was not added: it would have to render the Locked_Cards' prompts, and the Locked_Cards are not opened before a Locked_Run.
 
+- **Additional_Candidate_Set, steps (added 2026-11-09, R19.4, R19.5, R19.17).** Nothing here is approved by the design; the Dev_Run and the Locked_Run each wait for the Author's named approval, written to `approvals.json` in a commit; the smoke needs none (RC-10). Each model goes through the steps in this order.
+  1. *Before the Dev_Run approval is asked:* the R19.2 verification of this document (done; see the research section) and the Author's acceptance of the reading of Free plan availability (given 2026-11-09).
+  2. *Smoke* (no approval, RC-10; at most 10 calls on D Dev_Cards within the day's Smoke_Call count; the developer tells the Author the model and the call count before sending): checks the REST envelope, the declared shape, `usage`, the bytes per token for `max_bytes_per_token`, and the reservation against the usage-based cost (V9 to V12). Cost at most 70 neurons for `clef-flash` and 440 for `clef` at the 2,000-token planning bound.
+  3. *Dev_Run* (approval `step: "dev"`, 74 D requests): sets the frozen mapping and `max_bytes_per_token`. A second Dev_Run with a `v2` mapping needs a second `dev` entry.
+  4. *Locked_Run* (approval `step: "locked"`, 236 D requests): `probe locked-run --combo workers-ai/<model> --task D --approval <id>`. A Locked_Run on the day after the Dev_Run keeps each UTC day well under the Neuron_Cap (DA-20).
+  5. *Report and hold:* until each approved model has a `complete` entry, a recorded failure or an Exclusion_Record, or the Author withdraws the approval, the runtime decision stays on hold and `tech.md`'s "LLM runtime" row keeps its pending text (R19.17, DA-22).
+  The two models are independent: an approval for one covers nothing of the other. Order of the two models is the Author's choice; `clef-flash` is much cheaper (see DA-20).
+
 ### Pre-run verification items
 
 The Author listed these unverified items on 2026-11-06 (review 2). Each one becomes a task that must be done, with its conclusion recorded in `docs/kiro-log.md`, before the formal runs (the Phase_1 Locked_Runs). Where the check fails, the fallback in the last column applies.
@@ -1199,6 +1518,12 @@ The Author listed these unverified items on 2026-11-06 (review 2). Each one beco
 | V6 | Can ORT log which device each operator is placed on? | transformers.js pre-flight stage | stop at `placement_not_logged`, change the detection method per design |
 | V7 | Actual WebLLM download size at the pinned revisions | dev smoke test | over 1,536 MiB -> handled by the exclusion rule |
 | V8 | WebLLM source was read on main, not the v0.2.87 tag | before writing the adapters | re-read the interfaces involved at the v0.2.87 tag |
+| V9 | Does the REST response wrap the System One object in `result`, and do `answers.decision.choice`, `probabilities`, `confidence` and `usage.input_tokens` / `output_tokens` arrive as the schema says? (added 2026-11-09) | first Decision_Model Smoke_Call (no approval needed, RC-10; the Author is told model and count first) | fix the declared shape; a top-level object makes the shape check `mismatch` and blocks Dev_Run and Locked_Run until `combinations.json` and the adapter agree |
+| V10 | Bytes per input token for the mapping text; set `max_bytes_per_token` (R19.11) | Smoke_Calls and the Dev_Run | provisional value 8 stays until measured; a measured ratio above 8 raises it before the Locked_Run |
+| V11 | Does the reservation `ceil((bytes + 256) × rate / 1e6)` cover the usage-based cost, i.e. is the service's wrapper within 256 tokens? | Smoke_Calls | if not, raise the allowance for `system_one` in `combinations.json` and in Property 45, and re-present the neurons |
+| V12 | Is the Free-plan rate limit for the Clef models hit by 74 or 236 sequential requests? | Smoke_Calls and the Dev_Run | the runner has no retry (R11.9); a 429 pattern means pausing between requests, a design change to ask the Author about |
+| V13 | Free plan availability of both models (R19.2(a)) is an inference from the exclusion list, accepted by the Author 2026-11-09 | the first Smoke_Call of each model | if a Smoke_Call fails with a plan or billing error, stop and record the model as not measured (R19.3) |
+| V14 | Is `choice` identical for repeated identical requests? (not tested by the Smoke_Calls; the Report says "not tested") | optional, one extra Smoke_Call pair if the Author wants it | none needed; recorded as a limitation |
 
 ### Gates added (R16.1) and their fault injections (R16.6)
 
@@ -1219,6 +1544,18 @@ New gates, in `scripts/gates.sh` order. The Smoke_Test stays last.
 Each injection is made in the working tree only, the gates are run, the failing gate name is noted, the injection is reverted, the gates are run green again, and the four facts are appended to `docs/kiro-log.md` at the time (R16.7). Existing gates keep their order and commands (R16.9).
 
 The gates need no network, GPU or token (R16.4, R16.5): `check-manifest` and `check-web-imports` never import `env.ts`, and the unit tests use fakes.
+
+**Added 2026-11-09 (R19.18).** No new Gates_Script command is added: the Rust properties run inside `cargo test --workspace` and the wasm32 test step, and the TypeScript properties run inside the Probe Unit_Tests. Each new test group is still shown to fail once, and the four facts are appended to `docs/kiro-log.md` at the time (R16.7):
+
+| Gate that runs it | Fault to inject once | Expected failure |
+|---|---|---|
+| `cargo test --workspace` (Property 42) | make `raw_choice` mode trim whitespace before comparing | Property 42 fails on a padded option ID |
+| `cargo test --workspace` (Property 41) | let `llm_render_system_one` print options in base order for every Permutation | Property 41 fails on the Permutation order |
+| wasm32 parity (`llm_parity.rs`) | change one byte of `dev-system-one-golden.json` | parity test names the card and export |
+| Probe Unit_Tests (template rules) | delete the "event actor order" bullet from `[instructions]` of `decision.system_one.v1.txt` | the five-rule test names rule (5) |
+| Probe Unit_Tests (Property 44) | change the pre-check to `body_bytes < window` | the boundary example fails (a body of exactly the window is refused) |
+| Probe Unit_Tests (Property 47) | accept a branch-B `locked` entry as covering a Decision_Model step | Property 47 fails |
+| Probe Unit_Tests (Property 46) | let `ledger.ts` import `external.ts` | the import-graph test names the importing file |
 
 ## Design Decisions
 
@@ -1302,6 +1639,7 @@ Notes that apply to every option:
 - On gemma-4-26b and glm-4.7-flash the model pages mark `max_tokens` as deprecated in favour of `max_completion_tokens`, so the Workers AI adapter sends the cap as `max_completion_tokens` for these two models. The Smoke_Calls confirm that the cap is honoured.
 - None of the three Workers AI candidates is on Cloudflare's JSON Mode list, although all three list `response_format`. The Smoke_Calls confirm per model whether it is honoured (DA-6).
 - No Combination in the chosen set uses an older generation, so none needs a stated reason.
+- **Note 2026-11-09 (R19).** The Workers AI list above is the branch-B list. `@cf/cloudflare/clef-flash` and `@cf/cloudflare/clef` are not candidates of this table: they are the Additional_Candidate_Set of Requirement 19, for Task_Type D only, with their own Combinations, approvals and gate (DA-16, DA-21), and they do not change the branch-B model or its approval (R18.4 amendment). Both are inside the Free plan's neuron budget at the typical estimate (DA-20). `typesafe/jev` stays excluded (R19.14); `@cf/zai-org/glm-4.7-flash` stays the only S candidate that could be added, and only with its own R19.2 verification and approval.
 
 ### DA-2: Where the Probe_Runner lives (Q-open-2)
 
@@ -1454,6 +1792,8 @@ Schedule for branch B: run the Smoke_Calls and the Dev_Run on day 1 and start th
 
 **Approved by the Author 2026-11-07 (task 18.1)** (reply: "批准，继续"). Values approved, unchanged from the code: per-run cap 410 requests; daily cap 600 requests per UTC day; 10 Smoke_Calls per UTC day without approval; Neuron_Cap 9,000 estimated neurons per UTC day. The approval covers the V5-corrected expected costs per candidate model and Task_Type_Subset (table "Revised 2026-11-07 (V5)") and the branch-B schedule (default gemma-4-26b-a4b-it; alternatives glm-4.7-flash, granite-4.0-h-micro). This approves the budget values only; each Workers AI Dev_Run and Locked_Run in Phase 2 still needs its own named approval (R11.8, R18.4).
 
+**Note 2026-11-09 (R19.5, R19.12).** The recorded plan of the D part of a Locked_Run is 236 requests, not the 244 upper bound used in the tables above (ledger entry `L-20261109T014137Z-workers-ai-gemma-4-26b-a4b-it`, `planned.decision` 236, with 236 D records in its Results; `locked.jsonl` not opened); the S part was 88, not 164. The figures above are therefore upper bounds for the generative models; they are not edited. The Decision_Models (`clef-flash`, `clef`) are billed on input tokens only, at 3,455 and 21,818 neurons per million, and their expected neurons are in DA-20. The Neuron_Cap of 9,000 per UTC day is shared with them unchanged.
+
 ### DA-9: Percentile method, bootstrap PRNG and rotation direction (Q-open-9)
 
 Decided: A for percentiles, PRNG and rotation (Author, 2026-11-06).
@@ -1498,6 +1838,8 @@ Decided: A (Author, 2026-11-06).
 Decided: A (Author, 2026-11-06).
 
 - **A (chosen).** `eval/probe/approvals.json` (tracked) lists approvals `{ "id": "A-001", "combination": "…", "kind": "dev"|"locked", "task_subset": "D"|"S"|"DS", "max_requests": 104, "phase2": "P2-001", "approved_on": "2026-11-07", "note": "…" }` and the Phase_2 go-ahead `{ "id": "P2-001", "kind": "phase2", "branch": "A"|"B", "model": "…"|null, "task_subset": …|null, "approved_on": "…" }` (format in [Approvals](#approvals-evalprobeapprovalsjson-da-14)). An entry is added only in a commit made after the Author approves it in the conversation (R17.1), and the runner reads the file only from git `HEAD` and only when it has no uncommitted changes (R11.20; [Approvals](#approvals-evalprobeapprovalsjson-da-14)), so an uncommitted edit grants nothing; Workers AI runs need `--approval <id>` matching combination, kind and Task_Type_Subset, the phase gate must allow them (R18), and the run's request count may not exceed `max_requests`. In-browser runs need no approval entry. Pros: auditable in git. Cons: an agent could add an entry; the safeguard is the R17.1 process, which the log records.
+
+- **Note 2026-11-09 (R19.4).** The `decision_model` and `withdrawal` entries added for the Decision_Models are described in [Approvals](#approvals-evalprobeapprovalsjson-da-14) and DA-21. They keep the "added only in a commit made after the Author approves it in the conversation" rule and the `HEAD`-only reading.
 - **B.** An interactive confirmation (`type the combination ID to continue`) on a TTY. Pros: a human must be present. Cons: no record; breaks unattended runs.
 - **C.** An environment variable. Cons: invisible afterwards.
 
@@ -1509,6 +1851,103 @@ Decided: option A of the gate fix, with the retry rules below. Note dated 2026-1
 - **Old records.** No `run_kind`: a `run_id` starting with `dev-` reads as dev, anything else as locked. No `transient`: the matcher is applied to `detail`, `reason` and `message`. Corrections are appended, never edited: a `llm-probe-failure-correction-v1` line in the same file names `combination` and `target_at` and overrides both fields; the reader merges them (last wins). The 03:22:28.525Z Dev_Run record is corrected this way.
 - **Locked_Run load retry.** Only a `model_load_failed` with a transient message, before the first Card request: at most 3 retries, waits of 5 s, 15 s, 45 s. Each retry opens a new handle and a new Fresh_Profile, so a retry cannot reuse a partial cache or the byte counter. Cold-start and download figures come from the first load that succeeded; failed loads write no perf record; a perf record from a retried load carries `load_attempts`. Failed attempts write locked + transient + `will_retry` failure records, which the gate ignores. After the last retry the run aborts as before (the final record is locked + transient, so the Combination is not failed) and continues only with `--resume`, after asking the Author again. A transient error mid-run is not retried automatically: the run stops and is resumed the same way. Non-transient load failures are not retried and do count.
 - **Dev-set confound note.** The Report states that in `dev.jsonl` every severe option is last in card order (rotation was applied to the locked set only) and that the position-versus-content distinction is to be drawn from the Locked_Run results.
+
+### DA-16: Where the Decision_Model request is built and sent (R19, 2026-11-09)
+
+Status: accepted as proposed (Author, 2026-11-09).
+
+- **A.** Add a `system_one` branch to `adapters/workers-ai.ts`. Pros: one Workers AI adapter. Cons: the file already holds the chat and text shapes and the Property 39 tests; a bug in the new branch can break the generative path that two Locked_Runs already used.
+- **B (chosen).** A new file `adapters/system-one.ts` that implements the Adapter_Interface and imports the existing `env.ts`, `redact.ts`, `sink.ts`, `budget.ts` and the HTTP error mapping. Where the fetch and timeout glue is not exported yet, it is exported from `workers-ai.ts` unchanged (no behaviour change; the existing tests must pass untouched). The Adapter_Interface request becomes the union of `chat` and `decision` requests; the `decision` kind has no Workers AI field (R8.11). Pros: the working adapter is not edited beyond an `export`; the new shape has its own tests. Cons: two files for one transport.
+- **C.** Render the facts into a chat prompt and send it to the Decision_Models as a normal chat model. Rejected: the endpoint takes `state` and `questions`, not `messages`, and the point of the candidate set is to measure the System One interface.
+
+### DA-17: How the Output_Validator accepts a Raw_Choice (R4.16, 2026-11-09)
+
+Status: accepted as proposed (Author, 2026-11-09). Keeps decision B1 (one validator, in `sim-core`).
+
+- **A (chosen).** An optional `mode` member on `llm_validate` (`json` by default, `raw_choice`). The Probe_Runner sets it from the Combination's `response_shape`; `regrade` and `report` read it from the Results header. Pros: one export, one totality test, one place where option-set membership is decided; the default keeps every old input and golden unchanged. Cons: a caller that forgets `mode` silently uses the JSON mode; the TypeScript wrapper therefore takes `mode` as a required argument, and a Decision_Model Combination without `validator_mode` fails the type check.
+- **B.** A new export `llm_validate_choice`. Pros: no default to forget. Cons: a second entry point to keep in step with the first, and a second set of totality and parity tests.
+- **C.** Compare strings in TypeScript. Rejected: breaks R4.1 and decision B1 (one rule implementation).
+
+No `RENDERER_VERSION` change and no change to any existing export's output: see the exports amendment.
+
+### DA-18: Where the System_One_Mapping is rendered (R19.7, R19.10, 2026-11-09)
+
+Status: accepted as proposed (Author, 2026-11-09).
+
+- **A (chosen).** A Rust export `llm_render_system_one` reading a tracked mapping file (`eval/probe/templates/decision.system_one.v1.txt`), reusing the fact-block functions of `render.rs`. Pros: the ID, tick, `due day`, `none` and Permutation rules (R7) are the tested ones; the game can reuse the export for a decision model later; the Template_Hash is the hash of one file. Cons: a new Rust function and a second golden file.
+- **B.** Build the pieces in TypeScript from the output of `llm_render_prompt` by splitting the user text. Cons: parsing rendered text back apart is fragile and needs its own tests.
+- **C.** TypeScript renders everything. Rejected: a second renderer, against DA-13.
+
+The instructions are the "How to read the facts" and "How to choose" sections of the D template, verbatim, in a separate file so that the frozen `decision.v1.txt` (used in the Locked_Runs already recorded) is not touched. The five Author template rules are kept by a test, not by copying a test's list into the mapping (see the adapter section).
+
+### DA-19: Truncation and over-context handling (R19.11, 2026-11-09)
+
+Status: accepted as proposed (Author, 2026-11-09).
+
+- **A (chosen).** The pre-check and post-check of the adapter section: a conservative byte pre-check against the verified window, and a post-check on a flag, a lower bound derived from the measured bytes per token, and the window. The lower bound is fixed as `floor(body_bytes / K)` with `K` provisional 8 and then `max(6, ceil(1.5 × max measured ratio))`, frozen in the fingerprint. A fault is an engine fault, not an Illegal. Pros: a request that may have been cut is never graded as a model failure; a changed `K` changes the fingerprint. Cons: `K` is a judgement from a few Smoke_Calls; a too small `K` flags good requests, a too large one misses truncation. The Dev_Run (74 requests) is where a wrong `K` shows up, before any Locked_Run.
+- **B.** Only the pre-check. Cons: gives no signal if the service's token count exceeds the byte count through its wrapper, which can only be seen in `usage`.
+- **C.** Treat a missing flag as a fault. Cons: every request would fault, because no flag is documented.
+
+At the planning figures the pre-check is far from binding: the D request bodies are expected near 4,000 bytes, about 16% of the 24,576-token window of `clef-flash` and 6% of the 65,536 of `clef`. The checks are there to prove that, not because truncation is expected.
+
+### DA-20: Budget estimate and expected neurons for the Decision_Models (R19.5, R19.12, 2026-11-09)
+
+Status: accepted as proposed (Author, 2026-11-09). The expected cost is shown here, as R19.12 requires, before any approval is asked.
+
+**Request counts (confirmed against the Card_Set, R19.5).** Dev_Run: **74** D requests. `dev.jsonl` has 20 decision cards, and the stored Results of the earlier D Dev_Run of `workers-ai/gemma-4-26b-a4b-it` (`eval/results/dev/dev-20261108T101109Z-workers-ai-gemma-4-26b-a4b-it.jsonl`) hold 74 D records. Locked_Run: **236** D requests, from the recorded ledger entry `L-20261109T014137Z-workers-ai-gemma-4-26b-a4b-it` (`planned.decision` 236) and its Results (236 D records); `locked.jsonl` was not opened. The 244 of the permutation table in this document and in DA-8 is an upper bound that assumed every locked D card has four permutations; the recorded plan is 236.
+
+**Rates.** `clef-flash` 3,455 and `clef` 21,818 neurons per million input tokens; no output term (research section).
+
+**Input tokens used for the planning figures.** The Decision_Models' tokenizer and the mapping text are not measured yet. As a proxy this uses the input tokens that gemma-4 reported for the same D requests: Dev_Run 973.6 tokens on average (797 to 1,131; reported for 73 of 74 requests, 71,076 in total, scaled to 72,050 for 74), Locked_Run 1,075.6 on average (823 to 1,333; 235 of 236 reported, 252,777 in total, scaled to 253,853 for 236). Only aggregate token counts were read from the Locked_Run Results; no card content was read. The planning bound is 2,000 tokens per request, as in DA-8. The reservation (what the Neuron_Cap counter holds before a response) assumes 3.8 bytes per token, plus the 256 allowance.
+
+| Step | `clef-flash` typical / planning bound | `clef` typical / planning bound |
+|---|---|---|
+| Smoke, up to 10 calls (no approval, RC-10) | about 35 / **70** | about 218 / **440** |
+| Dev_Run, 74 requests | **249** (at most 323 with whole-neuron rounding) / 518 | **1,572** (at most 1,646) / 3,256 |
+| Locked_Run, 236 requests | **877** (at most 1,113) / 1,652 | **5,539** (at most 5,775) / 10,384 |
+| Largest single reservation | 19 | 117 |
+| Dev_Run + Locked_Run | 1,126 / 2,170 | 7,111 / 13,640 |
+
+"Planning bound" rounds each request up to a whole neuron at 2,000 tokens (7 for `clef-flash`, 44 for `clef`), so it is an upper bound on the tokens seen in the earlier runs, not on the service. The Locked_Run reservation of a single request is 19 neurons (`clef-flash`) or 117 (`clef`) at the largest observed gemma size.
+
+**Fit under the Neuron_Cap of 9,000 per UTC day.** The counter holds settled cost plus one reservation, as in the V5 note of DA-8.
+
+- `clef-flash`: Smoke, Dev_Run and Locked_Run together are at most 2,240 neurons at the planning bound (70 + 518 + 1,652), so all three can run on one UTC day.
+- `clef`: Smoke and Dev_Run together are at most 3,696 at the planning bound (about 1,790 typical), so they fit one day; the Locked_Run alone fits one day at the typical estimate (5,539). At the planning bound (10,384) it would stop after about 202 requests (the cap check refuses once the settled cost plus the next reservation exceeds 9,000), and the remaining 34 would be resumed with `--resume` after the next 00:00 UTC (R3.9). The schedule is therefore: Smoke and Dev_Run on day 1, Locked_Run on day 2, an optional resume on day 3.
+- Both models on the same day are also within the cap: `clef-flash` at most 2,240 plus `clef` Smoke and Dev_Run at most 3,696 is 5,936.
+- The per-run cap (410) and the daily request cap (600) are not binding.
+
+If the Smoke_Calls measure a mean input size more than 25% from these proxies, the figures are recomputed and shown again before the Dev_Run approval is asked. The figures above are planning figures from the earlier runs; they are not a measurement of either Decision_Model.
+
+### DA-21: Approvals and the gate for the Decision_Models (R19.4, R18, 2026-11-09)
+
+Status: accepted as proposed (Author, 2026-11-09).
+
+- **A (chosen).** New approval kinds `decision_model` (with `step` of `dev` or `locked`; amended 2026-11-09 by RC-10: no `smoke` step, because a Decision_Model Smoke_Call needs no approval and runs under R11.8 within the 10-per-day count; one Combination, `task_subset: "D"`, `max_requests`) and `withdrawal`; a separate gate function `allowDecisionModel`; no use of the `phase2` entry or of the branch. The schema identifier stays `llm-probe-approvals-v1` because the change is additive. Pros: an approval of branch B or of the whole set cannot be mistaken for a step approval, because it has a different kind; the existing gate for generative models is unchanged. Cons: two gate functions to keep consistent; the shared `state` loader must be one function (DA-23).
+- **B.** Reuse the `dev` and `locked` kinds and add a `step` member. Cons: the branch-B rules (`phase2` entry required, subset equal to the failing Task_Types) would have to be switched off for these entries, which hides the difference.
+
+The refusal of S subsets is a CLI-level check made before anything else is read or written (R19.1), so it cannot be bypassed by an approval.
+
+### DA-22: External_Reference format, ingest and the decision hold (R19.15, R19.16, R19.17, 2026-11-09)
+
+Status: accepted as proposed (Author, 2026-11-09).
+
+- **A (chosen).** A small JSON file that names three sibling files by relative path and sha256, an optional raw-outputs file, and integer figures; an ingest command that checks everything, copies the files under `eval/results/external/<label>/`, re-grades raw outputs through Sim_Wasm and stores the result next to the supplied figures. A separate module `external.ts` with an import-graph test keeps it out of every mark. Pros: the hashes of R19.15 are checked against real files; re-grading answers "do the supplied figures follow from the outputs"; the isolation is structural, not a convention. Cons: the re-grade needs `locked.jsonl`, which R3.1 does not yet list for this command (RC-13).
+- **B.** A single JSON file with the three hashes and the figures only. Cons: the hashes would refer to files the repository never sees, so the check proves nothing the Author could repeat.
+- **C.** Ingest by editing the Report by hand. Rejected: no hash check, no re-grade.
+
+Decision hold (R19.17). `decisionHold(state)` is true while any Decision_Model has an unwithdrawn `decision_model` approval and none of: a `complete` Locked_Run_Ledger entry for D, a non-transient locked failure record (the DA-15 rule), an Exclusion_Record. `phase-status` prints, for each Decision_Model, its approvals by step, its latest ledger status and the hold line; `report` prints the banner in section 9. The runner cannot stop a person from editing `.kiro/steering/tech.md`, so `phase-status` also prints a warning when the hold is on and the "LLM runtime" row no longer starts with its pending text. This is a warning, not a gate, because a gate reading steering files would need its own fault-injection and would block unrelated work.
+
+### DA-23: The known run-gate defect (task 25.3) and the new gate work (2026-11-09)
+
+Status: accepted as proposed (Author, 2026-11-09).
+
+The run gate in `eval/probe/src/run-command.ts` builds its `PhaseState` without pass results (grades), so it always recomputes branch B; this fails safe (a real branch A shows a mismatch and refuses a run). `phase-status` already loads pass results through the analysis fixed in commit `80f4d50`.
+
+- **A (chosen).** Fix 25.3 as part of the same work and before the Decision_Model gate: one function `loadPhaseState()` that both `phase-status` and the run gate call, used also by `allowDecisionModel` and `decisionHold`. Pros: three consumers, one state builder; the new gate cannot copy the old defect; the test that "the gate computes branch A when an in-browser Combination passes" (task 25.3) covers the shared loader. Cons: the Decision_Model work waits for a small fix; 25.3 is listed as after 25.1, which is deferred, so the order of tasks changes.
+- **B.** Leave 25.3 for later and have the new gate build its own state. Cons: a second builder of the same state; the Phase_1-ended and approval checks would be tested twice.
+
+The Decision_Model gate itself does not depend on the branch or on pass results (it needs only whether Phase_1 has ended), so the defect would not make it wrong; the reason for A is the single loader, not correctness of the new gate.
 
 ### Mechanical choices
 
@@ -1544,7 +1983,7 @@ One tension is resolved by precedence rather than a change: R8.2 lets a timed-ou
 
 ## Proposed requirement changes
 
-Applied 2026-11-06. The Author approved RC-1 to RC-9, and they are applied to `requirements.md`. The text below is kept as the record of what was proposed; where the applied wording differs, `requirements.md` governs. In particular, RC-2's 4,096 MiB exclusion became the 2,600 MiB limit of option M (R9.3, R9.10), and RC-9's "daily estimated-neuron cap" is the Neuron_Cap of R11.13 and R11.14, whose consequences (`budget.ts`, the `neurons` counter field, Property 28) are now in this design.
+Applied 2026-11-06 (RC-1 to RC-9) and 2026-11-09 (RC-10 to RC-17; RC-10 with the amendment noted on it). The Author approved RC-1 to RC-9, and they are applied to `requirements.md`. The text below is kept as the record of what was proposed; where the applied wording differs, `requirements.md` governs. In particular, RC-2's 4,096 MiB exclusion became the 2,600 MiB limit of option M (R9.3, R9.10), and RC-9's "daily estimated-neuron cap" is the Neuron_Cap of R11.13 and R11.14, whose consequences (`budget.ts`, the `neurons` counter field, Property 28) are now in this design.
 
 - **RC-1 (R11.2, R11.4): account ID.** The REST URL needs the account ID, but R11.2 lets the runner read only `WORKERS_AI_TOKEN`. Proposal: R11.2 also reads `CLOUDFLARE_ACCOUNT_ID` from the same `env` file, with the same not-printed and missing-variable rules (R11.3, R11.4), and R11.4 names whichever variable is missing.
 - **RC-2 (R9.2, R9.3): VRAM of transformers.js models.** No VRAM figure is published for the ONNX models, and R9.3 forbids running a model whose VRAM need is unknown, so the only allowed source ("a measurement on the Target_Machine") cannot be produced. Proposal: allow a VRAM pre-flight per candidate: load the model, run one fixed non-card test prompt, record the peak with the DA-11 method; this pre-flight sends no card prompt and produces no Results; a peak above 4,096 MiB or a load failure excludes the model. Added at the second review: under DA-1's size rule, the pre-flight peak must also be within the chosen option's VRAM limit (2,600 MiB under the recommended option M), and the pre-flight also confirms that the pinned transformers.js loads the model on WebGPU (for example LFM2.5's `conv` layers).
@@ -1555,3 +1994,12 @@ Applied 2026-11-06. The Author approved RC-1 to RC-9, and they are applied to `r
 - **RC-7 (R6.4): "recorded raw outputs".** The parity fixture cannot hold real model outputs without running a model in the gates. Proposal: R6.4 says "a fixed, committed set of synthetic raw outputs" built from each Dev_Card's answer key and fixed mutations.
 - **RC-8 (R16.6 vs R17.7): fault injection under `eval/cards/`.** R16.6's example "an edited byte in a Card_Set file" edits `eval/cards/`, which R17.7 forbids at every commit. An uncommitted, reverted edit would not break R17.7, but it is an easy way to commit a changed card by accident. Proposal: the Manifest_Check gate is shown to fail by a wrong pinned constant; file-level faults are covered by Property 16 on a temporary copy.
 - **RC-9 (R11): daily estimated-neuron cap.** On the Free plan, Workers AI requests above 10,000 neurons per UTC day fail with an error, and the request caps of R11.5 do not bound neurons. Proposal: Requirement 11 gains a criterion: "THE Probe_Runner SHALL keep a daily estimated-neuron cap for Workers_AI (9,000 neurons per UTC day, a Request_Budget value). Before sending each request it SHALL compute an integer upper-bound estimate of that request's neurons from the prompt's UTF-8 byte length plus a fixed chat-template allowance, the request's maximum output tokens, and the Combination's recorded prices. It SHALL add that estimate to the persisted counter before sending, and replace it with the cost computed from the response's reported token usage when the response reports usage. WHEN the day's counted neurons plus a request's estimate would exceed the cap, THE Probe_Runner SHALL NOT send that request or any later request that day, SHALL record each unsent Card × Permutation as not run with reason `budget`, and SHALL name the cap and its value." Consequences if approved: R11.6 also covers the neuron counter, R11.12 also covers an unreadable neuron field, the `budget.ts` description and the counter format gain the `neurons` field, and Property 28 adds "the persisted neuron count equals the sum of reservations and usage-based costs, and no request is sent whose reservation would exceed the cap".
+
+- **RC-10 (R11.8, R19.4): Smoke_Calls of a Decision_Model. Applied 2026-11-09 with the opposite outcome to the proposal below: the Author decided that a Decision_Model Smoke_Call needs no approval (R11.8 applies within the count of 10 per UTC day; the developer tells the Author the model and the call count first, R19.5), and that `approvals.json` has `decision_model` entries for `dev` and `locked` only. The proposal text that follows is kept as the record.** R11.8 lets the Probe_Runner send up to 10 Smoke_Calls per UTC day without approval, and R19.4 requires an approval naming the model and the step (smoke, Dev_Run or Locked_Run). Proposal: R11.8 states that the unapproved Smoke_Call allowance does not apply to a Decision_Model, so a Decision_Model Smoke_Call needs a `decision_model` approval of step `smoke`. The design already behaves this way (DA-21); the wording of R11.8 does not say it. Proposed 2026-11-09; approved by the Author and applied to `requirements.md` on 2026-11-09.
+- **RC-11 (R19.11, R3.15): where an `over_context` request stops a Locked_Run.** R19.11 says the run is recorded "as not run with reason `over_context`", which for a Locked_Run would leave a Card × Permutation without output and the entry never `complete` (R3.5). Proposal: in a Dev_Run the request is a `not_run` record; in a Locked_Run the check belongs to the pre-render step of R3.15 and refuses the run before the ledger `start` entry, listing every Card ID. The design does this (adapter section, error table). Proposed 2026-11-09; approved by the Author and applied to `requirements.md` on 2026-11-09.
+- **RC-12 (R19.13): the Report section number.** R19.13 puts the candidate count and the selection-bias note in the "Phase_2 section (section 9)". In the Report as built and as designed, section 9 is the recommendation and the Phase_2 branch statement is in section 2 ("Measurement plan", R18.8). Proposal: "section 9" becomes "the Phase_2 statement (section 2, Measurement plan)". The design puts the text in section 2 and the hold banner in section 9. Proposed 2026-11-09; approved by the Author and applied to `requirements.md` on 2026-11-09.
+- **RC-13 (R3.1, R19.15): who may read `locked.jsonl`.** R3.1 lists ingesting a Probe_Page file, re-grading stored Results and building the Report as the only non-Locked_Run readers of `locked.jsonl`. Re-grading an External_Reference's raw outputs (R19.15) needs the Locked_Cards for grading, and `ingest-reference` is not on that list. Proposal: add "ingesting an External_Reference_File" to the list, with the same limits (grading and statistics only, no prompt rendered, only Card IDs, `pair_id`s and scenario group IDs emitted). Without it the design would have to drop the re-grade. Proposed 2026-11-09; approved by the Author and applied to `requirements.md` on 2026-11-09.
+- **RC-14 (R19.11): the truncation flag.** R19.11 treats "the response flags truncation" as a condition. The official output schema of both models has no such field (research section). Proposal: "WHERE the response carries a truncation indicator" and a note that none is documented, so the check on `truncated: true` is defensive and the pre-check and the token-count bounds are what actually guard. The design reads the requirement as written and adds the note. Proposed 2026-11-09; approved by the Author and applied to `requirements.md` on 2026-11-09.
+- **RC-15 (R19.12): the 256-token allowance.** R19.12 says the estimate comes "from the request body's byte length and the neuron rate". R11.13 adds a fixed allowance for chat-template text. Proposal: say that the same 256-token allowance is added for System One requests. The design adds it, because a service wrapper around `state` and `questions` is plausible and cannot be ruled out from the documents (V11 checks it). Proposed 2026-11-09; approved by the Author and applied to `requirements.md` on 2026-11-09.
+- **RC-16 (R19.2(e)): the figures.** R19.2 records the windows as 24,576 tokens for `clef-flash` and "64K" for `clef` and asks for the exact figure. Verified on 2026-11-09: 65,536 for `clef` (model page), 24,576 for `clef-flash` (model page), while the changelog table says 64K for both. Proposal: record 65,536 and 24,576 in R19.2 and note that the changelog contradicts the `clef-flash` model page, which the design resolves in favour of the model page. Proposed 2026-11-09; approved by the Author and applied to `requirements.md` on 2026-11-09.
+- **RC-17 (R11.17, R19.8): usage names and "exactly as received".** R11.17 reads `prompt_tokens`, `completion_tokens` and `reasoning_tokens`; the System One shape names its counts `input_tokens` and `output_tokens` and has no reasoning count. R19.8 stores `confidence` and `probabilities` "exactly as received", which a parsed number cannot do (`0.10` parses to `0.1`). Proposal: R11.17 gains the System One names, and R19.8 says the response body text is stored verbatim in the separate Results field. The design does both (adapter section, Property 43). Proposed 2026-11-09; approved by the Author and applied to `requirements.md` on 2026-11-09.
