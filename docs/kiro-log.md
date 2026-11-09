@@ -1105,3 +1105,10 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
   - (b) S severe 0 vs 1 severe in the grades file: the Severe count is over the base Permutation of each card by design (R13.1); the severe grade of `S-grudge_detection-001` is on `reversed`.
   - (c) S latency 4,186/8,288 vs hand 4,480/6,886: the Report uses the design's nearest-rank method (index floor((p·n+99)/100)−1) over all 30 S requests with text; recomputing that from the records gives the same numbers. The hand figures used a different index rule.
 - Changed the Report only: labels for base-card Severe, Flip population and the percentile method; a new "Severe outputs in other Permutations" figure (reported only, no verdict) and a note in the diagnosis line. Added a metrics test and a nearest-rank example. `scripts/gates.sh` passed. `probe regrade` on both Phase_1 Locked_Run Results files: grades byte-equal, Metrics and intervals identical. The generated `docs/llm-probe.md` draft was deleted.
+
+### Spec: llm-probe — Locked_Run START, `workers-ai/gemma-4-26b-a4b-it` (task 23.3, 2026-11-09T01:43Z)
+
+- Combination `workers-ai/gemma-4-26b-a4b-it` (model `@cf/google/gemma-4-26b-a4b-it`), Task_Type_Subset `DS`, `max_requests` 324, approval `A-002` (kind `locked`) under phase2 `P2-001`, committed as `eb2872d` (logged in `214c482`). The Author confirmed the start on 2026-11-09 at about 01:40 UTC; `date -u` read 2026-11-09 before this entry.
+- Model_Fingerprint: the full record is written by the runner into the ledger `start` line and the Results header; the ledger entry ID goes into the END entry.
+- Pinned_Manifest_Hash `9322729c727a8c975dc3273fb7cc2f239e8790ea66e1745493179aea6815b34f` (manifest check ok, 27 files). Template_Hashes equal the frozen ones: decision `6fcfbf99f41c83b0902d25537ed57841c25e1d38e833574930c5164c820e9312`, synthesis `5139bcc5a4e10a52184483779dad0f2c4541ac432862170d1749a2c939663d85`.
+- Budget ledger before the run: no entry for 2026-11-09 (0 requests, 0 neurons); 2026-11-08 shows 104 requests and 1,291 neurons from the Dev_Run. Locked card content is not opened or printed by me.
