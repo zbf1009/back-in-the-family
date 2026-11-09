@@ -12,7 +12,7 @@
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { CardLoadError } from './cards.ts';
-import { ExternalReferenceError, ingestExternalReference, readExternalRecords, type ExternalRecord, type Figures } from './external.ts';
+import { ExternalReferenceError, ingestExternalReference, readAuthorSupplied, readExternalRecords, type AuthorSuppliedRecord, type ExternalRecord, type Figures } from './external.ts';
 import type { ParsedArgs } from './run-command.ts';
 import { RunLogger } from './run-logger.ts';
 import { reportFailure, runManifestCheck, type RunDeps } from './run.ts';
@@ -79,3 +79,6 @@ export async function ingestReferenceCommand(argv: readonly string[], deps: Exte
 
 /** Stored External_References for the Report (section 12). The only way the CLI reaches `external.ts` for `report`. */
 export const loadExternalRecords = (resultsDir: string): ExternalRecord[] => readExternalRecords(resultsDir);
+
+/** Stored Author-supplied External references (task 43) for the Report's section 12; read-only, nothing is verified. */
+export const loadAuthorSuppliedRecords = (resultsDir: string): AuthorSuppliedRecord[] => readAuthorSupplied(resultsDir);

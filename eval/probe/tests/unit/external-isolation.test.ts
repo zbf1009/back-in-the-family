@@ -95,3 +95,17 @@ test('external.ts and external-command.ts send no request and read no env: no ne
     assert.ok(!/\bfetch\s*\(|process\s*\.\s*env|loadWorkersAiEnv|XMLHttpRequest|WebSocket|node:https?|node:net/.test(text), `${f} must not use the network or the environment`);
   }
 });
+
+// Task 43 (R20.18 to R20.20, R19.16): the reader of the Author-supplied file lives in external.ts and is reached only through
+// external-command.ts (and so only by the CLI). The Report gets its data as plain data and never imports external.ts.
+test('the Author-supplied reader is named only in external.ts, external-command.ts and cli.ts (through the command module)', () => {
+  const READERS = /\b(readAuthorSupplied|parseAuthorSupplied|AUTHOR_SUPPLIED_SCHEMA|AUTHOR_SUPPLIED_FILE)\b/;
+  const users = files.filter((f) => READERS.test(code(path.join(SRC, f))));
+  assert.deepEqual(users, ['external-command.ts', 'external.ts']);
+  const loaderUsers = files.filter((f) => /\bloadAuthorSuppliedRecords\b/.test(code(path.join(SRC, f))));
+  assert.deepEqual(loaderUsers, ['cli.ts', 'external-command.ts']);
+  for (const g of ['report.ts', 'report-command.ts', 'report-variants.ts', 'phase.ts', 'phase-commands.ts', 'ledger.ts', 'budget.ts', 'approvals.ts', 'metrics.ts', 'run.ts', 'run-command.ts']) {
+    assert.ok(files.includes(g), `${g} is expected to exist`);
+    assert.equal(reaches(g, 'external.ts'), null, `${g} must not reach external.ts, so it cannot read the Author-supplied file`);
+  }
+});

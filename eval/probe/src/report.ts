@@ -295,6 +295,8 @@ export interface ReportInput {
    * import `external.ts`: nothing in the marks, the link marks, the recommendations or the Phase_2 branch can see them.
    */
   readonly external?: readonly ExternalReferenceView[];
+  /** Author-supplied External references (task 43; R20.18, R20.19), as plain data read by the CLI. Printed in section 12 only. */
+  readonly authorSupplied?: readonly AuthorSuppliedView[];
   /**
    * Derived_Run files (R20.7) of both splits, already analysed (flip `by_construction`) with their stored records. Printed in
    * sections 2, 4, 4a, 4b and 4c; a `locked` one feeds a mark, a `dev` one is labelled Dev_Run and feeds none. Absent means none.
@@ -337,6 +339,45 @@ export interface ExternalReferenceView {
   readonly regrade_figures: ExternalFiguresView | null;
   readonly differing: readonly string[];
   readonly raw_output_count: number | null;
+}
+
+/** One task of an Author-supplied External reference (the shape of `author-supplied.json`; integers only). */
+export interface AuthorSuppliedTaskView {
+  readonly task_type: 'D' | 'S';
+  readonly config_id: string;
+  readonly run_id: string;
+  readonly model: string;
+  readonly thinking: boolean;
+  readonly template: string;
+  readonly template_sha256: string;
+  readonly results_sha256: string;
+  readonly grades_sha256: string;
+  readonly figures: { readonly acceptable: number; readonly scored_cards: number; readonly severe: number; readonly flips: number; readonly flip_perms: number; readonly consistent_pairs: number; readonly pairs: number };
+  readonly acceptable_cluster_lower_bound_tenths_pct: number | null;
+  readonly archive_summary: { readonly records: number; readonly errors: number; readonly truncated: number; readonly model_mismatch: number };
+}
+
+/** What section 12 prints about one Author-supplied External reference. */
+export interface AuthorSuppliedView {
+  readonly verification: string;
+  readonly label: string;
+  readonly supplied_by: string;
+  readonly run_date: string;
+  readonly workbench: string;
+  readonly archive: {
+    readonly path: string;
+    readonly freeze_and_ledger_start_commit: { readonly short: string; readonly full: string };
+    readonly results_and_complete_commit: { readonly short: string; readonly full: string };
+    readonly freeze_json_sha256: string;
+    readonly ledger_sha256: string;
+  };
+  readonly evaluated_repo_head: { readonly short: string; readonly full: string };
+  readonly frozen: { readonly manifest_sha256: string; readonly locked_sha256: string; readonly wasm_sha256: string };
+  readonly grading: string;
+  readonly post_hoc_note: { readonly text: string; readonly attributed_to: string; readonly archive_commit: string };
+  readonly tasks: readonly AuthorSuppliedTaskView[];
+  /** sha256 of the checked-in `author-supplied.json` bytes. */
+  readonly file_sha256: string;
 }
 
 // ---------------------------------------------------------------- small helpers
@@ -475,11 +516,57 @@ const EXTERNAL_ROWS: readonly { readonly label: string; readonly names: readonly
   { label: 'Contrast consistency', names: ['consistent_pairs', 'pairs'], show: (f) => `${f.consistent_pairs}/${f.pairs} pairs = ${pct(f.consistent_pairs, f.pairs)}` },
 ];
 
+export const AUTHOR_SUPPLIED_NOTE =
+  'This is an External_Reference, not a Locked_Run Combination of this repository. It takes part in no mark, link mark, recommendation, branch logic or ledger (R19.16), and no Threshold verdict is given for it here.';
+
+/** Percent with one decimal from tenths (915 gives 91.5%). */
+const tenths = (t: number): string => `${Math.floor(t / 10)}.${t % 10}%`;
+
+/** The "External reference" subsection of section 12 for one Author-supplied file (R20.18, R20.19). Figures are printed as supplied; no verdict. */
+export function authorSuppliedLines(r: AuthorSuppliedView): string[] {
+  const out: string[] = [`### External reference: ${r.label} (${r.verification})`, ''];
+  out.push(AUTHOR_SUPPLIED_NOTE, '');
+  out.push(`- Label: ${r.verification}. The figures below are recorded exactly as the ${r.supplied_by} supplied them; ingest did not check or re-grade them.`);
+  out.push(`- Run on ${r.run_date} outside this repository, in an "${r.workbench}" workbench; archive \`${r.archive.path}\``);
+  out.push(`- Archive commit ${r.archive.freeze_and_ledger_start_commit.short} (frozen configuration and ledger start): ${r.archive.freeze_and_ledger_start_commit.full}`);
+  out.push(`- Archive commit ${r.archive.results_and_complete_commit.short} (results and complete): ${r.archive.results_and_complete_commit.full}`);
+  out.push(`- Evaluated repository HEAD ${r.evaluated_repo_head.short}: ${r.evaluated_repo_head.full}`);
+  out.push(`- Frozen manifest sha256: ${r.frozen.manifest_sha256}`);
+  out.push(`- Frozen locked cards sha256: ${r.frozen.locked_sha256}`);
+  out.push(`- Frozen Sim_Wasm sha256: ${r.frozen.wasm_sha256}`);
+  out.push(`- Frozen configuration file (freeze.json) sha256: ${r.archive.freeze_json_sha256}`);
+  out.push(`- Archive ledger sha256: ${r.archive.ledger_sha256}`);
+  out.push(`- Grading and Metrics: ${r.grading}.`);
+  out.push(`- sha256 of the checked-in file (author-supplied.json): ${r.file_sha256}`, '');
+  for (const t of r.tasks) {
+    const f = t.figures;
+    out.push(`Task_Type ${t.task_type}: \`${t.model}\`, thinking ${t.thinking ? 'on' : 'off'}, template \`${t.template}\` (sha256 ${t.template_sha256}); run ${t.run_id}`, '');
+    const cluster = t.acceptable_cluster_lower_bound_tenths_pct === null ? '' : `, cluster lower bound ${tenths(t.acceptable_cluster_lower_bound_tenths_pct)}`;
+    out.push(
+      ...table(
+        ['Metric', 'As supplied'],
+        [
+          ['Acceptable rate', `${f.acceptable} of ${f.scored_cards} (${pct(f.acceptable, f.scored_cards)}${cluster})`],
+          ['Severe count', `${f.severe}`],
+          ['Flip rate', `${f.flips} of ${f.flip_perms} (${pct(f.flips, f.flip_perms)})`],
+          ['Contrast consistency', `${f.consistent_pairs} of ${f.pairs} pairs`],
+        ],
+      ),
+    );
+    out.push(`- sha256 of its results file: ${t.results_sha256}`, `- sha256 of its grades file: ${t.grades_sha256}`);
+    const s = t.archive_summary;
+    out.push(`- As the archive's summary file records it: records ${s.records}, errors ${s.errors}, truncated ${s.truncated}, model_mismatch ${s.model_mismatch}. Recorded as printed there; not interpreted here.`, '');
+  }
+  out.push(`Post-hoc note (an analysis, not a judgement; as reported by the ${r.post_hoc_note.attributed_to}; script in archive commit ${r.post_hoc_note.archive_commit}): ${r.post_hoc_note.text}`, '');
+  return out;
+}
+
 /** Section 12 (R19.16): every ingested External_Reference, labelled, with its hashes and its Metrics as supplied or re-graded. */
-export function externalSectionLines(records: readonly ExternalReferenceView[]): string[] {
+export function externalSectionLines(records: readonly ExternalReferenceView[], authorSupplied: readonly AuthorSuppliedView[] = []): string[] {
   const out: string[] = [`## ${EXTERNAL_SECTION_TITLE}`, ''];
   if (records.length === 0) {
     out.push('No External_Reference has been ingested.', '');
+    for (const a of authorSupplied) out.push(...authorSuppliedLines(a));
     return out;
   }
   out.push(EXTERNAL_SENTENCE, '');
@@ -502,6 +589,7 @@ export function externalSectionLines(records: readonly ExternalReferenceView[]):
     if (r.regrade === 'mismatch') out.push(`Re-grade: MISMATCH in ${r.differing.join(', ')}. Both sets of figures are shown; the supplied figures were not changed.`, '');
     else if (r.regrade === 'match') out.push('Re-grade: match. Every supplied figure equals the re-graded one.', '');
   }
+  for (const a of authorSupplied) out.push(...authorSuppliedLines(a));
   return out;
 }
 
@@ -1188,7 +1276,7 @@ export function buildReport(input: ReportInput): string {
   para('None of these is decided here.');
 
   // ---- 12. External reference (R19.16): the only place an External_Reference appears
-  out.push(...externalSectionLines(input.external ?? []));
+  out.push(...externalSectionLines(input.external ?? [], input.authorSupplied ?? []));
 
   // ---- quality without timeout (R13.12)
   h2(QUALITY_WITHOUT_TIMEOUT_TITLE);

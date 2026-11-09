@@ -40,8 +40,8 @@ const COMMANDS: Record<string, () => Promise<void>> = {
     await requireManifest();
     const { reportCommand, reportPaths } = await import('./report-command.ts');
     // The stored External_References go into section 12 only; they are read here so that report-command.ts never imports external.ts.
-    const { loadExternalRecords } = await import('./external-command.ts');
-    process.exitCode = await reportCommand(reportPaths(REPO_DIR), loadExternalRecords);
+    const { loadAuthorSuppliedRecords, loadExternalRecords } = await import('./external-command.ts');
+    process.exitCode = await reportCommand(reportPaths(REPO_DIR), loadExternalRecords, loadAuthorSuppliedRecords);
   },
   // Reads no cards and no env, so no Manifest_Check (R3.16).
   'check-web-imports': async () => {

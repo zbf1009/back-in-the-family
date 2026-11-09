@@ -510,8 +510,212 @@ export function readExternalRecords(resultsDir: string): ExternalRecord[] {
   for (const entry of fs.readdirSync(root, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
     if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
     const file = path.join(root, entry.name, 'record.json');
+    // A directory that holds only an Author-supplied file (task 43) has no ingest record; it is read by `readAuthorSupplied`.
+    if (!fs.existsSync(file) && fs.existsSync(path.join(root, entry.name, AUTHOR_SUPPLIED_FILE))) continue;
     try {
       out.push(parseExternalRecord(JSON.parse(fs.readFileSync(file, 'utf8'))));
+    } catch (e) {
+      throw new Error(`${path.relative(resultsDir, file)}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------- the Author-supplied External reference (task 43; R20.18 to R20.20)
+//
+// `eval/results/external/<label>/author-supplied.json` is checked in by hand with the figures exactly as the Author
+// supplied them. It is NOT ingested: nothing here re-grades or verifies it, and the reader only checks the shape (every
+// hash 64 lowercase hex characters, every figure a non-negative integer with numerator at most denominator, the label
+// text, exact member names). It holds no Card content: the format has no Card ID, `pair_id` or free Card text at all.
+// Reading writes nothing, sends no request and reads no `env`. Like the rest of this module it is reached only through
+// `external-command.ts` (R19.16).
+
+export const AUTHOR_SUPPLIED_SCHEMA = 'llm-probe-external-author-supplied-v1';
+export const AUTHOR_SUPPLIED_FILE = 'author-supplied.json';
+export const AUTHOR_SUPPLIED_LABEL = 'Author-supplied, not verified by ingest';
+
+export interface CommitRef {
+  readonly short: string;
+  readonly full: string;
+}
+export interface AuthorSuppliedFigures {
+  readonly acceptable: number;
+  readonly scored_cards: number;
+  readonly severe: number;
+  readonly flips: number;
+  readonly flip_perms: number;
+  readonly consistent_pairs: number;
+  readonly pairs: number;
+}
+export interface AuthorSuppliedTask {
+  readonly task_type: 'D' | 'S';
+  readonly config_id: string;
+  readonly run_id: string;
+  readonly model: string;
+  readonly thinking: boolean;
+  readonly template: string;
+  readonly template_sha256: string;
+  readonly results_sha256: string;
+  readonly grades_sha256: string;
+  readonly figures: AuthorSuppliedFigures;
+  /** Lower end of the cluster bootstrap interval of the acceptable rate, in tenths of a percent (915 is 91.5%); `null` when not supplied. */
+  readonly acceptable_cluster_lower_bound_tenths_pct: number | null;
+  /** Counts as the archive's own summary file prints them, recorded without interpretation. */
+  readonly archive_summary: { readonly records: number; readonly errors: number; readonly truncated: number; readonly model_mismatch: number };
+}
+export interface AuthorSuppliedFile {
+  readonly schema: typeof AUTHOR_SUPPLIED_SCHEMA;
+  readonly verification: typeof AUTHOR_SUPPLIED_LABEL;
+  readonly label: string;
+  readonly is_repo_combination: false;
+  readonly supplied_by: string;
+  readonly run_date: string;
+  readonly workbench: string;
+  readonly archive: {
+    readonly path: string;
+    readonly freeze_and_ledger_start_commit: CommitRef;
+    readonly results_and_complete_commit: CommitRef;
+    readonly freeze_json_sha256: string;
+    readonly ledger_sha256: string;
+  };
+  readonly evaluated_repo_head: CommitRef;
+  readonly frozen: { readonly manifest_sha256: string; readonly locked_sha256: string; readonly wasm_sha256: string };
+  readonly grading: string;
+  readonly post_hoc_note: { readonly text: string; readonly attributed_to: string; readonly archive_commit: string };
+  readonly tasks: readonly AuthorSuppliedTask[];
+}
+/** A stored Author-supplied file with the sha256 of its bytes. */
+export interface AuthorSuppliedRecord extends AuthorSuppliedFile {
+  readonly file_sha256: string;
+}
+
+const TEXT = /^[^\r\n]{1,400}$/;
+const SHORT_HASH = /^[0-9a-f]{7}$/;
+
+function aObj(v: unknown, where: string, keys: readonly string[]): Obj {
+  if (!isObj(v)) throw new Error(`${where} must be an object`);
+  for (const k of Object.keys(v)) if (!keys.includes(k)) throw new Error(`${where}.${k} is not a member of the format`);
+  for (const k of keys) if (!Object.hasOwn(v, k)) throw new Error(`${where}.${k} is missing`);
+  return v;
+}
+function aText(o: Obj, key: string, where: string): string {
+  const v = o[key];
+  if (typeof v !== 'string' || !TEXT.test(v)) throw new Error(`${where}.${key} must be a one-line string`);
+  return v;
+}
+function aHex(o: Obj, key: string, where: string): string {
+  const v = o[key];
+  if (typeof v !== 'string' || !HEX64.test(v)) throw new Error(`${where}.${key} must be 64 lowercase hexadecimal characters`);
+  return v;
+}
+function aInt(o: Obj, key: string, where: string): number {
+  const v = o[key];
+  if (typeof v !== 'number' || !Number.isSafeInteger(v) || v < 0) throw new Error(`${where}.${key} must be a non-negative whole number`);
+  return v;
+}
+function aCommit(v: unknown, where: string): CommitRef {
+  const o = aObj(v, where, ['short', 'full']);
+  const short = o['short'];
+  const full = o['full'];
+  if (typeof short !== 'string' || !SHORT_HASH.test(short)) throw new Error(`${where}.short must be 7 lowercase hexadecimal characters`);
+  if (typeof full !== 'string' || !/^[0-9a-f]{40}$/.test(full) || !full.startsWith(short)) throw new Error(`${where}.full must be the 40-character hash that starts with "${short}"`);
+  return { short, full };
+}
+
+const TASK_KEYS = ['task_type', 'config_id', 'run_id', 'model', 'thinking', 'template', 'template_sha256', 'results_sha256', 'grades_sha256', 'figures', 'acceptable_cluster_lower_bound_tenths_pct', 'archive_summary'] as const;
+const AUTHOR_FIGURE_KEYS = ['acceptable', 'scored_cards', 'severe', 'flips', 'flip_perms', 'consistent_pairs', 'pairs'] as const;
+
+function aTask(v: unknown, where: string): AuthorSuppliedTask {
+  const o = aObj(v, where, TASK_KEYS);
+  const tt = o['task_type'];
+  if (tt !== 'D' && tt !== 'S') throw new Error(`${where}.task_type must be "D" or "S"`);
+  if (typeof o['thinking'] !== 'boolean') throw new Error(`${where}.thinking must be true or false`);
+  const f = aObj(o['figures'], `${where}.figures`, AUTHOR_FIGURE_KEYS);
+  const figures: AuthorSuppliedFigures = {
+    acceptable: aInt(f, 'acceptable', `${where}.figures`),
+    scored_cards: aInt(f, 'scored_cards', `${where}.figures`),
+    severe: aInt(f, 'severe', `${where}.figures`),
+    flips: aInt(f, 'flips', `${where}.figures`),
+    flip_perms: aInt(f, 'flip_perms', `${where}.figures`),
+    consistent_pairs: aInt(f, 'consistent_pairs', `${where}.figures`),
+    pairs: aInt(f, 'pairs', `${where}.figures`),
+  };
+  for (const [num, den] of [['acceptable', 'scored_cards'], ['severe', 'scored_cards'], ['flips', 'flip_perms'], ['consistent_pairs', 'pairs']] as const) {
+    if (figures[num] > figures[den]) throw new Error(`${where}.figures.${num} must not exceed ${den}`);
+  }
+  const cl = o['acceptable_cluster_lower_bound_tenths_pct'];
+  if (cl !== null && (typeof cl !== 'number' || !Number.isSafeInteger(cl) || cl < 0 || cl > 1000)) throw new Error(`${where}.acceptable_cluster_lower_bound_tenths_pct must be null or a whole number from 0 to 1000`);
+  const s = aObj(o['archive_summary'], `${where}.archive_summary`, ['records', 'errors', 'truncated', 'model_mismatch']);
+  return {
+    task_type: tt,
+    config_id: aText(o, 'config_id', where),
+    run_id: aText(o, 'run_id', where),
+    model: aText(o, 'model', where),
+    thinking: o['thinking'],
+    template: aText(o, 'template', where),
+    template_sha256: aHex(o, 'template_sha256', where),
+    results_sha256: aHex(o, 'results_sha256', where),
+    grades_sha256: aHex(o, 'grades_sha256', where),
+    figures,
+    acceptable_cluster_lower_bound_tenths_pct: cl,
+    archive_summary: { records: aInt(s, 'records', `${where}.archive_summary`), errors: aInt(s, 'errors', `${where}.archive_summary`), truncated: aInt(s, 'truncated', `${where}.archive_summary`), model_mismatch: aInt(s, 'model_mismatch', `${where}.archive_summary`) },
+  };
+}
+
+/** Checks the shape of an Author-supplied file; throws an Error naming the first failing member. Nothing is verified against the archive. */
+export function parseAuthorSupplied(v: unknown): AuthorSuppliedFile {
+  const o = aObj(v, 'file', ['schema', 'verification', 'label', 'is_repo_combination', 'supplied_by', 'run_date', 'workbench', 'archive', 'evaluated_repo_head', 'frozen', 'grading', 'post_hoc_note', 'tasks']);
+  if (o['schema'] !== AUTHOR_SUPPLIED_SCHEMA) throw new Error(`file.schema must be "${AUTHOR_SUPPLIED_SCHEMA}"`);
+  if (o['verification'] !== AUTHOR_SUPPLIED_LABEL) throw new Error(`file.verification must read "${AUTHOR_SUPPLIED_LABEL}"`);
+  if (o['is_repo_combination'] !== false) throw new Error('file.is_repo_combination must be false');
+  const label = aText(o, 'label', 'file');
+  if (!LABEL.test(label)) throw new Error('file.label must be a lowercase directory-style label');
+  const a = aObj(o['archive'], 'file.archive', ['path', 'freeze_and_ledger_start_commit', 'results_and_complete_commit', 'freeze_json_sha256', 'ledger_sha256']);
+  const fz = aObj(o['frozen'], 'file.frozen', ['manifest_sha256', 'locked_sha256', 'wasm_sha256']);
+  const ph = aObj(o['post_hoc_note'], 'file.post_hoc_note', ['text', 'attributed_to', 'archive_commit']);
+  const archiveCommit = ph['archive_commit'];
+  if (typeof archiveCommit !== 'string' || !SHORT_HASH.test(archiveCommit)) throw new Error('file.post_hoc_note.archive_commit must be 7 lowercase hexadecimal characters');
+  const tasks = o['tasks'];
+  if (!Array.isArray(tasks) || tasks.length === 0) throw new Error('file.tasks must be a non-empty array');
+  const parsed = tasks.map((t, i) => aTask(t, `file.tasks[${i}]`));
+  if (new Set(parsed.map((t) => t.task_type)).size !== parsed.length) throw new Error('file.tasks must hold at most one entry per Task_Type');
+  return {
+    schema: AUTHOR_SUPPLIED_SCHEMA,
+    verification: AUTHOR_SUPPLIED_LABEL,
+    label,
+    is_repo_combination: false,
+    supplied_by: aText(o, 'supplied_by', 'file'),
+    run_date: aText(o, 'run_date', 'file'),
+    workbench: aText(o, 'workbench', 'file'),
+    archive: {
+      path: aText(a, 'path', 'file.archive'),
+      freeze_and_ledger_start_commit: aCommit(a['freeze_and_ledger_start_commit'], 'file.archive.freeze_and_ledger_start_commit'),
+      results_and_complete_commit: aCommit(a['results_and_complete_commit'], 'file.archive.results_and_complete_commit'),
+      freeze_json_sha256: aHex(a, 'freeze_json_sha256', 'file.archive'),
+      ledger_sha256: aHex(a, 'ledger_sha256', 'file.archive'),
+    },
+    evaluated_repo_head: aCommit(o['evaluated_repo_head'], 'file.evaluated_repo_head'),
+    frozen: { manifest_sha256: aHex(fz, 'manifest_sha256', 'file.frozen'), locked_sha256: aHex(fz, 'locked_sha256', 'file.frozen'), wasm_sha256: aHex(fz, 'wasm_sha256', 'file.frozen') },
+    grading: aText(o, 'grading', 'file'),
+    post_hoc_note: { text: aText(ph, 'text', 'file.post_hoc_note'), attributed_to: aText(ph, 'attributed_to', 'file.post_hoc_note'), archive_commit: archiveCommit },
+    tasks: parsed,
+  };
+}
+
+/** Every Author-supplied file under `<resultsDir>/external/<label>/`, in label order, with the sha256 of its bytes. Read-only. */
+export function readAuthorSupplied(resultsDir: string): AuthorSuppliedRecord[] {
+  const root = externalDir(resultsDir);
+  if (!fs.existsSync(root)) return [];
+  const out: AuthorSuppliedRecord[] = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))) {
+    if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+    const file = path.join(root, entry.name, AUTHOR_SUPPLIED_FILE);
+    if (!fs.existsSync(file)) continue;
+    try {
+      const bytes = fs.readFileSync(file);
+      const parsed = parseAuthorSupplied(JSON.parse(bytes.toString('utf8')));
+      if (parsed.label !== entry.name) throw new Error(`file.label must equal the directory name "${entry.name}"`);
+      out.push({ ...parsed, file_sha256: sha256Of(bytes) });
     } catch (e) {
       throw new Error(`${path.relative(resultsDir, file)}: ${e instanceof Error ? e.message : String(e)}`);
     }

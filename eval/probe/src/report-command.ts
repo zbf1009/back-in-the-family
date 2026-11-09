@@ -13,7 +13,7 @@ import { decisionFactsFromLoaded, type DecisionCardFacts } from './diagnosis.ts'
 import { readLedger, type LedgerEntry } from './ledger.ts';
 import { metricCardFromLoaded, type FaultRecord, type MetricCard } from './metrics.ts';
 import { defaultPaths, printPhaseStatus, readPhaseState, readTechMd, type PassLoader, type PhasePaths } from './phase-commands.ts';
-import { analyzeRun, buildReport, entryPassesFrom, scanFaults, TARGET_MACHINE, type DerivedRunView, type ExternalReferenceView, type ReportInput, type RunAnalysis, type RuntimeLibrary } from './report.ts';
+import { analyzeRun, buildReport, entryPassesFrom, scanFaults, TARGET_MACHINE, type AuthorSuppliedView, type DerivedRunView, type ExternalReferenceView, type ReportInput, type RunAnalysis, type RuntimeLibrary } from './report.ts';
 import {
   gradesPathFor,
   readGradesFile,
@@ -104,7 +104,7 @@ function loadLibraries(file: string): RuntimeLibrary[] {
 }
 
 /** Collects everything `buildReport` needs. Throws with a clear message on a bad file. */
-export async function gatherReportInput(paths: ReportPaths, cards: ReportCards, today: string, external: readonly ExternalReferenceView[] = []): Promise<ReportInput> {
+export async function gatherReportInput(paths: ReportPaths, cards: ReportCards, today: string, external: readonly ExternalReferenceView[] = [], authorSupplied: readonly AuthorSuppliedView[] = []): Promise<ReportInput> {
   const { passes: _passes, overLimit: _overLimit, ...state } = await readPhaseState(paths);
   const { entries } = readLedger(paths.ledger);
 
@@ -195,6 +195,7 @@ export async function gatherReportInput(paths: ReportPaths, cards: ReportCards, 
     preflights: loadPreflights(paths.preflightDir),
     runtimeLibraries: loadLibraries(paths.runtimeLibraries),
     external,
+    authorSupplied,
     derivedRuns,
   };
 }
@@ -277,12 +278,16 @@ export async function phaseStatusWithPasses(paths: ReportPaths): Promise<number>
 /**
  * `report`: writes `docs/llm-probe.md`. Returns the exit code. The Manifest_Check has already passed.
  * `loadExternal` reads the stored External_References (section 12 only); the CLI passes it, so this module does not
- * import `external.ts` (R19.16).
+ * import `external.ts` (R19.16). `loadAuthorSupplied` does the same for the Author-supplied file (task 43).
  */
-export async function reportCommand(paths: ReportPaths, loadExternal: (resultsDir: string) => readonly ExternalReferenceView[] = () => []): Promise<number> {
+export async function reportCommand(
+  paths: ReportPaths,
+  loadExternal: (resultsDir: string) => readonly ExternalReferenceView[] = () => [],
+  loadAuthorSupplied: (resultsDir: string) => readonly AuthorSuppliedView[] = () => [],
+): Promise<number> {
   try {
     const loaded = loadCards({ cardsDir: paths.cardsDir, splits: ['dev', 'locked'] });
-    const input = await gatherReportInput(paths, reportCardsFrom(loaded), new Date().toISOString().slice(0, 10), loadExternal(paths.resultsDir));
+    const input = await gatherReportInput(paths, reportCardsFrom(loaded), new Date().toISOString().slice(0, 10), loadExternal(paths.resultsDir), loadAuthorSupplied(paths.resultsDir));
     writeTextFile(paths.reportFile, buildReport(input));
     printLine(`report: wrote ${path.relative(paths.repoDir, paths.reportFile)} (${input.lockedRuns.length} Locked_Run entries, ${input.devRuns.length} Dev_Runs)`);
     return 0;

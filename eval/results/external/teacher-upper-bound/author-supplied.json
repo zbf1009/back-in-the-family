@@ -1,0 +1,93 @@
+{
+  "schema": "llm-probe-external-author-supplied-v1",
+  "verification": "Author-supplied, not verified by ingest",
+  "label": "teacher-upper-bound",
+  "is_repo_combination": false,
+  "supplied_by": "Author",
+  "run_date": "2026-11-09",
+  "workbench": "omp",
+  "archive": {
+    "path": "~/projects/bitf-teacher-archive/",
+    "freeze_and_ledger_start_commit": {
+      "short": "0ef13c0",
+      "full": "0ef13c04612d3d9e1245c73644b3d3476a2a65ba"
+    },
+    "results_and_complete_commit": {
+      "short": "732f0c6",
+      "full": "732f0c6f041b372ee3eb6f08186b3910a0726d6c"
+    },
+    "freeze_json_sha256": "aa012bc73d696d1198c964489cc6f0498ba621bed1f38b12fe9dfe1b6b0f6846",
+    "ledger_sha256": "7105cf5e55595b2b123212c203ffaa31a12ccd8b6786949f27330625085cb8df"
+  },
+  "evaluated_repo_head": {
+    "short": "7b99dc8",
+    "full": "7b99dc85ecdbc8af605b9d286cb0df7ca324f9f6"
+  },
+  "frozen": {
+    "manifest_sha256": "9322729c727a8c975dc3273fb7cc2f239e8790ea66e1745493179aea6815b34f",
+    "locked_sha256": "d5abed2a80ce3f4150b5969b86ba48548c63f9ae2f9d93f0d6bb9a1934714083",
+    "wasm_sha256": "a4bc56273b9675cc7813419f5eeb342ae1771481ab74b0418e6d6974feff6587"
+  },
+  "grading": "the repo's gradeRecords and computeMetrics, called read-only",
+  "post_hoc_note": {
+    "text": "A post-hoc analysis of multi-permutation voting over the existing records left acceptable, severe and contrast almost unchanged. It is an analysis, not a judgement.",
+    "attributed_to": "Author, 2026-11-09",
+    "archive_commit": "7c8f958"
+  },
+  "tasks": [
+    {
+      "task_type": "D",
+      "config_id": "T-D",
+      "run_id": "T-20261109T041744Z-deepseek-think-teacher1-D",
+      "model": "deepseek-v4.1-flash-1017",
+      "thinking": true,
+      "template": "decision.teacher1.txt",
+      "template_sha256": "5c9372825cb05b2da992345507284a427ff18194b8feaf8fd8e876187c704a4b",
+      "results_sha256": "53307452048046341c08eb243ec72625e6b5305e8fffd1786d946b6a91fc9a34",
+      "grades_sha256": "a6350d9234258d8f8d20eb21fd6adf54bea990f91758bcf6b43b6308712f5ae1",
+      "figures": {
+        "acceptable": 58,
+        "scored_cards": 60,
+        "severe": 1,
+        "flips": 34,
+        "flip_perms": 172,
+        "consistent_pairs": 11,
+        "pairs": 15
+      },
+      "acceptable_cluster_lower_bound_tenths_pct": 915,
+      "archive_summary": {
+        "records": 236,
+        "errors": 0,
+        "truncated": 1,
+        "model_mismatch": 0
+      }
+    },
+    {
+      "task_type": "S",
+      "config_id": "T-S",
+      "run_id": "T-20261109T041744Z-kimi-k3-S",
+      "model": "kimi-k3",
+      "thinking": false,
+      "template": "synthesis.v1",
+      "template_sha256": "5139bcc5a4e10a52184483779dad0f2c4541ac432862170d1749a2c939663d85",
+      "results_sha256": "efe7802f07277328bf9b220778e3802c77d0707f34fd8603c61940c3f7990931",
+      "grades_sha256": "36df54bb61db39fee54b5c40b6525a0fec54f52234fa52c3ba0539f527cc2087",
+      "figures": {
+        "acceptable": 34,
+        "scored_cards": 40,
+        "severe": 0,
+        "flips": 7,
+        "flip_perms": 44,
+        "consistent_pairs": 8,
+        "pairs": 10
+      },
+      "acceptable_cluster_lower_bound_tenths_pct": null,
+      "archive_summary": {
+        "records": 88,
+        "errors": 0,
+        "truncated": 0,
+        "model_mismatch": 0
+      }
+    }
+  ]
+}
