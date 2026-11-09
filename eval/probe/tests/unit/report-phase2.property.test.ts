@@ -7,9 +7,9 @@ import fc from 'fast-check';
 import type { Approval } from '../../src/approvals.ts';
 import { deriveEntries, type LedgerEvent } from '../../src/ledger.ts';
 import type { Combination, DevRunInfo } from '../../src/phase.ts';
-import { buildReport, HOLD_BANNER_PREFIX, SELECTION_BIAS_NOTE, type ReportInput } from '../../src/report.ts';
-import type { ExclusionRecord, FailureRecord, SmokeRecord } from '../../src/results.ts';
-import { BROWSER, DM_A, DM_B, GEMMA, dm, entryEvents, exclusion, failure, smokeRec, withdrawal } from './decision-gate.helpers.ts';
+import { additionalCandidateLines, buildReport, HOLD_BANNER_PREFIX, SELECTION_BIAS_NOTE, type ReportInput } from '../../src/report.ts';
+import { SCHEMA, type ExclusionRecord, type FailureRecord, type SmokeRecord } from '../../src/results.ts';
+import { baseState, BROWSER, DM_A, DM_B, GEMMA, dm, entryEvents, exclusion, failure, smokeRec, withdrawal } from './decision-gate.helpers.ts';
 
 const GLM: Combination = { id: 'workers-ai/glm', runtime: 'workers-ai', model_id: '@cf/zai-org/glm-4.7-flash', quantization: '', revision: 'server-side, not pinnable', phase1_locked: false, response_shape: 'chat' } as Combination;
 const COMBOS: readonly Combination[] = [BROWSER, GEMMA, DM_A, DM_B, GLM];
@@ -209,6 +209,13 @@ test('the Report of a repository-like state counts one Phase_2 candidate, prints
   assert.match(s2, /- workers-ai\/clef-flash \(Task_Type D only\): not measured: no Dev_Run or Locked_Run approval has been recorded for it/);
   assert.match(s2, /- workers-ai\/clef \(Task_Type D only\): not measured: /);
   assert.ok(!report.includes(HOLD_BANNER_PREFIX));
+});
+
+test('a Decision_Model whose newest Smoke_Call failed with an HTTP error is listed as not measured with that status (V13)', () => {
+  const billing = { schema: SCHEMA.smoke, combination: DM_A.id, http_status: 403, outcome: 'remote_error' } as unknown as SmokeRecord;
+  const state = baseState({ combinations: COMBOS, smoke: [billing] });
+  const line = additionalCandidateLines(state).find((l) => l.startsWith(`- ${DM_A.id}`));
+  assert.match(line ?? '', /not measured: the newest Smoke_Call failed with HTTP status 403 \(remote_error\)/);
 });
 
 test('section 12 says so when nothing is ingested, and flags a figure that differs from its re-grade', async () => {

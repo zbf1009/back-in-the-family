@@ -387,7 +387,14 @@ function repeatDeterminismText(state: PhaseState, comboId: string): string {
 }
 
 function notMeasuredReason(c: Combination, state: PhaseState): string {
-  const shapes = state.smoke.filter((s) => s['combination'] === c.id && s['shape_check'] !== undefined);
+  // A Smoke_Call that failed at the HTTP level (plan or billing error, 429) has no shape_check, so it is looked at first (R19.3, V13).
+  const calls = state.smoke.filter((s) => s['combination'] === c.id);
+  const last = calls[calls.length - 1];
+  const status = last?.['http_status'];
+  if (typeof status === 'number' && status !== 200) {
+    return `the newest Smoke_Call failed with HTTP status ${status}${typeof last?.['outcome'] === 'string' ? ` (${last['outcome']})` : ''}, so no shape check was possible`;
+  }
+  const shapes = calls.filter((s) => s['shape_check'] !== undefined);
   const newest = shapes[shapes.length - 1];
   if (newest !== undefined && newest['shape_check'] !== 'ok') {
     return `the newest Smoke_Call shape check is ${String(newest['shape_check'])} (HTTP status ${String(newest['http_status'] ?? 'unknown')})`;
