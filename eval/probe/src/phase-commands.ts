@@ -48,7 +48,8 @@ function readSmokeDir(dir: string): ReturnType<typeof readSmoke> {
     .flatMap((f) => readSmoke(path.join(dir, f)));
 }
 
-export async function loadPhaseState(paths: PhasePaths, loadPasses: PassLoader = noPasses): Promise<PhaseState> {
+/** Low level: the state with an injected pass loader. Callers that need pass results use `loadPhaseState` in report-command.ts. */
+export async function readPhaseState(paths: PhasePaths, loadPasses: PassLoader = noPasses): Promise<PhaseState> {
   const combinations = parseCombinations(fs.readFileSync(paths.combinations, 'utf8'));
   const { entries } = readLedger(paths.ledger);
   const approvals = await loadApprovals({ repoDir: paths.repoDir, print: printErrorLine });
@@ -64,16 +65,21 @@ export async function loadPhaseState(paths: PhasePaths, loadPasses: PassLoader =
   };
 }
 
+/** Prints the `phase-status` lines for a state. */
+export function printPhaseStatus(state: PhaseState): void {
+  for (const line of formatPhaseStatus(phaseStatus(state))) printLine(line);
+  for (const line of phase2ResultLines(state)) printLine(line);
+  printLine('Scope: the D and S lines above are the Phase_1 in-browser result only (R18.2); Workers AI Locked_Runs appear in the Phase_2 lines and in the Report.');
+}
+
 /** `phase-status`: prints the per-Task_Type result and the branch that follows. Returns the exit code. */
 export async function phaseStatusCommand(paths: PhasePaths, loadPasses: PassLoader = noPasses): Promise<number> {
   try {
-    const state = await loadPhaseState(paths, loadPasses);
+    const state = await readPhaseState(paths, loadPasses);
     if (loadPasses === noPasses && state.entries.some((e) => e.status === 'complete')) {
       printErrorLine('phase-status: warning: no pass results are loaded, so no complete entry counts as a pass yet');
     }
-    for (const line of formatPhaseStatus(phaseStatus(state))) printLine(line);
-    for (const line of phase2ResultLines(state)) printLine(line);
-    printLine('Scope: the D and S lines above are the Phase_1 in-browser result only (R18.2); Workers AI Locked_Runs appear in the Phase_2 lines and in the Report.');
+    printPhaseStatus(state);
     return 0;
   } catch (error) {
     printErrorLine(`probe: phase-status: ${error instanceof Error ? error.message : String(error)}`);

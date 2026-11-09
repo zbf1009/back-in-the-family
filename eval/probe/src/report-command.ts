@@ -12,7 +12,7 @@ import { DEFAULT_CARDS_DIR, loadCards, type LoadedCard, type LoadedCards } from 
 import { decisionFactsFromLoaded, type DecisionCardFacts } from './diagnosis.ts';
 import { readLedger, type LedgerEntry } from './ledger.ts';
 import { metricCardFromLoaded, type FaultRecord, type MetricCard } from './metrics.ts';
-import { defaultPaths, loadPhaseState, phaseStatusCommand, type PassLoader, type PhasePaths } from './phase-commands.ts';
+import { defaultPaths, printPhaseStatus, readPhaseState, type PassLoader, type PhasePaths } from './phase-commands.ts';
 import { analyzeRun, buildReport, entryPassesFrom, scanFaults, TARGET_MACHINE, type ReportInput, type RunAnalysis, type RuntimeLibrary } from './report.ts';
 import {
   gradesPathFor,
@@ -23,6 +23,7 @@ import {
   type PerfRecord,
   type PreflightRecord,
 } from './results.ts';
+import type { PhaseState } from './phase.ts';
 import { printErrorLine, printLine, writeTextFile } from './sink.ts';
 
 export interface ReportPaths extends PhasePaths {
@@ -104,7 +105,7 @@ function loadLibraries(file: string): RuntimeLibrary[] {
 
 /** Collects everything `buildReport` needs. Throws with a clear message on a bad file. */
 export async function gatherReportInput(paths: ReportPaths, cards: ReportCards, today: string): Promise<ReportInput> {
-  const { passes: _passes, overLimit: _overLimit, ...state } = await loadPhaseState(paths);
+  const { passes: _passes, overLimit: _overLimit, ...state } = await readPhaseState(paths);
   const { entries } = readLedger(paths.ledger);
 
   const lockedRuns: RunAnalysis[] = [];
@@ -219,11 +220,24 @@ export function lockedPassLoader(paths: ReportPaths, cards: ReportCards): PassLo
   };
 }
 
+/**
+ * The one PhaseState loader (DA-23): ledger, failures, exclusions, Smoke_Calls, approvals and the pass results of
+ * every `complete` entry, through the same analysis the Report uses. Used by `phase-status`, the run gate and any
+ * later gate. The Card_Set is opened only when a `complete` entry exists, and only for statistics (R3.1).
+ */
+export async function loadPhaseState(paths: ReportPaths): Promise<PhaseState> {
+  const passes: PassLoader = (entries) =>
+    entries.some((e) => e.status === 'complete')
+      ? lockedPassLoader(paths, reportCardsFrom(loadCards({ cardsDir: paths.cardsDir, splits: ['dev', 'locked'] })))(entries)
+      : new Map();
+  return readPhaseState(paths, passes);
+}
+
 /** `phase-status` with pass results loaded. The Manifest_Check has already passed (cli.ts). */
 export async function phaseStatusWithPasses(paths: ReportPaths): Promise<number> {
   try {
-    const cards = reportCardsFrom(loadCards({ cardsDir: paths.cardsDir, splits: ['dev', 'locked'] }));
-    return await phaseStatusCommand(paths, lockedPassLoader(paths, cards));
+    printPhaseStatus(await loadPhaseState(paths));
+    return 0;
   } catch (error) {
     printErrorLine(`probe: phase-status: ${error instanceof Error ? error.message : String(error)}`);
     return 1;

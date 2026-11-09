@@ -12,9 +12,9 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
-import { PINNED_MANIFEST_HASH } from './manifest.ts';
 import { parseCombinations } from './phase.ts';
-import { defaultPaths, loadPhaseState } from './phase-commands.ts';
+import { checkManifest, PINNED_MANIFEST_HASH } from './manifest.ts';
+import { loadPhaseState, reportPaths } from './report-command.ts';
 import type { TaskSubset } from './results.ts';
 import { devRun, lockedRun, type DevRunOptions, type LockedRunOptions, type RunDeps, type RuntimeFactory } from './run.ts';
 import { DEFAULT_CARDS_DIR } from './cards.ts';
@@ -71,7 +71,12 @@ export function defaultRunDeps(repoDir: string = REPO_DIR, createRuntime?: Runti
     pinnedManifestHash: PINNED_MANIFEST_HASH,
     combinations: parseCombinations(fs.readFileSync(path.join(repoDir, 'eval/probe/combinations.json'), 'utf8')),
     ...wiring,
-    phaseState: () => loadPhaseState(defaultPaths(repoDir)),
+    // Same state `phase-status` reads, pass results included (task 25.3); the Card_Set is opened for statistics only.
+    phaseState: async () => {
+      const m = await checkManifest({ cardsDir: paths.cardsDir, pinnedHash: PINNED_MANIFEST_HASH });
+      if (!m.ok) throw new Error('Manifest_Check failed; the phase gate cannot load pass results');
+      return loadPhaseState(reportPaths(repoDir));
+    },
   };
 }
 
