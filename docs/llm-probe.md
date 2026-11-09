@@ -189,7 +189,7 @@ Mark: **fail**. Scenario groups: 38. Scored non-void cards: 60.
 
 | Metric | Numerator / denominator | Value | Threshold | Mark |
 | --- | --- | --- | --- | --- |
-| Acceptable rate | 51/60 | 85.0% (Random_Baseline 51.8%) | at least 80% | pass (interval overlaps threshold) |
+| Acceptable rate | 51/60 | 85.0% (Random_Baseline 51.8%) | at least 80% | pass (point estimate; 95% Cluster_Bootstrap lower bound 76.9% < 80%) |
 | Severe count (base Permutation of each card) | 2 of 60 cards | 2 | at most 1 | fail |
 | Severe outputs in other Permutations | 9 of 172 non-base requests | 9 | none (no verdict) | reported only |
 | Flip rate (non-base requests with an output, Illegal and timeouts included) | 36/172 | 20.9% | at most 5% | fail |
@@ -219,7 +219,7 @@ Mark: **fail**. Scenario groups: 24. Scored non-void cards: 40.
 
 | Metric | Numerator / denominator | Value | Threshold | Mark |
 | --- | --- | --- | --- | --- |
-| Acceptable rate | 34/40 | 85.0% | at least 80% | pass (interval overlaps threshold) |
+| Acceptable rate | 34/40 | 85.0% | at least 80% | pass (point estimate; 95% Cluster_Bootstrap lower bound 74.4% < 80%) |
 | Severe count (base Permutation of each card) | 0 of 40 cards | 0 | at most 1 | pass |
 | Severe outputs in other Permutations | 1 of 44 non-base requests | 1 | none (no verdict) | reported only |
 | Flip rate (non-base requests with an output, Illegal and timeouts included) | 10/44 | 22.7% | at most 5% | fail |
@@ -292,8 +292,8 @@ Intel iGPU figures are never put in the NVIDIA column. The Intel quantity is eit
 | webllm / Qwen3.5-0.8B-q4f32_1-MLC / q4f32_1 / 4ed017713f04 | S | L-20261108T081803Z-webllm-qwen3-5-0-8b-q4f32-nvidia | complete | used for marks and recommendation | acceptable 7/40 (17.5%), severe 4, flips 11/44, contrast 0/10; fail |
 | webllm / Qwen3.5-2B-q4f32_1-MLC / q4f32_1 / d835e5c41aa5 | D | L-20261108T084653Z-webllm-qwen3-5-2b-q4f32-nvidia | complete | used for marks and recommendation | acceptable 36/60 (60.0%), severe 3, flips 72/172, contrast 0/15; fail |
 | webllm / Qwen3.5-2B-q4f32_1-MLC / q4f32_1 / d835e5c41aa5 | S | L-20261108T084653Z-webllm-qwen3-5-2b-q4f32-nvidia | complete | used for marks and recommendation | acceptable 0/40 (0.0%), severe 2, flips 3/44, contrast 0/10; fail |
-| workers-ai / @cf/google/gemma-4-26b-a4b-it / server-side, | D | L-20261109T014137Z-workers-ai-gemma-4-26b-a4b-it | complete | used for marks and recommendation | acceptable 51/60 (85.0%), severe 2, flips 36/172, contrast 3/15; fail |
-| workers-ai / @cf/google/gemma-4-26b-a4b-it / server-side, | S | L-20261109T014137Z-workers-ai-gemma-4-26b-a4b-it | complete | used for marks and recommendation | acceptable 34/40 (85.0%), severe 0, flips 10/44, contrast 6/10; fail |
+| workers-ai / @cf/google/gemma-4-26b-a4b-it / server-side, not pinnable | D | L-20261109T014137Z-workers-ai-gemma-4-26b-a4b-it | complete | used for marks and recommendation | acceptable 51/60 (85.0%), severe 2, flips 36/172, contrast 3/15; fail |
+| workers-ai / @cf/google/gemma-4-26b-a4b-it / server-side, not pinnable | S | L-20261109T014137Z-workers-ai-gemma-4-26b-a4b-it | complete | used for marks and recommendation | acceptable 34/40 (85.0%), severe 0, flips 10/44, contrast 6/10; fail |
 
 ## 8. Support marks per link of the fallback chain
 
@@ -311,6 +311,8 @@ Intel iGPU figures are never put in the NVIDIA column. The Intel quantity is eit
 Smoke_Call outputs appear only in this section; they never enter a Metric, a pass or fail mark or an interval (R18.6).
 
 ## 9. Recommendation per Task_Type
+
+The in-browser conclusion covers only Qwen3.5 on WebLLM. The Workers AI conclusion covers only gemma-4-26b-a4b-it with the frozen templates, thinking disabled and one call per request; it does not represent other models on Workers AI or other ways of calling them.
 
 Selection among passing Combinations of a link: highest acceptable rate, then fewest severe outputs, then lowest p95 latency, then Combination ID.
 
