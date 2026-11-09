@@ -1218,3 +1218,9 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 ### Spec: llm-probe — second pre-existing flake found, not fixed (2026-11-09 06:22Z)
 
 - `Property 32: Results records of every kind round trip byte-exact` (`results.property.test.ts`) failed once in a gates run with seed 286421559: the generated header has `template_hashes: {"__proto__": ""}`. `parseHeader` (and the `template_hashes` readers in `ledger.ts` and `ingest.ts`) build the map with `map[k] = value`, which does not create an own property for the key `__proto__`, so the round trip loses it. Real template names never use that key, so no run is affected; the fix (build with `Object.fromEntries` or `Object.defineProperty`) was left out of this work because it was not asked for. The next gates run was green.
+
+### Spec: llm-probe — Property 32 `__proto__` flake fixed (2026-11-09 06:22Z)
+
+- `parseHeader` (`results.ts`), the ledger `start` reader (`ledger.ts`) and `hashMapAt` (`ingest.ts`) now build the `template_hashes` map with `Object.fromEntries`, which defines own properties, so a key named `__proto__` is kept. No real template uses that name; this removes the only source of the seed-dependent failure.
+- New explicit regression test in `results.property.test.ts` for seed 286421559's header shape (`template_hashes` with a `__proto__` key). Checked it fails on the old `results.ts` (stash, run, pop) and passes on the new one.
+- `scripts/gates.sh` green (exit 0).

@@ -385,8 +385,8 @@ export function parseLedgerEvent(v: unknown): LedgerEvent {
         if (o.task_subset !== 'D' && o.task_subset !== 'S' && o.task_subset !== 'DS') bad('start.task_subset must be D, S or DS');
         const subset = o.task_subset as TaskSubset;
         const hashesObj = asObj(o.template_hashes, 'start.template_hashes');
-        const template_hashes: { [name: string]: string } = {};
-        for (const [k, h] of Object.entries(hashesObj)) template_hashes[k] = nes(h, `start.template_hashes.${k}`);
+        // Own properties only (a `__proto__` key must survive; `map[k] = v` would drop it).
+        const template_hashes: { [name: string]: string } = Object.fromEntries(Object.entries(hashesObj).map(([k, h]) => [k, nes(h, `start.template_hashes.${k}`)]));
         if (!Array.isArray(o.overlaps)) bad('start.overlaps must be an array');
         const overlaps = (o.overlaps as unknown[]).map((x, i) => nes(x, `start.overlaps[${i}]`));
         const rerun_of = nesOrNull(o.rerun_of, 'start.rerun_of');

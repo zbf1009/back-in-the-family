@@ -212,6 +212,21 @@ test('Property 32: Results records of every kind round trip byte-exact', () => {
   );
 });
 
+test('Property 32 regression (seed 286421559): a template_hashes key named __proto__ survives the round trip', () => {
+  // `parseHeader` used to build the map with `map[k] = v`, which sets the prototype for this key and drops it.
+  withTemp((dir) => {
+    const header: ResultsHeader = {
+      schema: SCHEMA.header, run_id: 'proto', split: 'dev', combination: 'c',
+      model_key: { runtime: 'r', model_id: 'm', quantization: '', revision: 'v' },
+      task_subset: 'D', fingerprint: { a: 1 }, template_hashes: JSON.parse('{"__proto__":"","decision":"h"}') as { [name: string]: string },
+      timeout_ms: 1000, placement: null,
+    };
+    assert.deepEqual(Object.keys(header.template_hashes), ['__proto__', 'decision']);
+    const file = checkRoundTrip(dir, header, []);
+    assert.deepEqual(Object.keys(readResultsFile(file).header.template_hashes), ['__proto__', 'decision']);
+  });
+});
+
 test('Property 32: 1 MB+ raw text and late text round trip byte-exact', () => {
   const pieces = ['x', '\n', '\u0000', '\ud800', '日本語', '😀', '\\"', ' '];
   fc.assert(

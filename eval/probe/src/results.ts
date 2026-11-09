@@ -402,8 +402,8 @@ export function parseHeader(v: unknown): ResultsHeader {
     if (o.validator_mode !== 'raw_choice') fault('header.validator_mode must be "raw_choice" when present');
   }
   const hashes = obj(o.template_hashes, 'header.template_hashes');
-  const template_hashes: { [name: string]: string } = {};
-  for (const [k, h] of Object.entries(hashes)) template_hashes[k] = str(h, `header.template_hashes.${k}`);
+  // `Object.fromEntries` defines own properties, so a key named `__proto__` survives (`map[k] = v` would set the prototype and drop it).
+  const template_hashes: { [name: string]: string } = Object.fromEntries(Object.entries(hashes).map(([k, h]) => [k, str(h, `header.template_hashes.${k}`)]));
   const timeout = int(o.timeout_ms, 'header.timeout_ms');
   if (timeout < 1) fault('header.timeout_ms must be positive');
   return {

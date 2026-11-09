@@ -169,9 +169,8 @@ function isJson(v: unknown): v is JsonValue {
 
 function hashMapAt(v: unknown, where: string): { [name: string]: string } {
   const o = objectAt(v, where);
-  const out: { [name: string]: string } = {};
-  for (const [k, h] of Object.entries(o)) out[k] = stringAt(h, `${where}.${k}`);
-  return out;
+  // Own properties only (a `__proto__` key must survive; `out[k] = v` would drop it).
+  return Object.fromEntries(Object.entries(o).map(([k, h]) => [k, stringAt(h, `${where}.${k}`)]));
 }
 
 const SPLITS: readonly string[] = ['dev', 'locked'];
