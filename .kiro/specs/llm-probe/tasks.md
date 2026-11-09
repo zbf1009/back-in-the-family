@@ -710,14 +710,14 @@ Execution notes for the orchestrator:
     - Run `scripts/gates.sh` to exit 0 from the working tree; confirm `git diff 091d1d7 -- eval/cards` is empty and no `env` read happened; one `docs(llm-probe)` commit (or `chore(llm-probe)` if code changed).
     - _Requirements: 16.4, 16.5, 16.9, 17.7_
 
-- [ ] 33. Smoke_Calls for the Decision_Models [Target_Machine]
-  - [~] 33.1 Smoke_Calls: `clef-flash`
+- [x] 33. Smoke_Calls for the Decision_Models [Target_Machine]
+  - [x] 33.1 Smoke_Calls: `clef-flash`
     - No approval is needed (RC-10), within the 10 Smoke_Calls per UTC day shared with every other Workers AI Smoke_Call. Before sending, tell the Author the model and the number of calls (at most 10, about 70 neurons at the planning bound) and check the day's count in the budget counter. Run `probe smoke` on D Dev_Cards only. If a call fails with a plan or billing error, stop, record the model as not measured with that reason (R19.3) and tell the Author. Commit the smoke records under `eval/results/smoke/`; log sent and `ok` counts.
     - _Requirements: 19.5, 19.3, 11.8, 11.19, 17.1_
-  - [~] 33.2 Smoke_Calls: `clef`
+  - [x] 33.2 Smoke_Calls: `clef`
     - Same procedure; the model is named to the Author first (at most 10 calls, about 440 neurons at the planning bound), within the day's count left after 33.1 (if 33.1 used the whole count, wait for the next UTC day). Commit; log.
     - _Requirements: 19.5, 19.3, 11.8, 11.19, 17.1_
-  - [~] 33.3 Record the V9 to V13 conclusions
+  - [x] 33.3 Record the V9 to V13 conclusions
     - From the smoke records: V9 (result envelope, member types, `usage` fields; fix the declared shape if `mismatch`, and do not go on until the shape check is `ok`); V10 (tokens-per-byte lower bound: set `max_bytes_per_token` to `max(6, ceil(1.5 × max measured ratio))` or keep 8, update `combinations.json`, and the fingerprint changes); V11 (reservation versus usage-based cost; raise the allowance in `combinations.json` and Property 45 if exceeded); neuron rate observed; whether the same request repeated gives the same `choice` only if the Author asks for the optional V14 pair (otherwise "not tested"). If the mean input size is more than 25% from the DA-20 proxies, recompute and show the DA-20 figures again before any Dev_Run approval is asked. Add dated notes to `design.md`; gates green; one `chore(llm-probe)` commit.
     - _Requirements: 19.2, 19.3, 19.11, 19.12, 11.19, 16.9_
 
