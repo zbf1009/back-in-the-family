@@ -10,6 +10,9 @@
 //! `fixtures/grading/system-one-golden.json` does the same for `llm_validate` in `raw_choice`
 //! mode and for `llm_render_system_one` (llm-probe task 28.5; requirements 4.16, 19.7).
 //!
+//! `fixtures/grading/perm-avg-inputs.json` and `perm-avg-golden.json` do the same for
+//! `llm_aggregate_perm_avg` (llm-probe task 39.3; requirements 20.7, 20.17).
+//!
 //! Inputs are rebuilt from the golden header exactly as `fixtures/grading/README.md`
 //! describes. A mismatch panics with the Card ID and the export name. The fixtures are
 //! never written by this test.
@@ -18,8 +21,8 @@ use std::collections::BTreeMap;
 
 use serde_json::{Map, Value, json};
 use sim_wasm::llm::{
-    llm_contrast, llm_grade, llm_identity, llm_parse_card, llm_permutations, llm_render_prompt,
-    llm_render_system_one, llm_validate,
+    llm_aggregate_perm_avg, llm_contrast, llm_grade, llm_identity, llm_parse_card,
+    llm_permutations, llm_render_prompt, llm_render_system_one, llm_validate,
 };
 use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -27,6 +30,8 @@ const CARDS: &str = include_str!("../../../eval/cards/cards/dev.jsonl");
 const OUTPUTS: &str = include_str!("../../../fixtures/grading/dev-outputs.json");
 const GOLDEN: &str = include_str!("../../../fixtures/grading/dev-golden.json");
 const SYSTEM_ONE_GOLDEN: &str = include_str!("../../../fixtures/grading/system-one-golden.json");
+const PERM_AVG_INPUTS: &str = include_str!("../../../fixtures/grading/perm-avg-inputs.json");
+const PERM_AVG_GOLDEN: &str = include_str!("../../../fixtures/grading/perm-avg-golden.json");
 
 fn parse(text: &str, what: &str) -> Value {
     match serde_json::from_str(text) {
@@ -244,4 +249,44 @@ fn system_one_exports_match_golden_bytes() {
         }
     }
     assert!(checks > 0, "no system-one golden entries were checked");
+}
+
+#[wasm_bindgen_test(unsupported = test)]
+fn perm_avg_export_matches_golden_bytes() {
+    let inputs = parse(PERM_AVG_INPUTS, "perm-avg-inputs.json");
+    let golden = parse(PERM_AVG_GOLDEN, "perm-avg-golden.json");
+    let in_cards = list(&inputs["cards"], "inputs.cards");
+    let out_cards = list(&golden["cards"], "golden.cards");
+    assert_eq!(
+        in_cards.len(),
+        out_cards.len(),
+        "inputs and golden card counts"
+    );
+    let mut checks = 0usize;
+    for (entry, expected) in in_cards.iter().zip(out_cards) {
+        let id = text(&entry["card"], "inputs card");
+        assert_eq!(id, text(&expected["card"], "golden card"), "card order");
+        let cases = list(&entry["cases"], "cases");
+        let results = list(&expected["cases"], "golden cases");
+        assert_eq!(cases.len(), results.len(), "card {id}: case counts");
+        for (c, r) in cases.iter().zip(results) {
+            let label = text(&c["label"], "case label");
+            assert_eq!(
+                label,
+                text(&r["label"], "golden label"),
+                "card {id}: case order"
+            );
+            let input = compact(&json!({"frozen_context": entry["frozen_context"],
+                "scope": c["scope"], "question_id": c["question_id"], "calls": c["calls"]}));
+            check(
+                id,
+                "llm_aggregate_perm_avg",
+                label,
+                &llm_aggregate_perm_avg(&input),
+                &r["result"],
+            );
+            checks += 1;
+        }
+    }
+    assert!(checks > 0, "no perm_avg golden entries were checked");
 }

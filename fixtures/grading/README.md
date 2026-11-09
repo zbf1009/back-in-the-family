@@ -10,6 +10,8 @@ native and wasm32 parity tests and the Probe_Runner's TypeScript parity test.
 |---|---|
 | `dev-outputs.json` | For every Dev_Card: valid outputs (one per option for D; gold, fenced gold, empty, `must_not_include` and severe-pattern answers for S, all built from the card's own answer key) and Illegal outputs from a fixed list of mutations (empty, prose, truncated, wrong type, unknown field, bad enum, duplicate evidence, timeout, runtime error, and so on). At least one valid and one Illegal output per card. Each output has a `label`, a `kind` (`valid` or `illegal`) and either `raw` text or an `outcome` object. |
 | `dev-golden.json` | The exact result bytes (as strings) of every export on every card and output. |
+| `perm-avg-inputs.json` | Synthetic inputs of `llm_aggregate_perm_avg` for every D Dev_Card: per card its `frozen_context` and about 30 cases (accepted lexeme forms, a 0.1 + 0.2 against 0.3 tie, 40-digit carries, scale 60, the base call only, and one fault per Illegal reason). The stored bodies are built from the card's option IDs; no model output. |
+| `perm-avg-golden.json` | The exact result bytes of `llm_aggregate_perm_avg` for every case of `perm-avg-inputs.json`, same order. |
 
 ## What `dev-golden.json` holds
 
@@ -41,7 +43,7 @@ scripts/regen-grading-golden.sh
 ```
 
 which builds `sim-cli` and runs `sim-cli grading-outputs` (writes `dev-outputs.json`) and then
-`sim-cli grading-golden` (writes `dev-golden.json`). Running it twice leaves `git status`
+`sim-cli grading-golden` (writes `dev-golden.json`), `grading-system-one-golden`, `grading-perm-avg-inputs` and `grading-perm-avg-golden`. Running it twice leaves `git status`
 unchanged. Review the diff, and say in the commit message that the golden file was
 regenerated on purpose. A fixture failure otherwise means behavior changed: fix the code, do
 not regenerate to make a test pass. Never edit these files by hand, except to demonstrate

@@ -79,6 +79,13 @@ export const llmValidate = (input: string, mode: ValidateMode, cardId?: string):
 /** System_One_Mapping render: `{"frozen_context":…,"mapping":"…","permutation":"base"}` in, JSON text out (R19.7). */
 export const llmRenderSystemOne = (input: string, cardId?: string): string =>
   guard('llm_render_system_one', cardId, () => glue.llm_render_system_one(input));
+/**
+ * The `perm_avg` Aggregation_Rule (R20.3 to R20.8): `{"frozen_context":…,"scope":"scored"|"sanity",
+ * "question_id":"decision","calls":[{"permutation","status","response_text"},…]}` in, JSON text out.
+ * The sums and the choice come from Rust only; TS never reads a probability.
+ */
+export const llmAggregatePermAvg = (input: string, cardId?: string): string =>
+  guard('llm_aggregate_perm_avg', cardId, () => glue.llm_aggregate_perm_avg(input));
 export const llmGrade = (input: string, cardId?: string): string =>
   guard('llm_grade', cardId, () => glue.llm_grade(input));
 export const llmIdentity = (input: string, cardId?: string): string =>

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   guard,
+  llmAggregatePermAvg,
   llmContrast,
   llmGrade,
   llmIdentity,
@@ -19,7 +20,7 @@ test('wasmSha256 is 64 lowercase hex characters', () => {
 });
 
 test('every export answers a bad input with an ok:false envelope', () => {
-  const calls = [llmParseCard, llmPermutations, llmRenderPrompt, llmRenderSystemOne, (input: string) => llmValidate(input, 'json'), llmGrade, llmIdentity, llmContrast];
+  const calls = [llmParseCard, llmPermutations, llmRenderPrompt, llmRenderSystemOne, (input: string) => llmValidate(input, 'json'), llmGrade, llmIdentity, llmContrast, llmAggregatePermAvg];
   for (const call of calls) {
     const out = JSON.parse(call('not json')) as { ok: boolean };
     assert.equal(out.ok, false, call.name);

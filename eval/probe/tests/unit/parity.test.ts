@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import {
+  llmAggregatePermAvg,
   llmContrast,
   llmGrade,
   llmIdentity,
@@ -185,4 +186,29 @@ test('every system-one-golden.json case matches through simwasm.ts (raw_choice m
     }
   }
   assert.ok(checks > 0, 'no system-one golden entries were checked');
+});
+
+test('every perm-avg-golden.json case matches through simwasm.ts (llm_aggregate_perm_avg)', () => {
+  type Case = { label: string; scope: string; question_id: string; calls: Json[] };
+  const inputs = JSON.parse(read('fixtures/grading/perm-avg-inputs.json')) as {
+    cards: { card: string; frozen_context: Json; cases: Case[] }[];
+  };
+  const golden = JSON.parse(read('fixtures/grading/perm-avg-golden.json')) as {
+    cards: { card: string; cases: { label: string; result: string }[] }[];
+  };
+  assert.equal(inputs.cards.length, golden.cards.length, 'inputs and golden card counts');
+  let checks = 0;
+  inputs.cards.forEach((entry, i) => {
+    const expected = golden.cards[i];
+    assert.ok(expected !== undefined && expected.card === entry.card, `card order at ${entry.card}`);
+    assert.equal(expected.cases.length, entry.cases.length, `card ${entry.card}: case counts`);
+    entry.cases.forEach((c, k) => {
+      const want = expected.cases[k];
+      assert.ok(want !== undefined && want.label === c.label, `card ${entry.card}: case order at ${c.label}`);
+      const input = JSON.stringify({ frozen_context: entry.frozen_context, scope: c.scope, question_id: c.question_id, calls: c.calls });
+      check(entry.card, 'llm_aggregate_perm_avg', c.label, llmAggregatePermAvg(input, entry.card), want.result);
+      checks++;
+    });
+  });
+  assert.ok(checks > 0, 'no perm_avg golden entries were checked');
 });

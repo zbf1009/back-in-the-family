@@ -14,8 +14,8 @@
 
 use serde_json::{Value, json};
 use sim_wasm::llm::{
-    llm_contrast, llm_grade, llm_identity, llm_parse_card, llm_permutations, llm_render_prompt,
-    llm_render_system_one, llm_validate,
+    llm_aggregate_perm_avg, llm_contrast, llm_grade, llm_identity, llm_parse_card,
+    llm_permutations, llm_render_prompt, llm_render_system_one, llm_validate,
 };
 use wasm_bindgen_test::wasm_bindgen_test;
 
@@ -24,7 +24,7 @@ const CASES: u64 = 256;
 const KINDS: [&str; 4] = ["input", "card", "answer_key", "render"];
 
 type Export = fn(&str) -> String;
-const EXPORTS: [(&str, Export); 9] = [
+const EXPORTS: [(&str, Export); 10] = [
     ("llm_parse_card", llm_parse_card),
     ("llm_permutations", llm_permutations),
     ("llm_render_prompt", llm_render_prompt),
@@ -34,6 +34,7 @@ const EXPORTS: [(&str, Export); 9] = [
     ("llm_grade", llm_grade),
     ("llm_identity", llm_identity),
     ("llm_contrast", llm_contrast),
+    ("llm_aggregate_perm_avg", llm_aggregate_perm_avg),
 ];
 
 fn card(id: &str) -> &'static str {
@@ -65,6 +66,10 @@ fn golden_inputs() -> Vec<String> {
         json!({"card": card(D1), "verdict": verdict}).to_string(),
         json!({"card_a": card(D1), "verdict_a": verdict,
                "card_b": card(D2), "verdict_b": verdict})
+        .to_string(),
+        json!({"frozen_context": ctx, "scope": "sanity", "question_id": "decision",
+               "calls": [{"permutation": "base", "status": "ok", "response_text":
+                   "{\"result\":{\"answers\":{\"decision\":{\"choice\":\"heed_warning\",\"probabilities\":{\"heed_warning\":0.6,\"burn_offering\":0.2,\"dismiss_dream\":0.1,\"read_as_blessing\":0.1}}}}}"}]})
         .to_string(),
     ]
 }

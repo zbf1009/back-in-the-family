@@ -1,0 +1,29 @@
+[meta]
+rule_version: 1
+name: perm_avg
+applies_to: Decision Cards (task D) with a stored System_One body for every Variant_Permutation
+not_a_prompt: This text is never sent to a Runtime. Its sha256 is the Aggregation_Hash.
+
+[rule]
+1. Source of the numbers. For each call of the Card's Variant_Permutations (the kept Permutations base, reversed, rotated_1 and rotated_2; only base for a Sanity_Card), read the number lexemes of result.answers.<question_id>.probabilities exactly as written in the stored body. The member confidence is never read. The per-call choice is checked to be an option ID and plays no further part.
+2. Keys. The keys of probabilities must be exactly the Card's option IDs: no missing, unknown or duplicate key.
+3. Exact decimal. Each lexeme must match the JSON number grammar. It is converted with digit operations only (no binary floating point, no fixed-width integer that can overflow). A leading minus sign, including -0, is out of range. The mantissa M is the integer and fraction digits without leading zeros, and the decimal exponent X is the written exponent minus the number of fraction digits. Trailing zeros of M are removed and added to X, so 0.50, 5e-1 and 0.5 are the same value (M=5, X=-1), 1 is M=1, X=0, and 0 has no digits. M has at most 40 digits. The value M x 10^X must be at most 1. The scale is -X for a negative X, else 0, and must be at most 60 (so 1e-60 is accepted and 1e-61 is not). The checks run in this order: grammar, sign, digits, range, scale. The first failure names the call and the option.
+4. Exact sum. The Card's common scale is the largest scale of any of its lexemes. Every lexeme is written as an integer at that scale by appending zeros. For each option ID the integers of all calls are added with schoolbook decimal addition. No division, rounding or normalisation is applied. A call whose probabilities do not add up to 1 is not rejected: the rule does not rely on it.
+5. Choice. The answer is the option ID with the largest exact sum. On equal sums the smallest option ID by UTF-8 byte order is chosen. The base Permutation has no special role, and neither the order of the calls nor the position at which an option was shown changes the answer.
+6. Illegal. Any failure above gives the answer Illegal with the first reason found, in the order of the Card's Variant_Permutations. An Illegal answer is not acceptable, not severe and counts in every denominator.
+
+[illegal]
+call_missing: a Variant_Permutation has no record, appears twice, or is not a Permutation of this Card
+call_timeout: the call timed out
+call_error: the call ended in a runtime or HTTP error
+call_engine_fault: the call is an engine fault (truncated_state)
+body_not_json: the stored body is not valid JSON for the strict reader (this includes a duplicate key and a lexeme outside the JSON number grammar)
+no_answer: no result.answers.<question_id> object
+choice_missing_or_not_string: choice is absent or not a string
+choice_not_option: choice is not one of the Card's option IDs
+no_probabilities: probabilities is absent or not an object
+probabilities_keys: the keys of probabilities are not exactly the Card's option IDs
+lexeme_not_number: a probability is not a JSON number
+lexeme_out_of_range: a leading minus sign (including -0), or a value above 1
+lexeme_digits: more than 40 significant digits
+lexeme_scale: a decimal exponent below -60

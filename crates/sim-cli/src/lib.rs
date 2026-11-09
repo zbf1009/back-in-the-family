@@ -30,6 +30,8 @@ USAGE:
   sim-cli grading-outputs --cards FILE --out FILE
   sim-cli grading-golden --cards FILE --outputs FILE --out FILE
   sim-cli grading-system-one-golden --cards FILE --out FILE
+  sim-cli grading-perm-avg-inputs --cards FILE --out FILE
+  sim-cli grading-perm-avg-golden --inputs FILE --out FILE
   sim-cli --help
 
 record       Run N ticks from seed S and write a replay file (parent directories are
@@ -70,6 +72,10 @@ grading-golden   Run every sim_core::llm::api export on every card x fixture out
              write the expected result bytes. Deterministic. Same script.
 grading-system-one-golden  Run the raw_choice mode of llm_validate and llm_render_system_one
              on every Dev_Card and write the expected result bytes. Deterministic. Same script.
+grading-perm-avg-inputs  Write the synthetic inputs of llm_aggregate_perm_avg (built from the
+             Dev_Cards' option IDs; no model output). Deterministic. Same script.
+grading-perm-avg-golden  Run llm_aggregate_perm_avg on those inputs and write the expected
+             result bytes. Deterministic. Same script.
 
 EXIT CODES:
   0  success
@@ -107,6 +113,8 @@ fn dispatch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
         "grading-outputs" => grading::grading_outputs(rest, out, err),
         "grading-golden" => grading::grading_golden(rest, out, err),
         "grading-system-one-golden" => grading::grading_system_one_golden(rest, out, err),
+        "grading-perm-avg-inputs" => grading::grading_perm_avg_inputs(rest, out, err),
+        "grading-perm-avg-golden" => grading::grading_perm_avg_golden(rest, out, err),
         other => {
             let _ = writeln!(err, "error: unknown subcommand {other:?}\n\n{USAGE}");
             commands::EXIT_USAGE_OR_MALFORMED

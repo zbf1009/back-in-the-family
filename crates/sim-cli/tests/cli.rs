@@ -574,10 +574,24 @@ fn grading_generators_are_deterministic_and_match_the_committed_fixtures() {
         system_one,
     ]);
     assert_eq!(code(&o), 0, "{}", stderr(&o));
+    let (pa_in, pa_out) = (dir.path("pi.json"), dir.path("pg.json"));
+    let (pa_in, pa_out) = (pa_in.to_str().unwrap(), pa_out.to_str().unwrap());
+    let o = sim_cli(&["grading-perm-avg-inputs", "--cards", cards, "--out", pa_in]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    let o = sim_cli(&[
+        "grading-perm-avg-golden",
+        "--inputs",
+        pa_in,
+        "--out",
+        pa_out,
+    ]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
     for (made, committed) in [
         (outputs, "fixtures/grading/dev-outputs.json"),
         (golden, "fixtures/grading/dev-golden.json"),
         (system_one, "fixtures/grading/system-one-golden.json"),
+        (pa_in, "fixtures/grading/perm-avg-inputs.json"),
+        (pa_out, "fixtures/grading/perm-avg-golden.json"),
     ] {
         let made = fs::read(made).unwrap();
         assert!(made.ends_with(b"}\n"));

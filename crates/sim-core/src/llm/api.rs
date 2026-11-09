@@ -17,6 +17,7 @@
 //! | [`llm_grade`] | `{"card":"<line>","verdict":…}` | `grade` |
 //! | [`llm_identity`] | `{"card":"<line>","verdict":…}` | `identity` |
 //! | [`llm_contrast`] | `{"card_a":…,"verdict_a":…,"card_b":…,"verdict_b":…}` | `contrast` |
+//! | [`llm_aggregate_perm_avg`] | `{"frozen_context":…,"scope":…,"question_id":…,"calls":[…]}` | `answer`, `sums`, `calls`, `positions`, `rule_version` |
 //!
 //! Shapes the design leaves open:
 //!
@@ -43,6 +44,7 @@
 
 use std::collections::BTreeMap;
 
+use super::aggregate::{self, Answer, CallInput, CallStatus, Scope};
 use super::answer::{self, debt_status_str, direction_str, level_str, promise_status_str};
 use super::card::{
     self, CardError, CardErrorKind, ContrastRole, ParsedCard, Split, family_name,
@@ -820,4 +822,148 @@ fn contrast_inner(input: &str) -> Res {
         )]),
         Err(e) => err("answer_key", e.to_string()),
     }
+}
+
+/// The `perm_avg` Aggregation_Rule (R20.3 to R20.8, DA-25). Input:
+/// `{"frozen_context":…,"scope":"scored"|"sanity","question_id":"decision","calls":
+/// [{"permutation":"base","status":"ok"|"timeout"|"error"|"engine_fault"|"missing",
+/// "response_text":"<verbatim body>"|null},…]}`. Result members: `answer`
+/// (`{"kind":"decision","option":…}` or `{"kind":"illegal","reason":…,"call":…|null,
+/// "detail":…}`), `sums` (`{"scale":N,"options":[{"id","sum"},…]}` or `null`), `calls`
+/// (`[{"permutation","choice","probabilities":[{"id","lexeme"},…]},…]`), `positions`
+/// (`{"original":p,"shown":[{"permutation","position"},…]}` or `null`) and `rule_version`.
+/// A D context only; an S context or an unknown `scope` is an `input` error.
+pub fn llm_aggregate_perm_avg(input: &str) -> String {
+    envelope(aggregate_inner(input))
+}
+
+fn read_calls(v: Json) -> Result<Vec<CallInput>, ApiError> {
+    let Json::Array(items) = v else {
+        return input_err("input.calls must be an array");
+    };
+    let mut out = Vec::new();
+    for item in items {
+        let mut f = Fields::new("call", item)?;
+        let permutation = f.string("permutation")?;
+        let status_name = f.string("status")?;
+        let Some(status) = CallStatus::from_name(&status_name) else {
+            return input_err("call.status is not a known status");
+        };
+        let body = match f.opt("response_text") {
+            None | Some(Json::Null) => None,
+            Some(Json::Str(s)) => Some(s),
+            Some(_) => return input_err("call.response_text must be a string or null"),
+        };
+        if status == CallStatus::Ok && body.is_none() {
+            return input_err("call.response_text is required when status is ok");
+        }
+        f.finish()?;
+        out.push(CallInput {
+            permutation,
+            status,
+            body,
+        });
+    }
+    Ok(out)
+}
+
+fn aggregate_inner(input: &str) -> Res {
+    let mut f = read_input(input)?;
+    let ctx = read_context(f.req("frozen_context")?)?;
+    let scope = match f.string("scope")?.as_str() {
+        "scored" => Scope::Scored,
+        "sanity" => Scope::Sanity,
+        _ => return input_err("input.scope must be scored or sanity"),
+    };
+    let question_id = f.string("question_id")?;
+    let calls = read_calls(f.req("calls")?)?;
+    f.finish()?;
+    let Some(agg) = aggregate::aggregate(&ctx, scope, &question_id, &calls) else {
+        return input_err("frozen_context must be a decision context");
+    };
+    let answer = match &agg.answer {
+        Answer::Decision(option) => {
+            object(vec![("kind", text("decision")), ("option", text(option))])
+        }
+        Answer::Illegal(i) => object(vec![
+            ("kind", text("illegal")),
+            ("reason", text(i.reason)),
+            ("call", i.call.as_deref().map_or(Json::Null, text)),
+            ("detail", text(&i.detail)),
+        ]),
+    };
+    let sums = agg.sums.as_ref().map_or(Json::Null, |s| {
+        object(vec![
+            (
+                "scale",
+                Json::int(i64::try_from(s.scale).unwrap_or(i64::MAX)),
+            ),
+            (
+                "options",
+                Json::Array(
+                    s.options
+                        .iter()
+                        .map(|(id, sum)| object(vec![("id", text(id)), ("sum", text(sum))]))
+                        .collect(),
+                ),
+            ),
+        ])
+    });
+    let calls_json = Json::Array(
+        agg.calls
+            .iter()
+            .map(|c| {
+                object(vec![
+                    ("permutation", text(&c.permutation)),
+                    ("choice", text(&c.choice)),
+                    (
+                        "probabilities",
+                        Json::Array(
+                            c.probabilities
+                                .iter()
+                                .map(|(id, lexeme)| {
+                                    object(vec![("id", text(id)), ("lexeme", text(lexeme))])
+                                })
+                                .collect(),
+                        ),
+                    ),
+                ])
+            })
+            .collect(),
+    );
+    let positions = agg.positions.as_ref().map_or(Json::Null, |p| {
+        object(vec![
+            (
+                "original",
+                Json::int(i64::try_from(p.original).unwrap_or(i64::MAX)),
+            ),
+            (
+                "shown",
+                Json::Array(
+                    p.shown
+                        .iter()
+                        .map(|(name, pos)| {
+                            object(vec![
+                                ("permutation", text(name)),
+                                (
+                                    "position",
+                                    Json::int(i64::try_from(*pos).unwrap_or(i64::MAX)),
+                                ),
+                            ])
+                        })
+                        .collect(),
+                ),
+            ),
+        ])
+    });
+    Ok(vec![
+        ("answer", answer),
+        ("sums", sums),
+        ("calls", calls_json),
+        ("positions", positions),
+        (
+            "rule_version",
+            Json::int(i64::from(aggregate::RULE_VERSION)),
+        ),
+    ])
 }

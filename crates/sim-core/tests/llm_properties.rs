@@ -3337,3 +3337,429 @@ fn mapping_errors_name_their_cause() {
 }
 
 use serde_json::{Value, json};
+
+/// Task 39.2: Properties 49 and 50, the `perm_avg` Aggregation_Rule.
+mod perm_avg_props {
+    use super::*;
+    use serde_json::{Value, json};
+    use sim_core::llm::api::{frozen_context_to_json, llm_aggregate_perm_avg};
+    use sim_core::llm::render::criteria;
+
+    // ---- test-only big-integer reference model (base 10^9 limbs, little endian) ----
+
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    struct Big(Vec<u64>);
+
+    const LIMB: u64 = 1_000_000_000;
+
+    impl Big {
+        fn zero() -> Self {
+            Big(vec![0])
+        }
+
+        fn from_digits(s: &str) -> Self {
+            let mut big = Big::zero();
+            for c in s.chars() {
+                big.mul_small(10);
+                big.add_small(u64::from(c.to_digit(10).expect("digit")));
+            }
+            big
+        }
+
+        fn mul_small(&mut self, m: u64) {
+            let mut carry = 0u64;
+            for limb in &mut self.0 {
+                let v = *limb * m + carry;
+                *limb = v % LIMB;
+                carry = v / LIMB;
+            }
+            while carry > 0 {
+                self.0.push(carry % LIMB);
+                carry /= LIMB;
+            }
+        }
+
+        fn add_small(&mut self, a: u64) {
+            let mut carry = a;
+            for limb in &mut self.0 {
+                if carry == 0 {
+                    break;
+                }
+                let v = *limb + carry;
+                *limb = v % LIMB;
+                carry = v / LIMB;
+            }
+            while carry > 0 {
+                self.0.push(carry % LIMB);
+                carry /= LIMB;
+            }
+        }
+
+        fn add(&mut self, other: &Big) {
+            let mut carry = 0u64;
+            let n = self.0.len().max(other.0.len());
+            self.0.resize(n, 0);
+            for (i, limb) in self.0.iter_mut().enumerate() {
+                let v = *limb + other.0.get(i).copied().unwrap_or(0) + carry;
+                *limb = v % LIMB;
+                carry = v / LIMB;
+            }
+            if carry > 0 {
+                self.0.push(carry);
+            }
+        }
+
+        fn mul_pow10(&mut self, k: usize) {
+            for _ in 0..k {
+                self.mul_small(10);
+            }
+        }
+
+        fn trimmed(&self) -> Vec<u64> {
+            let mut v = self.0.clone();
+            while v.len() > 1 && v.last() == Some(&0) {
+                v.pop();
+            }
+            v
+        }
+
+        fn cmp(&self, other: &Big) -> std::cmp::Ordering {
+            let (a, b) = (self.trimmed(), other.trimmed());
+            a.len()
+                .cmp(&b.len())
+                .then_with(|| a.iter().rev().cmp(b.iter().rev()))
+        }
+
+        fn to_decimal(&self) -> String {
+            let v = self.trimmed();
+            let mut out = format!("{}", v.last().copied().unwrap_or(0));
+            for limb in v.iter().rev().skip(1) {
+                out.push_str(&format!("{limb:09}"));
+            }
+            out
+        }
+    }
+
+    // ---- lexeme generator: text plus the reference's own (mantissa, scale) ----
+
+    #[derive(Clone, Debug)]
+    struct Lex {
+        text: String,
+        /// Normalised mantissa digits (`"0"` for zero) and scale, from the generator.
+        mantissa: String,
+        scale: usize,
+    }
+
+    fn arb_lexeme() -> BoxedStrategy<Lex> {
+        let zero = (0usize..4).prop_map(|i| Lex {
+            text: ["0", "0.0", "0e0", "0.00e-5"][i].to_owned(),
+            mantissa: "0".to_owned(),
+            scale: 0,
+        });
+        let one = (0usize..5).prop_map(|i| Lex {
+            text: ["1", "1.0", "1e0", "10e-1", "0.1e1"][i].to_owned(),
+            mantissa: "1".to_owned(),
+            scale: 0,
+        });
+        let general = (1usize..=60)
+            .prop_flat_map(|s| {
+                let max_len = s.min(40);
+                (
+                    Just(s),
+                    1usize..=max_len,
+                    1u8..=9,
+                    prop::collection::vec(0u8..=9, 39),
+                    0usize..5,
+                )
+            })
+            .prop_map(|(s, len, first, rest, style)| {
+                let mut m = first.to_string();
+                for d in rest.iter().take(len - 1) {
+                    m.push_str(&d.to_string());
+                }
+                let zeros = "0".repeat(s - len);
+                let text = match style {
+                    0 => format!("0.{zeros}{m}"),
+                    1 => format!("{m}e-{s}"),
+                    2 => format!("0.{zeros}{m}000"),
+                    3 => format!("{m}E-{s}"),
+                    _ => format!("{m}.0e-{s}"),
+                };
+                let stripped = m.trim_end_matches('0');
+                Lex {
+                    text,
+                    scale: s - (m.len() - stripped.len()),
+                    mantissa: stripped.to_owned(),
+                }
+            });
+        prop_oneof![1 => zero, 1 => one, 6 => general].boxed()
+    }
+
+    /// A D context from the Dev_Cards (the card-valid ones), with 2 to 5 options.
+    fn arb_d_ctx() -> BoxedStrategy<FrozenContext> {
+        (arb_dev_card(), 2usize..=5)
+            .prop_filter_map("decision card", |(card, k)| {
+                let mut ctx = card.1;
+                if ctx.family == sim_core::llm::Family::Sanity {
+                    return None;
+                }
+                let TaskSpec::Decision { options } = &mut ctx.spec else {
+                    return None;
+                };
+                while options.len() < k {
+                    let mut extra = options.last()?.clone();
+                    // Unique IDs: a real Frozen_Context never repeats an option ID.
+                    extra.id =
+                        sim_core::llm::OptionId::new(&format!("extra_option_{}", options.len()))?;
+                    options.push(extra);
+                }
+                options.truncate(k);
+                Some(ctx)
+            })
+            .boxed()
+    }
+
+    fn ids_of(ctx: &FrozenContext) -> Vec<String> {
+        match &ctx.spec {
+            TaskSpec::Decision { options } => {
+                options.iter().map(|o| o.id.as_str().to_owned()).collect()
+            }
+            TaskSpec::Synthesis { .. } => Vec::new(),
+        }
+    }
+
+    fn body(choice: &str, confidence: &str, probs: &[(String, String)]) -> String {
+        let members: Vec<String> = probs.iter().map(|(k, v)| format!("\"{k}\":{v}")).collect();
+        format!(
+            "{{\"result\":{{\"answers\":{{\"decision\":{{\"confidence\":{confidence},\"choice\":\"{choice}\",\"probabilities\":{{{}}}}}}}}}}}",
+            members.join(",")
+        )
+    }
+
+    fn ok_call(permutation: &str, text: &str) -> Value {
+        json!({"permutation": permutation, "status": "ok", "response_text": text})
+    }
+
+    fn run(ctx: &FrozenContext, scope: &str, calls: &[Value]) -> Value {
+        let input = json!({
+            "frozen_context": serde_json::from_str::<Value>(&json::write(&frozen_context_to_json(ctx))).expect("ctx"),
+            "scope": scope, "question_id": "decision", "calls": calls});
+        let out = llm_aggregate_perm_avg(&input.to_string());
+        serde_json::from_str(&out).expect("the export returns JSON")
+    }
+
+    // Feature: llm-probe, Property 49: The Aggregation_Rule chooses by exact decimal sums, ties by option ID bytes, and ignores order and position
+    // **Validates: Requirements 20.3, 20.4, 20.5, 20.7, 20.8, 20.17**
+    proptest! {
+        #[test]
+        fn aggregation_is_exact_and_invariant(
+            ctx in arb_d_ctx(),
+            pool in prop::collection::vec(arb_lexeme(), 20),
+            shift in 0usize..4,
+            conf in 0u32..100,
+        ) {
+            let ids = ids_of(&ctx);
+            let perms = permutations(&ctx);
+            let n = ids.len();
+            // Call c carries pool[c * n + o] for option o, written in the Permutation's order.
+            let lex = |c: usize, o: usize| pool[(c * n + o) % pool.len()].clone();
+            let make_calls = |label_shift: usize, choice_idx: usize, confidence: &str| -> Vec<Value> {
+                perms.iter().enumerate().map(|(c, _)| {
+                    let name = perms[(c + label_shift) % perms.len()].name();
+                    let shown = criteria(&ctx, perms[c]);
+                    let probs: Vec<(String, String)> = shown.iter().map(|(id, _)| {
+                        let o = ids.iter().position(|x| x == id).expect("id");
+                        (id.clone(), lex(c, o).text)
+                    }).collect();
+                    ok_call(name, &body(&ids[choice_idx % n], confidence, &probs))
+                }).collect()
+            };
+            let v = run(&ctx, "scored", &make_calls(0, 0, "0.5"));
+            prop_assert_eq!(&v["ok"], &json!(true));
+
+            // Reference sums.
+            let scale = (0..perms.len()).flat_map(|c| (0..n).map(move |o| (c, o)))
+                .map(|(c, o)| lex(c, o).scale).max().unwrap_or(0);
+            let mut expected: Vec<(String, Big)> = ids.iter().cloned().map(|i| (i, Big::zero())).collect();
+            expected.sort_by(|a, b| a.0.as_bytes().cmp(b.0.as_bytes()));
+            for c in 0..perms.len() {
+                for (o, id) in ids.iter().enumerate() {
+                    let l = lex(c, o);
+                    let mut value = Big::from_digits(&l.mantissa);
+                    if l.mantissa != "0" {
+                        value.mul_pow10(scale - l.scale);
+                    }
+                    let slot = expected.iter_mut().find(|(i, _)| i == id).expect("slot");
+                    slot.1.add(&value);
+                }
+            }
+            let got: Vec<(String, String)> = v["sums"]["options"].as_array().expect("sums").iter()
+                .map(|o| (o["id"].as_str().unwrap_or("").to_owned(), o["sum"].as_str().unwrap_or("").to_owned()))
+                .collect();
+            let want: Vec<(String, String)> = expected.iter().map(|(i, b)| (i.clone(), b.to_decimal())).collect();
+            prop_assert_eq!(got, want);
+            prop_assert_eq!(&v["sums"]["scale"], &json!(scale));
+            let mut best = &expected[0];
+            for e in &expected {
+                if e.1.cmp(&best.1) == std::cmp::Ordering::Greater {
+                    best = e;
+                }
+            }
+            prop_assert_eq!(&v["answer"], &json!({"kind": "decision", "option": best.0}));
+
+            // Positions are the 1-based index in each Permutation's criteria order.
+            let pos = |p: Permutation| criteria(&ctx, p).iter().position(|(i, _)| *i == best.0).expect("pos") + 1;
+            prop_assert_eq!(&v["positions"]["original"], &json!(pos(Permutation::Base)));
+            for (k, p) in perms.iter().enumerate() {
+                prop_assert_eq!(&v["positions"]["shown"][k], &json!({"permutation": p.name(), "position": pos(*p)}));
+            }
+
+            // Reordering the calls, relabelling the Permutations, and changing `choice` or
+            // `confidence` change neither the answer nor the sums.
+            let mut reordered = make_calls(0, 0, "0.5");
+            reordered.reverse();
+            let r = run(&ctx, "scored", &reordered);
+            prop_assert_eq!(&r["answer"], &v["answer"]);
+            prop_assert_eq!(&r["sums"], &v["sums"]);
+            let relabelled = run(&ctx, "scored", &make_calls(shift, shift + 1, &format!("0.{conf:02}")));
+            prop_assert_eq!(&relabelled["answer"], &v["answer"]);
+            prop_assert_eq!(&relabelled["sums"], &v["sums"]);
+        }
+    }
+
+    // Feature: llm-probe, Property 50: Every unacceptable call or lexeme gives its own Illegal reason, and the export is total
+    // **Validates: Requirements 20.4, 20.6, 20.17, 4.8**
+    fn lexeme_faults() -> Vec<(String, &'static str)> {
+        vec![
+            (".5".to_owned(), "body_not_json"),
+            ("-0.1".to_owned(), "lexeme_out_of_range"),
+            ("-0".to_owned(), "lexeme_out_of_range"),
+            ("1.5".to_owned(), "lexeme_out_of_range"),
+            ("10".to_owned(), "lexeme_out_of_range"),
+            ("NaN".to_owned(), "body_not_json"),
+            ("\"0.5\"".to_owned(), "lexeme_not_number"),
+            ("null".to_owned(), "lexeme_not_number"),
+            ("1e-61".to_owned(), "lexeme_scale"),
+            (format!("0.{}", "1".repeat(41)), "lexeme_digits"),
+            (format!("1e-{}", "9".repeat(400)), "lexeme_scale"),
+            (format!("1e{}", "9".repeat(400)), "lexeme_out_of_range"),
+        ]
+    }
+
+    const FAULT_KINDS: usize = 17;
+
+    proptest! {
+        #[test]
+        fn every_fault_gives_its_own_reason(
+            ctx in arb_d_ctx(),
+            fault in 0usize..(FAULT_KINDS + 12 + 1),
+            call_pick in 0usize..4,
+            opt_pick in 0usize..5,
+        ) {
+            let ids = ids_of(&ctx);
+            let perms = permutations(&ctx);
+            let ci = call_pick % perms.len();
+            let oi = opt_pick % ids.len();
+            let good: Vec<(String, String)> = ids.iter().map(|i| (i.clone(), "0.25".to_owned())).collect();
+            let good_body = body(&ids[0], "0.5", &good);
+            let mut calls: Vec<Value> = perms.iter().map(|p| ok_call(p.name(), &good_body)).collect();
+            let name = perms[ci].name().to_owned();
+            let mut expect: Option<(&str, String)> = None;
+            let bad_body = |choice: Option<&str>, probs: Option<String>| -> String {
+                let mut members = Vec::new();
+                if let Some(c) = choice { members.push(format!("\"choice\":{c}")); }
+                if let Some(p) = probs { members.push(format!("\"probabilities\":{p}")); }
+                format!(
+                    "{{\"result\":{{\"answers\":{{\"decision\":{{{}{}",
+                    members.join(","),
+                    "}}}}"
+                )
+            };
+            let probs_text = |drop: Option<usize>, extra: &str| -> String {
+                let mut m: Vec<String> = ids.iter().enumerate().filter(|(i, _)| Some(*i) != drop)
+                    .map(|(_, id)| format!("\"{id}\":0.25")).collect();
+                if !extra.is_empty() { m.push(extra.to_owned()); }
+                format!("{{{}}}", m.join(","))
+            };
+            let first = format!("\"{}\"", ids[0]);
+            let set_status = |calls: &mut Vec<Value>, status: &str| {
+                calls[ci] = json!({"permutation": name, "status": status, "response_text": null});
+            };
+            let set_body = |calls: &mut Vec<Value>, text: String| { calls[ci] = ok_call(&name, &text); };
+            match fault {
+                0 => { set_status(&mut calls, "timeout"); expect = Some(("call_timeout", name.clone())); }
+                1 => { set_status(&mut calls, "error"); expect = Some(("call_error", name.clone())); }
+                2 => { set_status(&mut calls, "engine_fault"); expect = Some(("call_engine_fault", name.clone())); }
+                3 => { set_status(&mut calls, "missing"); expect = Some(("call_missing", name.clone())); }
+                4 => { calls.remove(ci); expect = Some(("call_missing", name.clone())); }
+                5 => { let dup = calls[ci].clone(); calls.push(dup); expect = Some(("call_missing", name.clone())); }
+                6 => { calls.push(ok_call("sideways", &good_body)); expect = Some(("call_missing", "sideways".to_owned())); }
+                7 => { set_body(&mut calls, "not json".to_owned()); expect = Some(("body_not_json", name.clone())); }
+                8 => { set_body(&mut calls, "{\"result\":{\"answers\":{}}}".to_owned()); expect = Some(("no_answer", name.clone())); }
+                9 => { set_body(&mut calls, bad_body(None, Some(probs_text(None, "")))); expect = Some(("choice_missing_or_not_string", name.clone())); }
+                10 => { set_body(&mut calls, bad_body(Some("5"), Some(probs_text(None, "")))); expect = Some(("choice_missing_or_not_string", name.clone())); }
+                11 => { set_body(&mut calls, bad_body(Some("\"nope\""), Some(probs_text(None, "")))); expect = Some(("choice_not_option", name.clone())); }
+                12 => { set_body(&mut calls, bad_body(Some(&first), None)); expect = Some(("no_probabilities", name.clone())); }
+                13 => { set_body(&mut calls, bad_body(Some(&first), Some("[1]".to_owned()))); expect = Some(("no_probabilities", name.clone())); }
+                14 => { set_body(&mut calls, bad_body(Some(&first), Some(probs_text(None, "\"zzz\":0.25")))); expect = Some(("probabilities_keys", name.clone())); }
+                15 => { set_body(&mut calls, bad_body(Some(&first), Some(probs_text(Some(oi), "")))); expect = Some(("probabilities_keys", name.clone())); }
+                16 => { set_body(&mut calls, bad_body(Some(&first), Some(probs_text(None, &format!("\"{}\":0.25", ids[0]))))); expect = Some(("body_not_json", name.clone())); }
+                f if f < FAULT_KINDS + 12 => {
+                    let (lexeme, reason) = lexeme_faults().remove(f - FAULT_KINDS);
+                    let mut probs = good.clone();
+                    probs[oi].1 = lexeme;
+                    set_body(&mut calls, body(&ids[0], "0.5", &probs));
+                    expect = Some((reason, name.clone()));
+                }
+                _ => {}
+            }
+            let v = run(&ctx, "scored", &calls);
+            prop_assert_eq!(&v["ok"], &json!(true));
+            match expect {
+                None => {
+                    prop_assert_eq!(&v["answer"]["kind"], &json!("decision"));
+                    prop_assert!(!v["sums"].is_null());
+                }
+                Some((reason, call)) => {
+                    prop_assert_eq!(&v["answer"]["kind"], &json!("illegal"));
+                    prop_assert_eq!(&v["answer"]["reason"], &json!(reason));
+                    prop_assert_eq!(&v["answer"]["call"], &json!(call));
+                    prop_assert!(v["sums"].is_null());
+                    prop_assert!(v["positions"].is_null());
+                }
+            }
+        }
+
+        #[test]
+        fn the_export_is_total_on_arbitrary_input(
+            ctx in arb_d_ctx(),
+            text in "\\PC{0,300}",
+            status in 0usize..5,
+        ) {
+            let statuses = ["ok", "timeout", "error", "engine_fault", "missing"];
+            let calls = json!([{"permutation": "base", "status": statuses[status], "response_text": text}]);
+            let v = run(&ctx, "scored", calls.as_array().expect("array"));
+            prop_assert!(v["ok"].is_boolean());
+            let raw = llm_aggregate_perm_avg(&text);
+            let parsed: Value = serde_json::from_str(&raw).expect("JSON envelope");
+            prop_assert_eq!(&parsed["ok"], &json!(false));
+        }
+    }
+
+    #[test]
+    fn huge_and_deep_inputs_give_an_envelope() {
+        let mut runner = TestRunner::deterministic();
+        let ctx = arb_d_ctx().new_tree(&mut runner).expect("ctx").current();
+        let deep = "[".repeat(10_000);
+        let big = format!("\"{}\"", "a".repeat(1_100_000));
+        for text in [deep.clone(), big, "x".repeat(1_048_577)] {
+            let v = run(&ctx, "scored", &[ok_call("base", &text)]);
+            assert_eq!(v["answer"]["reason"], json!("body_not_json"), "{v}");
+        }
+        let v: Value = serde_json::from_str(&llm_aggregate_perm_avg(&deep)).expect("JSON");
+        assert_eq!(v["ok"], json!(false));
+        let nested = format!("{{\"a\":{deep}}}");
+        let v: Value = serde_json::from_str(&llm_aggregate_perm_avg(&nested)).expect("JSON");
+        assert_eq!(v["ok"], json!(false));
+    }
+}

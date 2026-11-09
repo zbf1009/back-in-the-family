@@ -53,3 +53,9 @@ pub fn llm_contrast(input: &str) -> String {
 pub fn llm_render_system_one(input: &str) -> String {
     api::llm_render_system_one(input)
 }
+
+/// The `perm_avg` Aggregation_Rule. See [`api::llm_aggregate_perm_avg`].
+#[wasm_bindgen]
+pub fn llm_aggregate_perm_avg(input: &str) -> String {
+    api::llm_aggregate_perm_avg(input)
+}

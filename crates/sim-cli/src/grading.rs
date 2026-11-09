@@ -39,6 +39,13 @@ const TEMPLATE_DECISION: &str = "[system]\nYou decide.\n[user]\nToday is day {{t
 const TEMPLATE_SYNTHESIS: &str = "[system]\nYou summarize.\n[user]\nToday is day {{tick}}.\n{{situation}}\nPeople:\n{{people}}\nRelations:\n{{relations}}\nEvents:\n{{events}}\nInput: {{player_input}}\nSubject: {{subject}}\nSchema:\n{{schema}}\n";
 const SCHEMA_TEXT: &str = "(synthetic schema text for the grading fixtures)";
 
+pub const PERM_AVG_INPUTS_FORMAT: &str = "llm-probe-perm-avg-inputs-v1";
+pub const PERM_AVG_GOLDEN_FORMAT: &str = "llm-probe-perm-avg-golden-v1";
+pub const PERM_AVG_INPUTS_USAGE: &str =
+    "usage: sim-cli grading-perm-avg-inputs --cards FILE --out FILE";
+pub const PERM_AVG_GOLDEN_USAGE: &str =
+    "usage: sim-cli grading-perm-avg-golden --inputs FILE --out FILE";
+
 pub const SYSTEM_ONE_USAGE: &str =
     "usage: sim-cli grading-system-one-golden --cards FILE --out FILE";
 
@@ -711,6 +718,272 @@ fn build_system_one_golden(cards: &[CardLine]) -> Res<Value> {
 }
 
 // ---------------------------------------------------------------------------------------
+// perm_avg golden (llm_aggregate_perm_avg), R20.7 and R20.17
+// ---------------------------------------------------------------------------------------
+
+const NINES_40: &str = "0.9999999999999999999999999999999999999999";
+const DIGITS_41: &str = "0.12345678901234567890123456789012345678901";
+
+/// One stored System_One body with the probability lexemes written exactly as given.
+fn perm_avg_body(choice: &str, probs: &[(&str, &str)], with_probabilities: bool) -> String {
+    let probs = probs
+        .iter()
+        .map(|(id, lexeme)| format!("\"{id}\":{lexeme}"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let probabilities = if with_probabilities {
+        format!(",\"probabilities\":{{{probs}}}")
+    } else {
+        String::new()
+    };
+    format!(
+        "{{\"result\":{{\"answers\":{{\"decision\":{{\"choice\":\"{choice}\"{probabilities},\"confidence\":0.5}}}}}}}}"
+    )
+}
+
+fn perm_avg_call(permutation: &str, status: &str, body: Option<String>) -> Value {
+    json!({"permutation": permutation, "status": status, "response_text": body})
+}
+
+/// The synthetic cases for one D card: `names` are its kept Permutations, `ids` its option
+/// IDs in card order (two or more).
+fn perm_avg_cases(names: &[String], ids: &[String]) -> Vec<Value> {
+    let id = |i: usize| ids.get(i).map_or("", String::as_str);
+    let last = ids.len().saturating_sub(1);
+    // Calls from a lexeme function of (call index, option index).
+    let calls_with = |lexeme: &dyn Fn(usize, usize) -> &'static str| -> Vec<Value> {
+        names
+            .iter()
+            .enumerate()
+            .map(|(c, name)| {
+                let probs: Vec<(&str, &str)> =
+                    (0..ids.len()).map(|o| (id(o), lexeme(c, o))).collect();
+                perm_avg_call(name, "ok", Some(perm_avg_body(id(0), &probs, true)))
+            })
+            .collect()
+    };
+    let case = |label: &str, scope: &str, calls: Vec<Value>| json!({"label": label, "scope": scope, "question_id": "decision", "calls": calls});
+    let mut cases = vec![
+        case(
+            "plain_decimals",
+            "scored",
+            calls_with(&|_, o| if o == 0 { "0.5" } else { "0.1" }),
+        ),
+        case(
+            "exponent_and_trailing_zero_forms",
+            "scored",
+            calls_with(&|c, o| match (o, c % 4) {
+                (0, 0) => "5e-1",
+                (0, 1) => "0.50",
+                (0, 2) => "50e-2",
+                (0, _) => "5E-1",
+                _ => "1e-60",
+            }),
+        ),
+        case(
+            "float_trap_tie",
+            "scored",
+            calls_with(&|c, o| match (o, c) {
+                (0, 0) => "0.1",
+                (0, 1) => "0.2",
+                (1, 0) => "0.3",
+                _ => "0",
+            }),
+        ),
+        case(
+            "carry_across_40_digit_lexemes",
+            "scored",
+            calls_with(&|c, o| {
+                if o == 1 && c == 0 { "1" } else { NINES_40 }
+            }),
+        ),
+        case(
+            "scale_60",
+            "scored",
+            calls_with(&|_, o| if o == 0 { "1e-60" } else { "0" }),
+        ),
+        case(
+            "zero_and_one",
+            "scored",
+            calls_with(&|_, o| {
+                if o == ids.len().saturating_sub(1) {
+                    "1"
+                } else {
+                    "0"
+                }
+            }),
+        ),
+    ];
+    // The base call only (RC-19), also on a Card that has more Permutations.
+    let base_only = names
+        .first()
+        .map(|name| {
+            let probs: Vec<(&str, &str)> = (0..ids.len())
+                .map(|o| (id(o), if o == last { "0.7" } else { "0.1" }))
+                .collect();
+            vec![perm_avg_call(
+                name,
+                "ok",
+                Some(perm_avg_body(id(0), &probs, true)),
+            )]
+        })
+        .unwrap_or_default();
+    cases.push(case("sanity_base_only", "sanity", base_only));
+
+    // Illegal answers, one fault each.
+    let good = || calls_with(&|_, o| if o == 0 { "0.6" } else { "0.2" });
+    let last_name = names.last().map_or("base", String::as_str);
+    let replace_last = |call: Value| {
+        let mut calls = good();
+        calls.pop();
+        calls.push(call);
+        calls
+    };
+    let all_probs = |lexeme_of_first: &'static str| -> Vec<(&str, &str)> {
+        (0..ids.len())
+            .map(|o| (id(o), if o == 0 { lexeme_of_first } else { "0.2" }))
+            .collect()
+    };
+    let mut missing = good();
+    missing.pop();
+    cases.push(case("illegal_missing_call", "scored", missing));
+    cases.push(case(
+        "illegal_timeout_call",
+        "scored",
+        replace_last(perm_avg_call(last_name, "timeout", None)),
+    ));
+    cases.push(case(
+        "illegal_error_call",
+        "scored",
+        replace_last(perm_avg_call(last_name, "error", None)),
+    ));
+    cases.push(case(
+        "illegal_truncated_state_call",
+        "scored",
+        replace_last(perm_avg_call(last_name, "engine_fault", None)),
+    ));
+    let no_probs = perm_avg_body(id(0), &all_probs("0.6"), false);
+    cases.push(case(
+        "illegal_no_probabilities",
+        "scored",
+        replace_last(perm_avg_call(last_name, "ok", Some(no_probs))),
+    ));
+    let outside = perm_avg_body("zz_not_an_option", &all_probs("0.6"), true);
+    cases.push(case(
+        "illegal_choice_outside_the_set",
+        "scored",
+        replace_last(perm_avg_call(last_name, "ok", Some(outside))),
+    ));
+    let mut short = all_probs("0.6");
+    short.pop();
+    cases.push(case(
+        "illegal_key_missing",
+        "scored",
+        replace_last(perm_avg_call(
+            last_name,
+            "ok",
+            Some(perm_avg_body(id(0), &short, true)),
+        )),
+    ));
+    let mut extra = all_probs("0.6");
+    extra.push(("zz_extra", "0.1"));
+    cases.push(case(
+        "illegal_key_unknown",
+        "scored",
+        replace_last(perm_avg_call(
+            last_name,
+            "ok",
+            Some(perm_avg_body(id(0), &extra, true)),
+        )),
+    ));
+    let mut duplicate = all_probs("0.6");
+    duplicate.push((id(0), "0.1"));
+    cases.push(case(
+        "illegal_key_duplicate",
+        "scored",
+        replace_last(perm_avg_call(
+            last_name,
+            "ok",
+            Some(perm_avg_body(id(0), &duplicate, true)),
+        )),
+    ));
+    let lexeme_faults: [(&str, &str); 11] = [
+        ("negative_zero", "-0"),
+        ("negative", "-0.1"),
+        ("above_one", "1.01"),
+        ("one_and_a_half", "1.5"),
+        ("leading_dot", ".5"),
+        ("hex", "0x1"),
+        ("exponent_below_minus_60", "1e-61"),
+        ("digits_41", DIGITS_41),
+        ("nan", "NaN"),
+        ("string_in_place_of_number", "\"0.5\""),
+        ("plus_sign", "+0.5"),
+    ];
+    for (name, lexeme) in lexeme_faults {
+        let body = perm_avg_body(id(0), &all_probs(lexeme), true);
+        cases.push(case(
+            &format!("illegal_lexeme_{name}"),
+            "scored",
+            replace_last(perm_avg_call(last_name, "ok", Some(body))),
+        ));
+    }
+    cases
+}
+
+fn build_perm_avg_inputs(cards: &[CardLine]) -> Res<Value> {
+    let mut entries = Vec::new();
+    for card in cards {
+        if card.value["task"] != "decision" {
+            continue;
+        }
+        let ctx = &card.context;
+        let perms = call(
+            api::llm_permutations,
+            &compact(&json!({"frozen_context": ctx}))?,
+        )?;
+        let names: Vec<String> = list_of(&perms["permutations"], "permutations")?
+            .iter()
+            .map(|n| str_of(n, "permutation name").map(str::to_owned))
+            .collect::<Res<_>>()?;
+        let ids: Vec<String> = list_of(&card.value["options"], "options")?
+            .iter()
+            .map(|o| str_of(&o["id"], "option id").map(str::to_owned))
+            .collect::<Res<_>>()?;
+        if ids.len() < 2 {
+            return Err(format!("card {}: fewer than two options", card.id));
+        }
+        entries.push(json!({"card": card.id, "frozen_context": ctx,
+            "cases": perm_avg_cases(&names, &ids)}));
+    }
+    Ok(json!({
+        "format": PERM_AVG_INPUTS_FORMAT,
+        "note": "Synthetic inputs of llm_aggregate_perm_avg built from the Dev_Cards' option IDs; no model output. Regenerated on purpose only, by scripts/regen-grading-golden.sh.",
+        "cards": entries,
+    }))
+}
+
+fn build_perm_avg_golden(inputs: &Value) -> Res<Value> {
+    let mut entries = Vec::new();
+    for entry in list_of(&inputs["cards"], "inputs.cards")? {
+        let mut results = Vec::new();
+        for c in list_of(&entry["cases"], "cases")? {
+            let input = json!({"frozen_context": entry["frozen_context"], "scope": c["scope"],
+                "question_id": c["question_id"], "calls": c["calls"]});
+            let (text, _) = run(api::llm_aggregate_perm_avg, &input)?;
+            results.push(json!({"label": c["label"], "result": text}));
+        }
+        entries.push(json!({"card": entry["card"], "cases": results}));
+    }
+    Ok(json!({
+        "format": PERM_AVG_GOLDEN_FORMAT,
+        "note": "Expected bytes of llm_aggregate_perm_avg for every case of perm-avg-inputs.json. Regenerated on purpose only, by scripts/regen-grading-golden.sh.",
+        "rule_version": sim_core::llm::aggregate::RULE_VERSION,
+        "cards": entries,
+    }))
+}
+
+// ---------------------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------------------
 
@@ -786,4 +1059,31 @@ pub fn grading_system_one_golden(args: &[String], out: &mut dyn Write, err: &mut
         ))
     };
     finish(run(), SYSTEM_ONE_USAGE, out, err)
+}
+
+pub fn grading_perm_avg_inputs(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let run = || -> Res<String> {
+        let p = args::parse(args, &["cards", "out"])?;
+        let cards = load_cards(require(&p, "cards")?)?;
+        let value = build_perm_avg_inputs(&cards)?;
+        let path = require(&p, "out")?;
+        write_json(path, &value)?;
+        Ok(format!("wrote perm_avg inputs -> {path}"))
+    };
+    finish(run(), PERM_AVG_INPUTS_USAGE, out, err)
+}
+
+pub fn grading_perm_avg_golden(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let run = || -> Res<String> {
+        let p = args::parse(args, &["inputs", "out"])?;
+        let ipath = require(&p, "inputs")?;
+        let text = fs::read_to_string(ipath).map_err(|e| format!("cannot read {ipath}: {e}"))?;
+        let inputs: Value =
+            serde_json::from_str(&text).map_err(|e| format!("{ipath}: not JSON: {e}"))?;
+        let value = build_perm_avg_golden(&inputs)?;
+        let path = require(&p, "out")?;
+        write_json(path, &value)?;
+        Ok(format!("wrote perm_avg golden -> {path}"))
+    };
+    finish(run(), PERM_AVG_GOLDEN_USAGE, out, err)
 }

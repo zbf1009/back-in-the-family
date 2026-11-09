@@ -49,6 +49,30 @@ export const templateHashes = (dir: string = TEMPLATES_DIR): Record<TaskType, st
  */
 export const loadSystemOneMapping = (repoDir: string, file: string): TextWithHash => load(join(repoDir, file));
 
+/** The Aggregation_Rule text of the `perm_avg` Decision_Variant (R20.8, DA-25). Never sent to a Runtime. */
+export const AGGREGATION_RULE_FILE = 'eval/probe/templates/aggregation.perm_avg.v1.txt';
+
+/** The text of the rule file and the Aggregation_Hash, the sha256 of its exact bytes. */
+export const loadAggregationRule = (repoDir: string, file: string = AGGREGATION_RULE_FILE): TextWithHash => load(join(repoDir, file));
+
+/** The number on the `rule_version:` line of the `[meta]` section; null when there is no such line or it is not a whole number. */
+export function ruleVersionOf(text: string): number | null {
+  const m = /^rule_version: ([0-9]+)$/m.exec(text);
+  return m === null ? null : Number(m[1]);
+}
+
+/**
+ * V18: the file's `rule_version` line must equal the `rule_version` the `llm_aggregate_perm_avg` export returns.
+ * Throws on a mismatch; `derive` calls it before it reads any Results file.
+ */
+export function checkRuleVersion(ruleText: string, exportVersion: number): void {
+  const fileVersion = ruleVersionOf(ruleText);
+  if (fileVersion === null) throw new Error('aggregation rule file has no "rule_version: <n>" line');
+  if (fileVersion !== exportVersion) {
+    throw new Error(`aggregation rule file says rule_version ${fileVersion} but the export returns ${exportVersion}`);
+  }
+}
+
 /** Warm-up hash per Task_Type. */
 export const warmupHashes = (dir: string = WARMUP_DIR): Record<TaskType, string> => ({
   decision: loadWarmup('decision', dir).sha256,

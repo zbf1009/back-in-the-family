@@ -2016,3 +2016,327 @@ mod json_api {
         assert_eq!(error(&llm_contrast(&unpaired.to_string())).0, "card");
     }
 }
+
+/// Task 39.2: the `perm_avg` Aggregation_Rule through `llm_aggregate_perm_avg` (R20.4 to R20.6).
+mod perm_avg_examples {
+    use serde_json::{Value, json};
+    use sim_core::llm::aggregate::{LexemeError, parse_lexeme};
+    use sim_core::llm::api::{llm_aggregate_perm_avg, llm_parse_card};
+
+    const DEV: &str = include_str!("../../../eval/cards/cards/dev.jsonl");
+
+    fn card(id: &str) -> &'static str {
+        DEV.lines()
+            .find(|l| l.contains(&format!("\"id\":\"{id}\"")))
+            .unwrap_or_else(|| panic!("no dev card {id}"))
+    }
+
+    fn ctx_of(id: &str) -> Value {
+        let v: Value = serde_json::from_str(&llm_parse_card(card(id))).expect("JSON");
+        v["frozen_context"].clone()
+    }
+
+    fn option_ids(ctx: &Value) -> Vec<String> {
+        ctx["options"]
+            .as_array()
+            .expect("options")
+            .iter()
+            .map(|o| o["id"].as_str().expect("id").to_owned())
+            .collect()
+    }
+
+    fn body(choice: &str, lexemes: &[(String, String)]) -> String {
+        let probs: Vec<String> = lexemes
+            .iter()
+            .map(|(id, l)| format!("\"{id}\":{l}"))
+            .collect();
+        format!(
+            "{{\"result\":{{\"answers\":{{\"decision\":{{\"choice\":\"{choice}\",\"confidence\":0.9,\"probabilities\":{{{}}}}}}}}}}}",
+            probs.join(",")
+        )
+    }
+
+    fn call(permutation: &str, body: &str) -> Value {
+        json!({"permutation": permutation, "status": "ok", "response_text": body})
+    }
+
+    fn run(ctx: &Value, scope: &str, calls: &[Value]) -> Value {
+        let input = json!({"frozen_context": ctx, "scope": scope, "question_id": "decision",
+                           "calls": calls});
+        serde_json::from_str(&llm_aggregate_perm_avg(&input.to_string())).expect("JSON")
+    }
+
+    /// Four calls that all carry `lexemes` (in option order).
+    fn four_calls(ctx: &Value, lexemes: &[&str]) -> Vec<Value> {
+        let ids = option_ids(ctx);
+        let pairs: Vec<(String, String)> = ids
+            .iter()
+            .cloned()
+            .zip(lexemes.iter().map(|s| (*s).to_owned()))
+            .collect();
+        let b = body(&ids[0], &pairs);
+        ["base", "reversed", "rotated_1", "rotated_2"]
+            .iter()
+            .map(|p| call(p, &b))
+            .collect()
+    }
+
+    #[test]
+    fn accepted_and_rejected_lexeme_forms() {
+        for ok in [
+            "0", "1", "0.5", "5e-1", "1e0", "0.50", "10e-1", "0e0", "0.0", "1.000", "1E0", "1e-60",
+            "0.000001", "0.5e0", "50e-2",
+        ] {
+            assert!(parse_lexeme(ok).is_ok(), "{ok}");
+        }
+        let forty = format!("0.{}", "1".repeat(40));
+        assert!(parse_lexeme(&forty).is_ok());
+        let forty_one = format!("0.{}", "1".repeat(41));
+        assert_eq!(parse_lexeme(&forty_one), Err(LexemeError::Digits));
+        // Trailing zeros do not count as significant digits.
+        assert!(parse_lexeme(&format!("1.{}", "0".repeat(60))).is_ok());
+        for (bad, why) in [
+            ("-0", LexemeError::OutOfRange),
+            ("-0.0", LexemeError::OutOfRange),
+            ("-0.1", LexemeError::OutOfRange),
+            ("1.01", LexemeError::OutOfRange),
+            ("1.5", LexemeError::OutOfRange),
+            ("10", LexemeError::OutOfRange),
+            ("1e1", LexemeError::OutOfRange),
+            ("1e99999999999999999999", LexemeError::OutOfRange),
+            (".5", LexemeError::NotNumber),
+            ("0x1", LexemeError::NotNumber),
+            ("NaN", LexemeError::NotNumber),
+            ("01", LexemeError::NotNumber),
+            ("1.", LexemeError::NotNumber),
+            ("1e", LexemeError::NotNumber),
+            ("", LexemeError::NotNumber),
+            ("1e-61", LexemeError::Scale),
+            ("0.5e-60", LexemeError::Scale),
+        ] {
+            assert_eq!(parse_lexeme(bad), Err(why), "{bad}");
+        }
+        // The grammar is checked before the sign, the sign before the digits.
+        assert_eq!(parse_lexeme("-.5"), Err(LexemeError::NotNumber));
+        assert_eq!(
+            parse_lexeme(&format!("-0.{}", "1".repeat(41))),
+            Err(LexemeError::OutOfRange)
+        );
+        // The range is checked before the scale.
+        assert_eq!(parse_lexeme("2e-61"), Err(LexemeError::Scale));
+        assert_eq!(parse_lexeme("12e-1"), Err(LexemeError::OutOfRange));
+    }
+
+    #[test]
+    fn exact_sums_decide_and_binary_floats_do_not() {
+        let ctx = ctx_of("D-dream_interpretation-001");
+        let ids = option_ids(&ctx);
+        // 0.1 + 0.2 against 0.3 is a tie in exact decimals: the smaller ID wins.
+        let mut sorted = ids.clone();
+        sorted.sort();
+        let (low, high) = (sorted[0].clone(), sorted[1].clone());
+        let b1 = body(
+            &high,
+            &ids.iter()
+                .map(|i| {
+                    let l = if *i == high {
+                        "0.1"
+                    } else if *i == low {
+                        "0.3"
+                    } else {
+                        "0"
+                    };
+                    (i.clone(), l.to_owned())
+                })
+                .collect::<Vec<_>>(),
+        );
+        let b2 = body(
+            &high,
+            &ids.iter()
+                .map(|i| {
+                    let l = if *i == high { "0.2" } else { "0" };
+                    (i.clone(), l.to_owned())
+                })
+                .collect::<Vec<_>>(),
+        );
+        let calls = [
+            call("base", &b1),
+            call("reversed", &b2),
+            call("rotated_1", &b2),
+            call("rotated_2", &b2),
+        ];
+        let v = run(&ctx, "scored", &calls);
+        assert_eq!(v["ok"], json!(true), "{v}");
+        // high: 0.1 + 0.2*3 = 0.7; low: 0.3.
+        assert_eq!(v["answer"], json!({"kind":"decision","option":high}));
+        // Tie case: high = 0.1 + 0.2 = 0.3 (two calls) against low = 0.3.
+        let two = [
+            call("base", &b1),
+            call("reversed", &b2),
+            call(
+                "rotated_1",
+                &body(
+                    &ids[0],
+                    &ids.iter()
+                        .map(|i| (i.clone(), "0".to_owned()))
+                        .collect::<Vec<_>>(),
+                ),
+            ),
+            call(
+                "rotated_2",
+                &body(
+                    &ids[0],
+                    &ids.iter()
+                        .map(|i| (i.clone(), "0".to_owned()))
+                        .collect::<Vec<_>>(),
+                ),
+            ),
+        ];
+        let v = run(&ctx, "scored", &two);
+        assert_eq!(v["ok"], json!(true), "{v}");
+        let sums = &v["sums"];
+        assert_eq!(sums["scale"], json!(1));
+        let get = |id: &str| {
+            sums["options"]
+                .as_array()
+                .expect("sums")
+                .iter()
+                .find(|o| o["id"] == json!(id))
+                .expect("option")["sum"]
+                .clone()
+        };
+        assert_eq!(get(&high), json!("3"));
+        assert_eq!(get(&low), json!("3"));
+        assert_eq!(v["answer"]["option"], json!(low), "tie: smallest ID bytes");
+    }
+
+    #[test]
+    fn sums_carry_across_forty_digit_lexemes() {
+        let ctx = ctx_of("D-dream_interpretation-001");
+        let ids = option_ids(&ctx);
+        let nines = format!("0.{}", "9".repeat(40));
+        let tiny = format!("0.{}1", "0".repeat(39));
+        let mut lex = vec!["0"; ids.len()];
+        lex[0] = &nines;
+        let mut calls = four_calls(&ctx, &lex);
+        // Add a call that makes the first option carry through all 40 digits.
+        let mut pairs: Vec<(String, String)> =
+            ids.iter().map(|i| (i.clone(), "0".to_owned())).collect();
+        pairs[0].1 = tiny.clone();
+        calls[3] = call("rotated_2", &body(&ids[0], &pairs));
+        let v = run(&ctx, "scored", &calls);
+        assert_eq!(v["ok"], json!(true), "{v}");
+        let mut sorted = ids.clone();
+        sorted.sort();
+        let first = v["sums"]["options"]
+            .as_array()
+            .expect("sums")
+            .iter()
+            .find(|o| o["id"] == json!(ids[0]))
+            .expect("first")["sum"]
+            .as_str()
+            .expect("sum")
+            .to_owned();
+        // 3 x 0.99..9 (40 nines) + 0.0..01 = 3 x (1 - 1e-40) + 1e-40 = 3 - 2e-40.
+        assert_eq!(v["sums"]["scale"], json!(40));
+        assert_eq!(first, format!("{}8", "2".to_owned() + &"9".repeat(39)) + "");
+        assert_eq!(v["answer"]["option"], json!(ids[0]));
+    }
+
+    #[test]
+    fn a_card_with_fewer_than_four_permutations_needs_only_its_own_set() {
+        // Two options: the reversed order is a rotation of the base, so fewer than four
+        // distinct Permutations are kept (a scored context with two options, built from a
+        // Dev_Card context).
+        let mut ctx = ctx_of("D-dream_interpretation-001");
+        ctx["options"] = json!(ctx["options"].as_array().expect("options")[..2]);
+        let perms: Value = serde_json::from_str(&sim_core::llm::api::llm_permutations(
+            &json!({"frozen_context": ctx}).to_string(),
+        ))
+        .expect("JSON");
+        assert_eq!(perms["permutations"], json!(["base", "reversed"]));
+        let ids = option_ids(&ctx);
+        let b = body(
+            &ids[1],
+            &[
+                (ids[0].clone(), "0.25".to_owned()),
+                (ids[1].clone(), "0.75".to_owned()),
+            ],
+        );
+        let ok = run(&ctx, "scored", &[call("base", &b), call("reversed", &b)]);
+        assert_eq!(ok["ok"], json!(true), "{ok}");
+        assert_eq!(ok["answer"]["option"], json!(ids[1]));
+        let missing = run(&ctx, "scored", &[call("base", &b)]);
+        assert_eq!(missing["answer"]["reason"], json!("call_missing"));
+        assert_eq!(missing["answer"]["call"], json!("reversed"));
+        assert_eq!(missing["sums"], Value::Null);
+    }
+
+    #[test]
+    fn a_sanity_card_is_answered_from_its_base_call_alone() {
+        // RC-19: the Variant_Permutations of a Sanity_Card are the base only.
+        let ctx = ctx_of("D-sanity-001");
+        let ids = option_ids(&ctx);
+        // The largest probability is not the call's own `choice`.
+        let b = body(
+            &ids[0],
+            &[
+                (ids[0].clone(), "0.4".to_owned()),
+                (ids[1].clone(), "0.6".to_owned()),
+            ],
+        );
+        let v = run(&ctx, "sanity", &[call("base", &b)]);
+        assert_eq!(v["ok"], json!(true), "{v}");
+        assert_eq!(v["answer"]["option"], json!(ids[1]));
+        assert_eq!(v["calls"].as_array().map(Vec::len), Some(1));
+        assert_eq!(v["positions"]["shown"].as_array().map(Vec::len), Some(1));
+        // A second call is outside the set.
+        let v = run(&ctx, "sanity", &[call("base", &b), call("reversed", &b)]);
+        assert_eq!(v["answer"]["reason"], json!("call_missing"));
+        assert_eq!(v["answer"]["call"], json!("reversed"));
+    }
+
+    #[test]
+    fn input_errors_and_illegal_reasons() {
+        let ctx = ctx_of("D-dream_interpretation-001");
+        let s_ctx = ctx_of("S-grudge_detection-001");
+        for input in [
+            json!({"frozen_context": s_ctx, "scope": "scored", "question_id": "decision", "calls": []}),
+            json!({"frozen_context": ctx, "scope": "all", "question_id": "decision", "calls": []}),
+            json!({"frozen_context": ctx, "scope": "scored", "question_id": "decision",
+                   "calls": [{"permutation": "base", "status": "bogus", "response_text": null}]}),
+        ] {
+            let v: Value =
+                serde_json::from_str(&llm_aggregate_perm_avg(&input.to_string())).expect("JSON");
+            assert_eq!(v["error"]["kind"], json!("input"), "{v}");
+        }
+        let calls = four_calls(&ctx, &["0.1", "0.2", "0.3", "0.4"]);
+        let v = run(&ctx, "scored", &calls);
+        assert_eq!(v["rule_version"], json!(1));
+        assert_eq!(v["answer"]["option"], json!(option_ids(&ctx)[3]));
+        assert_eq!(v["positions"]["original"], json!(4));
+        assert_eq!(
+            v["positions"]["shown"][1],
+            json!({"permutation": "reversed", "position": 1})
+        );
+        // A lexeme fault names the call and the option.
+        let mut bad = calls.clone();
+        let ids = option_ids(&ctx);
+        let pairs: Vec<(String, String)> = ids
+            .iter()
+            .cloned()
+            .zip(["0.1", "0.2", "-0", "0.4"].map(str::to_owned))
+            .collect();
+        bad[2] = call("rotated_1", &body(&ids[0], &pairs));
+        let v = run(&ctx, "scored", &bad);
+        assert_eq!(v["answer"]["reason"], json!("lexeme_out_of_range"));
+        assert_eq!(v["answer"]["call"], json!("rotated_1"));
+        assert!(
+            v["answer"]["detail"]
+                .as_str()
+                .unwrap_or("")
+                .contains(&ids[2])
+        );
+        assert_eq!(v["calls"].as_array().map(Vec::len), Some(2));
+    }
+}
