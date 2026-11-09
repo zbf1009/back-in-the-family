@@ -145,8 +145,11 @@ test('Property 40: engine faults never reach a Metric', async () => {
         assert.match(report, new RegExp(`${FAKE_COMBO.id}: failure record rebuild_failed`));
         assert.match(report, new RegExp(`entry ${entry.entry_id}\\): engine rebuild failed \\(rebuild_failed\\) for ${rest.length} request`));
         assert.match(report, new RegExp(`${entry.entry_id} \\(${FAKE_COMBO.id}, subset D\\): incomplete, aborted: rebuild_failed`));
-        // The aborted entry is not graded card by card: no Illegal is made up for a not_run record.
-        assert.equal(metrics.tasks[0]!.illegal.num, records.filter((r) => r.outcome.kind === 'timeout' && r.permutation === 'base').length);
+        // The aborted entry is not graded card by card: no Illegal is made up for a not_run record. A Timeout is an Illegal
+        // only on a Card the Metrics count: Sanity_Cards and Void_Cards stay out of every Metric (R2.8), so a Timeout on
+        // one of them (for example at offset 72 of the fake plan) adds nothing to the numerator.
+        const counted = new Set(metricCards.filter((c) => c.task === 'decision' && c.scored && !c.void).map((c) => c.id));
+        assert.equal(metrics.tasks[0]!.illegal.num, records.filter((r) => r.outcome.kind === 'timeout' && r.permutation === 'base' && counted.has(r.card_id)).length);
         if (plan.refusals.size === 0) {
           const resumed = await capture(() => lockedRun(env.deps(rt), { resume: entry.entry_id }));
           assert.equal(resumed.value, 0, resumed.err);
@@ -192,6 +195,10 @@ test('Property 40: engine faults never reach a Metric', async () => {
       });
       assert.match(report.slice(report.indexOf('### Engine faults')), new RegExp(`entry ${entry.entry_id}\\): runtime_stuck engine fault on ${refused.length} request`));
     }),
-    { numRuns: 12 },
+    {
+      numRuns: 12,
+      // Regression: seed 1120750890 shrank to this plan. The Timeout at offset 72 is on a Card the Metrics do not count.
+      examples: [[{ timeouts: new Map([[72, true]]), refusals: new Set<number>(), failRebuild: true }]],
+    },
   );
 });
