@@ -20,7 +20,9 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { CardLoadError, loadCards, type LoadedCard } from './cards.ts';
 import { PINNED_MANIFEST_HASH } from './manifest.ts';
+import { defaultPaths, readPhaseState } from './phase-commands.ts';
 import {
+  allowDecisionVariant,
   isPermAvg,
   parseCombinations,
   variantRegistry,
@@ -72,17 +74,11 @@ export interface DeriveGateRequest {
 
 export type DeriveGateDecision = { readonly ok: true } | { readonly ok: false; readonly reason: string };
 
-/** `allowDecisionVariant('derive_dev' | 'derive_locked', …)` of the design (task 42.1). */
-export type DeriveGate = (request: DeriveGateRequest) => DeriveGateDecision;
-
 /**
- * Placeholder until task 42.1 provides `allowDecisionVariant` (DA-27): it refuses every step, so `derive` cannot run
- * on real data before the variant gate and its approvals exist. Tests inject an allowing gate.
+ * The gate `derive` calls before it reads anything but the Manifest. The real one is {@link variantDeriveGate}, which asks
+ * `allowDecisionVariant` (phase.ts, DA-27); tests inject their own.
  */
-export const refusingDeriveGate: DeriveGate = (r) => ({
-  ok: false,
-  reason: `${r.step} of ${r.combo.id} is refused: the Decision_Variant gate (allowDecisionVariant, task 42.1) is not available yet`,
-});
+export type DeriveGate = (request: DeriveGateRequest) => DeriveGateDecision | Promise<DeriveGateDecision>;
 
 // ---------------------------------------------------------------- errors, options
 
@@ -373,30 +369,7 @@ export function deriveRun(input: DeriveInput): DerivedRun {
   };
 }
 
-// ---------------------------------------------------------------- latency evidence (R20.15)
-
-export interface DecisionLatency {
-  readonly cardId: string;
-  /** Number of calls the decision needed (the Request_Multiplier of the Card). */
-  readonly calls: number;
-  readonly sumMs: number;
-  readonly maxMs: number;
-}
-
-/**
- * Per-Card decision latency of a derived file: the sum and the maximum over the calls of the Card, and the call count.
- * The Report takes its latency figures from these (taken from the source `single` run's requests), never from a
- * request of its own; Metrics never read them.
- */
-export function decisionLatencies(records: readonly ResultRecord[]): DecisionLatency[] {
-  const out: DecisionLatency[] = [];
-  for (const r of records) {
-    if (r.perm_avg === undefined) continue;
-    const ms = r.perm_avg.calls.map((c) => c.latency_ms ?? 0);
-    out.push({ cardId: r.card_id, calls: r.perm_avg.calls.length, sumMs: ms.reduce((a, b) => a + b, 0), maxMs: ms.reduce((a, b) => Math.max(a, b), 0) });
-  }
-  return out;
-}
+export { decisionLatencies, type DecisionLatency } from './variants.ts';
 
 // ---------------------------------------------------------------- source lookup
 
@@ -504,12 +477,12 @@ export async function derive(deps: DeriveDeps, opts: DeriveOptions): Promise<num
     // 1. Manifest_Check, on every invocation (R1.1).
     await runManifestCheck(deps, logger);
 
-    // 2. The Combination and the gate (task 42.1 replaces the refusing stub).
+    // 2. The Combination and the gate (`allowDecisionVariant`, DA-27).
     const combo = deps.combinations.find((c) => c.id === opts.combo);
     if (combo === undefined) throw new DeriveError('unknown_combination', `${opts.combo} is not in combinations.json`);
     if (!isPermAvg(combo)) throw new DeriveError('not_perm_avg', `${combo.id} is not a perm_avg Combination; derive takes a perm_avg id`);
     const step: DeriveStep = opts.split === 'dev' ? 'derive_dev' : 'derive_locked';
-    const decision = deps.gate({ step, combo, approval: opts.approval, taskSubset: 'D' });
+    const decision = await deps.gate({ step, combo, approval: opts.approval, taskSubset: 'D' });
     if (!decision.ok) {
       logger.gateRefusal(decision.reason);
       return 1;
@@ -636,14 +609,59 @@ function fail(logger: RunLogger, e: unknown): number {
 
 // ---------------------------------------------------------------- CLI wiring
 
-/** Wiring for the real `probe derive`: the committed paths and records, and the gate stub until task 42.1. */
-export function defaultDeriveDeps(repoDir: string = REPO_DIR, gate: DeriveGate = refusingDeriveGate): DeriveDeps {
-  return {
+/**
+ * The real gate (DA-27). It reads the phase state (ledger, failures, Exclusion_Records, approvals from `HEAD`, Dev_Run and
+ * Derived_Run headers, registry), finds out whether the sources are complete (Dev cards for the plan of the Dev split; the
+ * ledger entry and its Results file for the Locked split, so no Locked_Card is read before the gate has allowed the step),
+ * and asks `allowDecisionVariant`. `--approval` must name an unwithdrawn entry of this step.
+ */
+export function variantDeriveGate(deps: Omit<DeriveDeps, 'gate'>): DeriveGate {
+  return async (request) => {
+    const state = await readPhaseState(defaultPaths(deps.paths.repoDir));
+    const single = deps.combinations.find((c) => c.id === request.combo.derives_from);
+    const devComplete = new Set<string>();
+    const lockedComplete = new Set<string>();
+    const mappingHash = new Map<string, string>();
+    if (single !== undefined) {
+      const mappingFile = (single['mapping'] as { file?: unknown } | undefined)?.file;
+      if (typeof mappingFile === 'string') {
+        try {
+          mappingHash.set(single.id, loadSystemOneMapping(deps.paths.repoDir, mappingFile).sha256);
+        } catch {
+          // No mapping hash: no source can be complete for it.
+        }
+      }
+      const hash = mappingHash.get(single.id);
+      if (hash !== undefined) {
+        const withDeps = deps as DeriveDeps;
+        try {
+          const dev = loadCards({ cardsDir: deps.paths.cardsDir, splits: ['dev'] }).cards.dev;
+          findSource(withDeps, 'dev', single, hash, planKeys(dev));
+          devComplete.add(single.id);
+        } catch {
+          // Not complete: the gate says so.
+        }
+        try {
+          findSource(withDeps, 'locked', single, hash, []);
+          lockedComplete.add(single.id);
+        } catch {
+          // Not complete: the gate says so.
+        }
+      }
+    }
+    const decision = allowDecisionVariant(request.step, request.combo, { ...state, combinations: deps.combinations, variantSources: { devComplete, lockedComplete, mappingHash } }, request.taskSubset, { approvalId: request.approval });
+    return decision.outcome === 'allowed' ? { ok: true } : { ok: false, reason: decision.reason };
+  };
+}
+
+/** Wiring for the real `probe derive`: the committed paths and records, and the real gate. */
+export function defaultDeriveDeps(repoDir: string = REPO_DIR, gate?: DeriveGate): DeriveDeps {
+  const base = {
     paths: defaultRunPaths(repoDir),
     pinnedManifestHash: PINNED_MANIFEST_HASH,
     combinations: parseCombinations(fs.readFileSync(path.join(repoDir, 'eval/probe/combinations.json'), 'utf8')),
-    gate,
   };
+  return { ...base, gate: gate ?? variantDeriveGate(base) };
 }
 
 /** `derive`. Returns the exit code. */

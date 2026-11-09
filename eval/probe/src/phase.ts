@@ -6,7 +6,7 @@
 import { fileURLToPath } from 'node:url';
 import { loadAggregationRule, ruleVersionOf } from './templates.ts';
 import { chooseReportEntries, modelKeysEqual, subsetTaskTypes, type LedgerEntry } from './ledger.ts';
-import type { Approval, ApprovalsResult } from './approvals.ts';
+import type { Approval, ApprovalsResult, DecisionStep } from './approvals.ts';
 import type { TaskType } from './cards.ts';
 import { countsForGate, type ExclusionRecord, type FailureRecord, type ModelKey, type SmokeRecord, type TaskSubset } from './results.ts';
 
@@ -256,6 +256,36 @@ export interface PhaseState {
   readonly overLimit: ReadonlySet<string>;
   /** Dev_Run headers, oldest first. Read by the Decision_Model gate only (R19.5); absent means none. */
   readonly devRuns?: readonly DevRunInfo[];
+  /**
+   * The current variant registry per `model_id` (R20.1): the `variant` ids and the Aggregation_Hashes as read now. Compared
+   * with the registry in the earliest Decision_Model Dev_Run header by `registryCheck`. Absent means not read.
+   */
+  readonly registry?: ReadonlyMap<string, readonly VariantRegistryEntry[]>;
+  /** Derived_Run files (headers only) of both splits, oldest first. Counted as the variant's Results file (R20.13). */
+  readonly derived?: readonly DerivedRunInfo[];
+  /**
+   * What the I/O side found about the sources a derive step reads (DA-27). Built only by `derive`, which has opened the
+   * Dev cards for the plan; absent means nothing is known and every derive step is refused.
+   */
+  readonly variantSources?: VariantSources;
+}
+
+/** Header facts of one Derived_Run file. */
+export interface DerivedRunInfo {
+  readonly run_id: string;
+  /** The `perm_avg` Combination ID. */
+  readonly combination: string;
+  readonly split: 'dev' | 'locked';
+  readonly template_hashes: Readonly<Record<string, string>>;
+}
+
+export interface VariantSources {
+  /** `single` Combination IDs whose newest equal-mapping Dev_Run Results file is complete (RC-24). */
+  readonly devComplete: ReadonlySet<string>;
+  /** `single` Combination IDs whose first `complete` D ledger entry has a complete Results file (RC-24). */
+  readonly lockedComplete: ReadonlySet<string>;
+  /** `single` Combination ID -> Template_Hash of its System_One_Mapping file as of now. */
+  readonly mappingHash: ReadonlyMap<string, string>;
 }
 
 /** What the Decision_Model gate needs from a Dev_Run Results header. */
@@ -269,6 +299,10 @@ export interface DevRunInfo {
    * was sent. Absent means true. Read by `phase2Candidates` only.
    */
   readonly attempted?: boolean;
+  /** The variant registry written into the header (R20.1); absent for a file written before the variants. */
+  readonly variants?: readonly VariantRegistryEntry[];
+  /** Header `variant`; absent means `single`. */
+  readonly variant?: string;
 }
 
 export type Branch = 'A' | 'B';
@@ -609,6 +643,8 @@ export function formatLedger(entries: readonly LedgerEntry[]): string[] {
 
 /** A Decision_Model is a Workers AI Combination with the `system_one` Response_Shape (design: Decision_Model Combination records). */
 export const isDecisionModel = (c: Combination): boolean => isWorkersAi(c) && c.response_shape === 'system_one' && !isPermAvg(c);
+/** A Decision_Variant (R20.1, DA-27): a Workers AI `system_one` record of either variant. The hold, the count and the status lines iterate these. */
+export const isDecisionVariant = (c: Combination): boolean => isWorkersAi(c) && c.response_shape === 'system_one';
 
 /** IDs withdrawn by some `withdrawal` entry (DA-21). A withdrawal of a withdrawal does nothing: only `decision_model` entries are looked up. */
 export function withdrawnIds(approvals: readonly Approval[]): Set<string> {
@@ -618,9 +654,16 @@ export function withdrawnIds(approvals: readonly Approval[]): Set<string> {
 }
 
 /** Unwithdrawn `decision_model` entries, optionally for one Combination and one step. */
-export function decisionModelApprovals(approvals: readonly Approval[], combinationId?: string, step?: 'dev' | 'locked'): Approval[] {
+export function decisionModelApprovals(approvals: readonly Approval[], combinationId?: string, step?: DecisionStep, variant: 'single' | 'perm_avg' = 'single'): Approval[] {
   const gone = withdrawnIds(approvals);
-  return approvals.filter((a) => a.kind === 'decision_model' && !gone.has(a.id) && (combinationId === undefined || a.combination === combinationId) && (step === undefined || a.step === step));
+  return approvals.filter(
+    (a) =>
+      a.kind === 'decision_model' &&
+      !gone.has(a.id) &&
+      (a.variant ?? 'single') === variant &&
+      (combinationId === undefined || a.combination === combinationId) &&
+      (step === undefined || a.step === step),
+  );
 }
 
 export type DecisionStepKind = 'smoke' | 'dev' | 'locked';
@@ -680,55 +723,151 @@ export function allowDecisionModel(step: DecisionStepKind, combo: Combination, t
 }
 
 /**
- * R19.17: true exactly when some Decision_Model has an unwithdrawn `decision_model` entry and none of: a `complete`
- * ledger entry for D, a non-transient locked failure record (the DA-15 rule), an Exclusion_Record.
+ * R19.17, per variant (R20.10): true exactly when some Decision_Variant has an unwithdrawn `decision_model` entry and has not
+ * reached its resolution. `single`: a `complete` ledger entry for D, a non-transient locked failure record (the DA-15 rule), or an
+ * Exclusion_Record. `perm_avg`: a Locked derived file, or a resolved failure or Exclusion_Record of its source.
  */
 export function decisionHold(state: PhaseState): boolean {
   return decisionHoldPending(state).length > 0;
 }
 
-/** The Decision_Models that keep the hold on (R19.17), in `combinations.json` order. */
+/** The Decision_Variants that keep the hold on (R19.17, R20.10), by Combination ID, in `combinations.json` order. */
 export function decisionHoldPending(state: PhaseState): string[] {
   if (!state.approvals.approved) return [];
   const approvals = state.approvals.approvals;
   return state.combinations
-    .filter((c) => isDecisionModel(c) && decisionModelApprovals(approvals, c.id).length > 0 && !completeCoverage(c, state).has('decision') && !hasFailure(c, state) && !hasExclusion(c, state))
+    .filter((c) => {
+      if (!isDecisionVariant(c)) return false;
+      if (decisionModelApprovals(approvals, c.id, undefined, variantOf(c)).length === 0) return false;
+      if (!isPermAvg(c)) return !completeCoverage(c, state).has('decision') && !hasFailure(c, state) && !hasExclusion(c, state);
+      const source = state.combinations.find((x) => x.id === c.derives_from);
+      const sourceResolved = source !== undefined && (hasFailure(source, state) || hasExclusion(source, state));
+      const lockedDerived = (state.derived ?? []).some((d) => d.combination === c.id && d.split === 'locked');
+      return !lockedDerived && !sourceResolved;
+    })
     .map((c) => c.id);
 }
 
 /**
- * The distinct Workers AI Combinations tried in Phase_2 (R19.13): at least one ledger entry, or one Dev_Run Results file
- * in which something was actually attempted. A Combination that only had Smoke_Calls, or whose Dev_Run the gate refused
- * (all records `not_run` / `not_approved`), is not counted. Sorted by Combination ID.
+ * The distinct Workers AI Combinations tried in Phase_2 (R19.13, R20.13): at least one ledger entry, or one Dev_Run Results file
+ * in which something was actually attempted, or a derived Results file (a Derived_Run is the variant's Results file). A
+ * Combination that only had Smoke_Calls, or whose Dev_Run the gate refused (all records `not_run` / `not_approved`), is not
+ * counted. Sorted by Combination ID.
  */
 export function phase2Candidates(state: PhaseState): string[] {
   const workers = new Set(state.combinations.filter(isWorkersAi).map((c) => c.id));
   const tried = new Set<string>();
   for (const e of state.entries) if (workers.has(e.start.combination)) tried.add(e.start.combination);
   for (const d of state.devRuns ?? []) if (workers.has(d.combination) && d.attempted !== false) tried.add(d.combination);
+  for (const d of state.derived ?? []) if (workers.has(d.combination)) tried.add(d.combination);
   return [...tried].sort();
 }
 
 /** The number printed in section 2 of the Report. */
 export const phase2CandidatesTried = (state: PhaseState): number => phase2Candidates(state).length;
 
-/** The `decision_models:` block and the hold line of `phase-status` (DA-22). */
+/** Result of the registry check of R20.1 for one model. */
+export type RegistryCheck =
+  | { readonly status: 'free'; readonly detail: string }
+  | { readonly status: 'equal'; readonly detail: string }
+  | { readonly status: 'changed'; readonly detail: string };
+
+/** Message of a refusal by the registry check (R20.1). */
+export const REGISTRY_CHANGED_MESSAGE = 'registry changed after the first Dev_Run result (R20.1); needs a recorded Author amendment';
+
+const sameRegistry = (a: readonly VariantRegistryEntry[], b: readonly VariantRegistryEntry[]): boolean =>
+  a.length === b.length && a.every((x, i) => x.id === (b[i] as VariantRegistryEntry).id && x.variant === (b[i] as VariantRegistryEntry).variant && x.aggregation_hash === (b[i] as VariantRegistryEntry).aggregation_hash);
+
+/**
+ * R20.1: from the first recorded Decision_Model Dev_Run result of a model on, the current registry of that model must equal the
+ * registry in the earliest Dev_Run header of the model. `free` before any such result exists.
+ */
+export function registryCheck(modelId: string, state: PhaseState): RegistryCheck {
+  const ids = new Set(state.combinations.filter((c) => isDecisionModel(c) && c.model_id === modelId).map((c) => c.id));
+  const first = (state.devRuns ?? []).find((d) => ids.has(d.combination) && d.attempted !== false && d.variant !== 'perm_avg');
+  if (first === undefined) return { status: 'free', detail: 'no Decision_Model Dev_Run result yet; the registry may still be amended' };
+  const current = state.registry?.get(modelId);
+  if (first.variants === undefined || current === undefined) return { status: 'changed', detail: `the Dev_Run header ${first.run_id} records no registry, or the current registry was not read` };
+  return sameRegistry(first.variants, current)
+    ? { status: 'equal', detail: `equal to the registry in the Dev_Run header ${first.run_id}` }
+    : { status: 'changed', detail: `differs from the registry in the Dev_Run header ${first.run_id}` };
+}
+
+export interface VariantGateOptions {
+  /** The `--approval` ID the caller named; when given, an unwithdrawn entry with that ID must be among the matching ones. */
+  readonly approvalId?: string | null;
+}
+
+/**
+ * The gate for a Decision_Variant step (R20.1, R20.10, R20.11; DA-27). A `perm_avg` Combination never goes through
+ * `allowDecisionModel`, and an entry of the `single` variant never covers a derive step (the reverse holds too).
+ * Order: (1) `dev` / `locked` of a `perm_avg` Combination are refused (option (a) of DA-24); (2) the Combination is a `perm_avg`
+ * record; (3) subset D; (4) Phase_1 ended; (5) an unwithdrawn `decision_model` entry with `variant: "perm_avg"`, this
+ * Combination and this step; (6) the source named by `derives_from` is complete for the split; (7) for `derive_locked`, a Dev
+ * Derived_Run with equal mapping and aggregation Template_Hashes; (8) the registry equals that of the earliest Dev_Run header.
+ */
+export function allowDecisionVariant(step: DecisionStepKind | 'derive_dev' | 'derive_locked', combo: Combination, state: PhaseState, task_subset: TaskSubset = 'D', options: VariantGateOptions = {}): DecisionGate {
+  const refuse = (reason: string): DecisionGate => ({ outcome: 'refused', reason });
+  if (step === 'smoke' || step === 'dev' || step === 'locked') {
+    return refuse(`variant: ${step} of ${combo.id} is refused; a perm_avg Combination only derives, it sends no request (DA-24 option (a))`);
+  }
+  if (!isDecisionVariant(combo) || !isPermAvg(combo)) return refuse(`${combo.id} is not a perm_avg Decision_Variant`);
+  if (task_subset !== 'D') return { outcome: 'wrong_subset', reason: `task_subset: ${combo.id} accepts Task_Type D only; requested ${task_subset}` };
+  if (!phase1Ended(state)) return refuse(`Phase_1 has not ended; waiting for: ${phase1Pending(state).map((c) => c.id).join(', ')}`);
+  if (!state.approvals.approved) return refuse(`approvals.json is not usable: ${state.approvals.reason}`);
+  const entries = decisionModelApprovals(state.approvals.approvals, combo.id, step, 'perm_avg');
+  if (entries.length === 0) return refuse(`no unwithdrawn decision_model ${step} approval with variant perm_avg for ${combo.id}`);
+  if (options.approvalId !== undefined && options.approvalId !== null && !entries.some((a) => a.id === options.approvalId)) {
+    return refuse(`--approval ${options.approvalId} is not an unwithdrawn ${step} approval for ${combo.id}`);
+  }
+  const single = state.combinations.find((c) => c.id === combo.derives_from);
+  if (single === undefined || !isDecisionModel(single)) return refuse(`${combo.id} derives from ${String(combo.derives_from)}, which is not a single Decision_Model record`);
+  const sources = state.variantSources;
+  const complete = step === 'derive_dev' ? sources?.devComplete : sources?.lockedComplete;
+  if (complete === undefined || !complete.has(single.id)) return refuse(`the source ${single.id} has no complete ${step === 'derive_dev' ? 'Dev_Run' : 'Locked_Run'} Results file (R20.11, RC-24)`);
+  if (step === 'derive_locked') {
+    const mapping = sources?.mappingHash.get(single.id);
+    const aggregation = combo.aggregation?.sha256;
+    const dev = (state.derived ?? []).find((d) => d.combination === combo.id && d.split === 'dev' && mapping !== undefined && d.template_hashes['decision'] === mapping && d.template_hashes['aggregation'] === aggregation);
+    if (dev === undefined) return refuse(`derive_locked needs the Derived_Run of the Dev split of ${combo.id} with equal Template_Hashes (R3.12, R20.11)`);
+  }
+  const registry = registryCheck(combo.model_id, state);
+  if (registry.status !== 'equal') return refuse(registry.status === 'free' ? `${REGISTRY_CHANGED_MESSAGE}: no Dev_Run header of the model records the registry` : `${REGISTRY_CHANGED_MESSAGE}: ${registry.detail}`);
+  const fit = entries.find((a) => options.approvalId === undefined || options.approvalId === null || a.id === options.approvalId) as Approval;
+  return { outcome: 'allowed', reason: `${step} approval ${fit.id} for ${combo.id}, 0 requests`, approval: fit.id };
+}
+
+/** The `decision_models:` block and the hold line of `phase-status`: one line per Decision_Variant (DA-22, DA-27), then the registry check per model. */
 export function formatDecisionModels(state: PhaseState): string[] {
   const out: string[] = ['decision_models:'];
-  const models = state.combinations.filter(isDecisionModel);
-  if (models.length === 0) out.push('  none');
+  const variants = state.combinations.filter(isDecisionVariant);
+  if (variants.length === 0) out.push('  none');
   const approvals = state.approvals.approved ? state.approvals.approvals : [];
   const gone = withdrawnIds(approvals);
-  for (const c of models) {
+  for (const c of variants) {
+    const perm = isPermAvg(c);
     const mine = approvals.filter((a) => a.kind === 'decision_model' && a.combination === c.id);
-    const text = (step: 'dev' | 'locked'): string => {
+    const text = (step: DecisionStep): string => {
       const list = mine.filter((a) => a.step === step).map((a) => `${a.id} (max ${String(a.max_requests)})${gone.has(a.id) ? ' withdrawn' : ''}`);
       return `${step}: ${list.length === 0 ? 'none' : list.join(', ')}`;
     };
+    const approvalText = perm ? `${text('derive_dev')}; ${text('derive_locked')}` : `${text('dev')}; ${text('locked')}`;
+    if (perm) {
+      const files = (state.derived ?? []).filter((d) => d.combination === c.id);
+      const split = (sp: 'dev' | 'locked'): string => (files.some((d) => d.split === sp) ? 'yes' : 'no');
+      const source = state.combinations.find((x) => x.id === c.derives_from);
+      const end = source !== undefined && hasExclusion(source, state) ? 'source Exclusion_Record' : source !== undefined && hasFailure(source, state) ? 'source failure record' : null;
+      out.push(`  ${c.id}  variant perm_avg  approvals ${approvalText}  derived: dev ${split('dev')}, locked ${split('locked')}${end === null ? '' : `  ended by: ${end}`}`);
+      continue;
+    }
     const ledger = [...state.entries].filter((e) => e.start.combination === c.id).sort((a, b) => a.order - b.order);
     const last = ledger[ledger.length - 1];
     const end = hasExclusion(c, state) ? 'Exclusion_Record' : hasFailure(c, state) ? 'failure record' : null;
-    out.push(`  ${c.id}  approvals ${text('dev')}; ${text('locked')}  ledger: ${last === undefined ? 'none' : `${last.entry_id} ${last.status}`}${end === null ? '' : `  ended by: ${end}`}`);
+    out.push(`  ${c.id}  approvals ${approvalText}  ledger: ${last === undefined ? 'none' : `${last.entry_id} ${last.status}`}${end === null ? '' : `  ended by: ${end}`}`);
+  }
+  for (const modelId of [...new Set(variants.map((c) => c.model_id))].sort()) {
+    const r = registryCheck(modelId, state);
+    out.push(`  registry check ${modelId}: ${r.status} (${r.detail})`);
   }
   out.push(decisionHold(state) ? 'runtime decision: ON HOLD (R19.17)' : 'runtime decision: not on hold');
   return out;

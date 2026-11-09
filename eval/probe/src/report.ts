@@ -22,6 +22,8 @@ import {
   describeBranch,
   hasFailure,
   isDecisionModel,
+  isDecisionVariant,
+  isPermAvg,
   isWorkersAi,
   phase2Candidates,
   phaseStatus,
@@ -33,6 +35,18 @@ import {
   type PhaseState,
 } from './phase.ts';
 import { canonicalJson, countsForGate, effectiveFailure } from './results.ts';
+import {
+  FINE_TUNING_SENTENCE,
+  FINE_TUNING_TITLE,
+  multiplierDistribution,
+  NON_INDEPENDENCE_SENTENCE,
+  ONE_REQUEST_ALTERNATIVE,
+  PERM_AVG_FLIP_CELL,
+  permAvgMark,
+  positionDistribution,
+  PREREGISTRATION_SENTENCE,
+  PRODUCTION_NOTE,
+} from './report-variants.ts';
 import type { ExcludedLine, GradesFile, JsonObject, PerfRecord, PreflightRecord, ResultRecord, ResultsHeader, SmokeRecord } from './results.ts';
 import {
   clusterBootstrapAcceptable,
@@ -281,6 +295,18 @@ export interface ReportInput {
    * import `external.ts`: nothing in the marks, the link marks, the recommendations or the Phase_2 branch can see them.
    */
   readonly external?: readonly ExternalReferenceView[];
+  /**
+   * Derived_Run files (R20.7) of both splits, already analysed (flip `by_construction`) with their stored records. Printed in
+   * sections 2, 4, 4a, 4b and 4c; a `locked` one feeds a mark, a `dev` one is labelled Dev_Run and feeds none. Absent means none.
+   */
+  readonly derivedRuns?: readonly DerivedRunView[];
+}
+
+/** One Derived_Run file as the Report reads it. */
+export interface DerivedRunView {
+  readonly split: 'dev' | 'locked';
+  readonly analysis: RunAnalysis;
+  readonly records: readonly ResultRecord[];
 }
 
 /** The Metric figures of an External_Reference (integers; the names are those of the Metrics). */
@@ -404,11 +430,22 @@ function notMeasuredReason(c: Combination, state: PhaseState): string {
 
 /** The Additional_Candidate_Set of section 2: each Decision_Model with its approval IDs and dates, or "not measured" with the reason (R19.13, R19.3). */
 export function additionalCandidateLines(state: PhaseState): string[] {
-  const models = state.combinations.filter(isDecisionModel);
+  const models = state.combinations.filter(isDecisionVariant);
   if (models.length === 0) return ['- none is defined in `combinations.json`'];
   const approvals = state.approvals.approved ? state.approvals.approvals : [];
   const gone = withdrawnIds(approvals);
   return models.map((c) => {
+    if (isPermAvg(c)) {
+      const mine = approvals.filter((a) => a.kind === 'decision_model' && a.combination === c.id);
+      const live = mine.filter((a) => !gone.has(a.id));
+      const withdrawn = mine.filter((a) => gone.has(a.id));
+      const files = (state.derived ?? []).filter((d) => d.combination === c.id);
+      const parts: string[] = [];
+      if (live.length > 0) parts.push(`approval IDs ${live.map((a) => `${a.id} (${a.step ?? 'step not recorded'}, ${a.approved_on ?? 'date not recorded'})`).join(', ')}`);
+      if (withdrawn.length > 0) parts.push(`withdrawn ${withdrawn.map((a) => a.id).join(', ')}`);
+      parts.push(files.length > 0 ? `Derived_Run file(s): ${files.map((d) => `${d.split} ${d.run_id}`).join(', ')}` : 'no Derived_Run yet (not measured)');
+      return `- ${c.id} (Task_Type D only, variant perm_avg, derived from the stored records of ${String(c.derives_from)}, 0 requests): ${parts.join('; ')}.`;
+    }
     const live = decisionModelApprovals(approvals, c.id);
     const withdrawn = approvals.filter((a) => a.kind === 'decision_model' && a.combination === c.id && gone.has(a.id));
     const complete = [...state.entries]
@@ -625,6 +662,10 @@ export function buildReport(input: ReportInput): string {
     if (bytes !== null && bytes !== undefined && bytes > IN_BROWSER_DOWNLOAD_LIMIT_BYTES) overLimit.add(r.combination);
   }
   const state: PhaseState = { ...input.state, passes: entryPassesFrom(lockedRuns), overLimit };
+  const derivedViews = input.derivedRuns ?? [];
+  /** Combinations that run through a Runtime; a `perm_avg` record is a variant of one of them, never a separate candidate (R20.1). */
+  const runnable = state.combinations.filter((c) => !isPermAvg(c));
+  const permAvgCombos = state.combinations.filter(isPermAvg);
   const entryById = new Map(state.entries.map((e) => [e.entry_id, e] as const));
   const comboById = new Map(state.combinations.map((c) => [c.id, c] as const));
   const choices = chooseReportEntries(state.entries);
@@ -710,12 +751,13 @@ export function buildReport(input: ReportInput): string {
   const tried = phase2Candidates(state);
   para(`Phase_2 candidates tried: ${tried.length} (${tried.length === 0 ? 'none' : tried.join(', ')}). A Workers AI Combination counts when it has a Dev_Run or Locked_Run Results file, or a ledger entry, made in Phase_2; a Combination with Smoke_Calls only, or whose Dev_Run the gate refused, does not count.`);
   if (tried.length >= 2) para(SELECTION_BIAS_NOTE);
+  if (derivedViews.length > 0 || (state.derived ?? []).length > 0) para(PREREGISTRATION_SENTENCE, NON_INDEPENDENCE_SENTENCE);
   para('Additional_Candidate_Set (Decision_Models, Task_Type D only, each approved by the Author by name):');
   out.push(...additionalCandidateLines(state), '');
 
   // ---- 3. Candidate table (R9.2, R9.3, R9.10, R9.17, R15.6)
   h2('3. Candidates, size limits, pinned revisions and licenses');
-  const candidateRows = state.combinations.map((c) => {
+  const candidateRows = runnable.map((c) => {
     const size = c.size;
     const preflight = input.preflights.get(c.id);
     const preflightPeak = preflight === undefined ? null : asNum(preflight['peak_vram_mib']);
@@ -738,7 +780,7 @@ export function buildReport(input: ReportInput): string {
   });
   out.push(...table(['Combination', 'Runtime / model / quantization', 'Pinned_Revision', 'Download', 'Parameters', 'VRAM need, MiB', 'License', 'Status'], candidateRows));
   out.push('Sources of the figures above:', '');
-  for (const c of state.combinations) {
+  for (const c of runnable) {
     if (isWorkersAi(c)) {
       out.push(`- ${c.id}: Workers AI model, license ${licenseText(c)}${c.prices ? `; prices ${c.prices.input}/${c.prices.output} neurons per million tokens (${c.prices.source}, read on ${c.prices.read_on})` : ''}.`);
       continue;
@@ -764,10 +806,11 @@ export function buildReport(input: ReportInput): string {
   // ---- 4. Metrics per Combination and Task_Type (R15.1, R13)
   h2('4. Locked_Run Metrics per Combination and Task_Type');
   if (usedRuns.length === 0) para('No completed Locked_Run yet.');
-  for (const { run, task, analysis } of usedRuns) {
+  const metricsBlock = (run: RunAnalysis, task: TaskType, analysis: TaskAnalysis, title: string, variant: { mark: string; derivationLine: string } | null): void => {
     const m = analysis.metrics;
     const mk = marks(analysis);
-    h3(`${run.combination}, ${taskTitle(task)}, entry ${run.id}`);
+    if (variant !== null) mk.overall = variant.mark;
+    h3(title);
     para(`Mark: **${mk.overall}**. Scenario groups: ${groupUnits(m.perCard, () => false).length}. Scored non-void cards: ${m.cards}.`);
     const baseline = m.randomBaseline === null ? null : pct(m.randomBaseline.num, m.randomBaseline.den);
     out.push(
@@ -777,7 +820,7 @@ export function buildReport(input: ReportInput): string {
           ['Acceptable rate', ratioText(m.acceptable), `${ratioPct(m.acceptable)}${baseline === null ? '' : ` (Random_Baseline ${baseline})`}`, `at least ${THRESHOLDS.acceptablePct}%`, mk.acceptable],
           ['Severe count (base Permutation of each card)', `${m.severe.count} of ${m.severe.den} cards`, `${m.severe.count}`, `at most ${THRESHOLDS.severeMax}`, mk.severe],
           ['Severe outputs in other Permutations', isByConstruction(m.flip) ? 'not applicable' : `${m.severeOtherPermutations} of ${m.flip.den} non-base requests`, `${m.severeOtherPermutations}`, 'none (no verdict)', 'reported only'],
-          ['Flip rate (non-base requests with an output, Illegal and timeouts included)', isByConstruction(m.flip) ? 'guaranteed by construction (not measured)' : ratioText(m.flip), isByConstruction(m.flip) ? 'not applicable' : ratioPct(m.flip), isByConstruction(m.flip) ? 'none (no verdict)' : `at most ${THRESHOLDS.flipPct}%`, mk.flip],
+          ['Flip rate (non-base requests with an output, Illegal and timeouts included)', isByConstruction(m.flip) ? PERM_AVG_FLIP_CELL : ratioText(m.flip), isByConstruction(m.flip) ? 'not applicable' : ratioPct(m.flip), isByConstruction(m.flip) ? 'none (no verdict)' : `at most ${THRESHOLDS.flipPct}%`, mk.flip],
           ['Contrast consistency', `${ratioText(m.contrast)} pairs`, ratioPct(m.contrast), `at least ${THRESHOLDS.contrastPct}%`, mk.contrast],
           ['Illegal rate', ratioText(m.illegal), ratioPct(m.illegal), 'none (no verdict)', 'reported only'],
         ],
@@ -797,6 +840,90 @@ export function buildReport(input: ReportInput): string {
     if (task === 'decision' && run.decisionDiagnosis != null) out.push(...diagnosisLines(run.decisionDiagnosis, 'Locked_Run').map((l) => `- ${l}`), '');
     const nodes = cpuNodeList(run);
     para(`CPU-placed nodes (placement detection: ${run.header.placement?.method ?? 'not applicable'}): ${nodes === '' ? 'none' : nodes}.`);
+    if (variant !== null) para(variant.derivationLine);
+  };
+  for (const { run, task, analysis } of usedRuns) metricsBlock(run, task, analysis, `${run.combination}, ${taskTitle(task)}, entry ${run.id}`, null);
+  // perm_avg: a Locked derived file feeds a mark; a Dev one is labelled Dev_Run and is printed in the Dev_Run section only.
+  const derivedMark = (v: DerivedRunView, m: TaskMetrics): { mark: string; derivationLine: string } => {
+    const from = v.analysis.header.derived_from;
+    return permAvgMark(m, { single: from?.combination ?? String(comboById.get(v.analysis.combination)?.derives_from ?? 'unknown'), ledgerEntry: from?.ledger_entry ?? null, sourceSha256: from?.results_sha256 ?? 'unknown' });
+  };
+  for (const v of derivedViews.filter((d) => d.split === 'locked')) {
+    for (const analysis of v.analysis.tasks) metricsBlock(v.analysis, analysis.metrics.task, analysis, `${v.analysis.combination}, ${taskTitle(analysis.metrics.task)}, derived run ${v.analysis.id}`, derivedMark(v, analysis.metrics));
+  }
+
+  // ---- 4a, 4b, 4c: the Decision_Variants (R20.13 to R20.16, DA-28)
+  if (permAvgCombos.length > 0) {
+    const decisionOf = (v: DerivedRunView): TaskAnalysis | undefined => v.analysis.tasks.find((t) => t.metrics.task === 'decision');
+    const scoredIdsOf = (v: DerivedRunView): Set<string> => new Set(decisionOf(v)?.metrics.perCard.map((c) => c.cardId) ?? []);
+    const variantLabel = (v: DerivedRunView): string => (v.split === 'locked' ? 'Locked_Run' : 'Dev_Run, not used for a mark');
+
+    h2('4a. Decision_Variants side by side');
+    para('Each Decision_Model with its `single` and `perm_avg` variants, same Metrics, Thresholds and intervals. A figure of one variant is never printed in the other\'s column. The `single` flip rate is measured; the `perm_avg` flip row is guaranteed by construction and carries no number. Locked_Run figures only (a Dev_Run derived file is in the Dev_Run section and in 4b and 4c, labelled).');
+    const cells = (a: TaskAnalysis | undefined, variant: { mark: string } | null, why: string): string[] => {
+      if (a === undefined) return Array.from({ length: 8 }, () => why);
+      const m = a.metrics;
+      const mk = marks(a);
+      return [
+        `${ratioText(m.acceptable)} = ${ratioPct(m.acceptable)} (${mk.acceptable})`,
+        bootText(a.acceptable.cluster),
+        `${m.severe.count} of ${m.severe.den} cards (${mk.severe})`,
+        variant !== null ? PERM_AVG_FLIP_CELL : `${ratioText(m.flip as Ratio)} = ${ratioPct(m.flip as Ratio)} (${mk.flip})`,
+        `${ratioText(m.contrast)} pairs = ${ratioPct(m.contrast)} (${mk.contrast})`,
+        `${ratioText(m.illegal)} = ${ratioPct(m.illegal)}`,
+        variant !== null ? 'see 4c (sum and maximum of the calls)' : `${latencyText(a.latency.p50)} / ${latencyText(a.latency.p95)}`,
+        variant !== null ? variant.mark : mk.overall,
+      ];
+    };
+    const ROWS = ['Acceptable rate', 'Acceptable rate, Cluster_Bootstrap 95%', 'Severe count (base Permutation)', 'Flip rate', 'Contrast consistency', 'Illegal rate', 'Latency p50 / p95, ms (per request; see 4c for a decision)', 'Mark'];
+    for (const pa of permAvgCombos) {
+      const single = runnable.find((c) => c.id === pa.derives_from);
+      const sRun = usedRuns.find((u) => u.run.combination === single?.id && u.task === 'decision');
+      const pView = derivedViews.find((v) => v.split === 'locked' && v.analysis.combination === pa.id);
+      const pAnalysis = pView === undefined ? undefined : decisionOf(pView);
+      const pMark = pView === undefined || pAnalysis === undefined ? null : derivedMark(pView, pAnalysis.metrics);
+      const sCells = cells(sRun?.analysis, null, 'not measured (no completed Locked_Run)');
+      const pCells = pMark === null ? cells(undefined, null, 'not measured (no Locked Derived_Run)') : cells(pAnalysis, pMark, '');
+      h3(`${String(pa.model_id)}: ${single?.id ?? String(pa.derives_from)} (single) and ${pa.id} (perm_avg)`);
+      out.push(...table(['Metric', `single: ${single?.id ?? 'unknown'}`, `perm_avg: ${pa.id}`], ROWS.map((r, i) => [r, sCells[i] as string, pCells[i] as string])));
+      if (pMark !== null) para(pMark.derivationLine);
+    }
+
+    h2('4b. Position of the chosen option (perm_avg)');
+    para('Counts over the Scored_Cards that are not Void_Cards, from the stored `perm_avg.positions` of the derived records: one row per Permutation, one column per shown position (1 based, in the order of that request). The row "original position" is the position in the base Permutation. Illegal answers are counted apart and are in no cell.');
+    if (derivedViews.length === 0) para('No Derived_Run yet (not measured).');
+    for (const v of derivedViews) {
+      const d = positionDistribution(v.records, scoredIdsOf(v));
+      h3(`${v.analysis.combination}, derived run ${v.analysis.id} (${variantLabel(v)})`);
+      const cols = Array.from({ length: d.width }, (_, i) => `${i + 1}`);
+      out.push(...table(['Shown position', ...cols], [...d.rows.map((r) => [r.permutation, ...r.counts.map(String)]), ['original position', ...d.original.map(String)]]));
+      para(`Illegal answers (in no position cell): ${d.illegal}. Cards counted: ${d.total}.`);
+    }
+
+    h2('4c. Request_Multiplier and decision latency (perm_avg)');
+    para(PRODUCTION_NOTE);
+    para(ONE_REQUEST_ALTERNATIVE);
+    para('The Request_Multiplier is the number of calls one decision needs: 4 for a Card with 3 to 5 options, 2 for a Card with 2 options, 1 for a Sanity_Card. The decision latency of a Card is the sum (calls in sequence) and the maximum (calls in parallel) of the latencies of its calls, taken from the requests of the `single` run; no request was sent for the variant. Percentiles are nearest-rank (R14.1).');
+    if (derivedViews.length === 0) para('No Derived_Run yet (not measured).');
+    for (const v of derivedViews) {
+      const d = multiplierDistribution(v.records, scoredIdsOf(v));
+      h3(`${v.analysis.combination}, derived run ${v.analysis.id} (${variantLabel(v)})`);
+      out.push(
+        ...table(
+          ['Request_Multiplier (calls per decision)', 'Scored_Cards'],
+          d.byCalls.map((r) => [`${r.calls}`, `${r.cards}`]),
+        ),
+      );
+      out.push(
+        ...table(
+          ['Decision latency', 'p50, ms', 'p95, ms'],
+          [
+            ['Sum of the calls (in sequence)', latencyText(d.sum.p50), latencyText(d.sum.p95)],
+            ['Maximum of the calls (in parallel)', latencyText(d.max.p50), latencyText(d.max.p95)],
+          ],
+        ),
+      );
+    }
   }
 
   // ---- 5. Sanity results, apart (R13.10)
@@ -871,7 +998,7 @@ export function buildReport(input: ReportInput): string {
   // ---- 8. Support marks (R15.4, R18.6)
   h2('8. Support marks per link of the fallback chain');
   const inBrowser = state.combinations.filter((c) => !isWorkersAi(c) && c.phase1_locked);
-  const workersCombos = state.combinations.filter(isWorkersAi);
+  const workersCombos = runnable.filter(isWorkersAi);
   const runtimes = [...new Set(inBrowser.map((c) => c.runtime))].sort(cmp);
   const whyNot = (c: Combination, task: TaskType): string => {
     const used = usedEntryId(c, task, state);
@@ -1111,6 +1238,10 @@ export function buildReport(input: ReportInput): string {
     for (const r of devDiag) out.push(`- **${r.id}** (${r.combination}):`, ...diagnosisLines(r.decisionDiagnosis as DecisionDiagnosis, 'Dev_Run').map((l) => `  - ${l}`));
     out.push('');
   }
+
+  // ---- 13. Note on fine-tuning (R20.20)
+  h2(FINE_TUNING_TITLE);
+  para(FINE_TUNING_SENTENCE);
 
   while (out[out.length - 1] === '') out.pop();
   return `${out.join('\n')}\n`;

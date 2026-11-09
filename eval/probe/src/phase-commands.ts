@@ -6,7 +6,7 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { loadApprovals } from './approvals.ts';
 import { readLedger } from './ledger.ts';
-import { formatDecisionModels, formatLedger, formatPhaseStatus, parseCombinations, phase2ResultLines, phaseStatus, techRuntimeWarning, type DevRunInfo, type EntryPasses, type PhaseState } from './phase.ts';
+import { formatDecisionModels, formatLedger, formatPhaseStatus, isDecisionVariant, parseCombinations, phase2ResultLines, phaseStatus, techRuntimeWarning, variantRegistry, type DerivedRunInfo, type DevRunInfo, type EntryPasses, type PhaseState, type VariantRegistryEntry } from './phase.ts';
 import { readExclusions, readFailures, readResultsFile, readSmoke } from './results.ts';
 import { printErrorLine, printLine } from './sink.ts';
 import type { LedgerEntry } from './ledger.ts';
@@ -20,6 +20,8 @@ export interface PhasePaths {
   readonly combinations: string;
   /** Dev_Run Results directory; read for the Decision_Model gate. */
   readonly devDir?: string;
+  /** Derived_Run directory (`eval/results/derived`, with `dev` and `locked` below it). */
+  readonly derivedDir?: string;
 }
 
 export function defaultPaths(repoDir: string): PhasePaths {
@@ -31,6 +33,7 @@ export function defaultPaths(repoDir: string): PhasePaths {
     smokeDir: path.join(repoDir, 'eval/results/smoke'),
     combinations: path.join(repoDir, 'eval/probe/combinations.json'),
     devDir: path.join(repoDir, 'eval/results/dev'),
+    derivedDir: path.join(repoDir, 'eval/results/derived'),
   };
 }
 
@@ -59,9 +62,36 @@ function readDevRuns(dir: string | undefined): DevRunInfo[] {
     try {
       const h = readResultsFile(path.join(dir, name));
       const attempted = h.records.length === 0 || h.records.some((r) => !(r.outcome.kind === 'not_run' && r.outcome.reason === 'not_approved'));
-      out.push({ run_id: h.header.run_id, combination: h.header.combination, task_subset: h.header.task_subset, template_hashes: h.header.template_hashes, attempted });
+      out.push({
+        run_id: h.header.run_id,
+        combination: h.header.combination,
+        task_subset: h.header.task_subset,
+        template_hashes: h.header.template_hashes,
+        attempted,
+        ...(h.header.variants !== undefined ? { variants: h.header.variants as unknown as readonly VariantRegistryEntry[] } : {}),
+        ...(h.header.variant !== undefined ? { variant: h.header.variant } : {}),
+      });
     } catch {
       // The Dev_Run precondition reports unreadable files; the gate then finds no matching header and refuses.
+    }
+  }
+  return out;
+}
+
+/** Headers of the Derived_Run files of both splits (names in order, dev first). Unreadable files are skipped. */
+function readDerived(dir: string | undefined): DerivedRunInfo[] {
+  if (dir === undefined) return [];
+  const out: DerivedRunInfo[] = [];
+  for (const split of ['dev', 'locked'] as const) {
+    const sub = path.join(dir, split);
+    if (!fs.existsSync(sub)) continue;
+    for (const name of fs.readdirSync(sub).filter((n) => n.endsWith('.jsonl') && !n.endsWith('.grades.jsonl')).sort()) {
+      try {
+        const h = readResultsFile(path.join(sub, name)).header;
+        out.push({ run_id: h.run_id, combination: h.combination, split, template_hashes: h.template_hashes });
+      } catch {
+        // `derive --verify` and the Report name unreadable files.
+      }
     }
   }
   return out;
@@ -82,6 +112,8 @@ export async function readPhaseState(paths: PhasePaths, loadPasses: PassLoader =
     passes: loadPasses(entries),
     overLimit: new Set(),
     devRuns: readDevRuns(paths.devDir),
+    derived: readDerived(paths.derivedDir),
+    registry: new Map([...new Set(combinations.filter(isDecisionVariant).map((c) => c.model_id))].map((m) => [m, variantRegistry(combinations, m)] as const)),
   };
 }
 

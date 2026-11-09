@@ -4,7 +4,7 @@
 import { WORKERS_AI_REVISION, WORKERS_AI_RUNTIME_VERSION } from './adapters/workers-ai.ts';
 import { systemOneFingerprint } from './adapters/system-one.ts';
 import { isSystemOne, type Combination } from './phase.ts';
-import type { JsonObject, JsonValue } from './results.ts';
+import type { JsonObject, JsonValue, ResultRecord } from './results.ts';
 
 export interface DerivedFingerprintInput {
   /** The `perm_avg` record. */
@@ -54,4 +54,30 @@ export function derivedFingerprint(i: DerivedFingerprintInput): JsonObject {
     derived: true,
     aggregation: { rule_version: i.ruleVersion, hash: i.aggregationHash },
   };
+}
+
+// ---------------------------------------------------------------- latency evidence (R20.15)
+
+export interface DecisionLatency {
+  readonly cardId: string;
+  /** Number of calls the decision needed (the Request_Multiplier of the Card). */
+  readonly calls: number;
+  readonly sumMs: number;
+  readonly maxMs: number;
+}
+
+/**
+ * Per-Card decision latency of a derived file: the sum and the maximum over the calls of the Card, and the call count.
+ * The Report takes its latency figures from these (taken from the source `single` run's requests), never from a
+ * request of its own; Metrics never read them. Lives here (re-exported by `derive.ts`) so the Report can import it
+ * without importing the command.
+ */
+export function decisionLatencies(records: readonly ResultRecord[]): DecisionLatency[] {
+  const out: DecisionLatency[] = [];
+  for (const r of records) {
+    if (r.perm_avg === undefined) continue;
+    const ms = r.perm_avg.calls.map((c) => c.latency_ms ?? 0);
+    out.push({ cardId: r.card_id, calls: r.perm_avg.calls.length, sumMs: ms.reduce((a, b) => a + b, 0), maxMs: ms.reduce((a, b) => Math.max(a, b), 0) });
+  }
+  return out;
 }

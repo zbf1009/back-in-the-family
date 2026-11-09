@@ -13,7 +13,7 @@ import { decisionFactsFromLoaded, type DecisionCardFacts } from './diagnosis.ts'
 import { readLedger, type LedgerEntry } from './ledger.ts';
 import { metricCardFromLoaded, type FaultRecord, type MetricCard } from './metrics.ts';
 import { defaultPaths, printPhaseStatus, readPhaseState, readTechMd, type PassLoader, type PhasePaths } from './phase-commands.ts';
-import { analyzeRun, buildReport, entryPassesFrom, scanFaults, TARGET_MACHINE, type ExternalReferenceView, type ReportInput, type RunAnalysis, type RuntimeLibrary } from './report.ts';
+import { analyzeRun, buildReport, entryPassesFrom, scanFaults, TARGET_MACHINE, type DerivedRunView, type ExternalReferenceView, type ReportInput, type RunAnalysis, type RuntimeLibrary } from './report.ts';
 import {
   gradesPathFor,
   readGradesFile,
@@ -157,6 +157,34 @@ export async function gatherReportInput(paths: ReportPaths, cards: ReportCards, 
     }
   }
 
+  // Derived_Runs (R20.7): the Dev ones also go to the Dev_Run figures, labelled by their `perm_avg` Combination; the Locked ones
+  // feed a mark through `permAvgMark` only.
+  const derivedRuns: DerivedRunView[] = [];
+  for (const split of ['dev', 'locked'] as const) {
+    const dir = path.join(paths.resultsDir, 'derived', split);
+    if (!fs.existsSync(dir)) continue;
+    for (const name of fs.readdirSync(dir).filter((n) => n.endsWith('.jsonl') && !n.endsWith('.grades.jsonl')).sort()) {
+      const file = path.join(dir, name);
+      if (!fs.existsSync(gradesPathFor(file))) {
+        printErrorLine(`report: warning: Derived_Run ${name} has no grades file and is left out`);
+        continue;
+      }
+      const results = readResultsFile(file);
+      const analysis = analyzeRun({
+        kind: split,
+        id: results.header.run_id,
+        cards: split === 'dev' ? cards.dev : cards.locked,
+        ...(split === 'dev' ? (cards.devDecision !== undefined ? { decisionCards: cards.devDecision } : {}) : cards.lockedDecision !== undefined ? { decisionCards: cards.lockedDecision } : {}),
+        header: results.header,
+        records: results.records,
+        grades: readGradesFile(gradesPathFor(file)),
+        perf: null,
+      });
+      derivedRuns.push({ split, analysis, records: results.records });
+      if (split === 'dev') devRuns.push(analysis);
+    }
+  }
+
   return {
     generated_on: today,
     environment: { targetMachine: TARGET_MACHINE, workersEndpoint: null },
@@ -167,6 +195,7 @@ export async function gatherReportInput(paths: ReportPaths, cards: ReportCards, 
     preflights: loadPreflights(paths.preflightDir),
     runtimeLibraries: loadLibraries(paths.runtimeLibraries),
     external,
+    derivedRuns,
   };
 }
 

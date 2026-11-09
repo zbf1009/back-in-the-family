@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
-import { derive, deriveCommand, parseDeriveArgs, refusingDeriveGate, type DeriveDeps, type DeriveOptions } from '../../src/derive.ts';
+import { derive, deriveCommand, parseDeriveArgs, type DeriveDeps, type DeriveOptions } from '../../src/derive.ts';
 import { comboModelKey } from '../../src/phase.ts';
 import { regrade } from '../../src/ingest.ts';
 import { BY_CONSTRUCTION_PASS_LABEL, computeMetrics, isByConstruction, metricCardFromLoaded, passLabel } from '../../src/metrics.ts';
@@ -107,8 +107,8 @@ test('a source that is not complete is refused and nothing is written (RC-24): m
   }
 });
 
-test('the refusing gate stub refuses before anything is read or written; --task other than D is refused first', async () => {
-  const d = makeDeriveEnv(refusingDeriveGate);
+test('a refusing gate refuses before anything is read or written; --task other than D is refused first', async () => {
+  const d = makeDeriveEnv((r) => ({ ok: false, reason: `${r.step} of ${r.combo.id} is refused: test gate` }));
   writeSource(d, firstWins);
   const r = await run(d);
   assert.notEqual(r.value, 0);
