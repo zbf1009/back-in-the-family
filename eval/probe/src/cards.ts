@@ -10,7 +10,8 @@
 //
 // Who may read locked.jsonl (R3.1, with RC-13): a Locked_Run (which also renders prompts from it), and, for grading and
 // statistics only, never rendering a prompt and printing only Card IDs, pair_ids and scenario group IDs: `ingest` and
-// `regrade` (ingest.ts), `report` and `phase-status` (report-command.ts) and `ingest-reference` (external.ts).
+// `regrade` (ingest.ts), `report` and `phase-status` (report-command.ts), `ingest-reference` (external.ts) and `derive`
+// (derive.ts, RC-18: a Derived_Run grades the stored `perm_avg` answers; it renders no prompt and sends no request).
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

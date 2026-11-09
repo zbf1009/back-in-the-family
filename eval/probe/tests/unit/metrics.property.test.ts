@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import fc from 'fast-check';
-import { atLeast, atMost, computeMetrics, randomBaseline, THRESHOLDS, type MetricCard, type MetricsInput } from '../../src/metrics.ts';
+import { atLeast, atMost, computeMetrics, randomBaseline, THRESHOLDS, type MetricCard, type MetricsInput, measuredFlip } from '../../src/metrics.ts';
 import { weakEvidenceLabel } from '../../src/stats.ts';
 import type { ContrastLine } from '../../src/results.ts';
 import type { TaskType } from '../../src/cards.ts';
@@ -303,9 +303,9 @@ test('Property 19: computeMetrics equals an independent reference computation', 
         assert.deepStrictEqual([t.acceptable.num, t.acceptable.den], [ref.acceptable, ref.denominator]);
         assert.deepStrictEqual([t.illegal.num, t.illegal.den], [ref.illegal, ref.denominator]);
         assert.deepStrictEqual([t.severe.count, t.severe.den], [ref.severe, ref.denominator]);
-        assert.deepStrictEqual([t.flip.num, t.flip.den], [ref.flips, ref.perms]);
+        assert.deepStrictEqual([measuredFlip(t).num, measuredFlip(t).den], [ref.flips, ref.perms]);
         assert.deepStrictEqual([t.contrast.num, t.contrast.den], [ref.consistent, ref.pairCount]);
-        assert.deepStrictEqual([t.acceptable.verdict, t.severe.verdict, t.flip.verdict, t.contrast.verdict], ref.verdicts);
+        assert.deepStrictEqual([t.acceptable.verdict, t.severe.verdict, measuredFlip(t).verdict, t.contrast.verdict], ref.verdicts);
         assert.equal(t.passes, ref.passes);
         // Zero denominator: no rate, not computable, not passing.
         if (ref.denominator === 0) {
@@ -313,7 +313,7 @@ test('Property 19: computeMetrics equals an independent reference computation', 
           assert.equal(t.acceptable.verdict, 'not_computable');
           assert.equal(t.passes, false);
         }
-        if (ref.perms === 0) assert.equal(t.flip.verdict, 'not_computable');
+        if (ref.perms === 0) assert.equal(measuredFlip(t).verdict, 'not_computable');
         if (ref.pairCount === 0) assert.equal(t.contrast.verdict, 'not_computable');
         // Faults stay outside every numerator but are counted apart.
         assert.deepStrictEqual(t.faults, { engineFault: ref.engineFault, rebuildFailed: ref.rebuildFailed });

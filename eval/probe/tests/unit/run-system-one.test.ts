@@ -236,7 +236,7 @@ test('dev-run and locked-run refuse a perm_avg Combination before anything is re
   const deps: RunDeps = { ...depsFor(env, single, net.fetch), combinations: [single as Combination, permAvg] };
   const dev = await capture(() => devRun(deps, { combo: permAvg.id, task: 'D', approval: 'DM-D' }));
   assert.notEqual(dev.value, 0);
-  assert.match(dev.err, /variant: perm_avg is derived/);
+  assert.match(dev.err, /^probe: variant: .+ is derived from workers-ai\/clef-flash; use derive$/m);
   const locked = await capture(() => lockedRun(deps, { combo: permAvg.id, task: 'D', approval: 'DM-L' }));
   assert.notEqual(locked.value, 0);
   assert.equal(net.calls.length, 0);

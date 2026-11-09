@@ -87,6 +87,12 @@ const COMMANDS: Record<string, () => Promise<void>> = {
     const { defaultRunDeps } = await import('./run-command.ts');
     process.exitCode = await ingestReferenceCommand(process.argv.slice(3), defaultRunDeps(REPO_DIR));
   },
+  // Derives a `perm_avg` Derived_Run from the stored `single` Results (R20.9): no network, no `env`, no Request_Budget, no
+  // ledger line, no Runtime. Runs its own Manifest_Check first and reads locked.jsonl for grading only (RC-18, like regrade).
+  derive: async () => {
+    const { deriveCommand, defaultDeriveDeps } = await import('./derive.ts');
+    process.exitCode = await deriveCommand(process.argv.slice(3), defaultDeriveDeps(REPO_DIR));
+  },
   // Builds and serves the Probe_Page on localhost:4318 and prints a new empty Fresh_Profile directory.
   // Reads no cards and no env, so no Manifest_Check. Long-running: stops on Ctrl-C.
   'page-serve': async () => {

@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { test } from 'node:test';
 import { DEFAULT_CARDS_DIR, loadCards } from '../../src/cards.ts';
-import { computeMetrics, metricCardFromLoaded, randomBaseline, type MetricCard } from '../../src/metrics.ts';
+import { computeMetrics, metricCardFromLoaded, randomBaseline, type MetricCard, measuredFlip } from '../../src/metrics.ts';
 import { SCHEMA, type ContrastLine, type GradeLine, type JsonValue, type Outcome, type ResultRecord } from '../../src/results.ts';
 
 // Hand-computed Metrics example (llm-probe task 9.9; requirement 13.11).
@@ -111,7 +111,7 @@ test('decision Metrics match the hand computation', () => {
   assert.deepEqual([d.illegal.num, d.illegal.den], [1, 4]);
   // Flip: 5 non-base Permutations run; only a2 reversed (c vs b) flips. a3 reversed is
   // invalid against an invalid base, so no flip. 1 of 5 = 20% > 5% -> fail.
-  assert.deepEqual([d.flip.num, d.flip.den, d.flip.verdict], [1, 5, 'fail']);
+  assert.deepEqual([measuredFlip(d).num, measuredFlip(d).den, measuredFlip(d).verdict], [1, 5, 'fail']);
   // Contrast: PA consistent; PB not (a3 base Illegal). 1 of 2 = 50% < 80% -> fail.
   assert.deepEqual([d.contrast.num, d.contrast.den, d.contrast.verdict], [1, 2, 'fail']);
   assert.deepEqual(d.pairs.map((p) => [p.pairId, p.consistent]), [['PA', true], ['PB', false]]);
@@ -139,7 +139,7 @@ test('a task with a zero denominator is not computable and not passing', () => {
   const s = computeMetrics({ cards, records, grades, contrasts }).tasks[1]!;
   assert.equal(s.task, 'synthesis');
   assert.equal(s.cards, 0);
-  for (const v of [s.acceptable.verdict, s.severe.verdict, s.flip.verdict, s.contrast.verdict]) {
+  for (const v of [s.acceptable.verdict, s.severe.verdict, measuredFlip(s).verdict, s.contrast.verdict]) {
     assert.equal(v, 'not_computable');
   }
   assert.equal(s.randomBaseline, null);

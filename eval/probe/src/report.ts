@@ -13,7 +13,7 @@ import { splitCpuNodes } from './adapters/placement.ts';
 import type { TaskType } from './cards.ts';
 import { chooseReportEntries, subsetTaskTypes, type LedgerEntry } from './ledger.ts';
 import { diagnoseDecisions, diagnosisLines, type DecisionCardFacts, type DecisionDiagnosis } from './diagnosis.ts';
-import { computeMetrics, THRESHOLDS, type FaultRecord, type MetricCard, type Ratio, type SanityResult, type TaskMetrics, type Verdict } from './metrics.ts';
+import { computeMetrics, isByConstruction, passLabel, THRESHOLDS, type FaultRecord, type MetricCard, type Ratio, type SanityResult, type TaskMetrics, type Verdict } from './metrics.ts';
 import {
   browserPassEntry,
   decisionHold,
@@ -191,7 +191,7 @@ export function excludedPairsOf(cards: readonly MetricCard[], tasks: readonly Ta
 /** Computes Metrics, intervals and latency of one run from loaded cards, Results and grades. */
 export function analyzeRun(input: RunInputs): RunAnalysis {
   const tasks = subsetTaskTypes(input.header.task_subset);
-  const metrics = computeMetrics({ cards: input.cards, records: input.records, grades: input.grades.grades, contrasts: input.grades.contrasts, tasks });
+  const metrics = computeMetrics({ cards: input.cards, records: input.records, grades: input.grades.grades, contrasts: input.grades.contrasts, tasks, flip: input.header.variant === 'perm_avg' ? 'by_construction' : 'measured' });
   const taskOfCard = new Map(input.cards.map((c) => [c.id, c.task] as const));
   const analyses: TaskAnalysis[] = metrics.tasks.map((m) => {
     const acceptable = rateStats(m.acceptable, clusterBootstrapAcceptable(m.perCard), m.perCard, (c) => c.acceptable);
@@ -490,9 +490,9 @@ function marks(t: TaskAnalysis): { acceptable: string; severe: string; flip: str
   return {
     acceptable: m.acceptable.verdict === 'pass' ? (t.acceptableMark ?? 'pass') : verdictText(m.acceptable.verdict),
     severe: verdictText(m.severe.verdict),
-    flip: verdictText(m.flip.verdict),
+    flip: isByConstruction(m.flip) ? 'by construction (not measured)' : verdictText(m.flip.verdict),
     contrast: m.contrast.verdict === 'pass' ? (t.contrastMark ?? 'pass') : verdictText(m.contrast.verdict),
-    overall: !m.usableForMark ? 'not used for a mark (missing outputs or engine faults)' : m.passes ? 'pass' : 'fail',
+    overall: !m.usableForMark ? 'not used for a mark (missing outputs or engine faults)' : m.passes ? passLabel(m) : 'fail',
   };
 }
 
@@ -503,7 +503,9 @@ export function failedThresholds(m: TaskMetrics): string[] {
   else if (m.acceptable.verdict === 'fail') out.push(`acceptable rate ${ratioText(m.acceptable)} = ${ratioPct(m.acceptable)}, below ${THRESHOLDS.acceptablePct}%`);
   if (m.severe.verdict === 'not_computable') out.push('severe count not computable (denominator 0)');
   else if (m.severe.verdict === 'fail') out.push(`severe count ${m.severe.count}, above ${THRESHOLDS.severeMax}`);
-  if (m.flip.verdict === 'not_computable') out.push('flip rate not computable (denominator 0)');
+  if (isByConstruction(m.flip)) {
+    // Guaranteed by construction (R20.13): no flip row to fail.
+  } else if (m.flip.verdict === 'not_computable') out.push('flip rate not computable (denominator 0)');
   else if (m.flip.verdict === 'fail') out.push(`flip rate ${ratioText(m.flip)} = ${ratioPct(m.flip)}, above ${THRESHOLDS.flipPct}%`);
   if (m.contrast.verdict === 'not_computable') out.push('contrast consistency not computable (denominator 0)');
   else if (m.contrast.verdict === 'fail') out.push(`contrast consistency ${ratioText(m.contrast)} = ${ratioPct(m.contrast)}, below ${THRESHOLDS.contrastPct}%`);
@@ -774,8 +776,8 @@ export function buildReport(input: ReportInput): string {
         [
           ['Acceptable rate', ratioText(m.acceptable), `${ratioPct(m.acceptable)}${baseline === null ? '' : ` (Random_Baseline ${baseline})`}`, `at least ${THRESHOLDS.acceptablePct}%`, mk.acceptable],
           ['Severe count (base Permutation of each card)', `${m.severe.count} of ${m.severe.den} cards`, `${m.severe.count}`, `at most ${THRESHOLDS.severeMax}`, mk.severe],
-          ['Severe outputs in other Permutations', `${m.severeOtherPermutations} of ${m.flip.den} non-base requests`, `${m.severeOtherPermutations}`, 'none (no verdict)', 'reported only'],
-          ['Flip rate (non-base requests with an output, Illegal and timeouts included)', ratioText(m.flip), ratioPct(m.flip), `at most ${THRESHOLDS.flipPct}%`, mk.flip],
+          ['Severe outputs in other Permutations', isByConstruction(m.flip) ? 'not applicable' : `${m.severeOtherPermutations} of ${m.flip.den} non-base requests`, `${m.severeOtherPermutations}`, 'none (no verdict)', 'reported only'],
+          ['Flip rate (non-base requests with an output, Illegal and timeouts included)', isByConstruction(m.flip) ? 'guaranteed by construction (not measured)' : ratioText(m.flip), isByConstruction(m.flip) ? 'not applicable' : ratioPct(m.flip), isByConstruction(m.flip) ? 'none (no verdict)' : `at most ${THRESHOLDS.flipPct}%`, mk.flip],
           ['Contrast consistency', `${ratioText(m.contrast)} pairs`, ratioPct(m.contrast), `at least ${THRESHOLDS.contrastPct}%`, mk.contrast],
           ['Illegal rate', ratioText(m.illegal), ratioPct(m.illegal), 'none (no verdict)', 'reported only'],
         ],
@@ -849,7 +851,7 @@ export function buildReport(input: ReportInput): string {
     const t = taskAnalysis(e.entry_id, task);
     if (t === undefined) return e.status === 'complete' ? 'not available' : 'not computed (entry incomplete)';
     const m = t.metrics;
-    return `acceptable ${ratioText(m.acceptable)} (${ratioPct(m.acceptable)}), severe ${m.severe.count}, flips ${ratioText(m.flip)}, contrast ${ratioText(m.contrast)}; ${marks(t).overall}`;
+    return `acceptable ${ratioText(m.acceptable)} (${ratioPct(m.acceptable)}), severe ${m.severe.count}, flips ${isByConstruction(m.flip) ? 'by construction' : ratioText(m.flip)}, contrast ${ratioText(m.contrast)}; ${marks(t).overall}`;
   };
   for (const c of choices) {
     const keyText = modelKeyText(c.model_key);
@@ -1090,7 +1092,7 @@ export function buildReport(input: ReportInput): string {
       `${ratioText(t.metrics.acceptable)} (${ratioPct(t.metrics.acceptable)})${t.metrics.randomBaseline === null ? '' : `; random baseline ${pct(t.metrics.randomBaseline.num, t.metrics.randomBaseline.den)}`}`,
       `${t.metrics.severe.count}`,
       `${t.metrics.severeOtherPermutations}`,
-      `${ratioText(t.metrics.flip)}`,
+      `${isByConstruction(t.metrics.flip) ? 'by construction' : ratioText(t.metrics.flip)}`,
       `${ratioText(t.metrics.contrast)}`,
       `${latencyText(t.latency.p50)} / ${latencyText(t.latency.p95)}`,
       mem.nvidia,

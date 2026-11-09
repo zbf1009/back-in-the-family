@@ -103,7 +103,16 @@ export interface MetricsInput {
   contrasts: readonly ContrastLine[];
   /** Task types to report; default both. A D-only run passes `['decision']`. */
   tasks?: readonly TaskType[];
+  /**
+   * How the Shuffle_Test flip Metric is obtained (R20.12, DA-26). `measured` (default) counts flips over the non-base
+   * Permutations. `by_construction` is for a Derived_Run only (Results header `variant: "perm_avg"`, read by the caller
+   * from the header, never guessed from the records): the flip is guaranteed by the Aggregation_Rule, so it has no
+   * numerator, no denominator and no verdict.
+   */
+  flip?: FlipMode;
 }
+
+export type FlipMode = 'measured' | 'by_construction';
 
 // ---------------------------------------------------------------- output types
 
@@ -164,6 +173,20 @@ export interface FaultRecord {
   code?: 'runtime_stuck' | 'truncated_state';
 }
 
+/** The flip Metric of a Derived_Run: guaranteed by construction, not measured (R20.13). It is not a pass and not a fail. */
+export interface ByConstructionFlip {
+  mode: 'by_construction';
+}
+
+/** True for the flip Metric of a Derived_Run. */
+export const isByConstruction = (f: JudgedRatio | ByConstructionFlip): f is ByConstructionFlip => 'mode' in f;
+
+/** The measured flip of a Task_Type; throws for a by-construction flip, which has no numerator or denominator. */
+export function measuredFlip(m: Pick<TaskMetrics, 'flip'>): JudgedRatio {
+  if (isByConstruction(m.flip)) throw new MetricsInputError('the flip Metric is by_construction: it has no numerator or denominator');
+  return m.flip;
+}
+
 export interface TaskMetrics {
   task: TaskType;
   /** Non-void Scored_Cards of the Task_Type: the denominator of the card-level Metrics. */
@@ -172,12 +195,13 @@ export interface TaskMetrics {
   severe: SevereCount;
   /**
    * Severe grades on non-base Permutations of the same cards (reported only, no verdict). The
-   * Severe count above is over the base Permutation of each card, by design (R13.1).
+   * Severe count above is over the base Permutation of each card, by design (R13.1). Always 0 for a Derived_Run, which
+   * holds a base record per Card only ("not applicable").
    */
   severeOtherPermutations: number;
   /** Reported without a verdict (R13.4). */
   illegal: Ratio;
-  flip: JudgedRatio;
+  flip: JudgedRatio | ByConstructionFlip;
   contrast: JudgedRatio;
   /** Mean over non-void scored D cards of acceptable/options, exact; `null` for S or no cards. */
   randomBaseline: Fraction | null;
@@ -460,7 +484,8 @@ export function computeMetrics(input: MetricsInput): Metrics {
       den,
       verdict: den === 0 ? 'not_computable' : severe <= THRESHOLDS.severeMax ? 'pass' : 'fail',
     };
-    const flip: JudgedRatio = { ...ratio(flips, perms), verdict: atMost(flips, perms, THRESHOLDS.flipPct) };
+    const byConstruction = (input.flip ?? 'measured') === 'by_construction';
+    const flip: JudgedRatio | ByConstructionFlip = byConstruction ? { mode: 'by_construction' } : { ...ratio(flips, perms), verdict: atMost(flips, perms, THRESHOLDS.flipPct) };
     const contrast: JudgedRatio = {
       ...ratio(consistentCount, pairs.length),
       verdict: atLeast(consistentCount, pairs.length, THRESHOLDS.contrastPct),
@@ -471,12 +496,12 @@ export function computeMetrics(input: MetricsInput): Metrics {
       cards: den,
       acceptable,
       severe: severeC,
-      severeOtherPermutations: severeOther,
+      severeOtherPermutations: byConstruction ? 0 : severeOther,
       illegal: ratio(illegal, den),
       flip,
       contrast,
       randomBaseline: task === 'decision' ? randomBaseline(input.cards) : null,
-      passes: [acceptable.verdict, severeC.verdict, flip.verdict, contrast.verdict].every((v) => v === 'pass'),
+      passes: [acceptable.verdict, severeC.verdict, ...(isByConstruction(flip) ? [] : [flip.verdict]), contrast.verdict].every((v) => v === 'pass'),
       withoutTimeout: { acceptable: ratio(accNt, den), severe: severeNt, illegal: ratio(illegalNt, den), replaced },
       cardsWithoutBaseOutput: without,
       faults: { engineFault, rebuildFailed },
@@ -485,4 +510,25 @@ export function computeMetrics(input: MetricsInput): Metrics {
       pairs,
     };
   }
+}
+
+// ---------------------------------------------------------------- pass label (R20.13, RC-23)
+
+/** The label of the pass mark of a Combination whose flip is guaranteed by construction (R20.13). */
+export const BY_CONSTRUCTION_PASS_LABEL = 'pass (flip guaranteed by construction, not measured)';
+
+/**
+ * The one place that turns a Task_Type's Metrics into the label of its pass mark (R20.13, RC-23). A measured flip gives
+ * `pass` or `fail`. A by-construction flip gives {@link BY_CONSTRUCTION_PASS_LABEL} when the other three Thresholds hold
+ * (it still counts as a pass under R13.4, with its label), else `fail` with the failing Thresholds named. The R13.9
+ * labels stay on the acceptable-rate and contrast rows and are not part of this label.
+ */
+export function passLabel(m: Pick<TaskMetrics, 'passes' | 'flip' | 'acceptable' | 'severe' | 'contrast'>): string {
+  if (m.passes) return isByConstruction(m.flip) ? BY_CONSTRUCTION_PASS_LABEL : 'pass';
+  if (!isByConstruction(m.flip)) return 'fail';
+  const failing: string[] = [];
+  if (m.acceptable.verdict !== 'pass') failing.push('acceptable rate');
+  if (m.severe.verdict !== 'pass') failing.push('severe count');
+  if (m.contrast.verdict !== 'pass') failing.push('contrast consistency');
+  return `fail (${failing.join(', ')})`;
 }

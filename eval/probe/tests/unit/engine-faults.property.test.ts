@@ -11,7 +11,7 @@ import fc from 'fast-check';
 import type { AdapterResult } from '../../src/adapters/interface.ts';
 import { loadCards } from '../../src/cards.ts';
 import { deriveEntries, readLedger } from '../../src/ledger.ts';
-import { computeMetrics, metricCardFromLoaded, type MetricCard } from '../../src/metrics.ts';
+import { computeMetrics, metricCardFromLoaded, type MetricCard, measuredFlip } from '../../src/metrics.ts';
 import { analyzeRun, buildReport, scanFaults } from '../../src/report.ts';
 import { gradesPathFor, readFailures, readGradesFile, readResultsFile, SCHEMA, type GradeLine, type ResultRecord } from '../../src/results.ts';
 import { devRun, lockedRun } from '../../src/run.ts';
@@ -65,7 +65,7 @@ function stubGrades(records: readonly ResultRecord[]): GradeLine[] {
 }
 
 const numbers = (m: ReturnType<typeof computeMetrics>) =>
-  m.tasks.map((t) => [t.cards, t.acceptable.num, t.acceptable.den, t.severe.count, t.severe.den, t.illegal.num, t.illegal.den, t.flip.num, t.flip.den, t.contrast.num, t.contrast.den]);
+  m.tasks.map((t) => [t.cards, t.acceptable.num, t.acceptable.den, t.severe.count, t.severe.den, t.illegal.num, t.illegal.den, measuredFlip(t).num, measuredFlip(t).den, t.contrast.num, t.contrast.den]);
 
 test('Property 40: engine faults never reach a Metric', async () => {
   await fc.assert(

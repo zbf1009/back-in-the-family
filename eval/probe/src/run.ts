@@ -989,8 +989,8 @@ async function closeHandle(h: RuntimeHandle | null): Promise<void> {
 function prepare(deps: RunDeps, comboId: string, task: TaskSubset, rawTimeout: number | string | undefined): Prepared {
   const timeoutMs = parseTimeoutMs(rawTimeout);
   const combo = findCombo(deps, comboId);
-  // A `perm_avg` Combination sends nothing and has no Runtime: it is computed by `probe derive`, never run (R20.9, task 41).
-  if (isPermAvg(combo)) throw new RunError('invalid_arguments', { combination: combo.id, value: 'variant: perm_avg is derived from its source run, not run; use `probe derive`' });
+  // A `perm_avg` Combination sends nothing and has no Runtime: it is computed by `probe derive`, never run (R20.9).
+  if (isPermAvg(combo)) throw new RunError('variant', { value: `${combo.id} is derived from ${combo.derives_from ?? 'its source run'}; use derive` });
   return { combo, subset: task, tasks: tasksOf(task), timeoutMs };
 }
 

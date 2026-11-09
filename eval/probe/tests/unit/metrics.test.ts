@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { computeMetrics, randomBaseline, type MetricCard } from '../../src/metrics.ts';
+import { computeMetrics, randomBaseline, type MetricCard, measuredFlip } from '../../src/metrics.ts';
 import { SCHEMA, type ContrastLine, type GradeLine, type JsonValue, type Outcome, type ResultRecord } from '../../src/results.ts';
 
 // Smoke examples only; the detailed examples and property tests are tasks 9.3 to 9.11.
@@ -119,7 +119,7 @@ test('flip rate counts an Illegal permutation unless the base is invalid; faults
   const d = computeMetrics({ ...fixture(), tasks: ['decision'] }).tasks[0]!;
   // d1 reversed same identity, d2 reversed Illegal against an option base: 1 flip in 2 permutations.
   // The rebuild_failed and engine_fault records are not permutations run.
-  assert.deepEqual([d.flip.num, d.flip.den, d.flip.verdict], [1, 2, 'fail']);
+  assert.deepEqual([measuredFlip(d).num, measuredFlip(d).den, measuredFlip(d).verdict], [1, 2, 'fail']);
   assert.deepEqual(d.faults, { engineFault: 1, rebuildFailed: 1 });
   assert.equal(d.usableForMark, false);
   assert.equal(d.passes, false);
@@ -166,5 +166,5 @@ test('a severe grade on a non-base Permutation stays out of the severe count and
   const t = m.tasks[0];
   assert.equal(t?.severe.count, 0);
   assert.equal(t?.severeOtherPermutations, 1);
-  assert.equal(t?.flip.den, 1);
+  assert.equal(t === undefined ? undefined : measuredFlip(t).den, 1);
 });

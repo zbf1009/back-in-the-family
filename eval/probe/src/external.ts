@@ -36,7 +36,7 @@ import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { loadCards, type LoadedCard, type TaskType } from './cards.ts';
-import { computeMetrics, metricCardFromLoaded } from './metrics.ts';
+import { computeMetrics, measuredFlip, metricCardFromLoaded } from './metrics.ts';
 import { canonicalJson, SCHEMA, type ResultRecord } from './results.ts';
 import { GradingError, gradeRecords } from './run-grading.ts';
 import { copyFileUnchanged, writeTextFile } from './sink.ts';
@@ -344,8 +344,8 @@ export function regradeRawOutputs(lockedCards: readonly LoadedCard[], task: 'D' 
     scored_cards: m.acceptable.den,
     severe: m.severe.count,
     illegal: m.illegal.num,
-    flip_perms: m.flip.den,
-    flips: m.flip.num,
+    flip_perms: measuredFlip(m).den,
+    flips: measuredFlip(m).num,
     consistent_pairs: m.contrast.num,
     pairs: m.contrast.den,
   };

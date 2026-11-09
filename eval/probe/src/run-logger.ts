@@ -54,6 +54,7 @@ export type FailureCode =
   | 'invalid_timeout'
   | 'unknown_combination'
   | 'invalid_arguments'
+  | 'variant'
   | 'card_load'
   | 'not_pinned'
   | 'excluded'
@@ -80,6 +81,7 @@ const FAILURE_TEXT: Readonly<Record<FailureCode, string>> = {
   invalid_timeout: 'invalid Timeout value (need a positive whole number of milliseconds)',
   unknown_combination: 'unknown Combination',
   invalid_arguments: 'invalid arguments',
+  variant: 'a derived Decision_Variant is not run',
   card_load: 'cards could not be loaded',
   not_pinned: 'the Combination has no Pinned_Revision (R9.15)',
   excluded: 'the Combination has an Exclusion_Record',
@@ -124,6 +126,11 @@ export class RunLogger {
   }
 
   failure(code: FailureCode, args: FailureArgs = {}): void {
+    // `probe: variant: <combination> is derived from <source>; use derive` (R20.9): the sentence is the value.
+    if (code === 'variant') {
+      printErrorLine(`probe: variant: ${String(args.value ?? '')}`);
+      return;
+    }
     printErrorLine(`probe: ${code}: ${FAILURE_TEXT[code]}${formatArgs(args)}`);
   }
 
