@@ -1112,3 +1112,11 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - Model_Fingerprint: the full record is written by the runner into the ledger `start` line and the Results header; the ledger entry ID goes into the END entry.
 - Pinned_Manifest_Hash `9322729c727a8c975dc3273fb7cc2f239e8790ea66e1745493179aea6815b34f` (manifest check ok, 27 files). Template_Hashes equal the frozen ones: decision `6fcfbf99f41c83b0902d25537ed57841c25e1d38e833574930c5164c820e9312`, synthesis `5139bcc5a4e10a52184483779dad0f2c4541ac432862170d1749a2c939663d85`.
 - Budget ledger before the run: no entry for 2026-11-09 (0 requests, 0 neurons); 2026-11-08 shows 104 requests and 1,291 neurons from the Dev_Run. Locked card content is not opened or printed by me.
+
+### Spec: llm-probe — Locked_Run END, `workers-ai/gemma-4-26b-a4b-it` (task 23.3, 2026-11-09)
+
+- Status: **completed**. Ledger entry `L-20261109T014137Z-workers-ai-gemma-4-26b-a4b-it`, fingerprint `fp-253cc924cb6c5e9517bcff97c672708e42b28c8267ffeadefbd4313312f6438f`, started 2026-11-09T01:41:37Z (the START entry above gives "01:43Z" by mistake; the ledger time is the correct one, and the START commit `39a96bb` was made before the runner started). Wall time about 8.5 min, no resume.
+- 324 requests sent (decision 236, synthesis 88), 324 records, 323 with output, 1 client-side timeout (a D request), 0 remote errors, 0 not_run, 0 engine faults.
+- Results: `eval/results/locked/L-20261109T014137Z-workers-ai-gemma-4-26b-a4b-it.jsonl` and `.grades.jsonl`, plus the ledger lines in `eval/results/ledger.jsonl`. Neurons settled on 2026-11-09: 4,098 (324 requests, 0 smoke), from the gitignored budget ledger.
+- D: acceptable 51/60 (85.0%, pass), severe 2 of 60 base cards (fail), flips 36/172 (20.9%, fail), contrast 3/15 (fail). S: acceptable 34/40 (85.0%, pass), severe 0 (pass), flips 10/44 (22.7%, fail), contrast 6/10 (fail). Both D and S marked fail.
+- No other Workers AI call was made. `eval/cards/cards/locked.jsonl` was not opened. `probe report` was run to read the figures; the untracked `docs/llm-probe.md` draft was deleted.
