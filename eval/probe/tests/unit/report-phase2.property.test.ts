@@ -119,6 +119,13 @@ const section = (report: string, from: string, to: string): string => {
   return report.slice(start, end);
 };
 
+// Pinned examples: one per candidate count 0..4, so the coverage of counts never depends on the random run
+// (all four Workers AI Combinations untried has a probability of about 0.2% per run, which flaked the check).
+const tried = (n: number, i: number): Flags => ({ ...FLAG_SHAPE, ledger: i < n ? 'complete' : 'none' });
+const countExamples = [0, 1, 2, 3, 4].map(
+  (n) => [{ gemma: tried(n, 0), a: tried(n, 1), b: tried(n, 2), glm: tried(n, 3), phase2: true, approvalsReadable: true, browserSmoke: 0 }] as [Parameters<typeof build>[0]],
+);
+
 test('Property 48: the Report counts Phase_2 candidates, prints the selection-bias note, the Additional_Candidate_Set and the hold banner', () => {
   const seen = { counts: new Set<number>(), banner: 0, noBanner: 0, notMeasured: 0 };
   fc.assert(
@@ -184,9 +191,9 @@ test('Property 48: the Report counts Phase_2 candidates, prints the selection-bi
       if (spec.phase2 && spec.approvalsReadable) assert.match(s2, /Author's Phase_2 approval: P2-001, approved on 2026-11-08, branch B, approved model @cf\/google\/gemma-4-26b-a4b-it, Task_Type_Subset DS\./);
       else if (spec.approvalsReadable) assert.match(s2, /Author's Phase_2 approval: none recorded; Phase_2 has not started\./);
     }),
-    { numRuns: 400 },
+    { numRuns: 400, examples: countExamples },
   );
-  assert.ok([0, 1, 2, 3].every((n) => seen.counts.has(n)), `coverage of counts: ${[...seen.counts].join(',')}`);
+  assert.ok([0, 1, 2, 3, 4].every((n) => seen.counts.has(n)), `coverage of counts: ${[...seen.counts].join(',')}`);
   assert.ok(seen.banner >= 10 && seen.noBanner >= 10 && seen.notMeasured >= 10, JSON.stringify(seen));
 });
 

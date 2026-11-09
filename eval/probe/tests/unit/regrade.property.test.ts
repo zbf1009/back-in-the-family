@@ -143,7 +143,12 @@ test('Property 33: re-grading reproduces every Grade and Metric', async () => {
       }
 
       // One tampered record or grades line is detected and named by file and line; nothing is changed.
-      const target = withGrades[pick % withGrades.length] as string;
+      // Only a file with at least one graded line can be tampered with: a run of nothing but engine faults
+      // writes no Grade (found by seed -1462293683). The clean Dev_Run always qualifies.
+      const hasGrade = (f: string): boolean => fs.readFileSync(gradesPathFor(f), 'utf8').split('\n').some((l) => l.trim() !== '' && (JSON.parse(l) as { grade?: unknown }).grade != null);
+      const tamperable = withGrades.filter(hasGrade);
+      assert.ok(tamperable.length >= 1);
+      const target = tamperable[pick % tamperable.length] as string;
       const gradesFile = gradesPathFor(target);
       const resultsText = fs.readFileSync(target, 'utf8');
       const gradesTextBefore = fs.readFileSync(gradesFile, 'utf8');
@@ -186,7 +191,16 @@ test('Property 33: re-grading reproduces every Grade and Metric', async () => {
       assert.equal(rt.calls.length, 0);
       assert.deepEqual(snapshot(env.root), tampered, 'a failed regrade changes no file');
     }),
-    { numRuns: 12 },
+    {
+      numRuns: 12,
+      examples: [
+        // Regression (seed -1462293683): a scripted Dev_Run of engine faults only writes no Grade; the tamper
+        // step must pick a file that has a graded line. Also pins grades tampering (odd pick).
+        [[{ kinds: ['engine_fault'], rebuildFailAt: null }, { kinds: ['valid'], rebuildFailAt: 0 }], 9],
+        // Pins results tampering (even pick, a legal answer exists), so coverage never depends on the random run.
+        [[{ kinds: ['valid'], rebuildFailAt: null }, { kinds: ['valid', 'illegal'], rebuildFailAt: null }], 0],
+      ],
+    },
   );
   assert.ok(regraded > 0 && tamperedResults > 0 && tamperedGrades > 0, `coverage: regraded ${regraded}, results ${tamperedResults}, grades ${tamperedGrades}`);
 });
