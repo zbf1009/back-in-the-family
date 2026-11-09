@@ -568,193 +568,193 @@ Execution notes for the orchestrator:
     - _Requirements: 11.3, 17.1_
 
 - [ ] 25. STOP-AND-ASK: the Author's runtime decision and the steering update
-  - [-] 25.1 Ask the Author for the runtime decision
+  - [x] 25.1 Ask the Author for the runtime decision
     - Ask for the chosen Runtime and model per Task_Type, or Rules_Default only. Until the Author records it, `tech.md` keeps "Decided by the W1 probe" and no recommendation goes into the steering files.
     - _Requirements: 15.8, 15.9_
-  - [ ] 25.2 Update `tech.md` and `structure.md` in one change
+  - [~] 25.2 Update `tech.md` and `structure.md` in one change
     - `tech.md` "LLM runtime" row names the decision per Task_Type and links to `docs/llm-probe.md`; `structure.md` "Next steps" states the decision and links to the Report. Log the steering change; one `docs(llm-probe)` commit.
     - _Requirements: 15.8_
-  - [ ] 25.3 Fix the run gate's missing pass results (after 25.1)
+  - [x] 25.3 Fix the run gate's missing pass results (after 25.1)
     - The run gate in `eval/probe/src/run-command.ts` builds its PhaseState without pass results (grades), so it always recomputes Phase_2 branch B (fails safe: a real branch A shows a mismatch and refuses to run). Load pass results through the same analysis `phase-status` uses (fixed in commit 80f4d50); add a test that the gate computes branch A when an in-browser Combination passes; gates green; `fix(probe)` commit; log. Recorded at the Author's request during the 24.2 review. Scheduling note (2026-11-09, DA-23): this fix is scheduled in the Task Dependency Graph before tasks 27 to 38 and before 25.1 completes, not after 25.1; the Decision_Model gate of task 27 reuses its shared `loadPhaseState()`.
     - _Requirements: 18.2, 11.20_
 
 - [ ] 26. Final audit
-  - [ ] 26.1 Run the gates from a clean build
+  - [~] 26.1 Run the gates from a clean build
     - Remove `target/`, `web/node_modules/`, `eval/probe/node_modules/`, `web/dist/` and `eval/probe/dist/` (build output only), run `scripts/gates.sh` to exit 0, record the wall time. Run them once more in a fresh clone in a temporary directory, which has no `env` file, to show R16.4 offline of secrets.
     - _Requirements: 16.4, 16.5, 16.9_
-  - [ ] 26.2 Write `docs/llm-probe-audit.md`
+  - [~] 26.2 Write `docs/llm-probe-audit.md`
     - Same style as `docs/web-shell-audit.md`: one row per acceptance criterion of R1 to R18 with status and evidence (test, property, gate, injection log entry, Results file, ledger entry, Report section). List the gaps.
     - _Requirements: all_
-  - [ ] 26.3 Update `README.md`
+  - [~] 26.3 Update `README.md`
     - Exact commands from the repository root for the probe: install, `check-manifest`, `screen`, `preflight`, `dev-run`, `locked-run`, `smoke`, `page-serve`, `ingest`, `regrade`, `phase-status`, `report`. Final third-party table checked against both `package.json` files, both lockfiles and `Cargo.lock`.
     - _Requirements: 16.8_
-  - [ ] 26.4 Update the steering files' layout and gates
+  - [~] 26.4 Update the steering files' layout and gates
     - `.kiro/steering/structure.md`: `eval/probe/`, `eval/results/`, `fixtures/grading/`, `scripts/regen-grading-golden.sh`, `docs/llm-probe.md`, `docs/llm-probe-audit.md`, and the module table row for the slow-think bridge. `.kiro/steering/tech.md` Quality gates: the new gates in order. Log the steering changes.
     - _Requirements: 15.8_
-  - [ ] 26.5 Sync the spec documents with what was built
+  - [~] 26.5 Sync the spec documents with what was built
     - Update `design.md` where the implementation differs (resolved versions, Property 35 placement, the V1 to V8 outcomes, any changed flag, method or schema) with dated notes, without rewriting history; keep `requirements.md` criteria and add notes only. Run `validate_spec_format` on both files until clean. Gates green; one conventional commit for task 26.
     - _Requirements: all_
-  - [ ] 26.6 STOP-AND-ASK before pushing `main`
+  - [~] 26.6 STOP-AND-ASK before pushing `main`
     - Ask the Author for a deploy approval naming the commit to push, because a green push to `main` deploys `web/dist`. Do nothing until approved. After the push, report the CI result and any CI-only difference, and log it.
     - _Requirements: 17.1, 17.2, 17.3_
 
-- [ ] 27. Shared phase-state loader use and the Decision_Model gate (R19.1, R19.4, R19.5, R19.17; DA-21, DA-23)
-  - [ ] 27.1 Build `allowDecisionModel` on the single `loadPhaseState()` (after 25.3)
+- [x] 27. Shared phase-state loader use and the Decision_Model gate (R19.1, R19.4, R19.5, R19.17; DA-21, DA-23)
+  - [x] 27.1 Build `allowDecisionModel` on the single `loadPhaseState()` (after 25.3)
     - Precondition: 25.3 is done, so `phase-status`, the run gate and the new gate all call one `loadPhaseState()` (DA-23). Add `allowDecisionModel(step, combo, task_subset, state)` in the run-gate file, with the order of checks in the design ("Decision_Model gate"): (1) `task_subset` is exactly `D`; an S-containing subset exits non-zero naming the Decision_Model and the Task_Type and writes no Results, no `not_run`, no ledger line and no budget change, before anything else is read; (2) Phase_1 has ended (the branch and the `phase2` entry are not consulted); (3) an unwithdrawn `decision_model` entry from `HEAD` names this Combination and this step; (4) smoke, then Dev_Run, then Locked_Run order, with a `shape_check: "ok"` record for the declared shape and the same mapping Template_Hash in the newest Dev_Run; (5) planned count at most the entry's `max_requests`. A `smoke` request needs no approval entry (RC-10): allowed when the subset is `D` and the 10-per-UTC-day count and the budget caps allow it.
     - _Requirements: 19.1, 19.4, 19.5, 18.1, 18.3, 18.4, 11.8, 11.20_
-  - [ ] 27.2 Extend the approvals reader (`decision_model` and `withdrawal` kinds)
+  - [x] 27.2 Extend the approvals reader (`decision_model` and `withdrawal` kinds)
     - Schema id stays `llm-probe-approvals-v1`. A `decision_model` entry names one Combination and one `step` (`dev` or `locked`), `task_subset: "D"`, `max_requests`, `approved_on`; the reader rejects `step: "smoke"`, any other step, a missing field, a subset other than `D`, and a `phase2` member. A `withdrawal` entry names the approval it withdraws. Entries are still added only in a commit made after the Author approved in the conversation (DA-14, R11.20).
     - _Requirements: 19.4, 11.20_
-  - [ ] 27.3 `decisionHold(state)` and the `phase-status` block
+  - [x] 27.3 `decisionHold(state)` and the `phase-status` block
     - `decisionHold(state)` is true exactly when some Decision_Model has an unwithdrawn `decision_model` entry and none of: a `complete` ledger entry for D, a non-transient locked failure record (DA-15 rule), an Exclusion_Record. `phase-status` prints the `decision_models:` block (approvals by step, latest ledger status) and the line `runtime decision: ON HOLD (R19.17)` or `runtime decision: not on hold`, plus a warning (not a gate) when the hold is on and the `tech.md` "LLM runtime" row no longer starts with its pending text.
     - _Requirements: 19.17, 15.8, 15.9_
-  - [ ] 27.4 Write property test for the Decision_Model gate
+  - [x] 27.4 Write property test for the Decision_Model gate
     - **Property 47: A Decision_Model step needs its own approval, its own order and Task_Type D**
     - Generators for ledgers, failure records, Exclusion_Records, smoke shape checks, `combinations.json` and `HEAD` approvals content (other Combinations, other steps, `phase2` entries, branch-B entries, withdrawals); plus example tests: an S subset writes nothing, a `smoke` step entry is rejected by the reader, a branch-B approval allows no step.
     - **Validates: Requirements 19.1, 19.4, 19.5, 19.17, 18.1, 18.3, 18.4, 11.8, 11.20**
-  - [ ] 27.5 Fault injection for the Decision_Model gate, gates green, commit
+  - [x] 27.5 Fault injection for the Decision_Model gate, gates green, commit
     - Inject: `allowDecisionModel` ignores a `withdrawal` entry. The full gates must fail at the Unit_Tests gate with a Property 47 counterexample. Revert, green, log in `docs/kiro-log.md`. One `feat(probe)` commit for task 27.
     - _Requirements: 16.1, 16.3, 16.6, 16.7, 16.9_
 
-- [ ] 28. sim-core Raw_Choice validator mode and `llm_render_system_one` export (R4.16, R19.7, R19.10; DA-17, DA-18)
-  - [ ] 28.1 Add the `raw_choice` mode to `llm_validate`
+- [x] 28. sim-core Raw_Choice validator mode and `llm_render_system_one` export (R4.16, R19.7, R19.10; DA-17, DA-18)
+  - [x] 28.1 Add the `raw_choice` mode to `llm_validate`
     - Optional `mode` member (`json` default, `raw_choice`) in `crates/sim-core/src/llm/{validate.rs,api.rs}`. In `raw_choice` mode the verdict is `Decision{option: s}` exactly when `s` equals an option ID byte for byte, else `Illegal{OutOfSetOption}`; no parse-failure reason is possible; an S context or an unknown `mode` gives the `input` error. Without `mode` or with `json` the results are unchanged. The TypeScript wrapper in `simwasm.ts` takes `mode` as a required argument. No float, clock or I/O; the module-level `deny` lints stay.
     - _Requirements: 4.16, 4.5, 4.8, 4.13_
-  - [ ] 28.2 Add `llm_render_system_one` to `api.rs` and `sim-wasm`
+  - [x] 28.2 Add `llm_render_system_one` to `api.rs` and `sim-wasm`
     - Reads a mapping text, a D Frozen_Context and a Permutation; returns `state`, `instructions` and `criteria` (option ID to the label the D prompt prints, in the Permutation's order), reusing the fact-block functions of `render.rs`; unknown placeholders (including `{{options}}`) are render errors naming the placeholder. Additive: `RENDERER_VERSION` stays 2 and no existing export result changes. One `#[wasm_bindgen]` function in `crates/sim-wasm/src/llm.rs` taking and returning one JSON string, never throwing; add the wrapper in `simwasm.ts`.
     - _Requirements: 19.7, 19.10, 7.1, 7.2, 7.3, 7.6, 7.10, 7.11_
-  - [ ] 28.3 Write property test for Raw_Choice validation
+  - [x] 28.3 Write property test for Raw_Choice validation
     - **Property 42: Raw_Choice validation is exact, total and mode-selected**
     - In `crates/sim-core/tests/llm_properties.rs`, with `s` drawn from option IDs with added spaces, newline, case change, trailing character, empty, whitespace only, up to 1 MiB, any Unicode; includes the check that `dev-golden.json` bytes are unchanged and that a `raw_choice` verdict grades like a `json` verdict naming the same option.
     - **Validates: Requirements 4.16, 4.5, 4.8, 4.13**
-  - [ ] 28.4 Write property test for the System_One_Mapping render
+  - [x] 28.4 Write property test for the System_One_Mapping render
     - **Property 41: The System_One_Mapping depends only on the Frozen_Context, the mapping bytes and the Permutation**
     - Rust part: determinism, Card-only fields do not change the output, `criteria` order for the four D Permutations, verbatim IDs, `Today is day <tick>.`, `due day <N>`, `none` for empty fields, unknown placeholder errors, using a test mapping. The part on the real mapping file (Template_Hash and the five Author rules) is in 30.2.
     - **Validates: Requirements 19.7, 19.10, 7.1, 7.2, 7.3, 7.6, 7.10, 7.11**
-  - [ ] 28.5 Golden fixture and parity for the new exports
+  - [x] 28.5 Golden fixture and parity for the new exports
     - New golden file `fixtures/grading/system-one-golden.json` (written by `scripts/regen-grading-golden.sh` on purpose, commit message says so) covering `raw_choice` validation and `llm_render_system_one` for every Dev_Card; `crates/sim-wasm/tests/llm_parity.rs` compares native and wasm32 bytes and names the Card ID and the export on a failure; extend the Property 15 bad-input test to the new export and mode. Confirm `fixtures/grading/dev-golden.json` and `fixtures/parity/` are byte-identical (`git diff --stat`), the existing parity tests and Smoke_Test pass, and record the new `sim_wasm_bg.wasm` size against the Size_Limit.
     - _Requirements: 4.16, 6.4, 6.5, 6.7, 6.8, 6.9, 19.7_
-  - [ ] 28.6 Fault injection, gates green, commit
+  - [x] 28.6 Fault injection, gates green, commit
     - Inject: `raw_choice` mode trims ASCII whitespace before comparing. The full gates must fail with a Property 42 counterexample at `cargo test --workspace`. Revert, green, log. One conventional commit for task 28 (for example `feat(sim-core): add raw_choice validation and system_one render export`).
     - _Requirements: 16.1, 16.3, 16.6, 16.7_
 
-- [ ] 29. System One adapter (`eval/probe/src/adapters/system-one.ts`; R19.6, R19.8, R19.9, R19.11, R19.12, R19.18, R19.19; DA-16, DA-19, DA-20)
-  - [ ] 29.1 Extend the Combination type and add the two Decision_Model records
+- [x] 29. System One adapter (`eval/probe/src/adapters/system-one.ts`; R19.6, R19.8, R19.9, R19.11, R19.12, R19.18, R19.19; DA-16, DA-19, DA-20)
+  - [x] 29.1 Extend the Combination type and add the two Decision_Model records
     - `combinations.json`: `workers-ai/clef-flash` (`@cf/cloudflare/clef-flash`, `context_window_tokens` 24,576, input price 3,455 neurons per million tokens) and `workers-ai/clef` (`@cf/cloudflare/clef`, 65,536, 21,818), each with Task_Type_Subset {D}, `response_shape: "system_one"`, required `validator_mode: "raw_choice"`, `max_bytes_per_token` provisional 8 (part of the Model_Fingerprint, so a changed value changes the fingerprint ID), `phase1_locked: false`. A `system_one` Combination without `validator_mode` fails the type check. Values and URLs are the ones recorded in the design's research section.
     - _Requirements: 19.1, 19.2, 19.6, 19.11, 4.16_
-  - [ ] 29.2 Write the adapter
+  - [x] 29.2 Write the adapter
     - Adapter_Interface request becomes the union of `chat` and `decision` requests (the `decision` kind has no Workers AI field). `system-one.ts` imports `env.ts`, `redact.ts`, `sink.ts`, `budget.ts` and the HTTP error mapping; the fetch and timeout glue is exported from `workers-ai.ts` unchanged (existing tests pass untouched). Path `/ai/run/@cf/cloudflare/<model>`, body `{model, state, questions}`; the response is read from `result` (V9: a top-level object makes the shape check `mismatch`). The Raw_Choice is `result.answers.decision.choice` and is the only text outcome; a missing `answers`, `decision` or `choice`, or a non-string `choice`, returns the error `system_one_shape`. `confidence` and `probabilities` are stored verbatim (original lexemes, via `system_one.response_text`) in a separate field and used for no validation, grade or Metric. `usage.input_tokens` and `output_tokens` map to input and output tokens, `reasoning_tokens` null; missing or non-integer usage sets `usage_reported: false`.
     - _Requirements: 19.6, 19.8, 19.9, 11.15, 11.17, 11.18, 12.2, 11.19_
-  - [ ] 29.3 Truncation checks (pre and post)
+  - [x] 29.3 Truncation checks (pre and post)
     - Pre-check: refuse when `body_bytes > context_window_tokens` (exactly equal is accepted); a Dev_Run records `not_run` with reason `over_context`, a Locked_Run refuses before the `start` entry listing every Card ID (step 5 of the locked run flow). Post-check: record `truncated_state` (an engine fault, not an Illegal) when the response flags `truncated: true`, or `usage.input_tokens < floor(body_bytes / K)`, or `usage.input_tokens > W`; no grade line, in every denominator as not acceptable, never `complete`; usage missing is stored with `usage_reported: false` and the Report says truncation rests on the pre-check alone.
     - _Requirements: 19.11, 3.5, 3.15, 13.1, 14.1, 12.9_
-  - [ ] 29.4 Budget estimate for `system_one`
+  - [x] 29.4 Budget estimate for `system_one`
     - In `budget.ts`: reservation `ceil((body_bytes + 256) × input_price / 1,000,000)` in `BigInt`, no output term; after a response with usage the counted cost is `ceil(input_tokens × input_price / 1,000,000)` and replaces the reservation; without usage the reservation stays; the Neuron_Cap, daily cap and per-run cap apply as before and a refusal marks every unsent Card × Permutation `not_run` with reason `budget`. Existing budget tests pass untouched.
     - _Requirements: 19.12, 11.5, 11.6, 11.13, 11.14, 11.17_
-  - [ ] 29.5 Smoke_Call shape check for `system_one`
+  - [x] 29.5 Smoke_Call shape check for `system_one`
     - The `smoke` command accepts a Decision_Model Combination with D Dev_Cards only; the shape check is `ok` exactly when `result.model` is a string, `answers.decision.type === "choice"`, `choice` is a string, `probabilities` is an object of numbers, `confidence` is a number, and `usage.input_tokens` and `output_tokens` are integers. The record stores `shape_check`, `declared_shape`, the HTTP status and the measured `bytes_per_token` as an exact fraction of integers.
     - _Requirements: 19.6, 11.19, 11.8_
-  - [ ] 29.6 Write property test for the adapter's Raw_Choice and confidence isolation
+  - [x] 29.6 Write property test for the adapter's Raw_Choice and confidence isolation
     - **Property 43: A System_One response yields a Raw_Choice or a named error, and confidence never leaks**
     - **Validates: Requirements 19.6, 19.8, 19.9, 11.15, 11.17, 11.18, 12.2, 11.19**
-  - [ ] 29.7 Write property test for the truncation checks
+  - [x] 29.7 Write property test for the truncation checks
     - **Property 44: Truncation checks are exact at the boundary and never grade a possibly cut request**
     - **Validates: Requirements 19.11, 3.5, 3.15, 13.1, 14.1, 12.9**
-  - [ ] 29.8 Write property test for the budget estimate
+  - [x] 29.8 Write property test for the budget estimate
     - **Property 45: The System One budget estimate is an exact byte-based upper bound with no output term**
     - **Validates: Requirements 19.12, 11.5, 11.6, 11.13, 11.14, 11.17**
-  - [ ] 29.9 Write the fake-Runtime example tests, extend redaction, inject a fault, commit
+  - [x] 29.9 Write the fake-Runtime example tests, extend redaction, inject a fault, commit
     - Example tests with a fake `fetch` and no network (R19.18, R19.19): a valid Raw_Choice, a `choice` outside the set, a missing `answers` entry, a truncation flag, an `over_context` refusal, a body of exactly the window (accepted) and one byte more (refused), input usage below the lower bound and above the window, a missing usage, a 429, a plan or billing error, a timeout. Extend Property 27 (redaction) to the new adapter; confirm the Deploy_Directory checks still pass.
     - Injection: change the pre-check from `>` to `>=`. The full gates must fail with a Property 44 counterexample at the Unit_Tests gate. Revert, green, log. One `feat(probe)` commit for task 29.
     - _Requirements: 19.18, 19.19, 11.3, 16.1, 16.3, 16.6, 16.7_
 
-- [ ] 30. System_One_Mapping file and Template_Hash (R19.7, R19.10; DA-18)
-  - [ ] 30.1 Write `eval/probe/templates/decision.system_one.v1.txt`
+- [x] 30. System_One_Mapping file and Template_Hash (R19.7, R19.10; DA-18)
+  - [x] 30.1 Write `eval/probe/templates/decision.system_one.v1.txt`
     - Sections `[state]` (fact block placeholders), `[instructions]` ("How to read the facts" and "How to choose" of `decision.v1.txt`, verbatim, in a separate file; the frozen `decision.v1.txt` is not touched), `[criteria]` (option ID to label mapping spec). No `{{options}}` or any unknown placeholder. Wire its sha256 into the Combination records as the Template_Hash through the existing template-hash code (R3.12 precondition applies to it).
     - _Requirements: 19.7, 19.10, 3.12, 7.7_
-  - [ ] 30.2 Write the mapping test (five Author rules and hash)
+  - [x] 30.2 Write the mapping test (five Author rules and hash)
     - **Property 41 (real-file part): for every `decision.system_one.v*.txt` in the repository, `[instructions]` together with the `Today is day {{tick}}.` line satisfies the five Author template rules (the same rule checks the existing template test uses), and the Template_Hash equals the sha256 of the file bytes.**
     - **Validates: Requirements 19.7, 19.10, 7.1, 7.2, 7.3, 7.6, 7.10, 7.11**
-  - [ ] 30.3 Gates green, injection, commit
+  - [x] 30.3 Gates green, injection, commit
     - Inject: add `{{options}}` to the mapping file. The gates must fail at the Unit_Tests gate (render error naming the placeholder). Revert, green, log. One `feat(probe)` commit for task 30.
     - _Requirements: 16.1, 16.6, 16.7, 19.7_
 
-- [ ] 31. External_Reference ingest and Report amendments (R19.13, R19.15, R19.16; DA-22)
-  - [ ] 31.1 Write `external.ts` and `probe ingest-reference`
+- [x] 31. External_Reference ingest and Report amendments (R19.13, R19.15, R19.16; DA-22)
+  - [x] 31.1 Write `external.ts` and `probe ingest-reference`
     - File format of the design ("External_Reference_File"): label, reference model name, Task_Type, `pinned_manifest_hash`, sha256 of `config`, `ledger`, `results` and the optional `raw_outputs`, integer figures; relative paths only (an absolute or `..` path is a fault). The command checks everything in the documented order and names the first failing field; a rejected file writes nothing under `eval/results/`; an accepted one writes only under `eval/results/external/<label>/`, sends no request, reads no `env`, prints no Card content other than Card IDs, `pair_id`s and scenario group IDs. With raw outputs present, re-grade through Sim_Wasm and store the re-grade next to the supplied figures, with `mismatch` and the differing names when they differ. The re-grade reads `locked.jsonl` for grading only: add the command to the R3.1 list (RC-13) in code and docs. Manifest_Check runs first.
     - _Requirements: 19.15, 3.1, 1.2, 12.6_
-  - [ ] 31.2 Write the import-graph isolation test
+  - [x] 31.2 Write the import-graph isolation test
     - A test that fails if `external.ts` is imported by `phase-status`, the run gate, `analysis`, `ledger`, `metrics` or any pass/fail, link-mark, recommendation or Phase_2-branch code; only the CLI and the Report section 12 may import it.
     - _Requirements: 19.16, 18.8_
-  - [ ] 31.3 Write property test for the ingest
+  - [x] 31.3 Write property test for the ingest
     - **Property 46: An External_Reference is accepted only whole and never touches a mark**
     - **Validates: Requirements 19.15, 19.16**
-  - [ ] 31.4 Report: Phase_2 candidate count, selection-bias note, Decision_Model statement, hold banner, section 12
+  - [x] 31.4 Report: Phase_2 candidate count, selection-bias note, Decision_Model statement, hold banner, section 12
     - Section 2: the number of distinct Workers AI Combinations with at least one Dev_Run or Locked_Run Results file or ledger entry made in Phase_2 (Smoke_Call-only Combinations not counted); the multiple-comparison note exactly when that count is 2 or more, saying the Thresholds were not adjusted; the Additional_Candidate_Set with each Decision_Model's approval IDs or its "not measured" reason; the R18.8 branch, approval date and branch-B model unchanged. Section 9: the hold banner exactly when `decisionHold(state)` is true. Section 12: each ingested External_Reference, labelled as external reference and not a repo Combination, with its hashes and per-Task_Type Metrics as supplied or re-graded; no other section mentions it. Decision_Model figures are Locked_Run figures only; Dev_Run figures stay labelled; V14 is printed as "not tested" unless measured.
     - _Requirements: 19.13, 19.16, 19.17, 15.1, 15.2, 18.8_
-  - [ ] 31.5 Write property test for the Report amendments
+  - [x] 31.5 Write property test for the Report amendments
     - **Property 48: The Report counts Phase_2 candidates and prints the selection-bias note**
     - **Validates: Requirements 19.13, 19.17, 18.8**
-  - [ ] 31.6 Fault injections, gates green, commit
+  - [x] 31.6 Fault injections, gates green, commit
     - Injection 1: the ingest accepts a wrong `ledger` sha256 (R16.6). The gates must fail with a Property 46 counterexample at the Unit_Tests gate. Injection 2: import `external.ts` from the Phase_2 branch code; the import-graph test fails. Revert each, green, log each. One `feat(probe)` commit for task 31. Never edit a file under `eval/cards/`.
     - _Requirements: 19.15, 19.16, 16.1, 16.3, 16.6, 16.7, 16.10_
 
 - [ ] 32. Pre-run verifications V9 to V14 that can be done offline
-  - [ ] 32.1 Re-read the official Clef pages
+  - [~] 32.1 Re-read the official Clef pages
     - With Exa MCP (official domains only; not preview mirrors), re-check the changelog, `developers.cloudflare.com/workers-ai/models/clef-flash/` and `…/clef/` and the pricing page against the design's research section (REST path, body, window sizes, rates, license link). If anything changed, add a dated note to `design.md` and stop to tell the Author before continuing. Log the retrieval date.
     - _Requirements: 19.2, 19.3_
-  - [ ] 32.2 Offline checks for V10 to V14
+  - [~] 32.2 Offline checks for V10 to V14
     - V10: the provisional `max_bytes_per_token` 8 is in the fingerprint and a changed value changes the fingerprint ID (test exists from 29). V11: recompute the reservation against the recorded gemma usage from the stored Dev_Run and Locked_Run Results (aggregate token counts only, no card content), showing the 256-token allowance is not already exceeded by a plausible wrapper. V12: confirm the runner has no retry (R11.9) and that a 429 produces the documented record. V13: confirm the plan or billing error path writes "not measured" and the Report lists it. V14: confirm the Report prints "not tested". Write each conclusion (done offline, or pending the first Smoke_Call) in `docs/kiro-log.md`; V9 and the online half of V10 to V13 are done in task 33.
     - _Requirements: 19.3, 19.11, 19.12, 11.9_
-  - [ ] 32.3 Gates green and commit
+  - [~] 32.3 Gates green and commit
     - Run `scripts/gates.sh` to exit 0 from the working tree; confirm `git diff 091d1d7 -- eval/cards` is empty and no `env` read happened; one `docs(llm-probe)` commit (or `chore(llm-probe)` if code changed).
     - _Requirements: 16.4, 16.5, 16.9, 17.7_
 
 - [ ] 33. Smoke_Calls for the Decision_Models [Target_Machine]
-  - [ ] 33.1 Smoke_Calls: `clef-flash`
+  - [~] 33.1 Smoke_Calls: `clef-flash`
     - No approval is needed (RC-10), within the 10 Smoke_Calls per UTC day shared with every other Workers AI Smoke_Call. Before sending, tell the Author the model and the number of calls (at most 10, about 70 neurons at the planning bound) and check the day's count in the budget counter. Run `probe smoke` on D Dev_Cards only. If a call fails with a plan or billing error, stop, record the model as not measured with that reason (R19.3) and tell the Author. Commit the smoke records under `eval/results/smoke/`; log sent and `ok` counts.
     - _Requirements: 19.5, 19.3, 11.8, 11.19, 17.1_
-  - [ ] 33.2 Smoke_Calls: `clef`
+  - [~] 33.2 Smoke_Calls: `clef`
     - Same procedure; the model is named to the Author first (at most 10 calls, about 440 neurons at the planning bound), within the day's count left after 33.1 (if 33.1 used the whole count, wait for the next UTC day). Commit; log.
     - _Requirements: 19.5, 19.3, 11.8, 11.19, 17.1_
-  - [ ] 33.3 Record the V9 to V13 conclusions
+  - [~] 33.3 Record the V9 to V13 conclusions
     - From the smoke records: V9 (result envelope, member types, `usage` fields; fix the declared shape if `mismatch`, and do not go on until the shape check is `ok`); V10 (tokens-per-byte lower bound: set `max_bytes_per_token` to `max(6, ceil(1.5 × max measured ratio))` or keep 8, update `combinations.json`, and the fingerprint changes); V11 (reservation versus usage-based cost; raise the allowance in `combinations.json` and Property 45 if exceeded); neuron rate observed; whether the same request repeated gives the same `choice` only if the Author asks for the optional V14 pair (otherwise "not tested"). If the mean input size is more than 25% from the DA-20 proxies, recompute and show the DA-20 figures again before any Dev_Run approval is asked. Add dated notes to `design.md`; gates green; one `chore(llm-probe)` commit.
     - _Requirements: 19.2, 19.3, 19.11, 19.12, 11.19, 16.9_
 
 - [ ] 34. STOP-AND-ASK: Decision_Model Dev_Runs, mapping tuning and freeze [Target_Machine]
-  - [ ] 34.1 Ask for the `clef-flash` Dev_Run approval
+  - [~] 34.1 Ask for the `clef-flash` Dev_Run approval
     - Present the Combination, `task_subset: "D"`, `max_requests` (74), the expected neurons (about 249 typical, 518 planning bound, recomputed from 33.3 if needed), the Neuron_Cap, and that the mapping is tuned on Dev_Cards only. Do nothing until the Author approves in the conversation at that moment.
     - _Requirements: 19.4, 19.5, 17.1, 17.2_
-  - [ ] 34.2 Record the `clef-flash` `dev` approval
+  - [~] 34.2 Record the `clef-flash` `dev` approval
     - Add the `decision_model` entry (`step: "dev"`) to `eval/probe/approvals.json` in its own commit; confirm `phase-status` reads it from `HEAD`; log.
     - _Requirements: 19.4, 11.20_
-  - [ ] 34.3 Run the `clef-flash` Dev_Run
+  - [~] 34.3 Run the `clef-flash` Dev_Run
     - `probe dev-run --combo workers-ai/clef-flash --task D --approval <id>` within the budget; check `over_context`, `truncated_state`, V10 (final `max_bytes_per_token`) and V12 (rate-limit; a 429 pattern is a design change to ask the Author about, not a retry). Commit Results; log.
     - _Requirements: 19.5, 19.11, 19.12, 11.5, 11.6, 11.13, 11.14, 17.1_
-  - [ ] 34.4 Ask for the `clef` Dev_Run approval
+  - [~] 34.4 Ask for the `clef` Dev_Run approval
     - Same as 34.1 for `clef` (74 requests, about 1,572 neurons typical, 3,256 planning bound). Its own approval: the `clef-flash` approval covers nothing here.
     - _Requirements: 19.4, 19.5, 17.1, 17.2_
-  - [ ] 34.5 Record the `clef` `dev` approval
+  - [~] 34.5 Record the `clef` `dev` approval
     - As 34.2, for `clef`.
     - _Requirements: 19.4, 11.20_
-  - [ ] 34.6 Run the `clef` Dev_Run
+  - [~] 34.6 Run the `clef` Dev_Run
     - As 34.3, for `clef` (on UTC day 1 together with the Smoke_Calls, or later; the Locked_Run goes on a later UTC day per DA-20).
     - _Requirements: 19.5, 19.11, 19.12, 11.5, 11.6, 11.13, 11.14, 17.1_
-  - [ ] 34.7 Tune the System_One_Mapping on Dev_Cards only
+  - [~] 34.7 Tune the System_One_Mapping on Dev_Cards only
     - Change only files under `eval/probe/templates/` (a new `decision.system_one.v2.txt`; the five Author rules test must pass; never use Locked_Cards). A Dev_Run with a changed mapping needs a new `dev` approval entry for that Combination (ask first). Log each iteration with its Template_Hash and Dev_Run Metrics (labelled Dev_Run).
     - _Requirements: 19.7, 19.10, 3.2, 7.7, 15.2_
-  - [ ] 34.8 STOP-AND-ASK: freeze the mapping, then the final Dev_Runs
+  - [~] 34.8 STOP-AND-ASK: freeze the mapping, then the final Dev_Runs
     - Present the final mapping and Template_Hash; do nothing until the Author approves the freeze. Then one Dev_Run per Decision_Model with the frozen hash (the R3.12 precondition), each under its own approval entry if the hash changed since its last Dev_Run. Commit Results and the frozen mapping; log the hashes. One `chore(llm-probe)` commit.
     - _Requirements: 19.10, 3.12, 17.1_
 
 - [ ] 35. STOP-AND-ASK: Decision_Model Locked_Runs (D) [Target_Machine]
-  - [ ] 35.1 Check the preconditions
+  - [~] 35.1 Check the preconditions
     - For each model: a `shape_check: "ok"` Smoke_Call for the declared shape; a final Dev_Run with the frozen Template_Hash; no `over_context` refusals; `probe phase-status` shows Phase_1 ended; gates green; working tree clean. Report to the Author.
     - _Requirements: 19.4, 19.5, 3.12, 18.1_
-  - [ ] 35.2 Locked_Run: `clef-flash` (D)
+  - [~] 35.2 Locked_Run: `clef-flash` (D)
     - Ask the Author to approve this Locked_Run (Combination, `--task D`, 236 requests, about 877 neurons typical). Only after approval: add the `decision_model` entry (`step: "locked"`) in its own commit; append the `docs/kiro-log.md` start entry (Combination, Task_Type_Subset, Model_Fingerprint, Pinned_Manifest_Hash) before the first request; run `probe locked-run --combo workers-ai/clef-flash --task D --approval <id>`; append the end entry; commit Results, grades, perf record and ledger lines. The agent passes on only progress counts, aggregate Metrics, Card IDs and error messages (R3.11); it never opens `locked.jsonl`, `eval/cards/blind/*` or `env`.
     - _Requirements: 19.4, 19.5, 3.3, 3.5, 3.11, 14.4, 14.10, 17.1, 17.6_
-  - [ ] 35.3 Locked_Run: `clef` (D)
+  - [~] 35.3 Locked_Run: `clef` (D)
     - Same procedure, own approval (236 requests, about 5,539 neurons typical, 10,384 at the planning bound). Start at 00:00 UTC of a fresh day (day 2 after its Dev_Run, DA-20). If the Neuron_Cap stops the run, resume with `locked-run --resume <entry-id>` on the next UTC day after asking again (R3.9).
     - _Requirements: 19.4, 19.5, 19.12, 3.3, 3.5, 3.9, 3.11, 14.4, 14.10, 17.1, 17.6_
 
@@ -770,21 +770,21 @@ Execution notes for the orchestrator:
     - _Requirements: 19.14, 11.5, 11.6, 11.13, 11.14, 11.19, 17.1, 17.6_
 
 - [ ] 37. Ingest the External_Reference when the Author hands it over [blocked on the Author]
-  - [ ] 37.1 Ingest the file
+  - [~] 37.1 Ingest the file
     - Do nothing until the Author hands over the External_Reference_File and its three sibling files. Run `probe ingest-reference <file>`; on a rejection, report the first failing field and wait for a corrected file. On acceptance, commit `eval/results/external/<label>/` and log the hashes. If the Author asks to go on without a reference, record that in `docs/kiro-log.md` and leave this sub-task open for later.
     - _Requirements: 19.15, 19.16_
-  - [ ] 37.2 Check isolation after the ingest
+  - [~] 37.2 Check isolation after the ingest
     - Confirm `phase-status`, the ledger bytes, the budget counter and every pass or fail mark are identical before and after the ingest, and that the reference appears only in Report section 12; any difference is a defect to fix before the Report.
     - _Requirements: 19.16, 18.8_
 
 - [ ] 38. Report regeneration and the Author's review for the Decision_Models
-  - [ ] 38.1 Regenerate `docs/llm-probe.md`
+  - [~] 38.1 Regenerate `docs/llm-probe.md`
     - Run `probe report`. Check R19.13, R19.16 and R19.17 content: section 2 candidate count and selection-bias note, each Decision_Model's approval IDs and Locked_Run figures (or "not measured" with the reason), `truncated_state` and `over_context` counts, V14 "not tested", hold banner state in section 9, External_Reference only in section 12. Re-run the R24.1 checks: only Locked_Run figures in marks, Dev_Run labelled, no card content other than IDs; `probe regrade` on every new Locked_Run Results file gives byte-equal grades and identical Metrics.
     - _Requirements: 19.13, 19.16, 19.17, 12.6, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 18.6, 18.7, 18.8_
-  - [ ] 38.2 STOP-AND-ASK: the Author reviews the updated Report
+  - [~] 38.2 STOP-AND-ASK: the Author reviews the updated Report
     - Present the Report; apply only corrections to the generator or its inputs (never to Results), regenerate, then commit. Ask the Author to search the exact token and account ID strings over `eval/results/`, `docs/`, console logs and `web/dist` again (the agent never opens `env`); record the result.
     - _Requirements: 11.3, 17.1_
-  - [ ] 38.3 Confirm the decision hold state before 25.1 completes
+  - [~] 38.3 Confirm the decision hold state before 25.1 completes
     - Run `probe phase-status`. The hold line must read `not on hold` (every approved Decision_Model has a `complete` entry, a recorded failure or an Exclusion_Record, or the Author withdrew its approval, in which case add the `withdrawal` entry in its own commit). Log the state. 25.1 stays blocked on this line (R19.17).
     - _Requirements: 19.17, 15.8, 15.9_
 

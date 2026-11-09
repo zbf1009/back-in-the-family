@@ -59,6 +59,26 @@
     "5.2 Write property test for bad input to the exports": {
       "status": "passed",
       "lastRunTimestamp": 1793972802298
+    },
+    "29.6 Write property test for the adapter's Raw_Choice and confidence isolation": {
+      "status": "passed",
+      "lastRunTimestamp": 1794202309397
+    },
+    "29.7 Write property test for the truncation checks": {
+      "status": "passed",
+      "lastRunTimestamp": 1794202310098
+    },
+    "29.8 Write property test for the budget estimate": {
+      "status": "passed",
+      "lastRunTimestamp": 1794202310552
+    },
+    "31.3 Write property test for the ingest": {
+      "status": "passed",
+      "lastRunTimestamp": 1794205743911
+    },
+    "31.5 Write property test for the Report amendments": {
+      "status": "passed",
+      "lastRunTimestamp": 1794205873421
     }
   },
   "executionHistory": {
@@ -2483,6 +2503,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180557
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437330
       }
     ],
     "26.1 Run the gates from a clean build": [
@@ -2490,6 +2515,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180561
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437344
       }
     ],
     "26.2 Write `docs/llm-probe-audit.md`": [
@@ -2497,6 +2527,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180566
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437351
       }
     ],
     "26.3 Update `README.md`": [
@@ -2504,6 +2539,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180571
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437357
       }
     ],
     "26.4 Update the steering files' layout and gates": [
@@ -2511,6 +2551,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180576
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437366
       }
     ],
     "26.5 Sync the spec documents with what was built": [
@@ -2518,6 +2563,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180581
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437372
       }
     ],
     "26.6 STOP-AND-ASK before pushing `main`": [
@@ -2525,6 +2575,11 @@
         "executionId": "3b1d00e8-ddf1-4a9a-891b-f4fe46d6cfb7",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1793964180585
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437379
       }
     ],
     "1. `sim_core::llm` foundations: types, strict JSON reader and Card parser": [
@@ -2686,6 +2741,585 @@
         "executionId": "b2a3d8de-99c1-4f3f-ad00-e8c0e44fe177",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794191406989
+      }
+    ],
+    "25.3 Fix the run gate's missing pass results (after 25.1)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437337
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198448352
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198834477
+      }
+    ],
+    "27.1 Build `allowDecisionModel` on the single `loadPhaseState()` (after 25.3)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437385
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198852871
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794200047057
+      }
+    ],
+    "27.2 Extend the approvals reader (`decision_model` and `withdrawal` kinds)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437391
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794200051357
+      }
+    ],
+    "27.3 `decisionHold(state)` and the `phase-status` block": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437398
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794200055460
+      }
+    ],
+    "27.4 Write property test for the Decision_Model gate": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437407
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794200060390
+      }
+    ],
+    "27.5 Fault injection for the Decision_Model gate, gates green, commit": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437414
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794200066535
+      }
+    ],
+    "28.1 Add the `raw_choice` mode to `llm_validate`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437420
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794200070759
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794201235262
+      }
+    ],
+    "28.2 Add `llm_render_system_one` to `api.rs` and `sim-wasm`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437427
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794201239515
+      }
+    ],
+    "28.3 Write property test for Raw_Choice validation": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437435
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794201243317
+      }
+    ],
+    "28.4 Write property test for the System_One_Mapping render": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437441
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794201247011
+      }
+    ],
+    "28.5 Golden fixture and parity for the new exports": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437451
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794201251375
+      }
+    ],
+    "28.6 Fault injection, gates green, commit": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437457
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794201255155
+      }
+    ],
+    "29.1 Extend the Combination type and add the two Decision_Model records": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437463
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794201259155
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794202854601
+      }
+    ],
+    "29.2 Write the adapter": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437469
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794202858642
+      }
+    ],
+    "29.3 Truncation checks (pre and post)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437476
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794202864426
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794204762375
+      }
+    ],
+    "29.4 Budget estimate for `system_one`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437482
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794204766090
+      }
+    ],
+    "29.5 Smoke_Call shape check for `system_one`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437491
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794204770260
+      }
+    ],
+    "29.6 Write property test for the adapter's Raw_Choice and confidence isolation": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437497
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794204774199
+      }
+    ],
+    "29.7 Write property test for the truncation checks": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437503
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794204778212
+      }
+    ],
+    "29.8 Write property test for the budget estimate": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437509
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794204781940
+      }
+    ],
+    "29.9 Write the fake-Runtime example tests, extend redaction, inject a fault, commit": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437515
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794204785769
+      }
+    ],
+    "30.1 Write `eval/probe/templates/decision.system_one.v1.txt`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437522
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794204790079
+      }
+    ],
+    "30.2 Write the mapping test (five Author rules and hash)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437530
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794204794027
+      }
+    ],
+    "30.3 Gates green, injection, commit": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437537
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794204797795
+      }
+    ],
+    "31.1 Write `external.ts` and `probe ingest-reference`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437543
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794204801728
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794214258378
+      }
+    ],
+    "31.2 Write the import-graph isolation test": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437549
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794214262616
+      }
+    ],
+    "31.3 Write property test for the ingest": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437555
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794214267044
+      }
+    ],
+    "31.4 Report: Phase_2 candidate count, selection-bias note, Decision_Model statement, hold banner, section 12": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437562
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794214271772
+      }
+    ],
+    "31.5 Write property test for the Report amendments": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437569
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794214275860
+      }
+    ],
+    "31.6 Fault injections, gates green, commit": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437577
+      },
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794214280147
+      }
+    ],
+    "32.1 Re-read the official Clef pages": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437583
+      }
+    ],
+    "32.2 Offline checks for V10 to V14": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437589
+      }
+    ],
+    "32.3 Gates green and commit": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437596
+      }
+    ],
+    "33.1 Smoke_Calls: `clef-flash`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437602
+      }
+    ],
+    "33.2 Smoke_Calls: `clef`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437608
+      }
+    ],
+    "33.3 Record the V9 to V13 conclusions": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437616
+      }
+    ],
+    "34.1 Ask for the `clef-flash` Dev_Run approval": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437622
+      }
+    ],
+    "34.2 Record the `clef-flash` `dev` approval": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437628
+      }
+    ],
+    "34.3 Run the `clef-flash` Dev_Run": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437635
+      }
+    ],
+    "34.4 Ask for the `clef` Dev_Run approval": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437641
+      }
+    ],
+    "34.5 Record the `clef` `dev` approval": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437647
+      }
+    ],
+    "34.6 Run the `clef` Dev_Run": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437657
+      }
+    ],
+    "34.7 Tune the System_One_Mapping on Dev_Cards only": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437664
+      }
+    ],
+    "34.8 STOP-AND-ASK: freeze the mapping, then the final Dev_Runs": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437670
+      }
+    ],
+    "35.1 Check the preconditions": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437677
+      }
+    ],
+    "35.2 Locked_Run: `clef-flash` (D)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437683
+      }
+    ],
+    "35.3 Locked_Run: `clef` (D)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437690
+      }
+    ],
+    "37.1 Ingest the file": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437699
+      }
+    ],
+    "37.2 Check isolation after the ingest": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437706
+      }
+    ],
+    "38.1 Regenerate `docs/llm-probe.md`": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437712
+      }
+    ],
+    "38.2 STOP-AND-ASK: the Author reviews the updated Report": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437719
+      }
+    ],
+    "38.3 Confirm the decision hold state before 25.1 completes": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794198437726
+      }
+    ],
+    "27. Shared phase-state loader use and the Decision_Model gate (R19.1, R19.4, R19.5, R19.17; DA-21, DA-23)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794200066542
+      }
+    ],
+    "28. sim-core Raw_Choice validator mode and `llm_render_system_one` export (R4.16, R19.7, R19.10; DA-17, DA-18)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794201255162
+      }
+    ],
+    "29. System One adapter (`eval/probe/src/adapters/system-one.ts`; R19.6, R19.8, R19.9, R19.11, R19.12, R19.18, R19.19; DA-16, DA-19, DA-20)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794204785776
+      }
+    ],
+    "30. System_One_Mapping file and Template_Hash (R19.7, R19.10; DA-18)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794204797804
+      }
+    ],
+    "31. External_Reference ingest and Report amendments (R19.13, R19.15, R19.16; DA-22)": [
+      {
+        "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794214280157
       }
     ]
   }
