@@ -61,6 +61,7 @@ export type FailureCode =
   | 'dev_run_missing'
   | 'template_mismatch'
   | 'render_errors'
+  | 'over_context'
   | 'fresh_profile_failed'
   | 'runtime_unavailable'
   | 'budget_unreadable'
@@ -86,6 +87,7 @@ const FAILURE_TEXT: Readonly<Record<FailureCode, string>> = {
   dev_run_missing: 'no Dev_Run covers a Task_Type of this Locked_Run (R3.12)',
   template_mismatch: 'a Prompt_Template differs from the most recent Dev_Run (R3.12)',
   render_errors: 'pre-render failed; nothing was written (R3.15)',
+  over_context: 'a System One request body is longer than the context window; nothing was sent or written (R3.15, R19.11)',
   fresh_profile_failed: 'the Fresh_Profile checks failed before the ledger entry',
   runtime_unavailable: 'the Runtime could not be created',
   budget_unreadable: 'the Request_Budget counter is unreadable (R11.12)',
@@ -152,6 +154,11 @@ export class RunLogger {
   /** One pre-render error: Card ID, permutation and a category (R3.15). */
   renderError(cardId: string, permutation: string, category: RenderReasonCategory): void {
     printErrorLine(`probe: render: Card ID ${cardId} (${permutation}): ${RENDER_REASON_TEXT[category]}`);
+  }
+
+  /** One Card whose System One request body is over the verified context window (R19.11): Card ID and byte counts only. */
+  overContext(cardId: string, bodyBytes: number, windowTokens: number): void {
+    printErrorLine(`probe: over_context: Card ID ${cardId}: body ${bodyBytes} bytes, context window ${windowTokens} tokens`);
   }
 
   /**

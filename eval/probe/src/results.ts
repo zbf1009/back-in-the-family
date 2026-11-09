@@ -76,6 +76,9 @@ export interface ResultsHeader {
   template_hashes: { [name: string]: string };
   timeout_ms: number;
   placement: Placement | null;
+  /** Decision_Model runs only (R19.6, R4.16): the Response_Shape and the Output_Validator mode the Probe_Runner chose. */
+  response_shape?: 'system_one';
+  validator_mode?: 'raw_choice';
 }
 
 /** Separate Results field of a System_One request (R19.8): the byte-exact HTTP body, kept outside the outcome. */
@@ -392,7 +395,12 @@ function parsePlacement(v: unknown, where: string): Placement | null {
 export function parseHeader(v: unknown): ResultsHeader {
   const o = obj(v, 'header');
   checkSchemaField(o, SCHEMA.header);
-  exactKeys(o, ['schema', 'run_id', 'split', 'combination', 'model_key', 'task_subset', 'fingerprint', 'template_hashes', 'timeout_ms', 'placement'], 'header');
+  const withShape = o.response_shape !== undefined || o.validator_mode !== undefined;
+  exactKeys(o, ['schema', 'run_id', 'split', 'combination', 'model_key', 'task_subset', 'fingerprint', 'template_hashes', 'timeout_ms', 'placement', ...(withShape ? ['response_shape', 'validator_mode'] : [])], 'header');
+  if (withShape) {
+    if (o.response_shape !== 'system_one') fault('header.response_shape must be "system_one" when present');
+    if (o.validator_mode !== 'raw_choice') fault('header.validator_mode must be "raw_choice" when present');
+  }
   const hashes = obj(o.template_hashes, 'header.template_hashes');
   const template_hashes: { [name: string]: string } = {};
   for (const [k, h] of Object.entries(hashes)) template_hashes[k] = str(h, `header.template_hashes.${k}`);
@@ -409,6 +417,7 @@ export function parseHeader(v: unknown): ResultsHeader {
     template_hashes,
     timeout_ms: timeout,
     placement: parsePlacement(o.placement, 'header.placement'),
+    ...(withShape ? { response_shape: 'system_one' as const, validator_mode: 'raw_choice' as const } : {}),
   };
 }
 

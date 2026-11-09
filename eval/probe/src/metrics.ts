@@ -160,6 +160,8 @@ export interface FaultRecord {
   cardId: string;
   permutation: string;
   kind: 'engine_fault' | 'rebuild_failed';
+  /** The engine fault's own code (`runtime_stuck`, `truncated_state`); set for `engine_fault` only. */
+  code?: 'runtime_stuck' | 'truncated_state';
 }
 
 export interface TaskMetrics {
@@ -334,7 +336,7 @@ export function computeMetrics(input: MetricsInput): Metrics {
   const faults: FaultRecord[] = [];
   for (const r of input.records) {
     if (r.outcome.kind === 'engine_fault') {
-      faults.push({ cardId: r.card_id, permutation: r.permutation, kind: 'engine_fault' });
+      faults.push({ cardId: r.card_id, permutation: r.permutation, kind: 'engine_fault', code: r.outcome.code });
     } else if (r.outcome.kind === 'not_run' && r.outcome.reason === 'rebuild_failed') {
       faults.push({ cardId: r.card_id, permutation: r.permutation, kind: 'rebuild_failed' });
     }

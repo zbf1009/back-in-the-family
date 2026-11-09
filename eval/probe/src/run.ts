@@ -9,7 +9,8 @@
 // scoring logic. All output goes through RunLogger, which has no method for prompt or output text.
 import * as fs from 'node:fs';
 import path from 'node:path';
-import type { AdapterResult, LateAnswer, Prompt, RuntimeAdapter, SamplingParams, OutputConstraint } from './adapters/interface.ts';
+import type { AdapterResult, DecisionAdapter, DecisionRequest, LateAnswer, Prompt, RuntimeAdapter, SamplingParams, OutputConstraint } from './adapters/interface.ts';
+import { bodyBytesOf, buildSystemOneBody, decisionRequestFrom, isOverContext, overContextCardIds, systemOneBudgetInputs } from './adapters/system-one.ts';
 import { rebuildEngineWithWarmUp, type LifecycleEngine, type WarmUpPrompts } from './adapters/lifecycle.ts';
 import { findApproval } from './approvals.ts';
 import { isTransientNetworkError } from './transient.ts';
@@ -34,6 +35,8 @@ import {
 import { checkManifest, formatManifestResult } from './manifest.ts';
 import {
   allowDecisionModel,
+  isSystemOne,
+  type SystemOneCombination,
   allowWorkersAi,
   comboModelKey,
   decisionModelApprovals,
@@ -73,7 +76,7 @@ import {
 } from './results.ts';
 import { GradingError, cardFacts, gradeRecords, hasOutput, type CardFacts } from './run-grading.ts';
 import { RunLogger, renderReasonCategory, type FailureCode, type FailureArgs, type TaskProgress } from './run-logger.ts';
-import { llmPermutations, llmRenderPrompt, wasmSha256 } from './simwasm.ts';
+import { llmPermutations, llmRenderPrompt, llmRenderSystemOne, wasmSha256, type ValidateMode } from './simwasm.ts';
 import { TEMPLATES_DIR, WARMUP_DIR, loadSystemOneMapping, loadTemplate, loadWarmup, loadWarmupPrompt, type TextWithHash } from './templates.ts';
 
 // ---------------------------------------------------------------- public types
@@ -274,10 +277,25 @@ export interface Templates {
   readonly warmups: WarmUpPrompts;
 }
 
-export function loadTemplates(paths: RunPaths): Templates {
+/**
+ * The templates of a run. For a Decision_Model the D entry is the System_One_Mapping file named by the Combination, so
+ * its sha256 is the Template_Hash recorded in the header, the fingerprint and the ledger (R19.10), and the R3.12
+ * precondition compares it like any other template. Its S entry is the unchanged S template and is never rendered.
+ */
+export function loadTemplates(paths: RunPaths, combo?: Combination): Templates {
   const tdir = paths.templatesDir ?? TEMPLATES_DIR;
   const wdir = paths.warmupDir ?? WARMUP_DIR;
-  const texts = { decision: loadTemplate('decision', tdir), synthesis: loadTemplate('synthesis', tdir) };
+  let decision = loadTemplate('decision', tdir);
+  if (combo !== undefined && isSystemOne(combo)) {
+    const mappingFile = asRecord(combo['mapping'])?.['file'];
+    if (typeof mappingFile !== 'string') throw new RunError('invalid_arguments', { combination: combo.id, value: 'no System_One_Mapping file in combinations.json' });
+    try {
+      decision = loadSystemOneMapping(paths.repoDir, mappingFile);
+    } catch {
+      throw new RunError('invalid_arguments', { combination: combo.id, value: 'the System_One_Mapping file cannot be read' });
+    }
+  }
+  const texts = { decision, synthesis: loadTemplate('synthesis', tdir) };
   return {
     texts,
     hashes: { decision: texts.decision.sha256, synthesis: texts.synthesis.sha256 },
@@ -336,6 +354,10 @@ export interface PlanItem {
   prompt: Prompt | null;
   renderError: string | null;
   sampling: SamplingParams | null;
+  /** Decision_Model only: the System One request, its serialized body and the body length (R19.6, R19.11). */
+  systemOne: { readonly request: DecisionRequest; readonly body: string; readonly bodyBytes: number } | null;
+  /** Decision_Model only: set when the body is over the context window; the item is never sent (R19.11). */
+  overContext: string | null;
 }
 
 const keyOf = (cardId: string, permutation: string): string => `${cardId}\u0000${permutation}`;
@@ -358,7 +380,7 @@ export function buildPlan(cards: readonly LoadedCard[], tasks: readonly TaskType
         }
         perms = env.permutations;
       }
-      for (const permutation of perms) items.push({ card, facts, task, permutation, prompt: null, renderError: null, sampling: null });
+      for (const permutation of perms) items.push({ card, facts, task, permutation, prompt: null, renderError: null, sampling: null, systemOne: null, overContext: null });
     }
   }
   return items;
@@ -410,6 +432,7 @@ export function renderPlan(plan: readonly PlanItem[], templates: Templates, sche
   let rendererVersion: number | null = null;
   const errors: PlanItem[] = [];
   const constraintD: OutputConstraint = wantsSchema(combo) ? { kind: 'json_schema', schema: DECISION_SCHEMA } : { kind: 'none' };
+  if (isSystemOne(combo)) return renderSystemOnePlan(plan, templates, combo);
   for (const item of plan) {
     const schema = item.facts.outputSchema === null ? null : (schemas.get(item.facts.outputSchema) as SchemaInfo);
     const input = JSON.stringify({
@@ -432,7 +455,54 @@ export function renderPlan(plan: readonly PlanItem[], templates: Templates, sche
   return { rendererVersion, errors };
 }
 
+/** A Decision_Model sends no sampling member (System One has none); this value only fills the shared slots. */
+const SYSTEM_ONE_SAMPLING: SamplingParams = { temperature: 0, topP: null, maxOutputTokens: 1, seed: null, chatTemplateKwargs: null, constraint: { kind: 'none' } };
+
+/** Renders every D item of a Decision_Model through `llm_render_system_one` (R19.7); an S item has no request (R19.1). */
+function renderSystemOnePlan(plan: readonly PlanItem[], templates: Templates, combo: SystemOneCombination): RenderOutcome {
+  let rendererVersion: number | null = null;
+  const errors: PlanItem[] = [];
+  const mapping = templates.texts.decision.text;
+  for (const item of plan) {
+    item.sampling = SYSTEM_ONE_SAMPLING;
+    if (item.task !== 'decision') {
+      item.renderError = 'a Decision_Model has no S request';
+      errors.push(item);
+      continue;
+    }
+    const env = JSON.parse(llmRenderSystemOne(JSON.stringify({ frozen_context: item.facts.frozenContext, mapping, permutation: item.permutation }), item.card.id)) as {
+      ok?: boolean;
+      state?: string;
+      instructions?: string;
+      question_id?: string;
+      criteria?: { id: string; label: string }[];
+      renderer_version?: number;
+      error?: { message?: string };
+    };
+    if (env.ok !== true || typeof env.state !== 'string' || typeof env.instructions !== 'string' || typeof env.question_id !== 'string' || !Array.isArray(env.criteria)) {
+      item.renderError = env.error?.message ?? 'render error';
+      errors.push(item);
+      continue;
+    }
+    if (typeof env.renderer_version === 'number') rendererVersion = env.renderer_version;
+    try {
+      const request = decisionRequestFrom({ state: env.state, instructions: env.instructions, question_id: env.question_id, criteria: env.criteria });
+      const body = buildSystemOneBody(combo.model_selector, request);
+      const bodyBytes = bodyBytesOf(body);
+      item.systemOne = { request, body, bodyBytes };
+      // Display text only; the adapter sends the body built from `request`.
+      item.prompt = { system: env.instructions, user: env.state };
+      if (isOverContext(bodyBytes, combo.context_window_tokens)) item.overContext = `body_bytes=${bodyBytes} context_window_tokens=${combo.context_window_tokens}; nothing sent`;
+    } catch (e) {
+      item.renderError = e instanceof Error ? e.message : 'render error';
+      errors.push(item);
+    }
+  }
+  return { rendererVersion, errors };
+}
+
 function warmupSamplings(combo: Combination): Record<TaskType, SamplingParams> {
+  if (isSystemOne(combo)) return { decision: SYSTEM_ONE_SAMPLING, synthesis: SYSTEM_ONE_SAMPLING };
   return {
     decision: samplingFor(combo, 'decision', wantsSchema(combo) ? { kind: 'json_schema', schema: DECISION_SCHEMA } : { kind: 'none' }),
     synthesis: samplingFor(combo, 'synthesis', { kind: 'none' }),
@@ -515,7 +585,7 @@ export async function gateRun(
   subset: TaskSubset,
   approvalId: string | null,
   requestCount: number,
-): Promise<{ readonly ok: true; readonly value: GateOk } | { readonly ok: false; readonly reason: string }> {
+): Promise<{ readonly ok: true; readonly value: GateOk } | { readonly ok: false; readonly reason: string; readonly writeNothing?: true }> {
   if (!isWorkersAi(combo)) return { ok: true, value: { approval: null } };
   if (deps.phaseState === undefined) return { ok: false, reason: 'phase state is not available' };
   const state = await deps.phaseState();
@@ -523,6 +593,8 @@ export async function gateRun(
     const mappingHash = mappingHashOf(deps.paths.repoDir, combo);
     if (mappingHash === null) return { ok: false, reason: `the System_One_Mapping file of ${combo.id} cannot be read` };
     const gate = allowDecisionModel(kind, combo, subset, state, { count: requestCount, mappingHash });
+    // A subset with S writes nothing at all, not even `not_run` records (R19.1).
+    if (gate.outcome === 'wrong_subset') return { ok: false, reason: gate.reason, writeNothing: true };
     if (gate.outcome !== 'allowed') return { ok: false, reason: gate.reason };
     if (approvalId === null) return { ok: false, reason: `--approval is required for a Decision_Model ${kind} run` };
     const list = state.approvals.approved ? state.approvals.approvals : [];
@@ -712,7 +784,14 @@ const sentCount = (records: readonly ResultRecord[]): number => records.filter(h
 async function sendMissing(c: Exec, existing: readonly ResultRecord[]): Promise<Stop | null> {
   const missing = new Set(missingRuns(plannedRunsOf(c.plan), existing).map((m) => keyOf(m.card_id, m.permutation)));
   const done = new Set(c.plan.filter((p) => !missing.has(keyOf(p.card.id, p.permutation))).map((p) => keyOf(p.card.id, p.permutation)));
-  const todo = c.plan.filter((p) => missing.has(keyOf(p.card.id, p.permutation)) && p.prompt !== null && p.sampling !== null);
+  const todo = c.plan.filter((p) => missing.has(keyOf(p.card.id, p.permutation)) && p.prompt !== null && p.sampling !== null && p.overContext === null);
+  // Dev_Run only: a Decision_Model request longer than the context window is never sent (R19.11); a Locked_Run refused earlier.
+  for (const item of c.plan) {
+    if (missing.has(keyOf(item.card.id, item.permutation)) && item.overContext !== null) {
+      c.writer.append(notRun(c.base, item, 'over_context', item.overContext, nowOf(c.deps)));
+      done.add(keyOf(item.card.id, item.permutation));
+    }
+  }
   // Dev_Run only: a render error is recorded as `not_run` and no request is sent (R3.15 stops a Locked_Run earlier).
   for (const item of c.plan) {
     if (missing.has(keyOf(item.card.id, item.permutation)) && (item.prompt === null || item.sampling === null)) {
@@ -751,8 +830,16 @@ async function sendMissing(c: Exec, existing: readonly ResultRecord[]): Promise<
 
     let reservation: Reservation | null = null;
     if (c.budget !== null && prices !== null) {
-      const promptBytes = Buffer.byteLength(item.prompt.system, 'utf8') + Buffer.byteLength(item.prompt.user, 'utf8');
-      const estimate = estimateNeurons({ promptBytes, maxOutputTokens: item.sampling.maxOutputTokens, inputPrice: prices.input, outputPrice: prices.output });
+      // A Decision_Model is priced on the body length alone, with no output term (R19.12).
+      const estimate =
+        item.systemOne !== null && isSystemOne(c.combo)
+          ? systemOneBudgetInputs(c.combo, item.systemOne.body).estimate
+          : estimateNeurons({
+              promptBytes: Buffer.byteLength(item.prompt.system, 'utf8') + Buffer.byteLength(item.prompt.user, 'utf8'),
+              maxOutputTokens: item.sampling.maxOutputTokens,
+              inputPrice: prices.input,
+              outputPrice: prices.output,
+            });
       const r = c.budget.reserve({ smoke: false, estimate });
       if (isRefusal(r)) {
         const stop: Stop = { notRun: 'budget', ledgerReason: 'budget', code: 'budget_stop', detail: r.message };
@@ -763,9 +850,14 @@ async function sendMissing(c: Exec, existing: readonly ResultRecord[]): Promise<
     }
 
     const requestedAt = nowOf(c.deps);
-    const result = await c.handle.adapter.complete(item.prompt, { timeoutMs: c.timeoutMs, sampling: item.sampling });
+    const result =
+      item.systemOne !== null
+        ? await (c.handle.adapter as DecisionAdapter).complete(item.systemOne.request, { timeoutMs: c.timeoutMs })
+        : await c.handle.adapter.complete(item.prompt, { timeoutMs: c.timeoutMs, sampling: item.sampling });
     const reported = result.kind === 'text' || result.kind === 'error' ? (result.usage ?? null) : null;
-    if (reservation !== null && c.budget !== null && prices !== null && reported !== null) {
+    if (reservation !== null && c.budget !== null && prices !== null && reported !== null && item.systemOne !== null) {
+      c.budget.settleSystemOne(reservation, reported.inputTokens, prices.input);
+    } else if (reservation !== null && c.budget !== null && prices !== null && reported !== null) {
       c.budget.settle(
         reservation,
         { promptTokens: reported.inputTokens, completionTokens: reported.outputTokens, reasoningTokens: reported.reasoningTokens },
@@ -833,8 +925,10 @@ const perfPathFor = (resultsFile: string): string => resultsFile.replace(/\.json
 
 /** Grades the run's records and writes the grades file. An identical existing file is accepted. */
 function writeGrades(c: { readonly writer: ResultsWriter; readonly cards: readonly LoadedCard[]; readonly tasks: readonly TaskType[] }): void {
-  const records = readResultsFile(c.writer.file).records;
-  const graded = gradeRecords(c.cards, records, c.tasks);
+  const { header, records } = readResultsFile(c.writer.file);
+  // The Output_Validator mode comes from the Combination's Response_Shape, never from the output (R4.16).
+  const mode: ValidateMode = header.validator_mode ?? 'json';
+  const graded = gradeRecords(c.cards, records, c.tasks, mode);
   const file = gradesPathFor(c.writer.file);
   if (fs.existsSync(file)) {
     const old = readGradesFile(file);
@@ -928,7 +1022,7 @@ export async function devRun(deps: RunDeps, opts: DevRunOptions): Promise<number
     const loaded = loadSplits(deps, 'dev');
     const cards = loaded.cards.dev;
     const { combo, tasks, timeoutMs } = prep;
-    const templates = loadTemplates(deps.paths);
+    const templates = loadTemplates(deps.paths, combo);
     const plan = buildPlan(cards, tasks);
     const schemas = loadSchemas(deps.paths.cardsDir, plan);
     const rendered = renderPlan(plan, templates, schemas, combo);
@@ -954,6 +1048,7 @@ export async function devRun(deps: RunDeps, opts: DevRunOptions): Promise<number
     if (!gate.ok) {
       // Refused (R11.8, R18): nothing is sent; every Card x Permutation is recorded as not_run.
       logger.gateRefusal(gate.reason);
+      if (gate.writeNothing === true) return 1;
       const identity = placeholderHandle(combo);
       const fingerprint = buildFingerprint(deps, combo, identity, templates, tasks, rendered.rendererVersion);
       const writer = ResultsWriter.create(deps.paths.resultsDir, header(runId, 'dev', combo, subset, fingerprint, templates, tasks, timeoutMs, null));
@@ -1147,6 +1242,7 @@ function header(
     template_hashes: subsetHashes(templates.hashes, tasks),
     timeout_ms: timeoutMs,
     placement,
+    ...(isSystemOne(combo) ? { response_shape: 'system_one' as const, validator_mode: combo.validator_mode } : {}),
   };
 }
 
@@ -1238,7 +1334,7 @@ export async function lockedRun(deps: RunDeps, opts: LockedRunOptions): Promise<
     if (!isWorkersAi(combo) && entry === null && !/^[0-9a-f]{40}$/.test(combo.revision)) throw new RunError('not_pinned', { combination: combo.id });
     if (entry === null && fs.existsSync(deps.paths.exclusions) && readExclusionsFor(deps.paths.exclusions, combo.id)) throw new RunError('excluded', { combination: combo.id });
 
-    const templates = loadTemplates(deps.paths);
+    const templates = loadTemplates(deps.paths, combo);
     const plan = buildPlan(cards, tasks);
     const planned = plannedRunsOf(plan);
 
@@ -1274,6 +1370,18 @@ export async function lockedRun(deps: RunDeps, opts: LockedRunOptions): Promise<
       logger.failure('render_errors', { count: rendered.errors.length });
       for (const item of rendered.errors) logger.renderError(item.card.id, item.permutation, renderReasonCategory(item.renderError ?? ''));
       return 1;
+    }
+
+    // Step 5, Decision_Model part (R3.15, R19.11): a body over the context window refuses the whole run here, before the
+    // ledger `start` entry. Every such Card ID is listed; nothing is sent and no Results file is written.
+    if (isSystemOne(combo)) {
+      const sized = plan.flatMap((p) => (p.overContext !== null && p.systemOne !== null ? [{ cardId: p.card.id, bodyBytes: p.systemOne.bodyBytes }] : []));
+      const ids = overContextCardIds(sized, combo.context_window_tokens);
+      if (ids.length > 0) {
+        logger.failure('over_context', { count: ids.length });
+        for (const id of ids) logger.overContext(id, Math.max(...sized.filter((r) => r.cardId === id).map((r) => r.bodyBytes)), combo.context_window_tokens);
+        return 1;
+      }
     }
 
     // Step 6: Runtime handle, Fresh_Profile hook, budget counter. No Runtime request is sent.

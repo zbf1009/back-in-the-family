@@ -299,6 +299,17 @@ test('section 10 lists runtime_stuck engine faults and rebuild failures (R8.5, R
   assert.match(s10, /webllm\/faulty\/nvidia: failure record rebuild_failed \(message: engine would not rebuild\)/);
 });
 
+test('section 10 labels an engine fault by its own code, truncated_state included (R19.11)', () => {
+  const c = combo('webllm/faulty2/nvidia');
+  const outcome = (cardId: string): Outcome | undefined =>
+    cardId === 'D-1' ? { kind: 'engine_fault', code: 'truncated_state', detail: 'input_tokens below the lower bound' }
+    : cardId === 'D-2' ? { kind: 'engine_fault', code: 'runtime_stuck', detail: 'stuck' }
+    : undefined;
+  const s10 = section(build([{ id: 'L-t', c, task: 'decision', good: true, outcome }], [c, WAI]), 10);
+  assert.match(s10, /- webllm\/faulty2\/nvidia \(entry L-t\): runtime_stuck engine fault on 1 request\(s\): D-2\/base;/);
+  assert.match(s10, /- webllm\/faulty2\/nvidia \(entry L-t\): truncated_state engine fault on 1 request\(s\): D-1\/base; not graded, in no numerator/);
+});
+
 test('a re-run that is not used is listed as "re-run, not used" in sections 7 and 10 (R3.8)', () => {
   const c = combo('webllm/rerun/nvidia');
   const specs: Spec[] = [

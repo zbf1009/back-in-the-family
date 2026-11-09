@@ -13,7 +13,7 @@ import {
   type JsonValue,
   type ResultRecord,
 } from './results.ts';
-import { llmContrast, llmGrade, llmIdentity, llmValidate } from './simwasm.ts';
+import { llmContrast, llmGrade, llmIdentity, llmValidate, type ValidateMode } from './simwasm.ts';
 
 /** Facts read from a card's `llm_parse_card` result. */
 export interface CardFacts {
@@ -82,8 +82,8 @@ function validateInput(facts: CardFacts, r: ResultRecord): string {
   throw new GradingError(facts.card.id, `a ${o.kind} record has no output`);
 }
 
-function verdictOf(facts: CardFacts, input: string): JsonValue {
-  const env = parseEnvelope(llmValidate(input, 'json', facts.card.id), facts.card.id, 'llm_validate');
+function verdictOf(facts: CardFacts, input: string, mode: ValidateMode): JsonValue {
+  const env = parseEnvelope(llmValidate(input, mode, facts.card.id), facts.card.id, 'llm_validate');
   return env['verdict'] as JsonValue;
 }
 
@@ -108,7 +108,7 @@ export interface GradedRun {
  * verdicts, and lists the excluded cards and pairs (R2.8). `records` may hold several records for one
  * Card x Permutation (a resumed run); the last one with an output wins.
  */
-export function gradeRecords(cards: readonly LoadedCard[], records: readonly ResultRecord[], tasks: readonly TaskType[]): GradedRun {
+export function gradeRecords(cards: readonly LoadedCard[], records: readonly ResultRecord[], tasks: readonly TaskType[], mode: ValidateMode = 'json'): GradedRun {
   const factsById = new Map(cards.map((c) => [c.id, cardFacts(c)] as const));
   const lastOutput = new Map<string, ResultRecord>();
   for (const r of records) if (hasOutput(r)) lastOutput.set(`${r.card_id}\u0000${r.permutation}`, r);
@@ -118,11 +118,11 @@ export function gradeRecords(cards: readonly LoadedCard[], records: readonly Res
   for (const r of lastOutput.values()) {
     const facts = factsById.get(r.card_id);
     if (facts === undefined) throw new GradingError(r.card_id, 'the record names a card that is not in the loaded set');
-    const verdict = verdictOf(facts, validateInput(facts, r));
+    const verdict = verdictOf(facts, validateInput(facts, r), mode);
     if (r.permutation === 'base') baseVerdicts.set(r.card_id, verdict);
     let lateGrade: JsonValue | null = null;
     if (r.outcome.kind === 'timeout' && r.late?.kind === 'late') {
-      const lateVerdict = verdictOf(facts, JSON.stringify({ frozen_context: facts.frozenContext, raw: r.late.text }));
+      const lateVerdict = verdictOf(facts, JSON.stringify({ frozen_context: facts.frozenContext, raw: r.late.text }), mode);
       lateGrade = gradeOf(facts, lateVerdict);
     }
     grades.push({

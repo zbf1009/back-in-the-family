@@ -611,7 +611,7 @@ export async function regrade(deps: IngestDeps, resultsFile: string): Promise<nu
 
     const cards = cardsFor(deps, results.header.split);
     const tasks = tasksOf(results.header.task_subset);
-    const graded = gradeRecords(cards, results.records, tasks);
+    const graded = gradeRecords(cards, results.records, tasks, results.header.validator_mode ?? 'json');
     const again = gradesText(graded);
     const diff = firstDifferingLine(storedText, again);
     if (diff !== 0) {

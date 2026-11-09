@@ -227,7 +227,7 @@ export function analyzeRun(input: RunInputs): RunAnalysis {
 export function scanFaults(records: readonly ResultRecord[]): FaultRecord[] {
   const out: FaultRecord[] = [];
   for (const r of records) {
-    if (r.outcome.kind === 'engine_fault') out.push({ cardId: r.card_id, permutation: r.permutation, kind: 'engine_fault' });
+    if (r.outcome.kind === 'engine_fault') out.push({ cardId: r.card_id, permutation: r.permutation, kind: 'engine_fault', code: r.outcome.code });
     else if (r.outcome.kind === 'not_run' && r.outcome.reason === 'rebuild_failed') out.push({ cardId: r.card_id, permutation: r.permutation, kind: 'rebuild_failed' });
   }
   return out;
@@ -858,19 +858,27 @@ export function buildReport(input: ReportInput): string {
   for (const x of state.exclusions) failedLines.push(`- ${x.combination}: excluded, see section 3 (${x.check})`);
   for (const id of overLimit) failedLines.push(`- ${id}: measured model download over 1,536 MiB, over the In_Browser_Size_Limits`);
   out.push(...(failedLines.length > 0 ? failedLines : ['- none']), '');
-  h3('Engine faults (runtime_stuck) and engine rebuild failures (rebuild_failed)');
+  h3('Engine faults (runtime_stuck, truncated_state) and engine rebuild failures (rebuild_failed)');
   const faultLines: string[] = [];
   for (const e of [...state.entries].sort((a, b) => a.order - b.order)) {
     const faults = runById.get(e.entry_id)?.faults ?? input.incompleteFaults.get(e.entry_id) ?? [];
+    // One line per fault code: a `truncated_state` fault is reported under its own name, not as `runtime_stuck`.
+    const groups: { kind: 'engine_fault' | 'rebuild_failed'; code: string; of: FaultRecord[] }[] = [];
+    for (const f of faults) {
+      const code = f.kind === 'engine_fault' ? (f.code ?? 'runtime_stuck') : 'rebuild_failed';
+      const found = groups.find((g) => g.kind === f.kind && g.code === code);
+      if (found === undefined) groups.push({ kind: f.kind, code, of: [f] });
+      else found.of.push(f);
+    }
     for (const kind of ['engine_fault', 'rebuild_failed'] as const) {
-      const of = faults.filter((f) => f.kind === kind);
-      if (of.length === 0) continue;
-      const ids = of.slice(0, 10).map((f) => `${f.cardId}/${f.permutation}`).join(', ');
-      faultLines.push(
-        kind === 'engine_fault'
-          ? `- ${e.start.combination} (entry ${e.entry_id}): runtime_stuck engine fault on ${of.length} request(s): ${ids}${of.length > 10 ? `, and ${of.length - 10} more` : ''}; not graded, in no numerator`
-          : `- ${e.start.combination} (entry ${e.entry_id}): engine rebuild failed (rebuild_failed) for ${of.length} request(s): ${ids}${of.length > 10 ? `, and ${of.length - 10} more` : ''}; the Combination is reported as failed, not scored card by card`,
-      );
+      for (const { code, of } of groups.filter((g) => g.kind === kind).sort((a, b) => (a.code < b.code ? -1 : 1))) {
+        const ids = of.slice(0, 10).map((f) => `${f.cardId}/${f.permutation}`).join(', ');
+        faultLines.push(
+          kind === 'engine_fault'
+            ? `- ${e.start.combination} (entry ${e.entry_id}): ${code} engine fault on ${of.length} request(s): ${ids}${of.length > 10 ? `, and ${of.length - 10} more` : ''}; not graded, in no numerator`
+            : `- ${e.start.combination} (entry ${e.entry_id}): engine rebuild failed (rebuild_failed) for ${of.length} request(s): ${ids}${of.length > 10 ? `, and ${of.length - 10} more` : ''}; the Combination is reported as failed, not scored card by card`,
+        );
+      }
     }
   }
   out.push(...(faultLines.length > 0 ? faultLines : ['- none']), '');
