@@ -1472,3 +1472,16 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
   - `docs/llm-probe-audit.md`: a correction line under gap 5 (pushed, CI run, deployed); the original text is unchanged.
   - `product.md`: the first slice uses template text, generated text comes later; "Outsiders may move in" replaced: outsiders arrive only as an imported vessel (blank shell possessed by a waiting town soul) or a rebuilt body, with no new soul; the total number of souls is conserved.
 - This commit and `c0d718d` stay local; they go out with the first `life-sim` code push, which needs the Author's approval.
+
+### Spec: life-sim — requirements draft (2026-11-10)
+
+- Spec 4 `life-sim` (thin, with the soul-identity core) started requirements-first on the Author's scope: card-field data model as a hard requirement, synthetic workload removed, soul conservation with outsiders only as imported vessels or rebuilt bodies, no hard population caps, 80-year runs on several seeds staying within 40 to 60 residents, deadline 2026-11-14, lean acceptance criteria.
+- Kiro wrote the first draft (19 requirements, open points OP-1 to OP-10 left to design), then refined each requirement separately. The refinement changed substance in places the Author should check: R11.2 fixes an outsider adult age of 18 provisionally (added to OP-5); R15 uses `validate_raw_choice` instead of `validate_raw`, because the System One path validates a raw choice, and limits event IDs to `e` plus 1 to 4 digits as `EventId::new` accepts (mapping of live IDs added to OP-10); R14.3 forbids mood changes without an event (no drift); R8.5 keeps overdue debts open; R1.3 rejects a leftover `workload` field; the creditor-dies case was found missing and added to OP-2.
+- `validate_spec_format`: no issues. Not committed yet; waiting for the Author's review.
+
+### Spec: life-sim — Author's requirements review (2026-11-10)
+
+- The Author's review, applied as targeted edits: R17.3 reports Resident counts and arrivals by Origin; new R17.8 (outsider arrivals at most native births per Life_Run; any tighter ratio by measurement, OP-5); new Requirement 20 (the Player_Soul is exempt from automatic release and birth selection and waits until a later spec's player input; excluded from the Max_Wait bound; its wait reported separately; still counted in soul conservation; R10.1, R10.2, R11.1, R11.3 and R17.6 adjusted); new R4.9 (remarriage keeps the dead spouse's `spouse` tag); R12.5 opening age band 20 to 50 years; R17.1 relaxed to 35..=65 every tick plus new R17.9 (40..=60 on at least 95% of ticks, `in_band * 100 >= ticks * 95`); R19.4 fault injection only for the six core invariants of R19.1 and new gates.
+- The Author asked whether `PersonId` has an upper bound. Checked: `PersonId` is `i64` and the card parser accepts person `id` in 1..=i64::MAX (`crates/sim-core/src/llm/card.rs` line 721), so no practical upper bound, but id 0 is rejected while the skeleton counter starts at 0; recorded in OP-10.
+- Found while applying: R17.4 defined the deterministic report without the results of the new R17.8 and R17.9 checks; Kiro added the pass/fail results of R17.1, R17.8 and R17.9 to it.
+- `validate_spec_format`: no issues. Committed with the draft.
