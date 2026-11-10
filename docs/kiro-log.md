@@ -1355,3 +1355,10 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - New test: the text appears exactly once in the Report, only in section 12, is absent without the External reference, and equals the R20.18 text in `requirements.md`.
 - Rendered the Report once to check (text present once, under section 12), then `git checkout -- docs/llm-probe.md`; the regenerated report is not committed (that is 38.1). Gates: `timeout 1500 scripts/gates.sh`, exit 0.
 - No Workers AI request. `locked.jsonl`, `review/locked.md`, `blind/*` and root `env` were not opened.
+
+### Spec: llm-probe — Locked_Run START, `workers-ai/clef` (task 35.3, 2026-11-10, about 01:59Z)
+
+- Combination `workers-ai/clef` (model `@cf/cloudflare/clef`, variant `single`), Task_Type_Subset `D`, `max_requests` 236, approval `DM-005` (kind `decision_model`, step `locked`), committed as `ff52cc8`. The Author approved the run on 2026-11-10 in the conversation and chose to run clef before clef-flash. `date -u` read 2026-11-10 before this entry; the start time above is the time when this entry was written, about a minute before the runner starts, and the ledger `start` time is authoritative.
+- Model_Fingerprint: the full record is written by the runner into the ledger `start` line and the Results header; the ledger entry ID goes into the END entry.
+- Pinned_Manifest_Hash `9322729c727a8c975dc3273fb7cc2f239e8790ea66e1745493179aea6815b34f` (manifest check ok, 27 files). Template_Hashes: decision System_One_Mapping `e275f397327b91dc1b6f69290535d6ef72c6bb712021ff130ed9da43589b337d` (equal to the frozen one).
+- Budget ledger before the run: no entry for 2026-11-10 (0 requests, 0 neurons); 2026-11-09 shows 482 requests and 6,023 neurons. Locked card content is not opened or printed by me.
