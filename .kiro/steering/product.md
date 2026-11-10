@@ -10,7 +10,7 @@ inclusion: always
 
 A small American town suffers a clerical error at the local branch of the underworld one Halloween: the souls of everyone who dies in town are locked to the town and can only be reborn into the town's own newborns. The player is one such soul. Alive, they live a life and make friends and enemies. Dead, they spend joss paper offered by the living on dreams, hauntings and bribes. Then they pick their next birth from a short list of open slots, even if the best slot is in their worst enemy's house.
 
-Hackathon: Kiroween 2026, **Frankenstein** category. The stitch: a non-deterministic generative LLM makes decisions inside a bit-for-bit reproducible deterministic simulation. Rules compute the closed set of legal options; the LLM only picks from that set; the pick is recorded as an authoritative input, so replays never call the model.
+Hackathon: Kiroween 2026, **Frankenstein** category. The stitch: a probabilistic decision model makes NPC choices inside a bit-for-bit reproducible deterministic simulation. Rules compute facts, the closed set of legal options, effect bounds and personality priors; the decision model picks inside that set; the pick is recorded as an authoritative input, so replays never call the model. A generative LLM only narrates (dialogue, dreams, obituaries), outside the checksum.
 
 Audience: players who like emergent story sims (life sims, colony sims, dynasty games) and want a short, funny session with real consequences.
 
@@ -18,7 +18,7 @@ Audience: players who like emergent story sims (life sims, colony sims, dynasty 
 
 1. **The base is a simulation, not a script.** The town runs on a deterministic emergent simulation. No fixed opening script, no branching cutscenes. Players and the LLM are layers on top.
 2. **Learn from others, build for our own goals.** Borrow ideas that fit; drop what doesn't. Never copy other projects' code.
-3. **Rules define the legal space; the LLM makes slow choices inside it.** Facts (kinship, debts, causes of death, births, inheritance), which options are legal, effect bounds and survival guarantees are all computed by rules. The LLM, at sparse nodes, picks from rule-generated closed sets for key NPCs, or summarizes recorded facts into structured conclusions. Outputs are validated, clamped and recorded into the input stream. It also writes dialogue, dreams and obituaries as a side job.
+3. **Rules define the legal space; the decision model makes slow choices inside it.** Facts (kinship, debts, causes of death, births, inheritance), which options are legal, effect bounds, personality priors and survival guarantees are all computed by rules. The decision model, at sparse nodes, picks from rule-generated closed sets for key NPCs. Summaries of recorded facts (S-type) are computed by rules, not a model. A generative LLM only narrates: dialogue, dreams and obituaries. Decision outputs are validated, clamped and recorded into the input stream.
 4. **Fully playable without an LLM.** When the model is slow or unavailable, rules (utility scoring + personality facets) choose the default and templates supply the text. Every mechanic still works.
 5. **Interrupt the player only for real choices.** If there are not at least two defensible options with different costs, resolve automatically and write it into the chronicle.
 
@@ -49,7 +49,7 @@ Audience: players who like emergent story sims (life sims, colony sims, dynasty 
 
 ## Demo
 
-- Default: **live play**. NPC decisions use the fallback chain in-browser LLM → server LLM → rules default.
+- Default: **live play**. NPC decisions use the fallback chain Workers AI decision model → rules default.
 - An in-app **replay gallery** of curated seeds and input streams, showing the checksum as it plays.
 - The best seeds and input streams are also recorded for the demo video.
 
@@ -66,4 +66,4 @@ Cross-life romance; open-world free movement and pathfinding; job and skill tree
 
 ## Build strategy
 
-Get one thin vertical slice working end to end first (start of life → a few interruptions → death → one dream with one LLM call → rebirth → second life). Then thicken each part.
+Get one thin vertical slice working end to end first (start of life → a few interruptions → death → one dream with one generated text → rebirth → second life). Then thicken each part.
