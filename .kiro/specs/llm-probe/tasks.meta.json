@@ -3340,6 +3340,11 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794198437677
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794275864406
       }
     ],
     "35.2 Locked_Run: `clef-flash` (D)": [
@@ -3900,6 +3905,11 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794221465814
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794275430283
       }
     ],
     "50.2 Apply the answer and regenerate the Report section 12": [
@@ -3907,6 +3917,16 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794221465825
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794275430903
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794275863638
       }
     ],
     "39. R20 core: `llm_aggregate_perm_avg`, golden fixtures, parity and the rule text (R20.3 to R20.8, R20.17; DA-25, V18)": [
@@ -3970,6 +3990,13 @@
         "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794275366348
+      }
+    ],
+    "50. STOP-AND-ASK: RC-20 stays open until the Author answers (R20.20)": [
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794275863646
       }
     ]
   }

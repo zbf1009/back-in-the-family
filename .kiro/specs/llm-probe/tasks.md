@@ -750,7 +750,7 @@ Execution notes for the orchestrator:
     - _Requirements: 19.10, 3.12, 17.1_
 
 - [ ] 35. STOP-AND-ASK: Decision_Model Locked_Runs (D) [Target_Machine]
-  - [~] 35.1 Check the preconditions
+  - [x] 35.1 Check the preconditions
     - For each model: a `shape_check: "ok"` Smoke_Call for the declared shape; a final Dev_Run with the frozen Template_Hash; no `over_context` refusals; `probe phase-status` shows Phase_1 ended; gates green; working tree clean. Amended (R20): the four-record registry and the Aggregation_Hash are committed (task 44.2) and `phase-status` shows the registry check passing; the `single` Dev_Run is complete (no `not_run` or `engine_fault` record) so the later Dev derived file (tasks 45 and 46) can exist before `derive_locked`. Report to the Author.
     - _Requirements: 19.4, 19.5, 3.12, 18.1_
   - [~] 35.2 Locked_Run: `clef-flash` (D)
@@ -930,11 +930,11 @@ Execution notes for the orchestrator:
     - Check that several `choice` questions over one `state` are answered independently and keep the `criteria` key order; commit the smoke records; log. The production conflict with `tech.md` stays with the Author.
     - _Requirements: 20.15, 11.19_
 
-- [ ] 50. STOP-AND-ASK: RC-20 stays open until the Author answers (R20.20)
-  - [~] 50.1 Ask the Author for the RC-20 wording
+- [x] 50. STOP-AND-ASK: RC-20 stays open until the Author answers (R20.20)
+  - [x] 50.1 Ask the Author for the RC-20 wording
     - Before 38.2: present the open RC-20 item and the current wording of Report section 12 ("Author-supplied, not verified by ingest", teacher figures as supplied, no claim that only the flip Threshold fails). Do nothing until the Author answers. If the Author asks to continue without an answer, record that in `docs/kiro-log.md` and leave RC-20 marked open in the Report.
     - _Requirements: 20.20, 17.1_
-  - [~] 50.2 Apply the answer and regenerate the Report section 12
+  - [x] 50.2 Apply the answer and regenerate the Report section 12
     - Apply only the wording the Author gave to `requirements.md` (as "Amendment (RC-20, date)") and the generator inputs; never edit Results; run `validate_spec_format`; gates green; one `docs(llm-probe)` commit; log.
     - _Requirements: 20.20, 19.16_
 
