@@ -749,14 +749,14 @@ Execution notes for the orchestrator:
     - Present the final mapping and Template_Hash; do nothing until the Author approves the freeze. Then one Dev_Run per Decision_Model with the frozen hash (the R3.12 precondition), each under its own approval entry if the hash changed since its last Dev_Run. Commit Results and the frozen mapping; log the hashes. One `chore(llm-probe)` commit.
     - _Requirements: 19.10, 3.12, 17.1_
 
-- [ ] 35. STOP-AND-ASK: Decision_Model Locked_Runs (D) [Target_Machine]
+- [x] 35. STOP-AND-ASK: Decision_Model Locked_Runs (D) [Target_Machine]
   - [x] 35.1 Check the preconditions
     - For each model: a `shape_check: "ok"` Smoke_Call for the declared shape; a final Dev_Run with the frozen Template_Hash; no `over_context` refusals; `probe phase-status` shows Phase_1 ended; gates green; working tree clean. Amended (R20): the four-record registry and the Aggregation_Hash are committed (task 44.2) and `phase-status` shows the registry check passing; the `single` Dev_Run is complete (no `not_run` or `engine_fault` record) so the later Dev derived file (tasks 45 and 46) can exist before `derive_locked`. Report to the Author.
     - _Requirements: 19.4, 19.5, 3.12, 18.1_
-  - [~] 35.2 Locked_Run: `clef-flash` (D)
+  - [x] 35.2 Locked_Run: `clef-flash` (D)
     - Ask the Author to approve this Locked_Run (Combination, `--task D`, 236 requests, about 877 neurons typical). Only after approval: add the `decision_model` entry (`step: "locked"`) in its own commit; append the `docs/kiro-log.md` start entry (Combination, Task_Type_Subset, Model_Fingerprint, Pinned_Manifest_Hash) before the first request; run `probe locked-run --combo workers-ai/clef-flash --task D --approval <id>`; append the end entry; commit Results, grades, perf record and ledger lines. The agent passes on only progress counts, aggregate Metrics, Card IDs and error messages (R3.11); it never opens `locked.jsonl`, `eval/cards/blind/*` or `env`.
     - _Requirements: 19.4, 19.5, 3.3, 3.5, 3.11, 14.4, 14.10, 17.1, 17.6_
-  - [~] 35.3 Locked_Run: `clef` (D)
+  - [x] 35.3 Locked_Run: `clef` (D)
     - Same procedure, own approval (236 requests, about 5,539 neurons typical, 10,384 at the planning bound). Start at 00:00 UTC of a fresh day (day 2 after its Dev_Run, DA-20). If the Neuron_Cap stops the run, resume with `locked-run --resume <entry-id>` on the next UTC day after asking again (R3.9).
     - _Requirements: 19.4, 19.5, 19.12, 3.3, 3.5, 3.9, 3.11, 14.4, 14.10, 17.1, 17.6_
 
