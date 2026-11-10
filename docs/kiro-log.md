@@ -1485,3 +1485,19 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - The Author asked whether `PersonId` has an upper bound. Checked: `PersonId` is `i64` and the card parser accepts person `id` in 1..=i64::MAX (`crates/sim-core/src/llm/card.rs` line 721), so no practical upper bound, but id 0 is rejected while the skeleton counter starts at 0; recorded in OP-10.
 - Found while applying: R17.4 defined the deterministic report without the results of the new R17.8 and R17.9 checks; Kiro added the pass/fail results of R17.1, R17.8 and R17.9 to it.
 - `validate_spec_format`: no issues. Committed with the draft.
+
+### Spec: life-sim — design draft (2026-11-10)
+
+- Kiro wrote `design.md` assuming a recommended option for each open point OP-1 to OP-10, listed in "Decisions for the Author" for the Author to confirm or change. Points raised for the Author: opening couples opposite-sex and births from female Residents only; a proposed `[profile.dev.package.blake3] opt-level = 3` in the workspace `Cargo.toml`; one `inheritance` event per heir who actually receives something; card event kinds the slice never produces are left out.
+- Gate-time estimate rests on a baseline measured today (22,620 ticks/s, 34.5 us per checksum on 37 KB of state, skeleton model); the 15 to 30 s figure for the 5-seed acceptance batch is a projection to be measured during the tasks.
+- `validate_spec_format`: no issues. Not committed yet; waiting for the Author's review.
+
+### Spec: life-sim — Author's design review (2026-11-10)
+
+- Death step 7 changed at the Author's request: only non-kin Relations whose `from` is the dead Person are removed; Relations from living Persons to the dead (non-kin included, with affinity and trust) are kept, because the underworld spec needs them (dreams reach connected people, joss paper reflects how the deceased treated the living, node contexts). Kiro rechecked R4, R6.4, the Context_Builder, Derived_State and the properties: Properties 2 and 3 updated, a death unit test added, decay now covers living-to-dead Relations. While checking, Kiro found a latent R6.4 problem in the birth step (sibling and grandparent Relations to dead Persons) and changed it to living kin only. Relation map estimate at 80 years: about 4,500 Relations, hard bound about 12,000; no pruning; `relations_max` added to the batch report as a measurement. requirements.md needed no change.
+- All open points decided as Recommended (2026-11-10), alternatives kept for history; notes added to OP-2 (claim transfer to heirs needs an event type outside the card format, later spec) and OP-4 (re-set the NPC rebuilt-body share once rebuilt bodies cost joss paper).
+- Versioning: the Author asked to bump versions "by the tech.md rule"; Kiro found that tech.md has no version rule and offered three options. The Author chose A: `CANON_VERSION` 1 to 2, `REPLAY_VERSION` 2 to 3, workspace stays 0.1.0, no `sim_version`.
+- The four confirmation points accepted; fixture names kept, with a comment in `parity.rs` and a note in `fixtures/parity/README.md` that the names date from the skeleton.
+- Calibration: `outsiders_le_births` and `max_wait_npc` are the primary tuning metrics; the population band is an acceptance check only (hard to fail at N=50 under soul conservation).
+- From the tasks phase on, implementation is done by an external terminal agent (omp); Kiro writes tasks and does the final audit.
+- `validate_spec_format` on design.md: no issues. Committed.
