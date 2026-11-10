@@ -723,7 +723,7 @@ Execution notes for the orchestrator:
     - From the smoke records: V9 (result envelope, member types, `usage` fields; fix the declared shape if `mismatch`, and do not go on until the shape check is `ok`); V10 (tokens-per-byte lower bound: set `max_bytes_per_token` to `max(6, ceil(1.5 × max measured ratio))` or keep 8, update `combinations.json`, and the fingerprint changes); V11 (reservation versus usage-based cost; raise the allowance in `combinations.json` and Property 45 if exceeded); neuron rate observed; whether the same request repeated gives the same `choice` only if the Author asks for the optional V14 pair (otherwise "not tested"). If the mean input size is more than 25% from the DA-20 proxies, recompute and show the DA-20 figures again before any Dev_Run approval is asked. Add dated notes to `design.md`; gates green; one `chore(llm-probe)` commit.
     - _Requirements: 19.2, 19.3, 19.11, 19.12, 11.19, 16.9_
 
-- [ ] 34. STOP-AND-ASK: Decision_Model Dev_Runs, mapping tuning and freeze [Target_Machine]
+- [x] 34. STOP-AND-ASK: Decision_Model Dev_Runs, mapping tuning and freeze [Target_Machine]
   - [x] 34.1 Ask for the `clef-flash` Dev_Run approval
     - Present the Combination, `task_subset: "D"`, `max_requests` (74), the expected neurons (about 249 typical, 518 planning bound, recomputed from 33.3 if needed), the Neuron_Cap, and that the mapping is tuned on Dev_Cards only. Do nothing until the Author approves in the conversation at that moment.
     - _Requirements: 19.4, 19.5, 17.1, 17.2_
@@ -742,10 +742,10 @@ Execution notes for the orchestrator:
   - [x] 34.6 Run the `clef` Dev_Run
     - As 34.3, for `clef` (on UTC day 1 together with the Smoke_Calls, or later; the Locked_Run goes on a later UTC day per DA-20).
     - _Requirements: 19.5, 19.11, 19.12, 11.5, 11.6, 11.13, 11.14, 17.1_
-  - [~] 34.7 Tune the System_One_Mapping on Dev_Cards only
+  - [x] 34.7 Tune the System_One_Mapping on Dev_Cards only
     - Change only files under `eval/probe/templates/` (a new `decision.system_one.v2.txt`; the five Author rules test must pass; never use Locked_Cards). A Dev_Run with a changed mapping needs a new `dev` approval entry for that Combination (ask first). Log each iteration with its Template_Hash and Dev_Run Metrics (labelled Dev_Run).
     - _Requirements: 19.7, 19.10, 3.2, 7.7, 15.2_
-  - [~] 34.8 STOP-AND-ASK: freeze the mapping, then the final Dev_Runs
+  - [x] 34.8 STOP-AND-ASK: freeze the mapping, then the final Dev_Runs
     - Present the final mapping and Template_Hash; do nothing until the Author approves the freeze. Then one Dev_Run per Decision_Model with the frozen hash (the R3.12 precondition), each under its own approval entry if the hash changed since its last Dev_Run. Commit Results and the frozen mapping; log the hashes. One `chore(llm-probe)` commit.
     - _Requirements: 19.10, 3.12, 17.1_
 
@@ -892,17 +892,17 @@ Execution notes for the orchestrator:
     - `timeout 120 pnpm --dir eval/probe run probe derive --combo workers-ai/clef-flash/perm_avg --split dev --approval <id>` then the same with `--verify`. Read the Dev figures as Dev_Run figures. If the mapping is tuned later (34.7, 34.8), a derived file from the superseded source is not overwritten: ask the Author before deriving from the final Dev_Run. Commit the derived Results and grades; log.
     - _Requirements: 20.7, 20.9, 20.11, 20.12, 15.2_
 
-- [ ] 46. STOP-AND-ASK: derive the `clef` Dev_Run into `perm_avg`
+- [x] 46. STOP-AND-ASK: derive the `clef` Dev_Run into `perm_avg`
   - [x] 46.1 V15 over the first real `clef` Dev_Run bodies
     - After 34.6. Same read-only counts as 45.1 for `clef`. Log; stop and tell the Author on a failure.
     - _Requirements: 20.3, 20.4, 20.6_
-  - [-] 46.2 Ask for the `derive_dev` approval for `workers-ai/clef/perm_avg`
+  - [x] 46.2 Ask for the `derive_dev` approval for `workers-ai/clef/perm_avg`
     - As 45.2, for `clef`; its own approval.
     - _Requirements: 20.9, 20.10, 17.1, 17.2_
-  - [~] 46.3 Record the `derive_dev` approval
+  - [x] 46.3 Record the `derive_dev` approval
     - As 45.3.
     - _Requirements: 20.10, 11.20_
-  - [~] 46.4 Run `probe derive` for the Dev split and verify
+  - [x] 46.4 Run `probe derive` for the Dev split and verify
     - As 45.4, for `clef`.
     - _Requirements: 20.7, 20.9, 20.11, 20.12, 15.2_
 
