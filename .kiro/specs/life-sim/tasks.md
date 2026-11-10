@@ -39,7 +39,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - In `rng.rs`, add permanent `StreamTag` values 4..=14 (design "Module layout" and "Opening_World generation"). Use one tag per draw family: opening world, traits, names, mortality, births, outsiders, marriage, loans, repayments, social, economy/wages. Document each tag. Do not rename tags 1 and 2 yet; task 3.1 retires them. The existing pinned `draw` test values must stay unchanged.
     - _Requirements: 2.5, 16.1_
     - Acceptance: Rust gates pass, and `git diff afaf87c -- crates/sim-core/src/rng.rs` shows only added tags and docs.
-  - [ ] 1.2 Add `params.rs`
+  - [x] 1.2 Add `params.rs`
     - Files: `crates/sim-core/src/params.rs` (new), `crates/sim-core/src/lib.rs`.
     - Implement `Params` as a plain integer struct with every value in design "Parameters and calibration": the mortality table with `mortality_ppm(age)`, where age 120 is certain; `birth_ppm` married and unmarried; `MAX_WAIT` 1,095; `INITIAL_WAITING` 2; `marriage_ppm`; loan ppm and thresholds; `social_ppm` and rolls per day; wage range and upkeep; `GRUDGE_THRESHOLD` -40; `FRIEND_AT` 50; initial kin scores; `SPOUSE_AFFINITY`; rebuilt share 200,000 ppm; outsider age 18..=40. Add `Params::DEFAULT`, `Params::stress()` behind `#[cfg(any(test, feature = "test-support"))]` (rates raised so 240-tick runs hit deaths, births, releases, debts at death and remarriage), and a `Canon` impl.
     - Unit tests: mortality lookup at every band edge (0, 1, 17, 18, 39, 40, ..., 119, 120), and every `DEFAULT` value pinned.
