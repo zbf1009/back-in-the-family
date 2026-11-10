@@ -1377,3 +1377,11 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - Model_Fingerprint: the full record is written by the runner into the ledger `start` line and the Results header; the ledger entry ID goes into the END entry.
 - Pinned_Manifest_Hash `9322729c727a8c975dc3273fb7cc2f239e8790ea66e1745493179aea6815b34f` (manifest check ok, 27 files). Template_Hashes: decision System_One_Mapping `e275f397327b91dc1b6f69290535d6ef72c6bb712021ff130ed9da43589b337d` (equal to the frozen one).
 - Budget ledger before the run: 2026-11-10 shows 236 requests and 5,417 neurons settled (the clef Locked_Run); the clef-flash run is expected to add about 890 neurons, which fits the 9,000 daily limit. Locked card content is not opened or printed by me.
+
+### Spec: llm-probe — Locked_Run END, `workers-ai/clef-flash` (task 35.2, 2026-11-10)
+
+- Status: **completed**. Ledger entry `L-20261110T022013Z-workers-ai-clef-flash`, fingerprint `fp-7f983a11de49346363070788f24df7b94b92707a66604c07f54661e23c6a8bcd`, started 2026-11-10T02:20:13Z (ledger time; the START entry's "about" time was written a few minutes before), ended 02:22:02Z. Wall time about 1.8 min, no resume. Approval `DM-006`.
+- 236 requests sent, 236 records, 236 with output, 0 not_run, 0 engine faults, 0 timeouts, 0 over_context refusals, no truncated_state records.
+- Results: `eval/results/locked/L-20261110T022013Z-workers-ai-clef-flash.jsonl` and `.grades.jsonl`, plus the ledger lines in `eval/results/ledger.jsonl`. Neurons settled on 2026-11-10: 6,377 (472 requests, 0 smoke), from the gitignored budget ledger; this run added 960.
+- D (Locked_Run): acceptable 47/60 (78.3%; 95% Cluster_Bootstrap 68.3% to 87.9%, below the 80% threshold; random baseline 51.8%), severe 0 of 60 base cards (pass), flips 0/172 (pass), contrast 3/15 = 20.0% (fail), Illegal 0/60. Single-variant D marked fail on the acceptable rate and contrast consistency. Latency p50 410 ms, p95 731 ms.
+- Grep of the new files and ledger for the account ID and "Bearer": absent. `eval/cards/cards/locked.jsonl` was not opened. `probe report` was run to read the figures; `docs/llm-probe.md` was restored with `git checkout`. `derive_locked` was not run.
