@@ -47,13 +47,18 @@ Tick granularity: **1 day per tick**. Decided by the author on 2026-11-04, after
 ## Quality gates
 
 - Rust: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`.
-- Web (`web/`), run by `scripts/gates.sh` after the Rust gates and the `sim-cli batch` step, in this order:
-  - pnpm version check (`scripts/check-pnpm-version.sh`): `mise.toml` and `web/package.json` `packageManager` present and equal.
+- Web (`web/`) and probe (`eval/probe/`), run by `scripts/gates.sh` after the Rust gates and the `sim-cli batch` step (and `scripts/wasm-build.sh`), in this order:
+  - pnpm version check (`scripts/check-pnpm-version.sh`): `mise.toml` and `web/package.json` `packageManager` present and equal (the probe's `packageManager` is checked too).
   - frozen-lockfile install: `pnpm --dir web install --frozen-lockfile`.
+  - Probe frozen-lockfile install: `pnpm --dir eval/probe install --frozen-lockfile`.
+  - Manifest_Check: `probe check-manifest` (the `eval/cards` Manifest must hash to the pinned value). Local only: no network, no GPU, no token, never reads the root `env`.
   - Type_Check: `svelte-check` plus `tsc` over the three tsconfigs, covering every first-party `.ts`/`.svelte` file and the wasm-bindgen declarations.
   - Unit_Tests: Node's test runner (`node --test`) with `fast-check` property tests.
-  - Web_Build (`scripts/web-build.sh`): `scripts/wasm-build.sh`, then `vite build` into `web/dist`, then the deploy-directory checks (per-file size limit, `.wasm` byte-identity with the wasm-build output, and the main-bundle boundary that keeps WASM out of the main thread).
+  - Probe Type_Check and Probe Unit_Tests (`pnpm --dir eval/probe run typecheck`, `run test:unit`); they need `target/wasm-pkg` from the wasm-build step.
+  - Import gate: `probe check-web-imports` (no file under `web/src` may import from `eval/`; the Deploy_Directory half of the leak check is in `web/scripts/check-deploy.ts`).
+  - Web_Build (`scripts/web-build.sh`): `scripts/wasm-build.sh`, then `vite build` into `web/dist`, then the deploy-directory checks (per-file size limit, `.wasm` byte-identity with the wasm-build output, the main-bundle boundary that keeps WASM out of the main thread, and no `eval/` or probe content in the output).
   - Smoke_Test: `@playwright/test` on the system Chrome (`channel: 'chrome'`, no browser download) against `web/dist` served by the local preview, comparing worker checksums to a native parity fixture.
+  - The probe gates send no request and read no `env`; Workers AI runs (`smoke`, `dev-run`, `locked-run`) are never part of `scripts/gates.sh`.
 - Replay check: fixed seed, record N ticks, replay, compare per-tick checksums.
 - Any new gate must be shown to fail at least once by injecting the fault it guards against (e.g. a `HashMap` iteration, an OS random call, a type error, an oversized deploy file, a wrong fixture checksum), then the injection is reverted. Record this in `docs/kiro-log.md`.
 - Watch for "deterministically wrong" bugs: checksums stay green while behavior is wrong. Guard important behavior with semantic assertions (e.g. "a soul is in exactly one place").

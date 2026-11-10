@@ -1417,6 +1417,8 @@ For any set of files, the Deploy_Directory check fails exactly when some file co
 
 **Validates: Requirements 3.13, 3.16, 11.10, 16.2**
 
+**Note 2026-11-10 (placement).** The Deploy_Directory half is tested in `web/tests/unit/check-deploy.test.ts`, the import half in `eval/probe/tests/unit/check-web-imports.property.test.ts`; see the implementation sync notes before "Design Decisions".
+
 ### Property 36: Only hardware WebGPU and fitting models run
 
 For any adapter description, the classifier accepts it only when an adapter exists and it is not a software or fallback adapter; and for any list of in-browser Combinations with random size figures, revisions, model-library URLs and VRAM_Preflight results, the set that runs is exactly those with a known VRAM need of at most 2,600 MiB, at most 2.3 billion parameters, a published download of at most 1,536 MiB, a 40-hex `revision`, for WebLLM a commit-pinned `model_lib_url`, and, for transformers.js, a VRAM_Preflight that loaded on WebGPU; every other one gets exactly one Exclusion_Record naming the first failed check and its value or "unknown" (`unpinned` for the pinning checks); any Combination whose measured model download exceeds 1,536 MiB is marked over the limits and never recommended; and for any fetch log, the pinned-fetch check fails exactly when a `huggingface.co` request lacks `/resolve/<revision>/` or a model-library request differs from `model_lib_url`.
@@ -1706,6 +1708,8 @@ The Author listed these unverified items on 2026-11-06 (review 2). Each one beco
 | V17 | (R20, optional) Does the service answer several `choice` questions over one `state` independently, keeping the `criteria` key order? | at most two Smoke_Calls inside the day's count, only if the Author asks for the one-request alternative | none: the alternative stays "not measured"; the production conflict with `tech.md` stays with the Author |
 | V18 | (R20) Does the rule text file's `rule_version` equal the export's `rule_version`, and does `derive` refuse a mismatch? | in the unit tests and at every `derive` | fix the file or the code before anything is derived |
 
+**Note 2026-11-10.** The outcomes of V1 to V18 are collected in the implementation sync notes before "Design Decisions". Where a row above says "provisional value 8" (V10), the value in force is 6.
+
 **Note 2026-11-09 (task 33, V9 to V13 from the Smoke_Calls).** Five D Dev_Card Smoke_Calls on each Decision_Model (the same first five D Dev_Cards, base permutation; 10 sent, 10 HTTP 200, 10 `outcome: text`, `verdict: decision`, 10 `shape_check: ok`; records in `eval/results/smoke/2026-11-09.jsonl`).
 - **V9: confirmed.** The envelope, member types and `usage.input_tokens` / `output_tokens` match the declared `system_one` shape for both models (no `mismatch`, no change to the shape check or the adapter). `output_tokens` is 0 and `reasoning_tokens` is absent, as the no-output-term pricing assumes.
 - **V10: measured.** Body bytes per input token over the 10 calls: 3.236 to 3.338 (max 3.338, from 3,011 bytes / 902 tokens). Rule: `max(6, ceil(1.5 × 3.338)) = max(6, 6) = 6`. `max_bytes_per_token` is changed from 8 to 6 in both `combinations.json` records, so the `system_one` member of the Model_Fingerprint changes and so does the fingerprint ID. The two example tests that pinned 8 were updated (the boundary test now uses `floor(W / 6) + 1` tokens). To be checked again after the Dev_Run.
@@ -1758,6 +1762,51 @@ The gates need no network, GPU or token (R16.4, R16.5): `check-manifest` and `ch
 | Probe Unit_Tests (Property 53) | let a `single` `derive_locked`-less entry cover a `perm_avg` derive | Property 53 fails |
 | Probe Unit_Tests (Property 54) | print the plain `pass` for a `perm_avg` mark | Property 54 fails |
 | Probe Unit_Tests (Property 56 and the import graph) | let `phase.ts` import the Author-supplied reader | the import-graph test names the importing file |
+
+## Implementation sync notes (task 26.5, 2026-11-10)
+
+Dated notes where what was built differs from the text above. Nothing earlier in this document was edited or removed; where an earlier passage is superseded, this section says which. Sources: `docs/kiro-log.md`, `docs/llm-probe-audit.md`, `scripts/gates.sh`, `eval/probe/src/*.ts` and the committed Results files.
+
+**Resolved versions (from `eval/probe/pnpm-lock.yaml`, `web/pnpm-lock.yaml` and `README.md`).** `@mlc-ai/web-llm` 0.2.87, `@huggingface/transformers` 4.3.2 and `@huggingface/transformers-structured-output` 4.3.2 (exact pins, no ranges), `vite` 8.3.5, `@playwright/test` 1.64.1, `typescript` 6.0.3, `@types/node` 26.6.6, `fast-check` 4.10.2 (the same as `web/`), pnpm 10.33.1 and Node 26.7.0 (`mise.toml`). The browser run's ONNX Runtime Web is the build that transformers.js 4.3.2 pulls in: `onnxruntime-web` 1.31.0-dev.20260914-8d85527a0 (listed in `eval/probe/runtime-libraries.json`). The design text above names only the first two versions.
+
+**Property 35 placement.** Property 35 is checked in two places, as task 11.3 recorded: the Deploy_Directory half in `web/tests/unit/check-deploy.test.ts` (next to the web-shell Property 10, because `check-deploy.ts` lives in `web/scripts/`), and the `web/`-imports-`eval/` half in `eval/probe/tests/unit/check-web-imports.property.test.ts` (with `check-web-imports.test.ts` for examples). The text under "Gates added" that puts all Probe tests in the Probe Unit_Tests is correct only for the import half.
+
+**Gate order as built (supersedes the "next, next, next" ordering in "Gates added").** `scripts/gates.sh` runs: pnpm pin check (now comparing `mise.toml`, `web/package.json` and `eval/probe/package.json`), `web` frozen install, probe frozen install, `probe check-manifest`, `web` Type_Check, `web` Unit_Tests, probe Type_Check, probe Unit_Tests, `probe check-web-imports`, `scripts/web-build.sh` (which holds the Deploy_Directory leak checks 4 and 5), and the Smoke_Test last. The Manifest_Check therefore runs before the `web` Type_Check, and the probe Type_Check and Unit_Tests after the `web` Unit_Tests (they need `target/wasm-pkg`). The golden file for the System One grading is `fixtures/grading/system-one-golden.json`, not `dev-system-one-golden.json` as the 2026-11-09 table says; `perm-avg-inputs.json`, `perm-avg-golden.json`, `dev-outputs.json` and `dev-golden.json` sit beside it, regenerated by `scripts/regen-grading-golden.sh`.
+
+**Pre-run items V1 to V18: outcomes.** The V table above is kept as the plan; these are the results.
+
+| # | Outcome |
+|---|---|
+| V1 | Confirmed (2026-11-08): D then S families on one WebLLM engine produced no schema-change error. |
+| V2 | Not applicable: every transformers.js Combination was excluded (screen) or failed its VRAM_Preflight, so no transformers.js Dev_Run exists. |
+| V3 | Done (2026-11-07). gemma-4 and glm-4.7 return a `reasoning` key in the message on some calls; the adapter reads only `message.content`. No usage record carries a reasoning-token field. That `enable_thinking: false` is honoured is an inference from the short outputs (no control call). The gemma-4 synthesis call failed with HTTP 400 (API code 8007, `Grammar error: Unimplemented keys: ["uniqueItems"]`): the adapter now sends a copy of the schema without `uniqueItems` (`UNSUPPORTED_SCHEMA_KEYS` in `adapters/workers-ai.ts`); the prompt still shows the original schema and the Output_Validator still enforces uniqueness. Reported `neurons` were 4 to 7 times lower than the estimates. |
+| V4 | The premise was false: granite returns the chat shape with `finish_reason` (`length` when cut). Already noted in the Workers AI adapter section. |
+| V5 | Done: DA-8 recomputed offline (note "Revised 2026-11-07 (V5)"); the Author approved the budget values on 2026-11-07. |
+| V6 | Done, with a changed method: ORT prints the "Node placements" block at log severity 0 but then logs every WebGPU dispatch (about 848k lines in 14 minutes), so placement is read in a first, verbose session that is released, and VRAM is measured in a second, quiet session. Already in "Placement detection". |
+| V7 | Done: 0.8B fetched 450,403,327 B (429.5 MiB, screen +0.7%); 2B fetched 1,086,191,136 B (1,035.9 MiB, screen +0.3%). Both are under 1,536 MiB, so no exclusion. |
+| V8 | Done (2026-11-07): five differences from `main` were found at the `v0.2.87` tag and written into the in-browser adapter section (`response_format.schema` as a JSON string with `json_object`; `overrides` of prebuilt Qwen3.5 entries repeated in the custom entry; `vram_required_MB` is metadata only; an interrupt ends with `finish_reason: "abort"`; optional `integrity` and `model_manifest` fields unused). |
+| V9 | Confirmed (see the 2026-11-09 note under the table): the `result` envelope and member types match. |
+| V10 | Measured: `max_bytes_per_token` changed from the provisional 8 to **6** in both `single` records (bytes per input token 3.1 to 3.34 over two 74-request Dev_Runs, rule `max(6, ceil(1.5 × max))`). The "provisional value 8" in the table row is superseded; the fingerprint ID changed with it. |
+| V11 | Confirmed: the reservation covers the usage-based cost (12 and 71 to 72 neurons reserved per call against at most 4 and 20 used). |
+| V12 | No 429 and no other error status in the two Dev_Runs (74 sequential requests each) and none in `eval/results/failures.jsonl`. The adapter keeps no retry. |
+| V13 | Both Clef models answered on the Free plan. |
+| V14 | Not tested; the Report prints "Repeat-request determinism of `choice` (V14): not tested." |
+| V15 | Holds for the first real bodies: `probabilities` present with the Card's exact key set in 74/74 bodies of each model; 292 plain-decimal lexemes, at most 4 significant digits, none above 1; 0 of 20 Cards Illegal under the rule. |
+| V16 | Holds: the registry (four `combinations.json` records and the rule text with Aggregation_Hash `05acd24f…cf23`) was committed in `5e8e7c0` before any Decision_Model Dev_Run result existed. |
+| V17 | Not measured (task 49 closed as not applicable at the Author's direction): the `single` flip rate was already 0 for both models. |
+| V18 | Done: `derive` refuses a `rule_version` mismatch between the rule file and the export; `aggregation-rule.test.ts` fails when the file says 2 (fault injection 9 of task 44). |
+
+**System_One_Mapping file form.** The frozen file `eval/probe/templates/decision.system_one.v1.txt` uses the design's section form `[meta]`, `[instructions]`, `[state]` (the form shown in the Decision_Model adapter section), not the `[state]`, `[instructions]`, `[criteria]` wording of task 30.1. The parser requires `[instructions]` and `[state]`, accepts `[meta]` and an ignored `[criteria]`. `[instructions]` repeats the "How to read the facts:" and "How to choose:" sections of `decision.v1.txt` byte for byte (a test checks it). The Author froze this file as v1 on 2026-11-10 (sha256 `e275f397…337d`); the 34.7 tuning was skipped.
+
+**CLI flags and methods that differ from the CLI table.** `screen [--write] [--exclude-unpinned]`; `preflight --combo <id> [--force]`; `smoke --combo <id> [--count N] [--task D|S] [--timeout-ms N] [--max-tokens N] [--diagnose]` (`--diagnose` records key names, numeric `usage` fields and, for a non-2xx answer, the API error code and message, never values or text; `--max-tokens` is for one D call of a generative model only); `dev-run`, `locked-run`, `page-bundle` accept `--timeout-ms`; `derive --combo … --split … --approval … [--task D] [--verify]` where **`--verify` is a boolean flag** (the earlier line "`probe derive --verify <derived file>`" is superseded: it re-derives the same Combination and split in memory and compares bytes). `ledger` and `phase-status` take no options. The `page-bundle` bundle and `eval/results/budget/` are gitignored.
+
+**Approvals schema as built (still `llm-probe-approvals-v1`, additive).** `phase2` and `dev`/`locked` entries carry both `combination` (the Combination ID) and, for the generative Workers AI model, `model`; the `phase2` entry for branch B has `task_subset` `DS` in the committed file (the example above shows a single Task_Type_Subset). `decision_model` entries carry `variant` (`single` or `perm_avg`) and `step` in `dev`, `locked`, `derive_dev`, `derive_locked`; IDs are `DM-001`, `DM-002`, … in order of approval (the `DM-P01` style in the example was illustrative).
+
+**Derived_Run format as built.** As described in "Decision_Variants and the Derived_Run", with these precisions: members are written in sorted key order (canonical JSON), not in the illustrative order of the example; each `perm_avg` member holds `calls`, `chosen` (the chosen option ID), `positions`, `rule_version`, `scope` and `sums`; the header has `placement: null` and a `fingerprint` whose `system_one` member holds `context_window_tokens`, `lower_bound_rule`, `max_bytes_per_token`, `model_selector`, `question_id` and `response_shape`; `requested_at` is copied from the source base record, so a second derivation of an unchanged source is byte-identical (`derive --verify` re-derives and compares bytes; the 2026-11-09 and 2026-11-10 log entries record it for the Dev files).
+
+**Requirements.** No criterion of `requirements.md` was changed by this task. RC-20 was answered and applied on 2026-11-10 as noted at RC-20.
+
+**Process note.** Audit gap 4 (`docs/llm-probe-audit.md`): commit `572f59e` reworded two lines of an earlier `docs/kiro-log.md` entry; the log is append-only (R17.5), so that edit is a deviation. It was left as it is and acknowledged by a new log entry; history was not rewritten.
 
 ## Design Decisions
 

@@ -6,7 +6,7 @@ A reincarnation life-sim set in a small American town where, after a Halloween c
 
 Built for Kiroween 2026 (Frankenstein category). Development is done with Kiro CLI; the `.kiro/` directory (steering, specs) is part of this repository.
 
-Status: the deterministic simulation skeleton (`sim-core`, with the native runner `sim-cli` and the browser bindings `sim-wasm`) is built and checked, and the web shell (`web/`) is now built — a Svelte 5 + Vite page that loads the WASM in a dedicated Web Worker and shows the tick, checksum and ticks-per-second, together with the Web_Build (into `web/dist`), the Type_Check, Unit_Tests and Smoke_Test gates, and the Cloudflare deploy workflow (enabled: every green push to `main` deploys to <https://back-in-the-family.2290698778.workers.dev>). There is no playable game yet. The next spec is `llm-probe`.
+Status: the deterministic simulation skeleton (`sim-core`, with the native runner `sim-cli` and the browser bindings `sim-wasm`) is built and checked, and the web shell (`web/`) is now built — a Svelte 5 + Vite page that loads the WASM in a dedicated Web Worker and shows the tick, checksum and ticks-per-second, together with the Web_Build (into `web/dist`), the Type_Check, Unit_Tests and Smoke_Test gates, and the Cloudflare deploy workflow (enabled: every green push to `main` deploys to <https://back-in-the-family.2290698778.workers.dev>). The `llm-probe` spec is also built (the Probe_Runner in `eval/probe/`, the locked evaluation cards in `eval/cards/`, its Results in `eval/results/`, and the Report `docs/llm-probe.md`). There is no playable game yet. The next specs are the vertical-slice ones.
 
 ## Build and test
 
@@ -76,6 +76,72 @@ The browser front end lives in `web/`. It needs Node and pnpm from `mise`, and t
    ```
 
 `scripts/gates.sh` runs all of these — the pnpm version check, the frozen-lockfile install, the Type_Check, the Unit_Tests, the Web_Build and the Smoke_Test — as part of the full gate chain, after the Rust gates and the `sim-cli batch` step.
+
+### LLM probe (`eval/probe/`)
+
+The probe runs the locked evaluation cards (`eval/cards/`) against the candidate runtimes and writes Results under `eval/results/`; the Report is `docs/llm-probe.md` and the requirement-by-requirement audit is `docs/llm-probe-audit.md`. Every command below runs from the repository root through `pnpm --dir eval/probe run probe <command>` (written `probe <command>` in the list; wrap it as shown in the first block). The package is separate from `web/` and nothing under `web/src` may import from `eval/` (the `check-web-imports` gate).
+
+Never open or print the files under `eval/cards/` that are marked locked or blind, and never commit the root `env` file (it is gitignored; only the commands that call Workers AI read it, and only after every other check passed).
+
+1. Install, then the local checks (no network, no token, no `env`):
+
+   ```sh
+   mise install
+   mise exec -- pnpm --dir eval/probe install --frozen-lockfile
+   mise exec -- pnpm --dir eval/probe run probe check-manifest        # the eval/cards Manifest must hash to the pinned value
+   mise exec -- pnpm --dir eval/probe run typecheck
+   mise exec -- pnpm --dir eval/probe run test:unit
+   mise exec -- pnpm --dir eval/probe run probe check-web-imports     # no file under web/src imports from eval/
+   ```
+
+2. Screening and preflight (`--combo` takes a Combination ID from `eval/probe/combinations.json`, for example `workers-ai/clef`):
+
+   ```sh
+   mise exec -- pnpm --dir eval/probe run probe screen [--write] [--exclude-unpinned]
+   mise exec -- pnpm --dir eval/probe run probe preflight --combo <id> [--force]
+   ```
+
+3. Workers AI Smoke_Calls on Dev_Cards only (needs the root `env` token):
+
+   ```sh
+   mise exec -- pnpm --dir eval/probe run probe smoke --combo <id> [--count <n>] [--task D|S] [--timeout-ms <ms>] [--max-tokens <n>] [--diagnose]
+   ```
+
+4. Runs. `dev-run` uses the Dev_Cards; `locked-run` uses the Locked_Cards, writes a ledger entry and needs an approval ID from `eval/probe/approvals.json`. A resumed run takes only `--resume`:
+
+   ```sh
+   mise exec -- pnpm --dir eval/probe run probe dev-run --combo <id> [--task D|S|DS] [--approval <id>] [--timeout-ms <ms>]
+   mise exec -- pnpm --dir eval/probe run probe locked-run --combo <id> --task D|S|DS [--approval <id>] [--timeout-ms <ms>] [--rerun-reason <text>]
+   mise exec -- pnpm --dir eval/probe run probe locked-run --resume <entry-id> [--approval <id>] [--timeout-ms <ms>]
+   ```
+
+5. Browser Combinations (WebLLM, transformers.js) run in the Probe_Page. `page-serve` builds and serves it on `localhost:4318` and prints a new empty Fresh_Profile directory (Ctrl-C to stop). `page-bundle` writes the cards bundle the page loads; `ingest` reads the JSON export the page produces; `regrade` re-grades a stored Results file:
+
+   ```sh
+   mise exec -- pnpm --dir eval/probe run probe page-serve
+   mise exec -- pnpm --dir eval/probe run probe page-bundle --combo <id> --split dev|locked --task D|S|DS [--timeout-ms <ms>] [--rerun-reason <text>]
+   mise exec -- pnpm --dir eval/probe run probe ingest --file <export.json>
+   mise exec -- pnpm --dir eval/probe run probe regrade --results <results.jsonl>
+   ```
+
+6. Later commands. `derive` builds a `perm_avg` Derived_Run from the stored `single` Results (no network, no `env`, no budget, no ledger line; `--verify` is a boolean flag); `ingest-reference` stores an External_Reference_File under `eval/results/external/<label>/` (no request, no `env`); `ledger` prints the ledger:
+
+   ```sh
+   mise exec -- pnpm --dir eval/probe run probe derive --combo <perm_avg combination id> --split dev|locked --approval <id> [--task D] [--verify]
+   mise exec -- pnpm --dir eval/probe run probe ingest-reference --file <external-reference.json>
+   mise exec -- pnpm --dir eval/probe run probe ledger
+   ```
+
+7. Status and Report. `phase-status` prints the phase state and the pass results from the stored grades; `report` regenerates `docs/llm-probe.md` from the ledger, the Results and the approvals on `HEAD`:
+
+   ```sh
+   mise exec -- pnpm --dir eval/probe run probe phase-status
+   mise exec -- pnpm --dir eval/probe run probe report
+   ```
+
+The grading golden file in `fixtures/grading/` is regenerated only on purpose with `scripts/regen-grading-golden.sh`; read the diff afterwards. `scripts/gates.sh` runs the probe install, `check-manifest`, Type_Check, Unit_Tests and `check-web-imports`; it sends no request and reads no `env`.
+
+The licenses of the Clef models (`@cf/cloudflare/clef`, `@cf/cloudflare/clef-flash`) are **unverified**: the Hugging Face license URL was not visible on the official model pages (audit gap 12 in `docs/llm-probe-audit.md`). Until the Author checks it, no license is claimed for them here.
 
 ## Prior work disclosure
 
@@ -166,6 +232,20 @@ The browser front end lives in `web/`. It needs Node and pnpm from `mise`, and t
 | [`shlex`](https://crates.io/crates/shlex) | 2.0.1 | MIT OR Apache-2.0 | Build-time only; transitive (`cc`) |
 | [`autocfg`](https://crates.io/crates/autocfg) | 1.5.1 | Apache-2.0 OR MIT | Build-time only; transitive (`num-traits`) |
 | [`libc`](https://crates.io/crates/libc) | 0.2.191 | MIT OR Apache-2.0 | Transitive (`cpufeatures`, `errno`, `getrandom`): C library bindings (native only) |
+| [`borsh`](https://crates.io/crates/borsh) | 1.8.1 | MIT OR Apache-2.0 | Lockfile only, not compiled: optional dependency of `bit-vec` (feature off); `cargo tree --workspace --target all` does not list it |
+| [`borsh-derive`](https://crates.io/crates/borsh-derive) | 1.8.1 | Apache-2.0 | Lockfile only, not compiled; transitive (`borsh`) |
+| [`bytes`](https://crates.io/crates/bytes) | 1.12.1 | MIT | Lockfile only, not compiled; transitive (`borsh`) |
+| [`cfg_aliases`](https://crates.io/crates/cfg_aliases) | 0.2.2 | MIT | Lockfile only, not compiled; transitive (`borsh`) |
+| [`proc-macro-crate`](https://crates.io/crates/proc-macro-crate) | 3.5.0 | MIT OR Apache-2.0 | Lockfile only, not compiled; transitive (`borsh-derive`) |
+| [`toml_edit`](https://crates.io/crates/toml_edit) | 0.25.18+spec-1.1.0 | MIT OR Apache-2.0 | Lockfile only, not compiled; transitive (`proc-macro-crate`) |
+| [`toml_datetime`](https://crates.io/crates/toml_datetime) | 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 | Lockfile only, not compiled; transitive (`toml_edit`) |
+| [`toml_parser`](https://crates.io/crates/toml_parser) | 1.1.5+spec-1.1.0 | MIT OR Apache-2.0 | Lockfile only, not compiled; transitive (`toml_edit`) |
+| [`winnow`](https://crates.io/crates/winnow) | 1.0.4 | MIT | Lockfile only, not compiled; transitive (`toml_edit`, `toml_parser`) |
+| [`indexmap`](https://crates.io/crates/indexmap) | 2.14.2 | Apache-2.0 OR MIT | Lockfile only, not compiled; transitive (`toml_edit`) |
+| [`hashbrown`](https://crates.io/crates/hashbrown) | 0.17.1 | MIT OR Apache-2.0 | Lockfile only, not compiled; transitive (`indexmap`) |
+| [`equivalent`](https://crates.io/crates/equivalent) | 1.0.3 | Apache-2.0 OR MIT | Lockfile only, not compiled; transitive (`indexmap`) |
+
+The Rust rows match `Cargo.lock` (versions) and the crates' manifests (SPDX strings), checked on 2026-11-10. Nothing in the `llm-probe` spec added a Rust dependency; the twelve "lockfile only" rows were missing from this table and are the optional `borsh` branch of `bit-vec`.
 
 More entries are added here as libraries and assets arrive.
 
@@ -201,6 +281,21 @@ Resolved versions are from the committed `eval/probe/pnpm-lock.yaml`; licenses a
 | [`@huggingface/transformers-structured-output`](https://www.npmjs.com/package/@huggingface/transformers-structured-output) | 4.3.2 | Apache-2.0 | Constrained (structured) generation for transformers.js (no dependencies) |
 | [`vite`](https://www.npmjs.com/package/vite) | 8.3.5 | MIT | Builds and serves the Probe_Page (dev only) |
 | [`@playwright/test`](https://www.npmjs.com/package/@playwright/test) | 1.64.1 | Apache-2.0 | Browser driver on the system Chrome (dev only) |
+
+Transitive packages that matter for the Probe_Page or carry a non-permissive license (versions from `eval/probe/pnpm-lock.yaml`; licenses read from the installed `package.json` files on Linux x64, where 66 packages are installed in total; all of the rest are MIT, ISC, BSD-3-Clause, Apache-2.0 or `MIT OR CC0-1.0`). None of these is in `web/` or in `web/dist`:
+
+| Name | Version | License | Used for |
+|---|---|---|---|
+| `onnxruntime-web` | 1.31.0-dev.20260914-8d85527a0 | MIT | Transitive (`@huggingface/transformers`): the ONNX Runtime Web build that runs the transformers.js models in the Probe_Page |
+| `onnxruntime-common` | 1.31.0-dev.20260911-2a43ec07e and 1.30.0 | MIT | Transitive (`onnxruntime-web`, `onnxruntime-node`) |
+| `onnxruntime-node` | 1.30.0 | MIT | Transitive (`@huggingface/transformers`): declared by transformers.js for Node; not loaded in the browser page |
+| `@huggingface/jinja` | 0.5.11 | MIT | Transitive (`@huggingface/transformers`): chat-template rendering |
+| `@huggingface/tokenizers` | 0.2.0 | Apache-2.0 | Transitive (`@huggingface/transformers`): tokenizers |
+| `sharp` | 0.35.5 | Apache-2.0 | Transitive (`@huggingface/transformers`): Node image processing; not used by the probe |
+| `@img/sharp-libvips-linux-x64` | 1.3.4 | LGPL-3.0-or-later | Transitive (`sharp`): prebuilt native library for Linux x64, installed by pnpm for this platform only; dev machine only, never linked into or served with any build output |
+| `protobufjs` (and its `@protobufjs/*` helpers), `flatbuffers`, `long`, `guid-typescript`, `platform` | 7.6.6 (BSD-3-Clause), 25.9.23 (Apache-2.0), 5.3.2 (Apache-2.0), 1.0.9 (ISC), 1.3.6 (MIT) | as listed | Transitive (`onnxruntime-web`): protobuf and flatbuffer parsing, 64-bit integers, GUIDs |
+| `loglevel` | 1.9.2 | MIT | Transitive (`@mlc-ai/web-llm`): logging |
+| `lightningcss` (and `lightningcss-linux-x64-gnu`) | 1.33.0 | MPL-2.0 | Transitive (`vite`, in both `web/` and `eval/probe/`): CSS tooling at build time only; not modified, not bundled |
 
 Development tools (not linked into any build output): `wasm-bindgen-cli` 0.2.130 (MIT OR Apache-2.0), Node.js 26.7.0 (MIT) and `pnpm` 10.33.1 (MIT), all pinned in `mise.toml`.
 
