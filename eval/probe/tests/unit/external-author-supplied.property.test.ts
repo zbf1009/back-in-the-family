@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import fc from 'fast-check';
 import { AUTHOR_SUPPLIED_LABEL, parseAuthorSupplied, readAuthorSupplied, readExternalRecords } from '../../src/external.ts';
-import { authorSuppliedLines, buildReport, type AuthorSuppliedView, type ReportInput } from '../../src/report.ts';
+import { authorSuppliedLines, buildReport, RC20_AUTHOR_TEXT, type AuthorSuppliedView, type ReportInput } from '../../src/report.ts';
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const RESULTS = path.join(REPO, 'eval/results');
@@ -71,7 +71,20 @@ test('pinned example: section 12 shows the subsection with the label, the sha256
   assert.match(text, /\| Contrast consistency \| 8 of 10 pairs \|/);
   assert.match(text, /truncated 1/);
   assert.match(text, /an analysis, not a judgement/);
-  assert.ok(!/\b(pass|passes|passed|fail|fails|failed|failing)\b/i.test(text), 'the subsection states no Threshold verdict (RC-20 open)');
+  const withoutAuthorText = text.replace(RC20_AUTHOR_TEXT, '');
+  assert.ok(!/\b(pass|passes|passed|fail|fails|failed|failing)\b/i.test(withoutAuthorText), 'the Report computes no verdict; the only one is the Author\'s verbatim text');
+});
+
+test('pinned example: the Author\'s RC-20 text is printed verbatim exactly once, only in section 12, and equals requirements R20.18', () => {
+  const report = buildReport({ ...REPORT_BASE, authorSupplied: [view()] });
+  assert.equal(report.split(RC20_AUTHOR_TEXT).length - 1, 1);
+  const secs = sectionsOf(report);
+  assert.equal(secs.filter((s) => s.includes(RC20_AUTHOR_TEXT)).length, 1);
+  assert.ok((secs.find((s) => s.startsWith('## 12. ')) ?? '').includes(RC20_AUTHOR_TEXT));
+  assert.equal(RC20_AUTHOR_TEXT.slice(0, 6), 'Under ');
+  assert.ok(!buildReport({ ...REPORT_BASE, authorSupplied: [] }).includes(RC20_AUTHOR_TEXT), 'not printed without the External reference');
+  const req = fs.readFileSync(path.join(REPO, '.kiro/specs/llm-probe/requirements.md'), 'utf8');
+  assert.ok(req.includes(`Amendment (RC-20, 2026-11-10): "${RC20_AUTHOR_TEXT}"`), 'the constant equals the text in requirements R20.18');
 });
 
 test('pinned example: the note on fine-tuning is in section 13 once and not repeated in section 12', () => {

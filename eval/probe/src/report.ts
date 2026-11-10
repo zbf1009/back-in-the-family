@@ -517,7 +517,15 @@ const EXTERNAL_ROWS: readonly { readonly label: string; readonly names: readonly
 ];
 
 export const AUTHOR_SUPPLIED_NOTE =
-  'This is an External_Reference, not a Locked_Run Combination of this repository. It takes part in no mark, link mark, recommendation, branch logic or ledger (R19.16), and no Threshold verdict is given for it here.';
+  'This is an External_Reference, not a Locked_Run Combination of this repository. It takes part in no mark, link mark, recommendation, branch logic or ledger (R19.16), and the Report computes no Threshold verdict for it; the only verdict printed is the Author\'s own text below (Amendment RC-20).';
+
+/**
+ * The Author\'s answer to RC-20 (2026-11-10), printed VERBATIM in the section 12 External reference subsection (R20.18).
+ * A fixed constant, not a field of `author-supplied.json`, so the checked-in file (a record of figures as supplied) and its
+ * reader stay unchanged. It must appear exactly once in the Report, and only in section 12.
+ */
+export const RC20_AUTHOR_TEXT =
+  "Under this probe's Thresholds the teacher D reference fails flip (34 of 172) and contrast (11 of 15, below 12 of 15); the teacher S reference fails flip only (7 of 44). No reference configuration passes all four Thresholds. One D request (D-reconcile_or_revenge-008, permutation rotated_1) reached the 16,384-token output cap with empty content; it is graded Illegal and, being a non-base Permutation, affects only the flip count (it counts as a flip under R13.2; without it the flip rate is at least 33 of 171).";
 
 /** Percent with one decimal from tenths (915 gives 91.5%). */
 const tenths = (t: number): string => `${Math.floor(t / 10)}.${t % 10}%`;
@@ -557,6 +565,7 @@ export function authorSuppliedLines(r: AuthorSuppliedView): string[] {
     const s = t.archive_summary;
     out.push(`- As the archive's summary file records it: records ${s.records}, errors ${s.errors}, truncated ${s.truncated}, model_mismatch ${s.model_mismatch}. Recorded as printed there; not interpreted here.`, '');
   }
+  out.push('Reading against this probe\'s Thresholds (the Author\'s text, Amendment RC-20, 2026-11-10):', '', RC20_AUTHOR_TEXT, '');
   out.push(`Post-hoc note (an analysis, not a judgement; as reported by the ${r.post_hoc_note.attributed_to}; script in archive commit ${r.post_hoc_note.archive_commit}): ${r.post_hoc_note.text}`, '');
   return out;
 }
