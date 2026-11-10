@@ -2534,6 +2534,16 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794198437344
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794280478237
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794281101123
       }
     ],
     "26.2 Write `docs/llm-probe-audit.md`": [
@@ -2546,6 +2556,16 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794198437351
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794281106176
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794281489165
       }
     ],
     "26.3 Update `README.md`": [
@@ -2558,6 +2578,16 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794198437357
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794281494445
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794282112286
       }
     ],
     "26.4 Update the steering files' layout and gates": [
@@ -2570,6 +2600,11 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794198437366
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794282117423
       }
     ],
     "26.5 Sync the spec documents with what was built": [
@@ -2582,6 +2617,11 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794198437372
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794282121849
       }
     ],
     "26.6 STOP-AND-ASK before pushing `main`": [
@@ -2594,6 +2634,11 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794198437379
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794282127457
       }
     ],
     "1. `sim_core::llm` foundations: types, strict JSON reader and Card parser": [

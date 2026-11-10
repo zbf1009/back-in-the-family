@@ -581,22 +581,22 @@ Execution notes for the orchestrator:
     - _Requirements: 18.2, 11.20_
 
 - [ ] 26. Final audit
-  - [~] 26.1 Run the gates from a clean build
+  - [x] 26.1 Run the gates from a clean build
     - Remove `target/`, `web/node_modules/`, `eval/probe/node_modules/`, `web/dist/` and `eval/probe/dist/` (build output only), run `scripts/gates.sh` to exit 0, record the wall time. Run them once more in a fresh clone in a temporary directory, which has no `env` file, to show R16.4 offline of secrets.
     - _Requirements: 16.4, 16.5, 16.9_
-  - [~] 26.2 Write `docs/llm-probe-audit.md`
+  - [x] 26.2 Write `docs/llm-probe-audit.md`
     - Same style as `docs/web-shell-audit.md`: one row per acceptance criterion of R1 to R18 with status and evidence (test, property, gate, injection log entry, Results file, ledger entry, Report section). List the gaps.
     - _Requirements: all_
-  - [~] 26.3 Update `README.md`
+  - [x] 26.3 Update `README.md`
     - Exact commands from the repository root for the probe: install, `check-manifest`, `screen`, `preflight`, `dev-run`, `locked-run`, `smoke`, `page-serve`, `ingest`, `regrade`, `phase-status`, `report`. Final third-party table checked against both `package.json` files, both lockfiles and `Cargo.lock`.
     - _Requirements: 16.8_
-  - [~] 26.4 Update the steering files' layout and gates
+  - [x] 26.4 Update the steering files' layout and gates
     - `.kiro/steering/structure.md`: `eval/probe/`, `eval/results/`, `fixtures/grading/`, `scripts/regen-grading-golden.sh`, `docs/llm-probe.md`, `docs/llm-probe-audit.md`, and the module table row for the slow-think bridge. `.kiro/steering/tech.md` Quality gates: the new gates in order. Log the steering changes.
     - _Requirements: 15.8_
-  - [~] 26.5 Sync the spec documents with what was built
+  - [x] 26.5 Sync the spec documents with what was built
     - Update `design.md` where the implementation differs (resolved versions, Property 35 placement, the V1 to V8 outcomes, any changed flag, method or schema) with dated notes, without rewriting history; keep `requirements.md` criteria and add notes only. Run `validate_spec_format` on both files until clean. Gates green; one conventional commit for task 26.
     - _Requirements: all_
-  - [~] 26.6 STOP-AND-ASK before pushing `main`
+  - [-] 26.6 STOP-AND-ASK before pushing `main`
     - Ask the Author for a deploy approval naming the commit to push, because a green push to `main` deploys `web/dist`. Do nothing until approved. After the push, report the CI result and any CI-only difference, and log it.
     - _Requirements: 17.1, 17.2, 17.3_
 
