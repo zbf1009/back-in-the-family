@@ -580,7 +580,7 @@ Execution notes for the orchestrator:
     - The run gate in `eval/probe/src/run-command.ts` builds its PhaseState without pass results (grades), so it always recomputes Phase_2 branch B (fails safe: a real branch A shows a mismatch and refuses to run). Load pass results through the same analysis `phase-status` uses (fixed in commit 80f4d50); add a test that the gate computes branch A when an in-browser Combination passes; gates green; `fix(probe)` commit; log. Recorded at the Author's request during the 24.2 review. Scheduling note (2026-11-09, DA-23): this fix is scheduled in the Task Dependency Graph before tasks 27 to 38 and before 25.1 completes, not after 25.1; the Decision_Model gate of task 27 reuses its shared `loadPhaseState()`.
     - _Requirements: 18.2, 11.20_
 
-- [ ] 26. Final audit
+- [x] 26. Final audit
   - [x] 26.1 Run the gates from a clean build
     - Remove `target/`, `web/node_modules/`, `eval/probe/node_modules/`, `web/dist/` and `eval/probe/dist/` (build output only), run `scripts/gates.sh` to exit 0, record the wall time. Run them once more in a fresh clone in a temporary directory, which has no `env` file, to show R16.4 offline of secrets.
     - _Requirements: 16.4, 16.5, 16.9_
@@ -761,6 +761,7 @@ Execution notes for the orchestrator:
     - _Requirements: 19.4, 19.5, 19.12, 3.3, 3.5, 3.9, 3.11, 14.4, 14.10, 17.1, 17.6_
 
 - [ ] 36. Optional S candidate `@cf/zai-org/glm-4.7-flash` (only if the Author keeps it; R19.14)
+  - Not applicable (2026-11-10, Author): no S candidate is kept (R19.14); see `docs/kiro-log.md`.
   - [ ]* 36.1 Ask the Author whether to keep an S candidate
     - If not kept, this task and its sub-tasks are not applicable. If kept, tell the Author that it needs its own verification, its own Combination record and its own approval, and that the gate for it (a generative model outside the branch-B model) must be settled in a short design note and a requirement note first; no other model is added.
     - _Requirements: 19.14, 17.1_
@@ -774,6 +775,7 @@ Execution notes for the orchestrator:
 - [x] 37. Ingest the External_Reference when the Author hands it over [blocked on the Author]
   - [x] 37.1 Ingest the file
     - Amended 2026-11-09 (R20.18 to R20.20, DA-29): the chosen route is the checked-in `eval/results/external/teacher-upper-bound/author-supplied.json`, written and wired in task 43 and shown in Report section 12 as "Author-supplied, not verified by ingest". The Author's archive is not in the External_Reference_File format, so `probe ingest-reference` is not run on it (R19.15 amendment). Here: confirm the file is committed and unchanged since task 43 (sha256 in `docs/kiro-log.md`). Run `probe ingest-reference <file>` only if the Author later hands over a file in the R19.15 format with its three sibling files; on a rejection, report the first failing field and wait for a corrected file. RC-20 stays open until the Author answers it (task 50, before 38.2).
+    - Note (2026-11-10, Author): done under the amended R19.15 text. In the Author-supplied route this step only confirms that the file is committed and unchanged since task 43; `probe ingest-reference` was not run and is not required.
     - _Requirements: 19.15, 19.16, 20.18, 20.19, 20.20_
   - [x] 37.2 Check isolation after the ingest
     - Confirm `phase-status`, the ledger bytes, the budget counter and every pass or fail mark are identical before and after the ingest, and that the reference appears only in Report section 12; any difference is a defect to fix before the Report.
@@ -923,6 +925,7 @@ Execution notes for the orchestrator:
     - _Requirements: 20.9, 20.10, 20.11, 3.11, 17.6_
 
 - [ ] 49. Optional: V17 one-request alternative (only if the Author asks; R20.15)
+  - Not applicable (2026-11-10, Author): V17 not measured; one call per request suffices because the single-variant flip rate was already 0 for both Decision_Models; see `docs/kiro-log.md`.
   - [ ]* 49.1 Ask the Author whether to measure the one-request alternative
     - If not asked, this task is not applicable and the Report says "not measured". If asked, at most two Smoke_Calls inside the day's count of 10, D Dev_Cards only, naming the model and the number of calls first (no approval needed, RC-10).
     - _Requirements: 20.15, 11.8, 17.1_

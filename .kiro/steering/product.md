@@ -44,7 +44,7 @@ Audience: players who like emergent story sims (life sims, colony sims, dynasty 
 
 - One life lasts **5–10 minutes** of play. The first life starts as a young or middle-aged adult with an existing family, debts and grudges. Later lives start at birth with childhood compressed to two or three nodes.
 - First interruption within about 30 seconds. Initial narrator budget: roughly one interruption every 30–40 seconds.
-- Town of **40–60 residents**, every one named and recognizable. Outsiders may move in.
+- Town of **40–60 residents**, every one named and recognizable. Outsiders arrive only as bodies: an imported vessel (a blank shell allocated by the underworld office, possessed by a waiting town soul) or a rebuilt body. They bring no new soul; the total number of souls is conserved.
 - A judge must understand within seconds: who I am now, who remembers me, and who this choice hurts.
 
 ## Demo
@@ -66,4 +66,4 @@ Cross-life romance; open-world free movement and pathfinding; job and skill tree
 
 ## Build strategy
 
-Get one thin vertical slice working end to end first (start of life → a few interruptions → death → one dream with one generated text → rebirth → second life). Then thicken each part.
+Get one thin vertical slice working end to end first (start of life → a few interruptions → death → one dream with template text → rebirth → second life). Generated text is added later. Then thicken each part.
