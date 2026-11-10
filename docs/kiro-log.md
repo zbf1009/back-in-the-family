@@ -1441,3 +1441,9 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - Clean build in the repo: removed only gitignored build output (`target/`, `web/node_modules/`, `eval/probe/node_modules/`, `web/dist/`, `eval/probe/dist/`; each was checked with `git check-ignore` and has no tracked files). Then `timeout 2400 scripts/gates.sh`: exit 0, wall time 269 s, "All gates passed." (log `/tmp/gates-clean.log`).
 - Fresh clone of the local repo (HEAD f8750fa) in a temporary directory under `/tmp`: no `env` file present (confirmed; `env` was not copied or opened). Same command: exit 0, wall time 306 s, "All gates passed." (log `/tmp/gates-fresh.log`). The clone has committed files only, so uncommitted working-tree changes were not part of that run. The temporary clone was deleted afterwards.
 - No dependency changes, no global installs, no push, no deploy. Locked and blind card files were not opened.
+
+### Spec: llm-probe — final audit document (task 26.2, 2026-11-10)
+
+- Wrote `docs/llm-probe-audit.md`: one row per acceptance criterion of R1 to R20 (261 rows), with status and evidence. Counts: 234 met, 23 met with note, 0 not met, 4 not applicable. Evidence came from the `Validates:` tags in the probe and Rust tests, `tasks.md` requirement references, this log, the ledger and Results file names, `scripts/gates.sh` and `git log`; the probe Unit_Tests were run once (711/711). Gates were not re-run (documentation only; last full run is the task 26.1 entry).
+- Findings recorded in the document's gaps section, among them: no test combines an Author-supplied External reference with a `perm_avg` Combination (task 44); "rule priors + clef" is unmeasured; commit `572f59e` reworded two lines of an earlier entry in this log (R17.5); optional tasks 6.8 and 16.13 not done; task 26.6 (deploy approval before a push to `main`) still open.
+- `locked.jsonl`, `review/locked.md`, `blind/*` and root `env` were not opened. No push.
