@@ -771,19 +771,19 @@ Execution notes for the orchestrator:
     - Each with its own approval entry in its own commit, the Response_Shape Smoke_Call first, the budget caps, and the start and end entries in `docs/kiro-log.md`; commit Results.
     - _Requirements: 19.14, 11.5, 11.6, 11.13, 11.14, 11.19, 17.1, 17.6_
 
-- [ ] 37. Ingest the External_Reference when the Author hands it over [blocked on the Author]
-  - [~] 37.1 Ingest the file
+- [x] 37. Ingest the External_Reference when the Author hands it over [blocked on the Author]
+  - [x] 37.1 Ingest the file
     - Amended 2026-11-09 (R20.18 to R20.20, DA-29): the chosen route is the checked-in `eval/results/external/teacher-upper-bound/author-supplied.json`, written and wired in task 43 and shown in Report section 12 as "Author-supplied, not verified by ingest". The Author's archive is not in the External_Reference_File format, so `probe ingest-reference` is not run on it (R19.15 amendment). Here: confirm the file is committed and unchanged since task 43 (sha256 in `docs/kiro-log.md`). Run `probe ingest-reference <file>` only if the Author later hands over a file in the R19.15 format with its three sibling files; on a rejection, report the first failing field and wait for a corrected file. RC-20 stays open until the Author answers it (task 50, before 38.2).
     - _Requirements: 19.15, 19.16, 20.18, 20.19, 20.20_
-  - [~] 37.2 Check isolation after the ingest
+  - [x] 37.2 Check isolation after the ingest
     - Confirm `phase-status`, the ledger bytes, the budget counter and every pass or fail mark are identical before and after the ingest, and that the reference appears only in Report section 12; any difference is a defect to fix before the Report.
     - _Requirements: 19.16, 18.8_
 
 - [ ] 38. Report regeneration and the Author's review for the Decision_Models
-  - [~] 38.1 Regenerate `docs/llm-probe.md`
+  - [x] 38.1 Regenerate `docs/llm-probe.md`
     - Run `probe report`. Check R19.13, R19.16 and R19.17 content: section 2 candidate count and selection-bias note, each Decision_Model's approval IDs and Locked_Run figures (or "not measured" with the reason), `truncated_state` and `over_context` counts, V14 "not tested", hold banner state in section 9, External_Reference only in section 12. Re-run the R24.1 checks: only Locked_Run figures in marks, Dev_Run labelled, no card content other than IDs; `probe regrade` on every new Locked_Run Results file gives byte-equal grades and identical Metrics. Amended (R20.13 to R20.16): the four Decision_Model Combinations appear with their variants, each `perm_avg` figure carries its label, the Request_Multiplier and the `by_construction` flip, the production note is present, the External reference (Author-supplied, not verified by ingest) is only in section 12, and `probe derive --verify` gives byte-equal files for every derived Results file.
     - _Requirements: 20.13, 20.14, 20.15, 20.16, 20.19, 19.13, 19.16, 19.17, 12.6, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 18.6, 18.7, 18.8_
-  - [~] 38.2 STOP-AND-ASK: the Author reviews the updated Report
+  - [-] 38.2 STOP-AND-ASK: the Author reviews the updated Report
     - Present the Report; apply only corrections to the generator or its inputs (never to Results), regenerate, then commit. Ask the Author to search the exact token and account ID strings over `eval/results/`, `docs/`, console logs and `web/dist` again (the agent never opens `env`); record the result.
     - _Requirements: 11.3, 17.1_
   - [~] 38.3 Confirm the decision hold state before 25.1 completes
@@ -906,19 +906,19 @@ Execution notes for the orchestrator:
     - As 45.4, for `clef`.
     - _Requirements: 20.7, 20.9, 20.11, 20.12, 15.2_
 
-- [ ] 47. STOP-AND-ASK: derive the `clef-flash` Locked_Run into `perm_avg`
-  - [~] 47.1 Ask for the `derive_locked` approval for `workers-ai/clef-flash/perm_avg`
+- [x] 47. STOP-AND-ASK: derive the `clef-flash` Locked_Run into `perm_avg`
+  - [x] 47.1 Ask for the `derive_locked` approval for `workers-ai/clef-flash/perm_avg`
     - After 35.2 (the `single` Locked_Run is `complete`). Present the source ledger entry, the Dev derived file, the Aggregation_Hash, 0 requests and 0 neurons. Do nothing until approved.
     - _Requirements: 20.9, 20.10, 17.1, 17.2_
-  - [~] 47.2 Record the approval and run `probe derive --split locked`
+  - [x] 47.2 Record the approval and run `probe derive --split locked`
     - Add the `derive_locked` entry in its own commit; append the start entry in `docs/kiro-log.md` (Combination, source ledger entry, Aggregation_Hash, Pinned_Manifest_Hash); run the command with `timeout`, then `--verify`; append the end entry; commit Results and grades. The agent passes on only progress counts, aggregate Metrics, Card IDs and error messages (R3.11); it never opens `locked.jsonl`, `eval/cards/blind/*` or `env`.
     - _Requirements: 20.9, 20.10, 20.11, 3.11, 17.6_
 
-- [ ] 48. STOP-AND-ASK: derive the `clef` Locked_Run into `perm_avg`
-  - [~] 48.1 Ask for the `derive_locked` approval for `workers-ai/clef/perm_avg`
+- [x] 48. STOP-AND-ASK: derive the `clef` Locked_Run into `perm_avg`
+  - [x] 48.1 Ask for the `derive_locked` approval for `workers-ai/clef/perm_avg`
     - After 35.3 (the `single` Locked_Run is `complete`). As 47.1, for `clef`; its own approval.
     - _Requirements: 20.9, 20.10, 17.1, 17.2_
-  - [~] 48.2 Record the approval and run `probe derive --split locked`
+  - [x] 48.2 Record the approval and run `probe derive --split locked`
     - As 47.2, for `clef`.
     - _Requirements: 20.9, 20.10, 20.11, 3.11, 17.6_
 

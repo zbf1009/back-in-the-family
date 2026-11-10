@@ -3386,6 +3386,11 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794198437699
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794278168481
       }
     ],
     "37.2 Check isolation after the ingest": [
@@ -3393,6 +3398,11 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794198437706
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794278169138
       }
     ],
     "38.1 Regenerate `docs/llm-probe.md`": [
@@ -3400,6 +3410,16 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794198437712
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794278173755
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794278679364
       }
     ],
     "38.2 STOP-AND-ASK: the Author reviews the updated Report": [
@@ -3407,6 +3427,11 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794198437719
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794278679392
       }
     ],
     "38.3 Confirm the decision hold state before 25.1 completes": [
@@ -3897,6 +3922,16 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794221465783
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794277389406
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794278028225
       }
     ],
     "47.2 Record the approval and run `probe derive --split locked`": [
@@ -3904,6 +3939,16 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794221465791
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794278028461
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794278161252
       }
     ],
     "48.1 Ask for the `derive_locked` approval for `workers-ai/clef/perm_avg`": [
@@ -3911,6 +3956,11 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794221465799
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794278162143
       }
     ],
     "48.2 Record the approval and run `probe derive --split locked`": [
@@ -3918,6 +3968,11 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794221465807
+      },
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794278167419
       }
     ],
     "50.1 Ask the Author for the RC-20 wording": [
@@ -4024,6 +4079,27 @@
         "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794277380338
+      }
+    ],
+    "47. STOP-AND-ASK: derive the `clef-flash` Locked_Run into `perm_avg`": [
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794278161261
+      }
+    ],
+    "48. STOP-AND-ASK: derive the `clef` Locked_Run into `perm_avg`": [
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794278167427
+      }
+    ],
+    "37. Ingest the External_Reference when the Author hands it over [blocked on the Author]": [
+      {
+        "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794278169147
       }
     ]
   }
