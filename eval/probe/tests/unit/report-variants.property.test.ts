@@ -364,3 +364,27 @@ test('Property 55 (pinned): a Card outside the scored set (a Sanity or Void Card
 test('Property 55: position distributions and the Request_Multiplier are exact counts of the derived records', () => {
   fc.assert(fc.property(specArb, (spec) => checkCounts(spec)), { numRuns: 150, examples: PINNED.map((p) => [p] as [ReportSpec]) });
 });
+
+// ---------------------------------------------------------------- latency populations (task 38.1)
+
+test('Dev_Run summary latency of a perm_avg run is the 4c decision sum over the same Cards, labelled, and not the per-request figure', () => {
+  const spec: ReportSpec = { cards: FIXED_CARDS, passes: true, usable: true, split: 'dev', withSingle: false, hold: false, singleDev: false };
+  const input = buildInput(spec);
+  const view = (input.derivedRuns as DerivedRunView[])[0] as DerivedRunView;
+  // A Sanity_Card record (one fast call) is in the file but in no Metric; it must not enter the summary figure.
+  const sanity = { card_id: 'D-sanity', permutation: 'base', perm_avg: { scope: 'sanity', rule_version: 1, chosen: 'o1', sums: null, calls: [{ permutation: 'base', choice: 'o1', probabilities: [], latency_ms: 1, input_tokens: 1 }], positions: null } } as unknown as ResultRecord;
+  const withSanity: DerivedRunView = { ...view, records: [...view.records, sanity] };
+  const report = buildReport({ ...input, derivedRuns: [withSanity], devRuns: [view.analysis] });
+
+  const mult = multiplierDistribution(view.records, new Set(view.analysis.tasks[0]?.metrics.perCard.map((c) => c.cardId)));
+  const dev = section(report, 'Dev_Run figures');
+  const row = rows(dev).find((r) => (r[0] ?? '') === 'derived-1');
+  assert.ok(row !== undefined, 'Dev row present');
+  const cell = (row as string[]).find((c) => c.includes('per decision'));
+  assert.equal(cell, `${mult.sum.p50} / ${mult.sum.p95} (per decision, sum of its calls; as in 4c)`);
+  // The same two numbers are the "Sum of the calls" row of 4c.
+  const sum4c = rows(section(report, '4c. ')).find((x) => (x[0] ?? '').startsWith('Sum of the calls'));
+  assert.deepEqual(sum4c, ['Sum of the calls (in sequence)', String(mult.sum.p50), String(mult.sum.p95)]);
+  // The column header names both populations.
+  assert.ok(dev.includes('single: every request with text, Sanity_Cards included. perm_avg: per decision, scored non-void cards only'));
+});

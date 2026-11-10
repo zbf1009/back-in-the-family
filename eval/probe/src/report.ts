@@ -1305,6 +1305,14 @@ export function buildReport(input: ReportInput): string {
   para('These are Dev_Run figures. They are kept out of every mark and out of the recommendation. The Intel iGPU Dev_Run appears only here.');
   para(DEV_CONFOUND_NOTE);
   if (input.devRuns.some((r) => r.id === INTEL_TIMEOUT_RUN_ID)) para(INTEL_TIMEOUT_FINDING);
+  // A `single` row counts every request with text (Sanity_Cards and Void_Cards included). A `perm_avg` row counts one value per
+  // decision, the sum of its calls' latencies, over the same Cards as section 4c, so its cell equals the 4c "sum" row.
+  const devLatencyCell = (r: RunAnalysis, t: TaskAnalysis): string => {
+    const view = derivedViews.find((v) => v.analysis.id === r.id);
+    if (view === undefined) return `${latencyText(t.latency.p50)} / ${latencyText(t.latency.p95)} (per request)`;
+    const sum = multiplierDistribution(view.records, new Set(t.metrics.perCard.map((c) => c.cardId))).sum;
+    return `${latencyText(sum.p50)} / ${latencyText(sum.p95)} (per decision, sum of its calls; as in 4c)`;
+  };
   const devRows = input.devRuns.flatMap((r) => {
     const workers = isWorkersAi(comboById.get(r.combination) ?? ({ runtime: '' } as Combination));
     const mem = memoryCells(r, workers);
@@ -1318,13 +1326,13 @@ export function buildReport(input: ReportInput): string {
       `${t.metrics.severeOtherPermutations}`,
       `${isByConstruction(t.metrics.flip) ? 'by construction' : ratioText(t.metrics.flip)}`,
       `${ratioText(t.metrics.contrast)}`,
-      `${latencyText(t.latency.p50)} / ${latencyText(t.latency.p95)}`,
+      devLatencyCell(r, t),
       mem.nvidia,
       mem.intel,
     ]);
   });
   if (devRows.length === 0) para('No Dev_Run figures are included.');
-  else out.push(...table(['Dev_Run', 'Combination', 'GPU', 'Task', 'Acceptable (Dev_Run, base cards)', 'Severe (base cards)', 'Severe in other Permutations', 'Flips (non-base requests with an output)', 'Contrast pairs', 'Latency p50 / p95, ms (nearest rank, all requests with text)', NVIDIA_MEMORY_COLUMN, 'Intel iGPU peak memory, MiB (quantity named)'], devRows));
+  else out.push(...table(['Dev_Run', 'Combination', 'GPU', 'Task', 'Acceptable (Dev_Run, base cards)', 'Severe (base cards)', 'Severe in other Permutations', 'Flips (non-base requests with an output)', 'Contrast pairs', 'Latency p50 / p95, ms (nearest rank). single: every request with text, Sanity_Cards included. perm_avg: per decision, scored non-void cards only', NVIDIA_MEMORY_COLUMN, 'Intel iGPU peak memory, MiB (quantity named)'], devRows));
 
   // Request-level D figures next to their random baseline, and the position / shuffle diagnosis.
   const devDiag = input.devRuns.filter((r) => r.decisionDiagnosis != null && r.decisionDiagnosis.requests > 0);
