@@ -1508,3 +1508,12 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - One planned red window: tasks 3.1 to 4.4 (model swap until fixture regeneration), closed by the full-gates checkpoint in task 5.
 - Three places where the plan fills in or departs from the design, flagged for the audit: value types in a new `values.rs` (design had them in `world.rs`), a new `sim-cli snapshot` subcommand and native snapshot fixture for R18.3, and a `--no-verify-replay` fallback flag if the acceptance gate exceeds 60 s (fewer seeds only after asking the Author).
 - `validate_spec_format`: no issues. Not committed yet; waiting for the Author's review.
+
+### Division of labor from spec 4 (`life-sim`) on (2026-11-10)
+
+- Reason: spec 3 (`llm-probe`) used about 2,000 Kiro credits in one session, and fewer than 1,000 of the 4,000 hackathon credits remain. The Author chose not to risk running out part-way through implementation.
+- Specs 1 to 3 (`sim-core-skeleton`, `web-shell`, `llm-probe`) were planned and executed entirely in Kiro CLI.
+- From spec 4 on:
+  - **Kiro CLI**: design discussion with the Author; requirements, design and tasks of every spec, each phase reviewed by the Author; steering changes; the final audit of every spec.
+  - **External terminal agent (omp)**: executes the leaf tasks of the Kiro-written `tasks.md` (code, tests, fixtures, commits), runs each task's acceptance commands, marks the task boxes in `tasks.md`, and appends the factual entries this log requires (fault injections, measurements, calibration runs, surprises). It does not edit requirements, design, task text or steering; when a task needs a spec change, it stops and the change is made in Kiro. It never pushes or deploys without the Author's approval.
+- Entries after this one that record task execution are written by the terminal agent unless they say otherwise. Any exception to this split is logged where it happens.
