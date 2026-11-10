@@ -1435,3 +1435,9 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - The probe-level Report recommendation was Rules_Default for both task types. The Author's decision differs for D, on an informed basis (stated above).
 - Task 25.2: steering updated in one change: `tech.md` (LLM runtime row, LLM boundary section, Hosting row note that clef needs a Worker script with an AI binding owned by a later spec), `structure.md` (Next steps, slow-think bridge row, specs list with slow-think scope and two pending specs), and `product.md`. The task text names only tech.md and structure.md; the Author expanded it to product.md (stitch paragraph, principle 3, demo fallback chain, and the build-strategy line that said "one LLM call").
 - No code changed, nothing pushed.
+
+### Spec: llm-probe — gates from a clean build (task 26.1, 2026-11-10, 03:25Z)
+
+- Clean build in the repo: removed only gitignored build output (`target/`, `web/node_modules/`, `eval/probe/node_modules/`, `web/dist/`, `eval/probe/dist/`; each was checked with `git check-ignore` and has no tracked files). Then `timeout 2400 scripts/gates.sh`: exit 0, wall time 269 s, "All gates passed." (log `/tmp/gates-clean.log`).
+- Fresh clone of the local repo (HEAD f8750fa) in a temporary directory under `/tmp`: no `env` file present (confirmed; `env` was not copied or opened). Same command: exit 0, wall time 306 s, "All gates passed." (log `/tmp/gates-fresh.log`). The clone has committed files only, so uncommitted working-tree changes were not part of that run. The temporary clone was deleted afterwards.
+- No dependency changes, no global installs, no push, no deploy. Locked and blind card files were not opened.
