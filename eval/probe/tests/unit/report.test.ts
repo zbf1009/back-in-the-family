@@ -7,7 +7,7 @@ import type { TaskType } from '../../src/cards.ts';
 import { deriveEntries, LEDGER_SCHEMA, type LedgerEvent } from '../../src/ledger.ts';
 import type { MetricCard } from '../../src/metrics.ts';
 import type { Combination } from '../../src/phase.ts';
-import { analyzeRun, buildReport, DEV_SECTION_TITLE, modelKeyText, passMarkText, RECOMMENDATION_SCOPE, type ReportInput, type RunAnalysis } from '../../src/report.ts';
+import { analyzeRun, buildReport, DEV_SECTION_TITLE, modelKeyText, passMarkText, RECOMMENDATION_SCOPE, D_CONTRAST_OBSERVATION, type ReportInput, type RunAnalysis } from '../../src/report.ts';
 import { SCHEMA, type ContrastLine, type GradeLine, type JsonValue, type ResultRecord, type ResultsHeader, type SmokeRecord, type TaskSubset } from '../../src/results.ts';
 
 const REV = 'b'.repeat(40);
@@ -192,8 +192,18 @@ test('an Exclusion_Record removes a passing Combination from the support marks',
 test('section 9 repeats the Author\'s scope statement exactly', () => {
   const report = buildReport(input(true));
   const section9 = report.slice(report.indexOf('\n## 9. '), report.indexOf('\n## 10. '));
-  assert.ok(section9.includes('The in-browser conclusion covers only Qwen3.5 on WebLLM. The Workers AI conclusion covers only gemma-4-26b-a4b-it with the frozen templates, thinking disabled and one call per request; it does not represent other models on Workers AI or other ways of calling them.'));
+  assert.ok(section9.includes('The in-browser conclusion covers only Qwen3.5 on WebLLM. The Workers AI conclusion covers only gemma-4-26b-a4b-it (frozen templates, thinking disabled, one call per request) and the decision models clef and clef-flash (System One mapping decision.system_one.v1.txt, the single and perm_avg variants, task D only); it does not represent other models on Workers AI or other ways of calling them.'));
   assert.ok(RECOMMENDATION_SCOPE.startsWith('The in-browser conclusion'));
+});
+
+test('section 9 prints the D contrast observation once, under D', () => {
+  const report = buildReport(input(true));
+  const section9 = report.slice(report.indexOf('\n## 9. '), report.indexOf('\n## 10. '));
+  assert.equal(section9.split(D_CONTRAST_OBSERVATION).length - 1, 1);
+  assert.equal(report.split(D_CONTRAST_OBSERVATION).length - 1, 1);
+  assert.ok(section9.indexOf(D_CONTRAST_OBSERVATION) > section9.indexOf('### Task_Type D (decision)'));
+  assert.ok(section9.indexOf(D_CONTRAST_OBSERVATION) < section9.indexOf('### Task_Type S (synthesis)'));
+  assert.equal(report.split(RECOMMENDATION_SCOPE).length - 1, 1);
 });
 
 test('a pass whose lower bound is under the Threshold states the lower bound and the interval method', () => {

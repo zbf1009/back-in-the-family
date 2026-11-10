@@ -431,7 +431,13 @@ const taskLetter = (t: TaskType): string => (t === 'decision' ? 'D' : 'S');
 const taskTitle = (t: TaskType): string => `Task_Type ${taskLetter(t)} (${t})`;
 /** Author's scope statement, repeated in section 9 (Author review of docs/llm-probe.md). */
 export const RECOMMENDATION_SCOPE =
-  'The in-browser conclusion covers only Qwen3.5 on WebLLM. The Workers AI conclusion covers only gemma-4-26b-a4b-it with the frozen templates, thinking disabled and one call per request; it does not represent other models on Workers AI or other ways of calling them.';
+  'The in-browser conclusion covers only Qwen3.5 on WebLLM. The Workers AI conclusion covers only gemma-4-26b-a4b-it (frozen templates, thinking disabled, one call per request) and the decision models clef and clef-flash (System One mapping decision.system_one.v1.txt, the single and perm_avg variants, task D only); it does not represent other models on Workers AI or other ways of calling them.';
+/**
+ * Section 9, under D: the Author's cross-model observation (review of 2026-11-10), printed verbatim. The figures are fixed text;
+ * a test recomputes them from the stored Locked results so that the constant cannot silently go stale.
+ */
+export const D_CONTRAST_OBSERVATION =
+  'Contrast is the Threshold no measured Combination meets on D. The Workers AI candidates, generative and decision models alike, reach 3 to 4 of 15 (gemma-4-26b-a4b-it 3, clef 4, clef-flash 3); the in-browser WebLLM Combinations reach 0 of 15. The only configuration near the Threshold is the reasoning External reference (11 of 15), which is not a Combination.';
 const TASKS: readonly TaskType[] = ['decision', 'synthesis'];
 
 /** Section 2: printed exactly when two or more Phase_2 candidates were tried (R19.13). The Thresholds are not adjusted. */
@@ -1206,6 +1212,7 @@ export function buildReport(input: ReportInput): string {
       out.push('```json', run === undefined ? '{}' : canonicalJson(run.header.fingerprint as JsonObject), '```', '');
       if (run !== undefined && cpuNodeCount(run) > 0) para(`**Risks:** this Combination places ${cpuNodeCount(run)} nodes on the CPU (${cpuNodeList(run)}); its latency figures are not pure-WebGPU results.`);
     }
+    if (task === 'decision') para(D_CONTRAST_OBSERVATION);
   }
 
   // ---- 10. Voids, exclusions, failures, faults, re-runs, incomplete entries (R15.7)

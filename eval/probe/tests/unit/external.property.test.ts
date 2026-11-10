@@ -9,7 +9,7 @@ import { test } from 'node:test';
 import fc from 'fast-check';
 import { differingFigures, FIGURE_NAMES, readExternalRecords, type Figures } from '../../src/external.ts';
 import { ingestReferenceCommand } from '../../src/external-command.ts';
-import { buildReport, type ReportInput } from '../../src/report.ts';
+import { buildReport, D_CONTRAST_OBSERVATION, type ReportInput } from '../../src/report.ts';
 import { capture } from './run.helpers.ts';
 import {
   cardContentStrings,
@@ -209,7 +209,8 @@ test('Property 46: an External_Reference is accepted only whole, writes only und
       assert.ok(s12.includes('ref-a') && s12.includes('not a repo Combination'));
       const others = secsAfter.filter((s) => !s.startsWith('## 12. '));
       assert.deepEqual(others, secsBefore.filter((s) => !s.startsWith('## 12. ')), 'every mark, link mark, recommendation and the branch text is unchanged');
-      for (const s of others) assert.ok(!/ref-a|external reference/i.test(s), 'no other section mentions it');
+      // The Author's fixed section 9 sentence (D_CONTRAST_OBSERVATION) names the teacher reference as plain text; it is a constant, not read from the stored record.
+      for (const s of others) assert.ok(!/ref-a|external reference/i.test(s.split(D_CONTRAST_OBSERVATION).join('')), 'no other section mentions it');
 
       // A second reference with the same label is refused and changes nothing.
       const again = await capture(() => ingestReferenceCommand(['--file', r.refPath], deps));
