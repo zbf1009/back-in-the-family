@@ -596,7 +596,7 @@ Execution notes for the orchestrator:
   - [x] 26.5 Sync the spec documents with what was built
     - Update `design.md` where the implementation differs (resolved versions, Property 35 placement, the V1 to V8 outcomes, any changed flag, method or schema) with dated notes, without rewriting history; keep `requirements.md` criteria and add notes only. Run `validate_spec_format` on both files until clean. Gates green; one conventional commit for task 26.
     - _Requirements: all_
-  - [-] 26.6 STOP-AND-ASK before pushing `main`
+  - [x] 26.6 STOP-AND-ASK before pushing `main`
     - Ask the Author for a deploy approval naming the commit to push, because a green push to `main` deploys `web/dist`. Do nothing until approved. After the push, report the CI result and any CI-only difference, and log it.
     - _Requirements: 17.1, 17.2, 17.3_
 

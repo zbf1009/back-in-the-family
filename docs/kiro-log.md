@@ -1455,3 +1455,10 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - 26.5 `design.md`: a new section "Implementation sync notes (task 26.5, 2026-11-10)" before "Design Decisions" (resolved versions, Property 35 placement, gate order as built, V1 to V18 outcomes, mapping file form, CLI flags, approvals schema, Derived_Run format, requirements and process notes), plus two one-line pointers at the V table and at Property 35. Nothing earlier was edited or removed. `requirements.md` was not touched. `validate_spec_format` on `design.md`: no issues.
 - Deviation from append-only, acknowledged (audit gap 4, R17.5): commit `572f59e` reworded two lines of an earlier entry in this log (the task 20.4 "Dev_Run Metrics" and "VRAM vs prompt length" lines) instead of only appending. Nothing is rewritten here; the original wording of those lines is in git history and this entry is the correction note. Every other commit that touched this file only added lines.
 - No Workers AI request, no push. `locked.jsonl`, `review/locked.md`, `blind/*` and root `env` were not opened.
+
+### Spec: llm-probe — task 26.6, push to `main` and live deploy (2026-11-10)
+
+- The Author approved pushing `b1212530788b85f9ec04b64444061a5dc1142d4e` to `origin/main` in the conversation. Pushed at about 03:45Z (`091d1d7..b121253`, 139 commits).
+- GitHub Actions run `42751453227` (deploy workflow, `gates-and-deploy`) passed in 7m38s: gates, deploy configuration check and "Deploy web/dist" all green. The CI `check-deploy` line: 4 files, `.wasm` asset matches `target/wasm-pkg`. Wrangler uploaded 4 files to https://back-in-the-family.2290698778.workers.dev, Current Version ID `7c72fb58-85e6-40ed-9411-a71579fcbec4`.
+- CI-only difference: the content-hashed asset names in CI (`sim_wasm_bg-CM4xY5s0.wasm`, `sim.worker-CUvEixeS.js`) differ from the names in the local `web/dist` left by the last local build; the local copy predates the final commits and is not deployed. No other difference was seen.
+- This log entry and the task status sync are committed locally after the push and are not pushed; a later push to `main` would deploy again and needs the Author's approval.
