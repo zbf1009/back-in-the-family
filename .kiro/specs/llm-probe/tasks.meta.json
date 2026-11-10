@@ -2512,6 +2512,16 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794198437330
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794280380681
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794280467854
       }
     ],
     "26.1 Run the gates from a clean build": [
@@ -3432,6 +3442,21 @@
         "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794278679392
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794279787424
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794279788724
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794280365712
       }
     ],
     "38.3 Confirm the decision hold state before 25.1 completes": [
@@ -3439,6 +3464,11 @@
         "executionId": "331e785e-1bb7-45b9-ab42-3067e8ff7049",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794198437726
+      },
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794280370847
       }
     ],
     "27. Shared phase-state loader use and the Decision_Model gate (R19.1, R19.4, R19.5, R19.17; DA-21, DA-23)": [
@@ -4100,6 +4130,20 @@
         "executionId": "4c997ab5-75a9-4804-818d-ccb4b36c37db",
         "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
         "timestamp": 1794278169147
+      }
+    ],
+    "38. Report regeneration and the Author's review for the Decision_Models": [
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794280370856
+      }
+    ],
+    "25. STOP-AND-ASK: the Author's runtime decision and the steering update": [
+      {
+        "executionId": "dbb62737-1ce1-48d6-9d5e-6106cb5988f0",
+        "chatSessionId": "sess_0c4873cb-25f8-4642-85a6-5c389b9138cf",
+        "timestamp": 1794280467866
       }
     ]
   }

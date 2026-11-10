@@ -569,11 +569,11 @@ Execution notes for the orchestrator:
     - Present the Report and ask the Author to review it; apply only corrections to the generator or its inputs (never to Results), regenerate, then commit. Ask the Author to run a search for the exact token and account ID strings over `eval/results/`, `docs/`, the console logs and `web/dist` (the agent never opens `env`); record the result.
     - _Requirements: 11.3, 17.1_
 
-- [ ] 25. STOP-AND-ASK: the Author's runtime decision and the steering update
+- [x] 25. STOP-AND-ASK: the Author's runtime decision and the steering update
   - [x] 25.1 Ask the Author for the runtime decision
     - Ask for the chosen Runtime and model per Task_Type, or Rules_Default only. Until the Author records it, `tech.md` keeps "Decided by the W1 probe" and no recommendation goes into the steering files.
     - _Requirements: 15.8, 15.9_
-  - [~] 25.2 Update `tech.md` and `structure.md` in one change
+  - [x] 25.2 Update `tech.md` and `structure.md` in one change
     - `tech.md` "LLM runtime" row names the decision per Task_Type and links to `docs/llm-probe.md`; `structure.md` "Next steps" states the decision and links to the Report. Log the steering change; one `docs(llm-probe)` commit.
     - _Requirements: 15.8_
   - [x] 25.3 Fix the run gate's missing pass results (after 25.1)
@@ -779,14 +779,14 @@ Execution notes for the orchestrator:
     - Confirm `phase-status`, the ledger bytes, the budget counter and every pass or fail mark are identical before and after the ingest, and that the reference appears only in Report section 12; any difference is a defect to fix before the Report.
     - _Requirements: 19.16, 18.8_
 
-- [ ] 38. Report regeneration and the Author's review for the Decision_Models
+- [x] 38. Report regeneration and the Author's review for the Decision_Models
   - [x] 38.1 Regenerate `docs/llm-probe.md`
     - Run `probe report`. Check R19.13, R19.16 and R19.17 content: section 2 candidate count and selection-bias note, each Decision_Model's approval IDs and Locked_Run figures (or "not measured" with the reason), `truncated_state` and `over_context` counts, V14 "not tested", hold banner state in section 9, External_Reference only in section 12. Re-run the R24.1 checks: only Locked_Run figures in marks, Dev_Run labelled, no card content other than IDs; `probe regrade` on every new Locked_Run Results file gives byte-equal grades and identical Metrics. Amended (R20.13 to R20.16): the four Decision_Model Combinations appear with their variants, each `perm_avg` figure carries its label, the Request_Multiplier and the `by_construction` flip, the production note is present, the External reference (Author-supplied, not verified by ingest) is only in section 12, and `probe derive --verify` gives byte-equal files for every derived Results file.
     - _Requirements: 20.13, 20.14, 20.15, 20.16, 20.19, 19.13, 19.16, 19.17, 12.6, 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.10, 15.11, 15.12, 18.6, 18.7, 18.8_
-  - [-] 38.2 STOP-AND-ASK: the Author reviews the updated Report
+  - [x] 38.2 STOP-AND-ASK: the Author reviews the updated Report
     - Present the Report; apply only corrections to the generator or its inputs (never to Results), regenerate, then commit. Ask the Author to search the exact token and account ID strings over `eval/results/`, `docs/`, console logs and `web/dist` again (the agent never opens `env`); record the result.
     - _Requirements: 11.3, 17.1_
-  - [~] 38.3 Confirm the decision hold state before 25.1 completes
+  - [x] 38.3 Confirm the decision hold state before 25.1 completes
     - Run `probe phase-status`. The hold line must read `not on hold` (every approved Decision_Model has a `complete` entry, a recorded failure or an Exclusion_Record, or the Author withdrew its approval, in which case add the `withdrawal` entry in its own commit). Amended (R20.10): the hold is per variant, so each approved `single` and `perm_avg` variant must be resolved. Log the state. 25.1 stays blocked on this line (R19.17).
     - _Requirements: 20.10, 19.17, 15.8, 15.9_
 
