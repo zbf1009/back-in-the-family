@@ -618,7 +618,7 @@ Smoke_Call outputs appear only in this section; they never enter a Metric, a pas
 
 ## 9. Recommendation per Task_Type
 
-The in-browser conclusion covers only Qwen3.5 on WebLLM. The Workers AI conclusion covers only gemma-4-26b-a4b-it with the frozen templates, thinking disabled and one call per request; it does not represent other models on Workers AI or other ways of calling them.
+The in-browser conclusion covers only Qwen3.5 on WebLLM. The Workers AI conclusion covers only gemma-4-26b-a4b-it (frozen templates, thinking disabled, one call per request) and the decision models clef and clef-flash (System One mapping decision.system_one.v1.txt, the single and perm_avg variants, task D only); it does not represent other models on Workers AI or other ways of calling them.
 
 Selection among passing Combinations of a link: highest acceptable rate, then fewest severe outputs, then lowest p95 latency, then Combination ID.
 
@@ -638,6 +638,8 @@ Recommendation for D: **Rules_Default alone.** Thresholds failed, per Combinatio
 - workers-ai/gemma-4-26b-a4b-it (entry L-20261109T014137Z-workers-ai-gemma-4-26b-a4b-it): severe count 2, above 1; flip rate 36/172 = 20.9%, above 5%; contrast consistency 3/15 = 20.0%, below 80%
 - workers-ai/clef-flash (entry L-20261110T022013Z-workers-ai-clef-flash): acceptable rate 47/60 = 78.3%, below 80%; contrast consistency 3/15 = 20.0%, below 80%
 - workers-ai/clef (entry L-20261110T015939Z-workers-ai-clef): contrast consistency 4/15 = 26.7%, below 80%
+
+Contrast is the Threshold no measured Combination meets on D. The Workers AI candidates, generative and decision models alike, reach 3 to 4 of 15 (gemma-4-26b-a4b-it 3, clef 4, clef-flash 3); the in-browser WebLLM Combinations reach 0 of 15. The only configuration near the Threshold is the reasoning External reference (11 of 15), which is not a Combination.
 
 ### Task_Type S (synthesis)
 
