@@ -1501,3 +1501,10 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - Calibration: `outsiders_le_births` and `max_wait_npc` are the primary tuning metrics; the population band is an acceptance check only (hard to fail at N=50 under soul conservation).
 - From the tasks phase on, implementation is done by an external terminal agent (omp); Kiro writes tasks and does the final audit.
 - `validate_spec_format` on design.md: no issues. Committed.
+
+### Spec: life-sim — tasks draft (2026-11-10)
+
+- Kiro wrote `tasks.md` for execution by an external terminal agent (omp): process rules stated once at the top (no push, deploy, remote or global install without asking; protected card files and root `env` never opened; `llm/` and the v1 mapping template byte-identical, checked with `git diff --exit-code afaf87c -- ...`; append-only kiro-log), each leaf task with files, design section, requirement IDs and an "Acceptance:" command line.
+- One planned red window: tasks 3.1 to 4.4 (model swap until fixture regeneration), closed by the full-gates checkpoint in task 5.
+- Three places where the plan fills in or departs from the design, flagged for the audit: value types in a new `values.rs` (design had them in `world.rs`), a new `sim-cli snapshot` subcommand and native snapshot fixture for R18.3, and a `--no-verify-replay` fallback flag if the acceptance gate exceeds 60 s (fewer seeds only after asking the Author).
+- `validate_spec_format`: no issues. Not committed yet; waiting for the Author's review.
