@@ -13,9 +13,44 @@ pub struct Tick(pub u64);
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub struct EntityId(pub u64);
 
+/// Stable identifier of a Person, living or dead (R2.5).
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+pub struct PersonId(pub u64);
+
+/// Stable identifier of a Household (R2.5).
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+pub struct HouseholdId(pub u64);
+
+/// Stable identifier of a Soul (R9.4).
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+pub struct SoulId(pub u64);
+
+/// Stable identifier of an Event (R5.2).
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+pub struct EventId(pub u64);
+
+/// Stable identifier of a property item (R3.3).
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+pub struct PropertyId(pub u64);
+
 /// Sequence number given to an input when the input stream accepts it.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub struct InputSeq(pub u64);
+
+macro_rules! impl_rng_key {
+    ($($name:ident),* $(,)?) => {$(
+        impl $name {
+            /// The key of this entity's random streams. Every draw about this entity
+            /// passes this value as the `entity` argument of [`crate::rng::draw`];
+            /// `EntityId(0)` is reserved for the world-level streams.
+            pub const fn rng_key(self) -> EntityId {
+                EntityId(self.0)
+            }
+        }
+    )*};
+}
+
+impl_rng_key!(PersonId, HouseholdId, SoulId, EventId, PropertyId);
 
 /// An [`IdCounter`] ran out of values (`u64::MAX` was already issued).
 ///

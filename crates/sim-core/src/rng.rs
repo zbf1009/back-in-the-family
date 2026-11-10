@@ -24,6 +24,31 @@ pub enum StreamTag {
     /// --random-inputs` uses it to generate test inputs from a seed. It exists so that
     /// tooling can never alias a simulation stream. Value 3 is permanent like the others.
     ToolingInputs = 3,
+    /// Opening_World generation: household templates, ages, money and the other
+    /// generation rolls keyed by the world (`EntityId(0)`, design "Opening_World
+    /// generation").
+    OpeningWorld = 4,
+    /// Personality traits of a Person: the opening draw and the fresh part of a
+    /// newborn's trait inheritance, keyed by the Person.
+    Traits = 5,
+    /// Full-name picks: the first-name probe draw, keyed by the Person being created.
+    Names = 6,
+    /// Daily mortality roll for a Resident, keyed by the Person.
+    Mortality = 7,
+    /// Birth rolls for a female Resident and the choice of the waiting Soul.
+    Births = 8,
+    /// Outsider arrivals: body kind, age, sex and wages, keyed by the released Soul.
+    Outsiders = 9,
+    /// Marriage rolls and the choice of the two partners.
+    Marriage = 10,
+    /// Loan rolls and the choice of borrower, lender, amount and due tick.
+    Loans = 11,
+    /// Repayment rolls keyed by the open Debt.
+    Repayments = 12,
+    /// Social-event rolls: actor, target, kind and intensity.
+    Social = 13,
+    /// Economy rolls, including the daily wage of a Resident.
+    Economy = 14,
 }
 
 // Distinct odd multipliers, one per input position (seed, entity, tag, tick, index).

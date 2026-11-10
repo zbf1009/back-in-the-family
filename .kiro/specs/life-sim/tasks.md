@@ -33,7 +33,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
 ## Tasks
 
 - [ ] 1. Foundations: IDs, random streams, Params, names, value types
-  - [ ] 1.1 Add the new ID newtypes and stream tags
+  - [x] 1.1 Add the new ID newtypes and stream tags
     - Files: `crates/sim-core/src/ids.rs`, `crates/sim-core/src/rng.rs`, `crates/sim-core/src/canon.rs`.
     - Add `PersonId`, `HouseholdId`, `SoulId`, `EventId`, `PropertyId` as `u64` newtypes deriving `Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Debug` (no `Hash`). Give each a `fn rng_key(self) -> EntityId`. Add `Canon` impls. Keep `EntityId` and the existing `IdCounter`. Leave the skeleton types alone for now.
     - In `rng.rs`, add permanent `StreamTag` values 4..=14 (design "Module layout" and "Opening_World generation"). Use one tag per draw family: opening world, traits, names, mortality, births, outsiders, marriage, loans, repayments, social, economy/wages. Document each tag. Do not rename tags 1 and 2 yet; task 3.1 retires them. The existing pinned `draw` test values must stay unchanged.

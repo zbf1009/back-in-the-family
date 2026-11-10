@@ -18,7 +18,9 @@
 
 use std::collections::BTreeMap;
 
-use crate::ids::{EntityId, IdCounter, InputSeq, Tick};
+use crate::ids::{
+    EntityId, EventId, HouseholdId, IdCounter, InputSeq, PersonId, PropertyId, SoulId, Tick,
+};
 
 /// Version of the canonical layout. Bump it whenever any encoding rule or any encoded
 /// field changes, so old and new checksums can never be confused for each other.
@@ -131,6 +133,19 @@ impl<K: Canon, V: Canon> Canon for BTreeMap<K, V> {
         }
     }
 }
+
+macro_rules! impl_canon_id_newtype {
+    ($($name:ident),* $(,)?) => {$(
+        impl Canon for $name {
+            fn encode<W: CanonWriter>(&self, w: &mut W) {
+                let Self(v) = self;
+                v.encode(w);
+            }
+        }
+    )*};
+}
+
+impl_canon_id_newtype!(PersonId, HouseholdId, SoulId, EventId, PropertyId);
 
 impl Canon for Tick {
     fn encode<W: CanonWriter>(&self, w: &mut W) {
