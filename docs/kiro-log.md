@@ -1362,3 +1362,11 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 - Model_Fingerprint: the full record is written by the runner into the ledger `start` line and the Results header; the ledger entry ID goes into the END entry.
 - Pinned_Manifest_Hash `9322729c727a8c975dc3273fb7cc2f239e8790ea66e1745493179aea6815b34f` (manifest check ok, 27 files). Template_Hashes: decision System_One_Mapping `e275f397327b91dc1b6f69290535d6ef72c6bb712021ff130ed9da43589b337d` (equal to the frozen one).
 - Budget ledger before the run: no entry for 2026-11-10 (0 requests, 0 neurons); 2026-11-09 shows 482 requests and 6,023 neurons. Locked card content is not opened or printed by me.
+
+### Spec: llm-probe — Locked_Run END, `workers-ai/clef` (task 35.3, 2026-11-10)
+
+- Status: **completed**. Ledger entry `L-20261110T015939Z-workers-ai-clef`, fingerprint `fp-e9fc9cd87e38b7f7cae8be6a8a92406680b2302c407234d076f15efbe3d61ab7`, started 2026-11-10T01:59:39Z (ledger time; the START entry's "about" time was written a short while before), ended 02:02:12Z. Wall time about 2.5 min, no resume. Approval `DM-005`.
+- 236 requests sent, 236 records, 236 with output, 0 not_run, 0 engine faults, 0 timeouts, 0 over_context refusals, no truncated_state records.
+- Results: `eval/results/locked/L-20261110T015939Z-workers-ai-clef.jsonl` and `.grades.jsonl`, plus the ledger lines in `eval/results/ledger.jsonl`. Neurons settled on 2026-11-10: 5,417 (236 requests, 0 smoke), from the gitignored budget ledger.
+- D (Locked_Run): acceptable 51/60 (85.0%; 95% Cluster_Bootstrap 76.4% to 93.1%, lower bound below 80%; random baseline 51.8%), severe 1 of 60 base cards (pass), flips 0/172 (pass), contrast 4/15 = 26.7% (fail), Illegal 0/60. Single-variant D marked fail on contrast consistency. Latency p50 600 ms, p95 940 ms.
+- Grep of the new files and ledger for the account ID and "Bearer": absent. `eval/cards/cards/locked.jsonl` was not opened. `probe report` was run to read the figures; `docs/llm-probe.md` was restored with `git checkout`. `derive_locked` and clef-flash were not run.
