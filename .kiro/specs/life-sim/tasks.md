@@ -299,7 +299,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - _Requirements: 17.5_
     - Acceptance: both commands exit 0, and the numbers appear in both files. Commit as `docs: record life-sim measurements`.
 
-- [ ] 14. README and steering layout
+- [x] 14. README and steering layout
   - [x] 14.1 Update `README.md`
     - Files: `README.md`.
     - Check that the Name_List entry from 1.3 is present. Confirm that no third-party library was added: compare `Cargo.lock` and both `pnpm-lock.yaml` files with `afaf87c` (`git diff afaf87c -- Cargo.lock web/pnpm-lock.yaml eval/probe/pnpm-lock.yaml`). For any new crate or package, add its name and license. Update any README text that describes the skeleton model, the `workload` config or the `measure --entities` flag.
