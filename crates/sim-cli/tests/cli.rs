@@ -602,12 +602,16 @@ fn batch_uses_a_config_file() {
 
 #[test]
 fn measure_runs_tiny_and_rejects_bad_usage() {
-    let ok = sim_cli(&["measure", "--runs", "1", "--entities", "3"]);
+    let ok = sim_cli(&["measure", "--runs", "1", "--residents", "40"]);
     assert_eq!(code(&ok), 0, "{}", stderr(&ok));
     assert!(stdout(&ok).contains("ticks_per_second"));
+    assert!(stdout(&ok).contains("residents=40"));
     let bad = sim_cli(&["measure", "--runs", "0"]);
     assert_eq!(code(&bad), 2);
     assert!(stderr(&bad).contains("--runs"));
+    let bad = sim_cli(&["measure", "--residents", "39"]);
+    assert_eq!(code(&bad), 2);
+    assert!(stderr(&bad).contains("--residents"));
     assert!(stdout(&sim_cli(&["--help"])).contains("sim-cli measure"));
 }
 

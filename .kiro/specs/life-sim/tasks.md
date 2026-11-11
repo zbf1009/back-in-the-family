@@ -123,7 +123,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Tests in `cli.rs`: batch output is byte-identical on two runs (R17.4); `--require-targets` turns a failing target into `FAIL targets` (use a tiny seed range); the line format is parsed field by field. Test the violation path with a unit test in `batch.rs` that injects a failing checker closure and asserts the criterion, the tick and exit 1 (R17.6, R17.7).
     - _Requirements: 17.3, 17.4, 17.6, 17.7_
     - Acceptance: `cargo test -p sim-cli batch` passes, and `cargo run -q --release -p sim-cli -- batch --seeds 1..=3 --ticks 2000` prints 3 `ok` lines and `batch: 3/3 seeds ok`. Commit.
-  - [ ] 4.3 Rewrite the sim-cli `measure`
+  - [x] 4.3 Rewrite the sim-cli `measure`
     - Files: `crates/sim-cli/src/measure.rs`.
     - `--residents N` (40..=60, default 60) replaces `--entities` and the `Workload`. The report rows stay as they are, and the params line says `residents=60`. Each run is a Life_Run (29,200 ticks) with no inputs. The checksum is timed on the World after one simulated year (365 ticks). Ticks per second are reported outside the batch report (R17.5).
     - Update the unit tests in `measure.rs`. A test checks that every labelled row is printed.

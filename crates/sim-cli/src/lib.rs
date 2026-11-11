@@ -26,7 +26,7 @@ USAGE:
   sim-cli replay FILE...
   sim-cli check-size DIR [--max-bytes N]
   sim-cli batch --seeds A..=B --ticks N [--random-inputs K] [--config FILE]
-  sim-cli measure [--runs N] [--entities N]
+  sim-cli measure [--runs N] [--residents N]
   sim-cli grading-outputs --cards FILE --out FILE
   sim-cli grading-golden --cards FILE --outputs FILE --out FILE
   sim-cli grading-system-one-golden --cards FILE --out FILE
@@ -61,12 +61,13 @@ batch        For each seed in the inclusive range A..=B (or a single seed A; at 
              exits 1. NOTE: --seeds A..=B is a range, unlike the plain decimal numbers of
              the other flags.
 measure      Time one 80-year lifetime (80 x 365 = 29200 daily ticks)
-             on a fresh Sim, Pairwise workload, seed 1, no inputs, --runs times (default 5,
-             1..=50) with --entities entities (default 60, 0..=200). Prints best and median
-             lifetime wall time, ticks per second (from the best run), the cost of one
-             Checksum::of call on the world after 100 ticks, its share of a tick, and the
-             canonical state size. Run with --release; a debug build says so in the header
-             and its numbers mean nothing. Output depends on timing, so it is not stable.
+             on a fresh Sim, seed 1, no inputs, --runs times (default 5, 1..=50) with
+             --residents Residents at World creation (default 60, 40..=60). Prints best and
+             median lifetime wall time, ticks per second (from the best run; reported here,
+             outside the batch report), the cost of one Checksum::of call on the world
+             after one simulated year, its share of a tick, and the canonical state size.
+             Run with --release; a debug build says so in the header and its numbers mean
+             nothing. Output depends on timing, so it is not stable.
 grading-outputs  Write the synthetic Dev_Card outputs (valid ones from each card's answer
              key, Illegal ones from fixed mutations; no model output) for the llm grading
              fixtures. Deterministic. Run only by scripts/regen-grading-golden.sh.

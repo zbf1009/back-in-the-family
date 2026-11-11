@@ -1,17 +1,19 @@
-//! `sim-cli measure`: tick performance benchmark (R10), native side.
+//! `sim-cli measure`: tick performance benchmark (R17.5), native side.
 //!
-//! One tick is one day. It times one full 80-year lifetime (29,200 ticks)
-//! on a fresh `Sim` with the `Pairwise` workload and no inputs, `--runs` times, and times
-//! `Checksum::of(world)` separately on a representative state. The numbers depend on the
-//! machine and the build profile, so tests only check structure, never values.
+//! One tick is one day. It times one full 80-year Life_Run (29,200 ticks)
+//! on a fresh `Sim` with `--residents` Residents and no inputs, `--runs` times, and times
+//! `Checksum::of(world)` separately on a representative state (the World after one
+//! simulated year, so Relations and the Event_Log are populated). The numbers depend on
+//! the machine and the build profile, so tests only check structure, never values.
 //!
 //! Definitions (also printed in the output header):
 //! - `lifetime best` / `median`: wall time of the whole tick loop, best and median of the
 //!   runs (median of an even count is the mean of the two middle runs).
-//! - `ticks/s`: lifetime ticks divided by the best lifetime time.
+//! - `ticks/s`: lifetime ticks divided by the best lifetime time. This is reported here,
+//!   outside the deterministic `batch` report (R17.5).
 //! - `checksum ns/call`: best over the runs of (time of 2,000 `Checksum::of` calls / 2,000)
-//!   on the world after 100 ticks. `World::step` already includes the checksum, so
-//!   `checksum share = checksum ns/call / (best lifetime ns / lifetime ticks)`.
+//!   on the world after one simulated year. `World::step` already includes the checksum,
+//!   so `checksum share = checksum ns/call / (best lifetime ns / lifetime ticks)`.
 //! - `state bytes`: length of the canonical encoding of that same world.
 
 use std::hint::black_box;
@@ -32,16 +34,16 @@ pub const MEASURE_SEED: u64 = 1;
 pub const LIFETIME_YEARS: u64 = 80;
 /// Ticks per in-game year: one tick is one day.
 pub const TICKS_PER_YEAR: u64 = 365;
-/// Ticks run before the checksum is timed, so affinities are populated.
-pub const WARMUP_TICKS: u32 = 100;
+/// Ticks run before the checksum is timed: one simulated year.
+pub const CHECKSUM_STATE_AFTER_TICKS: u64 = TICKS_PER_YEAR;
 /// `Checksum::of` calls per timing sample.
 pub const CHECKSUM_ITERATIONS: u32 = 2_000;
 pub const DEFAULT_RUNS: u64 = 5;
-pub const DEFAULT_ENTITIES: u64 = 60;
+pub const DEFAULT_RESIDENTS: u64 = 60;
 pub const MAX_RUNS: u64 = 50;
 
-pub const MEASURE_USAGE: &str = "usage: sim-cli measure [--runs N] [--entities N]\n\
-defaults: --runs 5 (1..=50), --entities 60 (40..=60)";
+pub const MEASURE_USAGE: &str = "usage: sim-cli measure [--runs N] [--residents N]\n\
+defaults: --runs 5 (1..=50), --residents 60 (40..=60)";
 
 /// Timings for the daily lifetime.
 #[derive(Debug)]
@@ -54,7 +56,7 @@ struct Row {
 }
 
 pub fn measure(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
-    let parsed = match args::parse(args, &["runs", "entities"]).and_then(|p| {
+    let parsed = match args::parse(args, &["runs", "residents"]).and_then(|p| {
         if p.positionals().is_empty() {
             Ok(p)
         } else {
@@ -68,22 +70,22 @@ pub fn measure(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32
         }
     };
     let runs = parsed.get_u64("runs").map(|v| v.unwrap_or(DEFAULT_RUNS));
-    let entities = parsed
-        .get_u64("entities")
-        .map(|v| v.unwrap_or(DEFAULT_ENTITIES));
-    let (runs, entities) = match (runs, entities) {
-        (Ok(r), Ok(e))
+    let residents = parsed
+        .get_u64("residents")
+        .map(|v| v.unwrap_or(DEFAULT_RESIDENTS));
+    let (runs, residents) = match (runs, residents) {
+        (Ok(r), Ok(n))
             if (1..=MAX_RUNS).contains(&r)
                 && (u64::from(OPENING_RESIDENTS_MIN)..=u64::from(OPENING_RESIDENTS_MAX))
-                    .contains(&e) =>
+                    .contains(&n) =>
         {
-            (r, e)
+            (r, n)
         }
-        (Ok(r), Ok(e)) => {
+        (Ok(r), Ok(n)) => {
             let _ = writeln!(
                 err,
-                "error: --runs must be 1..={MAX_RUNS} (got {r}) and --entities \
-{OPENING_RESIDENTS_MIN}..={OPENING_RESIDENTS_MAX} (got {e})\n{MEASURE_USAGE}"
+                "error: --runs must be 1..={MAX_RUNS} (got {r}) and --residents \
+{OPENING_RESIDENTS_MIN}..={OPENING_RESIDENTS_MAX} (got {n})\n{MEASURE_USAGE}"
             );
             return EXIT_USAGE_OR_MALFORMED;
         }
@@ -93,11 +95,11 @@ pub fn measure(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32
         }
     };
     // Both values were range-checked above, so these conversions cannot fail.
-    let (Ok(runs), Ok(entities)) = (usize::try_from(runs), u16::try_from(entities)) else {
+    let (Ok(runs), Ok(residents)) = (usize::try_from(runs), u16::try_from(residents)) else {
         return EXIT_USAGE_OR_MALFORMED;
     };
 
-    let row = match measure_one(entities, runs) {
+    let row = match measure_one(residents, runs) {
         Ok(row) => row,
         Err(e) => {
             let _ = writeln!(err, "error: {e}");
@@ -109,7 +111,7 @@ pub fn measure(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32
     } else {
         "release"
     };
-    let _ = write_report(out, build, entities, runs, &row);
+    let _ = write_report(out, build, residents, runs, &row);
     EXIT_OK
 }
 
@@ -132,7 +134,7 @@ fn measure_one(residents: u16, runs: usize) -> Result<Row, String> {
     let (best, median) = best_and_median(&samples);
 
     let mut sim = Sim::new(MEASURE_SEED, config).map_err(|e| e.to_string())?;
-    for _ in 0..WARMUP_TICKS {
+    for _ in 0..CHECKSUM_STATE_AFTER_TICKS {
         sim.step();
     }
     let world = sim.world();
@@ -183,7 +185,7 @@ fn write_report(
     writeln!(
         out,
         "params: seed={MEASURE_SEED} residents={residents} runs={runs} \
-         checksum_iterations={CHECKSUM_ITERATIONS} checksum_state_after_ticks={WARMUP_TICKS}"
+         checksum_iterations={CHECKSUM_ITERATIONS} checksum_state_after_ticks={CHECKSUM_STATE_AFTER_TICKS}"
     )?;
     writeln!(
         out,
@@ -256,7 +258,7 @@ mod tests {
 
     #[test]
     fn tiny_run_prints_every_labelled_row() {
-        let (code, out, err) = run(&["--runs", "1", "--entities", "40"]);
+        let (code, out, err) = run(&["--runs", "1", "--residents", "40"]);
         assert_eq!(code, 0, "{err}");
         assert!(out.contains("build="), "{out}");
         assert!(out.contains("seed=1 residents=40 runs=1"), "{out}");
@@ -283,14 +285,23 @@ mod tests {
     }
 
     #[test]
+    fn default_residents_is_sixty_and_the_params_line_says_so() {
+        let (code, out, err) = run(&["--runs", "1"]);
+        assert_eq!(code, 0, "{err}");
+        assert!(out.contains("residents=60 runs=1"), "{out}");
+    }
+
+    #[test]
     fn bad_usage_exits_2() {
         for bad in [
             &["--runs", "0"][..],
             &["--runs", "51"],
-            &["--entities", "39"],
+            &["--residents", "39"],
+            &["--residents", "61"],
             &["--runs", "x"],
-            &["--entities=-1"],
+            &["--residents=-1"],
             &["--seed", "1"],
+            &["--entities", "60"],
             &["stray"],
             &["--runs"],
         ] {
