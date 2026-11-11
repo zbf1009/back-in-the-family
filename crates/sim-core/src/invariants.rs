@@ -553,6 +553,44 @@ fn check_souls(world: &World) -> Result<(), Violation> {
     }
 
     let mut body_persons: BTreeSet<PersonId> = BTreeSet::new();
+    // R9.1: a Resident's Soul is in that Resident's body, never in the queue. This check
+    // runs before the aggregate counts so a birth that keeps its Soul waiting is
+    // reported as 9.1 instead of as a body-count mismatch.
+    for (&id, person) in world.persons() {
+        if !matches!(person.life, Life::Alive { .. }) {
+            continue;
+        }
+        match souls.places.get(&person.soul) {
+            Some(SoulPlace::Body(owner)) if *owner == id => {}
+            Some(SoulPlace::Body(owner)) => {
+                return Err(violation(
+                    "9.2",
+                    world,
+                    format!(
+                        "resident {} carries soul {} whose place is body {}",
+                        id.0, person.soul.0, owner.0
+                    ),
+                ));
+            }
+            Some(SoulPlace::Waiting { since }) => {
+                return Err(violation(
+                    "9.1",
+                    world,
+                    format!(
+                        "resident {} is alive but its soul {} waits since {}",
+                        id.0, person.soul.0, since.0
+                    ),
+                ));
+            }
+            None => {
+                return Err(violation(
+                    "9.1",
+                    world,
+                    format!("soul {} of resident {} has no place", person.soul.0, id.0),
+                ));
+            }
+        }
+    }
     for (&soul, place) in &souls.places {
         if soul.0.checked_add(1).is_none_or(|next| next > counter) {
             return Err(violation(
