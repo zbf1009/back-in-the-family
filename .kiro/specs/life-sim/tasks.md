@@ -45,7 +45,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Unit tests: mortality lookup at every band edge (0, 1, 17, 18, 39, 40, ..., 119, 120), and every `DEFAULT` value pinned.
     - _Requirements: 6.1, 16.3_
     - Acceptance: Rust gates pass, and `cargo test -p sim-core params` passes.
-  - [ ] 1.3 Add `names.rs` with the Name_List and the picker
+  - [x] 1.3 Add `names.rs` with the Name_List and the picker
     - Files: `crates/sim-core/src/names.rs` (new), `crates/sim-core/src/lib.rs`, `README.md`.
     - Write by hand 80 female first names, 80 male first names and 60 surnames as `const` arrays. Use single ASCII words, all distinct within each list. Do not copy from any dataset or website (R13.2). Add `FullName { first: u16, surname: u16 }` with `Canon`, and the probing picker from design "Name_List and picker", which takes an occupied set as a `&BTreeSet<FullName>`.
     - `README.md`: add the Name_List to the licenses/third-party section as "project's own, written for this project, Apache-2.0 (same as the repository)".

@@ -158,6 +158,8 @@ The licenses of the Clef models (`@cf/cloudflare/clef`, `@cf/cloudflare/clef-fla
 
 ## Third-party libraries and assets
 
+The Name_List in `crates/sim-core/src/names.rs` is the project's own: written for this project, Apache-2.0 (same as the repository). It is not third-party data.
+
 | Name | Version | License | Used for |
 |---|---|---|---|
 | [`blake3`](https://crates.io/crates/blake3) (feature `pure`, default features off) | 1.8.7 | CC0-1.0 OR Apache-2.0 OR Apache-2.0 WITH LLVM-exception | Per-tick state checksum in `sim-core` (first 8 bytes of the BLAKE3 hash of the canonical encoding) |

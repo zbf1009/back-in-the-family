@@ -16,6 +16,7 @@ pub mod checksum;
 pub mod ids;
 pub mod input;
 pub mod llm;
+pub mod names;
 pub mod params;
 pub mod replay;
 pub mod rng;
