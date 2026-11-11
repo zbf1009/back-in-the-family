@@ -247,6 +247,14 @@ impl Canon for FullName {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use proptest::prelude::*;
+
+    fn full_name_strategy() -> impl Strategy<Value = FullName> {
+        let first_count = u16::try_from(FEMALE_FIRST_COUNT).expect("the count fits in u16");
+        let surname_count = u16::try_from(SURNAME_COUNT).expect("the count fits in u16");
+        (0u16..first_count, 0u16..surname_count)
+            .prop_map(|(first, surname)| FullName { first, surname })
+    }
 
     fn assert_distinct_ascii_words(words: &[&str], expected_len: usize) {
         assert_eq!(words.len(), expected_len);
@@ -257,6 +265,47 @@ mod tests {
                 !word.is_empty() && word.chars().all(|c| c.is_ascii_alphabetic()),
                 "not a single ASCII word: {word:?}"
             );
+        }
+    }
+
+    fn surname_strategy() -> impl Strategy<Value = u16> {
+        let count = u16::try_from(SURNAME_COUNT).expect("the surname count fits in u16");
+        0u16..count
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(256))]
+
+        // Feature: life-sim, Property 13: The name picker always finds a free name.
+        #[test]
+        fn property_13_picker_returns_a_free_name_from_the_list(
+            occupied in prop::collection::btree_set(full_name_strategy(), 0..=61),
+            female in any::<bool>(),
+            surname in surname_strategy(),
+            draw in any::<u64>(),
+        ) {
+            let picked = pick_full_name(female, surname, draw, &occupied);
+            prop_assert!(usize::from(picked.first) < FEMALE_FIRST.len());
+            prop_assert!(usize::from(picked.surname) < SURNAMES.len());
+            prop_assert!(!occupied.contains(&picked));
+        }
+
+        // Feature: life-sim, Property 13: The name picker always finds a free name.
+        #[test]
+        fn property_13_picker_wraps_to_the_next_surname_when_all_80_are_taken(
+            female in any::<bool>(),
+            surname in surname_strategy(),
+            draw in any::<u64>(),
+        ) {
+            let first_count = u16::try_from(FEMALE_FIRST_COUNT).expect("the count fits in u16");
+            let occupied: BTreeSet<FullName> = (0u16..first_count)
+                .map(|first| FullName { first, surname })
+                .collect();
+            let picked = pick_full_name(female, surname, draw, &occupied);
+            prop_assert!(usize::from(picked.first) < FEMALE_FIRST.len());
+            prop_assert!(usize::from(picked.surname) < SURNAMES.len());
+            prop_assert!(!occupied.contains(&picked));
+            prop_assert_ne!(picked.surname, surname);
         }
     }
 

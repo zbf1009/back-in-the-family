@@ -52,7 +52,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Unit tests: list sizes, no duplicates, ASCII-only, the picker probes forward and wraps to the next surname.
     - _Requirements: 13.1, 13.2, 19.5_
     - Acceptance: Rust gates pass, and `cargo test -p sim-core names` passes.
-  - [ ] 1.4 Property test: Property 13 (the name picker always finds a free name)
+  - [x] 1.4 Property test: Property 13 (the name picker always finds a free name)
     - File: `crates/sim-core/src/names.rs` (`#[cfg(test)] mod tests`, proptest).
     - Generate at most 61 occupied full names, a sex, a surname index and a draw. Assert that the result is in the Name_List and not occupied. Include a generated case where all 80 first names of the start surname are taken.
     - **Property 13: The name picker always finds a free name.** **Validates: Requirements 13.1, 13.3**
