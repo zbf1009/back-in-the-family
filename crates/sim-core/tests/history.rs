@@ -8,7 +8,7 @@ use std::collections::BTreeSet;
 
 use life_gen::*;
 use proptest::prelude::*;
-use sim_core::events::EventKind;
+use sim_core::events::{EventKind, EventTag};
 use sim_core::ids::{EventId, PersonId, SoulId};
 use sim_core::values::{RelationTag, Sex};
 use sim_core::world::{Life, SoulPlace, World};
@@ -666,6 +666,108 @@ proptest! {
                         tick_error(format!("soul {} was not released", soul.0))
                     );
                 }
+            }
+        }
+    }
+
+    // Feature: life-sim, Property 6: Debts follow their Events.
+    #[test]
+    fn debts_follow_their_events(scenario in arb_scenario()) {
+        let mut sim = scenario.sim();
+        for tick in 0..TICKS {
+            let before = sim.world().clone();
+            let log_start = before.log().len();
+            sim.step();
+            let after = sim.world();
+            let tail = events_since(after, log_start);
+            let tick_error = |message: String| format!("seed {} tick {tick}: {message}", scenario.seed);
+
+            // A new `loan` opens exactly one Debt keyed by its Event id.
+            for event in tail {
+                if let EventKind::Loan {
+                    lender,
+                    borrower,
+                    amount,
+                    due,
+                } = &event.kind
+                {
+                    let debt = after.debts().get(&event.id).ok_or_else(|| {
+                        TestCaseError::fail(tick_error(format!(
+                            "loan {} has no Debt",
+                            event.id.0
+                        )))
+                    })?;
+                    prop_assert_ne!(lender, borrower);
+                    prop_assert_eq!(debt.creditor, *lender);
+                    prop_assert_eq!(debt.debtor, *borrower);
+                    prop_assert_eq!(debt.principal, *amount);
+                    prop_assert_eq!(debt.open, *amount);
+                    prop_assert!(*amount >= 1);
+                    prop_assert_eq!(debt.due, *due);
+                    prop_assert!(debt.due > event.tick);
+                    // The lender had the money before the tick (the per-flow transfer
+                    // itself is covered by the economy unit tests; money conservation
+                    // is Property 1).
+                    prop_assert!(is_resident(&before, *lender));
+                    prop_assert!(balance(&before, *lender) >= *amount);
+                }
+            }
+
+            // A repayment reduces its Debt by exactly its magnitude and moves the money
+            // from the debtor to the creditor.
+            for event in tail {
+                if let EventKind::Repayment {
+                    payer,
+                    payee,
+                    amount,
+                } = &event.kind
+                {
+                    let loan = event
+                        .caused_by
+                        .iter()
+                        .find(|cause| before.debts().contains_key(cause))
+                        .ok_or_else(|| {
+                            TestCaseError::fail(tick_error(format!(
+                                "repayment {} cites no open Debt",
+                                event.id.0
+                            )))
+                        })?;
+                    let old = &before.debts()[&loan];
+                    prop_assert_eq!(old.debtor, *payer);
+                    prop_assert_eq!(old.creditor, *payee);
+                    prop_assert!(*amount >= 1 && *amount <= old.open);
+                    let remaining = after.debts().get(&loan).map(|debt| debt.open).unwrap_or(0);
+                    prop_assert_eq!(old.open.checked_sub(*amount), Some(remaining));
+                    if remaining > 0 {
+                        prop_assert!(event.tags.contains(EventTag::Partial));
+                    }
+                }
+            }
+
+            // A Debt disappears only when a repayment reached 0 or a `debt_forgiven`
+            // for it was appended in this tick — never because it is overdue.
+            for (&loan, old) in before.debts() {
+                if after.debts().contains_key(&loan) {
+                    continue;
+                }
+                let forgiven = tail.iter().any(|event| {
+                    matches!(event.kind, EventKind::DebtForgiven { .. })
+                        && event.caused_by.iter().any(|cause| cause == loan)
+                });
+                let repaid: u64 = tail
+                    .iter()
+                    .filter(|event| matches!(event.kind, EventKind::Repayment { .. }))
+                    .filter(|event| event.caused_by.iter().any(|cause| cause == loan))
+                    .map(|event| event.kind.magnitude())
+                    .sum();
+                prop_assert!(
+                    forgiven || repaid == old.open,
+                    "{}",
+                    tick_error(format!(
+                        "debt {loan:?} vanished with {} of {} repaid and no forgiveness",
+                        repaid, old.open
+                    ))
+                );
             }
         }
     }
