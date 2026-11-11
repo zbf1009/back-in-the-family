@@ -8,6 +8,7 @@ use std::collections::BTreeSet;
 
 use life_gen::*;
 use proptest::prelude::*;
+use sim_core::events::EventKind;
 use sim_core::ids::PersonId;
 use sim_core::values::RelationTag;
 use sim_core::world::{Life, SoulPlace, World};
@@ -166,6 +167,262 @@ proptest! {
                     after.souls().places.get(&after.souls().player),
                     Some(&SoulPlace::Waiting { since: *since })
                 );
+            }
+        }
+    }
+
+    // Feature: life-sim, Property 4: Every death is settled in its own tick.
+    #[test]
+    fn every_death_is_settled_in_its_own_tick(scenario in arb_scenario()) {
+        let mut sim = scenario.sim();
+        for tick in 0..TICKS {
+            let before = sim.world().clone();
+            let log_start = before.log().len();
+            sim.step();
+            let after = sim.world();
+            let today = before.tick();
+            let tail = events_since(after, log_start);
+            let tick_error = |message: String| format!("seed {} tick {tick}: {message}", scenario.seed);
+
+            // Every Person who died in this tick, in Person ID order.
+            let died: Vec<PersonId> = before
+                .persons()
+                .values()
+                .filter(|person| matches!(person.life, Life::Alive { .. }))
+                .filter(|person| {
+                    matches!(
+                        after.persons().get(&person.id).map(|n| &n.life),
+                        Some(Life::Dead { death }) if *death == today
+                    )
+                })
+                .map(|person| person.id)
+                .collect();
+            let death_events: Vec<(sim_core::ids::EventId, PersonId)> = tail
+                .iter()
+                .filter_map(|event| match &event.kind {
+                    EventKind::Death { person } => Some((event.id, *person)),
+                    _ => None,
+                })
+                .collect();
+            prop_assert_eq!(
+                death_events.len(),
+                died.len(),
+                "{}",
+                tick_error(format!(
+                    "{} deaths but {} death events",
+                    died.len(),
+                    death_events.len()
+                ))
+            );
+            for (_, person) in &death_events {
+                prop_assert!(died.contains(person));
+            }
+            let newcomers = new_persons(&before, after);
+
+            for &dead in &died {
+                let death_id = death_events
+                    .iter()
+                    .find(|(_, person)| *person == dead)
+                    .map(|(id, _)| *id)
+                    .ok_or_else(|| {
+                        TestCaseError::fail(tick_error(format!(
+                            "person {} died without a death event",
+                            dead.0
+                        )))
+                    })?;
+
+                // R6.3: the body is gone (one Life value). The Soul is set to waiting
+                // since today; births run later in the same tick, so a Soul with the
+                // fewest waiting days may be taken again before the tick ends — then
+                // its place must be a body born in this tick after this death.
+                assert!(matches!(
+                    after.persons()[&dead].life,
+                    Life::Dead { death } if death == today
+                ));
+                let soul = before.persons()[&dead].soul;
+                let place = after
+                    .souls()
+                    .places
+                    .get(&soul)
+                    .copied()
+                    .ok_or_else(|| {
+                        TestCaseError::fail(tick_error(format!(
+                            "soul {} of the deceased {} has no place",
+                            soul.0, dead.0
+                        )))
+                    })?;
+                let placed = match place {
+                    SoulPlace::Waiting { since } => since == today,
+                    SoulPlace::Body(person) => {
+                        newcomers.contains(&person)
+                            && tail.iter().any(|event| {
+                                event.id.0 > death_id.0
+                                    && matches!(&event.kind, EventKind::Birth { person: p } if *p == person)
+                            })
+                    }
+                };
+                prop_assert!(
+                    placed,
+                    "{}",
+                    tick_error(format!(
+                        "soul {} of {} is at {place:?} instead of waiting since {today:?}",
+                        soul.0, dead.0
+                    ))
+                );
+
+                // The estate is fully accounted for by inheritance Events and (when
+                // there is no heir) Escheat. An inheritance received earlier in this
+                // same tick is part of the estate and is added here, so chained deaths
+                // keep the equality.
+                let start_money = balance(&before, dead);
+                let received: u64 = tail
+                    .iter()
+                    .filter(|event| event.id.0 < death_id.0)
+                    .filter_map(|event| match &event.kind {
+                        EventKind::Inheritance { heir, amount, .. } if *heir == dead => {
+                            Some(*amount)
+                        }
+                        _ => None,
+                    })
+                    .sum();
+                let own_property: u64 = before
+                    .properties()
+                    .values()
+                    .filter(|property| property.owner == dead)
+                    .map(|property| property.kind.value())
+                    .sum();
+                let inheritance: Vec<(&sim_core::events::Event, PersonId, u64)> = tail
+                    .iter()
+                    .filter_map(|event| match &event.kind {
+                        EventKind::Inheritance {
+                            deceased, heir, amount, ..
+                        } if *deceased == dead => Some((event, *heir, *amount)),
+                        _ => None,
+                    })
+                    .collect();
+                let heirs: BTreeSet<PersonId> =
+                    inheritance.iter().map(|(_, heir, _)| *heir).collect();
+                prop_assert_eq!(
+                    heirs.len(),
+                    inheritance.len(),
+                    "{}",
+                    tick_error(format!(
+                        "person {} has more than one inheritance event per heir",
+                        dead.0
+                    ))
+                );
+                let actual: u64 = inheritance.iter().map(|(_, _, amount)| *amount).sum();
+                for (event, heir, amount) in &inheritance {
+                    prop_assert!(
+                        event.caused_by.iter().any(|cause| cause == death_id),
+                        "{}",
+                        tick_error(format!(
+                            "inheritance {} does not cite death {}",
+                            event.id.0, death_id.0
+                        ))
+                    );
+                    prop_assert!(*amount >= 1);
+                    prop_assert!(before.persons().contains_key(heir));
+                }
+                if heirs.is_empty() {
+                    prop_assert_eq!(actual, 0);
+                    prop_assert!(
+                        !after
+                            .properties()
+                            .values()
+                            .any(|property| property.owner == dead),
+                        "{}",
+                        tick_error(format!("dead person {} still owns property", dead.0))
+                    );
+                    // Escheat plus the tick's upkeep is at least the cash estate.
+                    prop_assert!(
+                        after.last_flows().sinks >= start_money,
+                        "{}",
+                        tick_error(format!(
+                            "estate of {} ({start_money}) left no sink",
+                            dead.0
+                        ))
+                    );
+                } else {
+                    prop_assert_eq!(
+                        actual,
+                        start_money + received + own_property,
+                        "{}",
+                        tick_error(format!("estate of {} is not fully accounted for", dead.0))
+                    );
+                }
+
+                // R7.2: each Debt touching the deceased is transferred or forgiven by
+                // exactly one Event citing both the loan and this death. A Debt another
+                // death settled earlier in the same tick is already closed and skipped.
+                for (&loan, debt) in before.debts() {
+                    if debt.debtor != dead && debt.creditor != dead {
+                        continue;
+                    }
+                    let mine: Vec<&sim_core::events::Event> = tail
+                        .iter()
+                        .filter(|event| {
+                            matches!(
+                                event.kind,
+                                EventKind::DebtTransfer { .. } | EventKind::DebtForgiven { .. }
+                            ) && event.caused_by.iter().any(|cause| cause == loan)
+                                && event.caused_by.iter().any(|cause| cause == death_id)
+                        })
+                        .collect();
+                    if mine.is_empty() {
+                        let settled_elsewhere = tail.iter().any(|event| {
+                            matches!(
+                                event.kind,
+                                EventKind::DebtTransfer { .. } | EventKind::DebtForgiven { .. }
+                            ) && event.caused_by.iter().any(|cause| cause == loan)
+                        });
+                        prop_assert!(
+                            settled_elsewhere,
+                            "{}",
+                            tick_error(format!(
+                                "debt {loan:?} of the deceased {} was not settled",
+                                dead.0
+                            ))
+                        );
+                        continue;
+                    }
+                    prop_assert_eq!(
+                        mine.len(),
+                        1,
+                        "{}",
+                        tick_error(format!("debt {loan:?} settled more than once at one death"))
+                    );
+                    match &mine[0].kind {
+                        EventKind::DebtTransfer {
+                            from,
+                            to,
+                            amount,
+                        } => {
+                            prop_assert_eq!(*from, dead);
+                            prop_assert_eq!(debt.debtor, dead);
+                            prop_assert_eq!(*amount, debt.open);
+                            // A later death in the same tick may settle the Debt again;
+                            // then that death's iteration checks the final state.
+                            let settled_later = tail.iter().any(|event| {
+                                event.id.0 > mine[0].id.0
+                                    && event.caused_by.iter().any(|cause| cause == loan)
+                            });
+                            if !settled_later {
+                                let moved = after.debts().get(&loan).ok_or_else(|| {
+                                    TestCaseError::fail(tick_error(format!(
+                                        "transferred debt {loan:?} disappeared"
+                                    )))
+                                })?;
+                                prop_assert_eq!(moved.debtor, *to);
+                            }
+                        }
+                        EventKind::DebtForgiven { amount, .. } => {
+                            prop_assert_eq!(*amount, debt.open);
+                            prop_assert!(!after.debts().contains_key(&loan));
+                        }
+                        _ => unreachable!(),
+                    }
+                }
             }
         }
     }
