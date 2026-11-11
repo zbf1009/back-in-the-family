@@ -25,13 +25,15 @@
 //!   count at the end of any tick (a measurement, not a target).
 //! * `band_40_60_ticks` counts ticks whose Resident count is in `40..=60`; `band_95` is
 //!   `band_40_60_ticks * 100 >= ticks * 95` (R17.9).
-//! * `pop_35_65` is R17.1 and `outsiders_le_births` is R17.8.
-//!   `outsiders_le_births_third` is the tighter arrival ratio the calibration adopted
-//!   (design "Parameters and calibration", step 5): outsider arrivals at most a third of
-//!   native births, as `3 * arrivals <= births`. Without
-//!   `--require-targets` a failing target prints `=fail` but the seed stays `ok`; with
-//!   it, the seed FAILs and the exit status is 1. A failed invariant or a failed
-//!   record/verify always FAILs the seed and the exit status is 1.
+//! * `pop_35_65` is R17.1, `band_95` is R17.9 and `outsiders_le_births` is R17.8: the
+//!   three hard targets. `outsiders_le_births_third` is the tighter arrival ratio the
+//!   calibration adopted (design "Parameters and calibration", step 5): outsider
+//!   arrivals at most a third of native births, as `3 * arrivals <= births`. It is
+//!   reported only (`=pass` or `=fail`) and never fails a seed (design "Correction: the
+//!   one-third arrival target", Author 2026-11-11, audit). Without `--require-targets`
+//!   a failing target prints `=fail` but the seed stays `ok`; with it, a seed that
+//!   misses a hard target FAILs and the exit status is 1. A failed invariant or a
+//!   failed record/verify always FAILs the seed and the exit status is 1.
 //! * `FAIL tick=<t>`: `t` is the tick of the checked state, so `0` means the freshly
 //!   built world before any tick and `t` means after `t` ticks have run.
 //!
@@ -73,8 +75,8 @@ pub const BATCH_USAGE: &str = "usage: sim-cli batch --seeds A..=B --ticks N \
 [--random-inputs K] [--config FILE] [--require-targets]\n\
 --seeds is an inclusive range (or a single seed A), at most 10000 seeds; \
 --random-inputs defaults to 60; without --config: {\"opening_residents\":50}; \
---require-targets fails a seed whose R17.1, R17.8, R17.9 or calibrated arrival-ratio \
-target does not pass";
+--require-targets fails a seed whose R17.1, R17.8 or R17.9 target does not pass; \
+outsiders_le_births_third is reported only";
 
 /// Parses `--seeds`: `A..=B` (inclusive) or a single `A`. Rejects descending ranges,
 /// malformed text and ranges of more than [`MAX_SEEDS`] seeds.
@@ -104,9 +106,10 @@ pub fn parse_seed_range(text: &str) -> Result<(u64, u64), String> {
     Ok((first, last))
 }
 
-/// The three target criteria of R17.1, R17.8 and R17.9 plus the tighter arrival ratio
-/// that the calibration adopted (design "Parameters and calibration", step 5): outsider
-/// arrivals at most a third of native births.
+/// The three hard target criteria of R17.1, R17.8 and R17.9, which `--require-targets`
+/// enforces, plus the tighter arrival ratio the calibration adopted (design "Parameters
+/// and calibration", step 5), which is reported only (design "Correction: the one-third
+/// arrival target", Author 2026-11-11, audit).
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Targets {
     pop_35_65: bool,
@@ -116,7 +119,9 @@ struct Targets {
 }
 
 impl Targets {
-    /// The failing target names, in report order.
+    /// The failing hard target names, in report order, used by both [`Targets::pass`] and
+    /// the `FAIL targets:` line. `outsiders_le_births_third` is deliberately outside this
+    /// list: it is reported in the `ok` line but never enforced.
     fn failing(&self) -> Vec<&'static str> {
         let mut failing = Vec::new();
         if !self.pop_35_65 {
@@ -128,12 +133,10 @@ impl Targets {
         if !self.outsiders_le_births {
             failing.push("outsiders_le_births");
         }
-        if !self.outsiders_le_births_third {
-            failing.push("outsiders_le_births_third");
-        }
         failing
     }
 
+    /// Whether `--require-targets` accepts the seed: true when no hard target fails.
     fn pass(&self) -> bool {
         self.failing().is_empty()
     }
@@ -811,9 +814,11 @@ outsiders_le_births_third=pass"
             pop_35_65: false,
             band_95: false,
             outsiders_le_births: true,
-            outsiders_le_births_third: true,
+            // The report-only ratio is not part of the enforced list.
+            outsiders_le_births_third: false,
         };
         assert_eq!(targets.failing(), ["pop_35_65", "band_95"]);
+        assert!(!targets.pass());
         assert_eq!(
             targets_line(5, &targets.failing()),
             "seed 5 FAIL targets: pop_35_65=fail,band_95=fail"
@@ -827,6 +832,56 @@ outsiders_le_births_third=pass"
         assert_eq!(
             targets_line(5, &lone.failing()),
             "seed 5 FAIL targets: band_95=fail"
+        );
+    }
+
+    /// A `SeedStats` from a real 30-tick seed 1 run with the targets replaced.
+    fn stats_with(targets: Targets) -> SeedStats {
+        let SeedOutcome::Ok(mut stats) = run_seed(1, small_config(), 30, 20, false, &|_| Ok(()))
+        else {
+            panic!("seed 1 runs");
+        };
+        stats.targets = targets;
+        stats
+    }
+
+    #[test]
+    fn a_one_third_arrival_shortfall_is_reported_but_never_fails_the_seed() {
+        let targets = Targets {
+            pop_35_65: true,
+            band_95: true,
+            outsiders_le_births: true,
+            outsiders_le_births_third: false,
+        };
+        // `run_seed` reads `pass()` under --require-targets, so this seed stays `ok` and
+        // `run_batch` returns EXIT_OK (0).
+        assert!(targets.pass());
+        assert!(targets.failing().is_empty());
+        let line = ok_line(1, 30, &stats_with(targets));
+        assert!(
+            line.ends_with(
+                "pop_35_65=pass band_95=pass outsiders_le_births=pass \
+outsiders_le_births_third=fail"
+            ),
+            "{line}"
+        );
+    }
+
+    #[test]
+    fn a_ratio_shortfall_still_fails_the_seed_under_require_targets() {
+        let targets = Targets {
+            pop_35_65: true,
+            band_95: true,
+            outsiders_le_births: false,
+            outsiders_le_births_third: true,
+        };
+        // `run_seed` returns `SeedOutcome::Targets` when `pass()` is false, so `run_batch`
+        // counts the seed as failed and returns EXIT_FAILED (1).
+        assert!(!targets.pass());
+        assert_eq!(targets.failing(), ["outsiders_le_births"]);
+        assert_eq!(
+            targets_line(5, &targets.failing()),
+            "seed 5 FAIL targets: outsiders_le_births=fail"
         );
     }
 

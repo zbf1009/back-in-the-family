@@ -341,7 +341,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - The Checksums do not change; do not regenerate fixtures. If `git status` shows a change under `fixtures/`, stop and ask.
     - _Requirements: 17.3, 11.3_
     - Acceptance: `cargo test -p sim-cli` passes; Rust gates pass; `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0 and every line has `max_wait_npc` at most 1095. Commit as `fix(sim-cli): measure max_wait from the completed tick`.
-  - [ ] 17.3 Make the one-third arrival target report-only
+  - [x] 17.3 Make the one-third arrival target report-only
     - Files: `crates/sim-cli/src/batch.rs`, `crates/sim-cli/src/lib.rs` (help text, only if it needs a change), `crates/sim-cli/tests/cli.rs` (only if an assertion depends on the old behavior).
     - Follow the design note "Correction: the one-third arrival target (Author, 2026-11-11, audit)" and audit finding 8. `outsiders_le_births_third` stays in the `ok` line, in the same position, printed as `=pass` or `=fail`. `--require-targets` fails a seed only on the hard targets `pop_35_65` (R17.1), `band_95` (R17.9) and `outsiders_le_births` (R17.8). For example, split `Targets::failing` into the hard list used by `pass()` and the `FAIL targets:` line, and keep the third as a reported field outside that list.
     - Update the texts: `BATCH_USAGE` ("--require-targets fails a seed whose R17.1, R17.8 or R17.9 target does not pass; outsiders_le_births_third is reported only"), the module doc comment bullet on `outsiders_le_births_third` and the `Targets` doc comment. Check that the `sim-cli --help` text in `lib.rs` matches.
