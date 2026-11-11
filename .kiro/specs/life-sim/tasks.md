@@ -147,7 +147,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Wage for Residents aged 18..=67 (source `Wage`) and `min(balance, UPKEEP)` for Residents aged 18+ (sink `Upkeep`), in Person ID order, all through `economy::flow`.
     - Unit tests: one test per Money_Flow kind in design "Money_Flow list": balances and `flows` change as documented, and transfers conserve money. Include an overflow-skip test using a test-support setter.
     - _Requirements: 3.3, 3.4, 3.5_
-  - [ ] 6.2 Implement social events (step 9) and relation decay (step 11)
+  - [x] 6.2 Implement social events (step 9) and relation decay (step 11)
     - Files: `crates/sim-core/src/social.rs`, `crates/sim-core/src/tick.rs`.
     - Social rolls with actor and target selection, the weight table with clamping to at least 1, `apology` only when the actor's affinity toward the target is below 0, `caused_by` from `last_grievance`, and intensity 10..=60, through `World::append` and `apply_social`. Decay runs only when `T % 30 == 29` and moves affinity one point toward 0 for every Relation whose `from` is a Resident (including Relations toward the dead), except negative affinity held by a `from` with `vindictiveness >= 2`.
     - Unit tests: weight table at trait extremes, apology eligibility, decay skip for vindictive holders, decay applies to a living-to-dead Relation.
