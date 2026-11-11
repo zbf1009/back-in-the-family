@@ -23,4 +23,5 @@ pub mod rng;
 #[cfg(any(test, feature = "test-support"))]
 pub mod testing;
 pub mod tick;
+pub mod values;
 pub mod world;

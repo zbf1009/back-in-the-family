@@ -57,7 +57,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Generate at most 61 occupied full names, a sex, a surname index and a draw. Assert that the result is in the Name_List and not occupied. Include a generated case where all 80 first names of the start surname are taken.
     - **Property 13: The name picker always finds a free name.** **Validates: Requirements 13.1, 13.3**
     - Acceptance: `cargo test -p sim-core names` passes with at least 100 cases.
-  - [ ] 1.5 Add the range-checked value types
+  - [x] 1.5 Add the range-checked value types
     - Files: `crates/sim-core/src/values.rs` (new), `crates/sim-core/src/lib.rs`.
     - Implement the value types from design "Data Models": `Score` (-100..=100, `Score::clamped(i64)`), `Trait` (-3..=3), `Intensity` (1..=100, `Intensity::new(u8) -> Option<Self>`), `Mood` (-100..=100, `add_clamped(i64)`), `Sex`, `Origin` (`Native`, `Possessed`, `Rebuilt`), `Traits`, `RelTags` (bitset in card tag order, with Kinship_Tag helpers), `SocialKind`, and `Canon` impls with explicit `u8` enum tags. Each has a private field and constructors that clamp or refuse.
     - Design lists these under `world.rs`. Put them in `values.rs` instead and re-export them from `world` in task 3.1, so the design's paths stay valid. Record this placement in task 14.2 (structure.md).
