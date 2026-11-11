@@ -137,7 +137,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - _Requirements: 1.2, 16.7, 18.4, 19.2, 19.3_
     - Acceptance: Rust gates pass; `cargo test -p sim-wasm --target wasm32-unknown-unknown` and `cargo test -p sim-wasm --features bench --test bench` pass; `mise exec -- pnpm --dir web run typecheck` and `mise exec -- pnpm --dir web run test:unit` pass. Commit as `chore: adapt sim-cli, sim-wasm and web tests to the life-sim model`, with the line `Parity fixtures regenerated with scripts/regen-fixtures.sh.`
 
-- [ ] 5. Checkpoint: end of the red window
+- [x] 5. Checkpoint: end of the red window
   - `scripts/gates.sh` must exit 0 from a clean build (`cargo clean` first is acceptable but not required). The R15.8 diff check exits 0. Append a `docs/kiro-log.md` entry with the date the window opened and closed and any gate that needed an unplanned fix, and commit it. Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 6. Tick steps: economy, social life, debts, marriage
