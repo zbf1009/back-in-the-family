@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 70d537e2cc4625d76acbeff634fb497202bf9858118e46bee96806c41a1180e2 # shrinks to scenario = Scenario { seed: 14978973696, residents: 53, params: Stress, inputs: [(Tick(156), Act { kind: Quarrel, actor: PersonId(5), target: PersonId(3), intensity: 98 }), (Tick(44), Act { kind: Theft, actor: PersonId(47), target: PersonId(18), intensity: 59 }), (Tick(106), Act { kind: Apology, actor: PersonId(6), target: PersonId(6), intensity: 15 }), (Tick(228), Act { kind: Theft, actor: PersonId(4), target: PersonId(36), intensity: 43 }), (Tick(73), Act { kind: Insult, actor: PersonId(6), target: PersonId(24), intensity: 42 }), (Tick(103), Act { kind: Theft, actor: PersonId(23), target: PersonId(23), intensity: 33 }), (Tick(183), Act { kind: Apology, actor: PersonId(18), target: PersonId(20), intensity: 86 }), (Tick(139), Act { kind: Insult, actor: PersonId(5), target: PersonId(26), intensity: 75 })] }
+cc d95d53293ee4a7d13b7c28cad2d977b2ed406c3fd09519c9719d898adb645f34 # shrinks to scenario = Scenario { seed: 10905239318398618793, residents: 59, params: Stress, inputs: [] }

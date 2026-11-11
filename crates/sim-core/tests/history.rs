@@ -139,7 +139,7 @@ proptest! {
             // carries no Kinship_Tag (the death step's non-kin removal).
             for (&(from, to), relation) in before.relations() {
                 if !after.relations().contains_key(&(from, to)) {
-                    let died_this_tick = is_resident(&before, from) && is_dead(&after, from);
+                    let died_this_tick = is_resident(&before, from) && is_dead(after, from);
                     prop_assert!(
                         died_this_tick && !relation.tags.has_kinship(),
                         "{}",
@@ -153,11 +153,11 @@ proptest! {
 
             // Every Relation from a Resident to a Person who died in this tick is kept.
             for (&dead, old) in before.persons() {
-                if !(matches!(old.life, Life::Alive { .. }) && is_dead(&after, dead)) {
+                if !(matches!(old.life, Life::Alive { .. }) && is_dead(after, dead)) {
                     continue;
                 }
                 for &(from, to) in before.relations().keys() {
-                    if to == dead && is_resident(&after, from) {
+                    if to == dead && is_resident(after, from) {
                         prop_assert!(
                             after.relations().contains_key(&(from, to)),
                             "{}",

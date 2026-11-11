@@ -136,7 +136,7 @@ fn build_input(
         _ => (
             actor,
             target,
-            if intensity_raw % 2 == 0 {
+            if intensity_raw.is_multiple_of(2) {
                 0
             } else {
                 101 + intensity_raw % 155
@@ -263,7 +263,7 @@ pub fn total_money(world: &World) -> u128 {
 }
 
 /// The Events appended since `start`, in ID order.
-pub fn events_since<'a>(world: &'a World, start: usize) -> &'a [Event] {
+pub fn events_since(world: &World, start: usize) -> &[Event] {
     world.log().events().get(start..).unwrap_or(&[])
 }
 
