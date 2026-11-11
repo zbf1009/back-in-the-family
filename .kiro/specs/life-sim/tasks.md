@@ -253,24 +253,24 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
 - [x] 10. Checkpoint: full model and properties green
   - `scripts/gates.sh` must exit 0. The R15.8 diff check exits 0. Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. Context_Builder and Snapshot
-  - [ ] 11.1 Implement the Context_Builder
+- [x] 11. Context_Builder and Snapshot
+  - [x] 11.1 Implement the Context_Builder
     - Files: `crates/sim-core/src/context_builder.rs` (new), `crates/sim-core/src/lib.rs`.
     - Implement design "Context_Builder" steps 1 to 7: `build_decision_context` and `debt_repayment_node` (Family `DebtRepayment`; options `repay`, `stall`, `refuse` with the design's labels; the fixed situation template). Person IDs are the live IDs; events are `e1..=eN` by ascending live ID; `caused_by` entries outside the context are dropped; Souls render as `S-{:04}`; dead persons have `alive = false`, age at death and `wealth` 0. Build `llm::FrozenContext` through its public fields only. **Do not edit anything under `src/llm/`.**
     - Unit tests: `BuildError` for a dead subject, an unknown loan, and 0, 1 or 6 options; a dead creditor appears with `alive = false`; the situation has at most 80 words.
     - _Requirements: 15.1, 15.2, 15.3, 15.8_
     - Acceptance: Rust gates pass, the R15.8 diff check exits 0, and `cargo test -p sim-core context_builder` passes. Commit.
-  - [ ] 11.2 Property test: Property 15 (contexts built from the live World are valid cards)
+  - [x] 11.2 Property test: Property 15 (contexts built from the live World are valid cards)
     - File: `crates/sim-core/tests/context_builder.rs` (new). Read the committed `eval/probe/templates/decision.system_one.v1.txt` with `include_str!` or `std::fs` relative to `CARGO_MANIFEST_DIR`. For generated runs, check every open Debt with a Resident debtor at a sampled tick: the JSON round trip, `render_system_one` for every permutation from `render::permutations`, `validate_raw_choice` gives `Decision` for each exact option ID and `Illegal(OutOfSetOption)` for other generated strings, every value is inside the card ranges, and the IDs match the formats.
     - **Property 15: Contexts built from the live World are valid cards.** **Validates: Requirements 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7**
     - Acceptance: `cargo test -p sim-core --test context_builder` passes. Commit.
-  - [ ] 11.3 Implement the Snapshot, the WASM export and the native snapshot fixture
+  - [x] 11.3 Implement the Snapshot, the WASM export and the native snapshot fixture
     - Files: `crates/sim-core/src/snapshot.rs` (new), `crates/sim-core/src/lib.rs`, `crates/sim-wasm/src/lib.rs` (`WasmSim::snapshot()` taking `&self`, plus the plain twin `snapshot_string`), `crates/sim-cli/src/commands.rs` and `crates/sim-cli/src/lib.rs` (new subcommand `snapshot --replay <file> --at <tick> --out <file>`, which replays the file's seed, config and inputs up to `<tick>` and writes `snapshot_json`), `scripts/regen-fixtures.sh` (one added line that writes `fixtures/parity/seed1-pairwise.snapshot-500.json`), `fixtures/parity/seed1-pairwise.snapshot-500.json` (new), `fixtures/parity/README.md`, `crates/sim-wasm/tests/parity.rs`, `crates/sim-cli/tests/cli.rs`.
     - DTOs and field order exactly as in the design "Snapshot" JSON example; `serde_json::to_string`; lists in ascending ID order. The `snapshot` subcommand and the fixture file are not named in the design, which only says "a snapshot recorded natively at tick 500"; they are the chosen way to produce that file. Note this in the log entry and in `fixtures/parity/README.md`.
     - Tests: in `sim-wasm/tests/parity.rs`, under both native and `wasm-bindgen-test`, the snapshot at tick 500 of `seed1-pairwise` is byte-identical to the committed file (R18.3), and `snapshot()` equals `snapshot_json` for the same World. A unit test in `snapshot.rs` pins the `wealth` bound below 2^53. A `cli.rs` test covers the subcommand.
     - _Requirements: 18.1, 18.2, 18.3_
     - Acceptance: Rust gates pass, `cargo test -p sim-wasm --target wasm32-unknown-unknown` passes, and `scripts/regen-fixtures.sh` run twice leaves `git status` clean. Commit. The replay fixtures do not change; if they do, stop and investigate.
-  - [ ] 11.4 Property test: Property 18 (snapshots are faithful and read-only)
+  - [x] 11.4 Property test: Property 18 (snapshots are faithful and read-only)
     - File: `crates/sim-core/tests/snapshot.rs` (new).
     - **Property 18: Snapshots are faithful and read-only.** **Validates: Requirements 18.1, 18.2**
     - Acceptance: `cargo test -p sim-core --test snapshot` passes. Commit.
