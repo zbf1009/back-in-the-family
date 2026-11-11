@@ -6,12 +6,19 @@
 //! A flow that would overflow `u64`, or a transfer larger than the source balance, is
 //! skipped whole: nothing is half-applied and conservation still holds.
 //!
-//! Loans (step 7), repayments (step 8) and wages and upkeep (step 10) are filled in
-//! tasks 6.1 and 6.4; until then their step functions do nothing.
+//! Loans (step 7) and repayments (step 8) are filled in task 6.4; until then their
+//! step functions do nothing.
 
 use crate::canon::{Canon, CanonWriter};
 use crate::ids::PersonId;
 use crate::world::{Life, World};
+
+/// Youngest age at which a Resident earns a wage.
+const WORKING_AGE_MIN: u16 = 18;
+/// Oldest age at which a Resident earns a wage.
+const WORKING_AGE_MAX: u16 = 67;
+/// Youngest age at which a Resident pays upkeep.
+const ADULT_AGE: u16 = 18;
 
 /// Sources and sinks of the last tick run (design "Data Models").
 ///
@@ -122,8 +129,31 @@ pub(crate) fn process_loans(_world: &mut World) {}
 /// Step 8 of the tick: repayments. Filled in task 6.4.
 pub(crate) fn process_repayments(_world: &mut World) {}
 
-/// Step 10 of the tick: wages and upkeep. Filled in task 6.1.
-pub(crate) fn process_economy(_world: &mut World) {}
+/// Step 10 of the tick: wages and upkeep (design "Economy").
+///
+/// Runs in Person ID order: a Resident aged 18..=67 first receives the wage as a
+/// source, then a Resident aged 18+ pays `min(balance, UPKEEP)` as a sink. The upkeep
+/// therefore sees the wage just credited, and every balance change goes through
+/// [`flow`], so a flow that would overflow is skipped whole (R3.5).
+pub(crate) fn process_economy(world: &mut World) {
+    let upkeep = world.params.upkeep;
+    let residents: Vec<(PersonId, u16, u16)> = world
+        .persons
+        .values()
+        .filter(|person| matches!(person.life, Life::Alive { .. }))
+        .map(|person| (person.id, world.age_years(person), person.wage))
+        .collect();
+    for (id, age, wage) in residents {
+        if (WORKING_AGE_MIN..=WORKING_AGE_MAX).contains(&age) {
+            flow(world, Flow::Wage { to: id }, u64::from(wage));
+        }
+        if age >= ADULT_AGE
+            && let Some(current) = balance(world, id)
+        {
+            flow(world, Flow::Upkeep { from: id }, current.min(upkeep));
+        }
+    }
+}
 
 impl Canon for FlowTotals {
     fn encode<W: CanonWriter>(&self, w: &mut W) {
@@ -161,6 +191,136 @@ mod tests {
             Life::Alive { money, .. } => money,
             Life::Dead { .. } => 0,
         }
+    }
+
+    fn set_age(world: &mut World, id: PersonId, age: u16) {
+        if let Some(person) = world.persons.get_mut(&id) {
+            person.birth_day = 0i64.saturating_sub(i64::from(age).saturating_mul(365));
+        }
+    }
+
+    fn set_money(world: &mut World, id: PersonId, value: u64) {
+        if let Some(person) = world.persons.get_mut(&id)
+            && let Life::Alive { money, .. } = &mut person.life
+        {
+            *money = value;
+        }
+    }
+
+    fn set_wage(world: &mut World, id: PersonId, wage: u16) {
+        if let Some(person) = world.persons.get_mut(&id) {
+            person.wage = wage;
+        }
+    }
+
+    /// Leaves only `keep` alive, so a step's flows are exactly the ones under test.
+    fn isolate(world: &mut World, keep: &[PersonId]) {
+        for person in world.persons.values_mut() {
+            if !keep.contains(&person.id) {
+                person.life = Life::Dead { death: Tick(0) };
+            }
+        }
+    }
+
+    #[test]
+    fn wages_pay_18_to_67_and_upkeep_charges_every_adult() {
+        let mut w = world();
+        let a = resident(&w, 0);
+        let b = resident(&w, 1);
+        let c = resident(&w, 2);
+        let d = resident(&w, 3);
+        isolate(&mut w, &[a, b, c, d]);
+        set_age(&mut w, a, 17);
+        set_age(&mut w, b, 18);
+        set_age(&mut w, c, 67);
+        set_age(&mut w, d, 68);
+        for (id, wage) in [(a, 100u16), (b, 20), (c, 30), (d, 40)] {
+            set_wage(&mut w, id, wage);
+            set_money(&mut w, id, 100);
+        }
+        w.flows = FlowTotals::default();
+        process_economy(&mut w);
+        // 17: no wage, no upkeep. 18: wage then upkeep. 67: wage then upkeep.
+        // 68: no wage, upkeep only.
+        assert_eq!(money(&w, a), 100);
+        assert_eq!(money(&w, b), 90);
+        assert_eq!(money(&w, c), 100);
+        assert_eq!(money(&w, d), 70);
+        assert_eq!(
+            w.flows,
+            FlowTotals {
+                sources: 50,
+                sinks: 90
+            }
+        );
+    }
+
+    #[test]
+    fn upkeep_never_exceeds_the_balance_and_sees_the_wage_first() {
+        let mut w = world();
+        let a = resident(&w, 0);
+        let b = resident(&w, 1);
+        isolate(&mut w, &[a, b]);
+        set_age(&mut w, a, 30);
+        set_age(&mut w, b, 30);
+        set_wage(&mut w, a, 20);
+        set_wage(&mut w, b, 20);
+        set_money(&mut w, a, 10);
+        set_money(&mut w, b, 0);
+        w.flows = FlowTotals::default();
+        process_economy(&mut w);
+        // a: 10 + 20 = 30, then min(30, 30) = 30. Running upkeep first would leave 20.
+        assert_eq!(money(&w, a), 0);
+        // b: 0 + 20 = 20, then min(20, 30) = 20.
+        assert_eq!(money(&w, b), 0);
+        assert_eq!(
+            w.flows,
+            FlowTotals {
+                sources: 40,
+                sinks: 50
+            }
+        );
+    }
+
+    #[test]
+    fn an_overflowing_wage_is_skipped_whole_and_upkeep_still_conserves() {
+        let mut w = world();
+        let a = resident(&w, 0);
+        // Leave one Resident so the totals are the wage and the upkeep only.
+        isolate(&mut w, &[a]);
+        set_age(&mut w, a, 30);
+        set_wage(&mut w, a, 60);
+        set_money(&mut w, a, u64::MAX);
+        let before = total_money(&w);
+        w.flows = FlowTotals::default();
+        process_economy(&mut w);
+        assert_eq!(money(&w, a), u64::MAX.saturating_sub(30));
+        assert_eq!(
+            w.flows,
+            FlowTotals {
+                sources: 0,
+                sinks: 30
+            },
+            "the wage overflows and is skipped whole"
+        );
+        assert_eq!(total_money(&w), before.saturating_sub(30));
+    }
+
+    #[test]
+    fn a_dead_person_earns_no_wage_and_pays_no_upkeep() {
+        let mut w = world();
+        let a = resident(&w, 0);
+        isolate(&mut w, &[a]);
+        set_age(&mut w, a, 30);
+        set_wage(&mut w, a, 20);
+        set_money(&mut w, a, 100);
+        if let Some(person) = w.persons.get_mut(&a) {
+            person.life = Life::Dead { death: Tick(0) };
+        }
+        w.flows = FlowTotals::default();
+        process_economy(&mut w);
+        assert_eq!(money(&w, a), 0);
+        assert_eq!(w.flows, FlowTotals::default());
     }
 
     #[test]

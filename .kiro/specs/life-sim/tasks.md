@@ -142,7 +142,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
 
 - [ ] 6. Tick steps: economy, social life, debts, marriage
   - Each leaf task below changes Checksums: it ends with `scripts/regen-fixtures.sh` (twice, the second run with no diff) and a commit that contains the regeneration line. Per-task acceptance: Rust gates, `cargo test -p sim-wasm --target wasm32-unknown-unknown`, `cargo run -q --release -p sim-cli -- batch --seeds 1..=20 --ticks 2000` (all `ok`), and the R15.8 check.
-  - [ ] 6.1 Implement the economy step (step 10)
+  - [x] 6.1 Implement the economy step (step 10)
     - Files: `crates/sim-core/src/economy.rs`, `crates/sim-core/src/tick.rs`.
     - Wage for Residents aged 18..=67 (source `Wage`) and `min(balance, UPKEEP)` for Residents aged 18+ (sink `Upkeep`), in Person ID order, all through `economy::flow`.
     - Unit tests: one test per Money_Flow kind in design "Money_Flow list": balances and `flows` change as documented, and transfers conserve money. Include an overflow-skip test using a test-support setter.

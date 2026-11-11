@@ -356,10 +356,10 @@ mod tests {
         let c = s.step();
         assert_eq!(s.world().tick(), Tick(1));
         assert_eq!(s.checksums(), [c]);
-        assert_eq!(
-            s.world().last_flows(),
-            crate::economy::FlowTotals::default()
-        );
+        // The economy step pays the opening adults' wages and charges their upkeep.
+        let flows = s.world().last_flows();
+        assert!(flows.sources > 0, "the tick pays wages");
+        assert!(flows.sinks > 0, "the tick charges upkeep");
     }
 
     #[test]
