@@ -5,6 +5,7 @@
 //! payloads. The Parity_Fixtures are regenerated in task 4.4; their native/WASM parity
 //! tests live in `crates/sim-wasm/tests/parity.rs`.
 
+use proptest::prelude::*;
 use sim_core::checksum::Checksum;
 use sim_core::ids::{PersonId, Tick};
 use sim_core::input::InputPayload;
@@ -14,6 +15,8 @@ use sim_core::replay::{
 };
 use sim_core::values::SocialKind;
 use sim_core::world::{RejectReason, WorldConfig};
+
+mod life_gen;
 
 const TICKS: u64 = 500;
 
@@ -388,4 +391,41 @@ fn invalid_config_values_are_a_config_error_at_verify() {
     let mut file = sample();
     file.config.opening_residents = 39;
     assert!(matches!(verify(&file), Err(ReplayError::Config(_))));
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig { cases: 100, ..ProptestConfig::default() })]
+
+    // Feature: life-sim, Property 17: Replays reproduce every Checksum.
+    #[test]
+    fn replays_reproduce_every_checksum(
+        scenario in life_gen::arb_scenario(),
+        tamper in 0u64..life_gen::TICKS,
+    ) {
+        let config = WorldConfig::try_new(scenario.residents).expect("scenario config");
+        let ticks = life_gen::TICKS;
+        let file = record(scenario.seed, config, &scenario.inputs, ticks)
+            .expect("a generated run records");
+        prop_assert_eq!(file.checksums.len(), usize::try_from(ticks).unwrap());
+        prop_assert_eq!(verify(&file), Ok(()));
+
+        // Altering one recorded checksum is reported at that tick and no earlier one.
+        let index = usize::try_from(tamper).unwrap();
+        let mut tampered = file.clone();
+        let recorded = tampered.checksums[index];
+        tampered.checksums[index] = Checksum(recorded.0 ^ 1);
+        match verify(&tampered) {
+            Err(ReplayError::Diverged(divergence)) => {
+                prop_assert_eq!(divergence.tick.0, tamper);
+                prop_assert_eq!(divergence.expected, tampered.checksums[index]);
+                prop_assert_eq!(divergence.actual, recorded);
+            }
+            other => {
+                return Err(TestCaseError::fail(format!(
+                    "seed {} tampered tick {tamper}: expected Diverged, got {other:?}",
+                    scenario.seed
+                )));
+            }
+        }
+    }
 }
