@@ -115,6 +115,9 @@ const fn default_mortality_ppm_by_age() -> [u32; 120] {
 
 /// The default table with every rate multiplied by `factor`, saturating at the maximum
 /// ppm so that a stress value never exceeds a certain roll.
+///
+/// Used only by [`Params::stress`], which shares its cfg.
+#[cfg(any(test, feature = "test-support"))]
 const fn scaled_mortality_ppm_by_age(factor: u32) -> [u32; 120] {
     let base = default_mortality_ppm_by_age();
     let mut table = [0u32; 120];

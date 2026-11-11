@@ -1517,3 +1517,8 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
   - **Kiro CLI**: design discussion with the Author; requirements, design and tasks of every spec, each phase reviewed by the Author; steering changes; the final audit of every spec.
   - **External terminal agent (omp)**: executes the leaf tasks of the Kiro-written `tasks.md` (code, tests, fixtures, commits), runs each task's acceptance commands, marks the task boxes in `tasks.md`, and appends the factual entries this log requires (fault injections, measurements, calibration runs, surprises). It does not edit requirements, design, task text or steering; when a task needs a spec change, it stops and the change is made in Kiro. It never pushes or deploys without the Author's approval.
 - Entries after this one that record task execution are written by the terminal agent unless they say otherwise. Any exception to this split is logged where it happens.
+
+
+### Spec: life-sim — checkpoint 2 (2026-11-11)
+
+- `scripts/gates.sh` first failed at `cargo clippy -p sim-core -p sim-wasm --target wasm32-unknown-unknown -- -D warnings`: `scaled_mortality_ppm_by_age` was unused because only `Params::stress` (cfg-gated to test/test-support) calls it. Added the same cfg to the helper; the full gates then passed and `git status fixtures/` stayed clean.

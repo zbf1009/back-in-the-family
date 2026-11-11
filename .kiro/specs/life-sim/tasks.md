@@ -77,7 +77,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - _Requirements: 5.2, 5.3, 5.4, 5.5, 5.9, 5.10, 14.2_
     - Acceptance: Rust gates pass.
 
-- [ ] 2. Checkpoint: foundations green
+- [x] 2. Checkpoint: foundations green
   - Run the full gates. `scripts/gates.sh` must exit 0, and the skeleton behaviour and fixtures must be unchanged (`git status fixtures/` is clean). Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 3. Model swap in sim-core (start of the red window: crates other than `sim-core` stop building)
