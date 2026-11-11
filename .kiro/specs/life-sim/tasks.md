@@ -140,7 +140,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
 - [x] 5. Checkpoint: end of the red window
   - `scripts/gates.sh` must exit 0 from a clean build (`cargo clean` first is acceptable but not required). The R15.8 diff check exits 0. Append a `docs/kiro-log.md` entry with the date the window opened and closed and any gate that needed an unplanned fix, and commit it. Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 6. Tick steps: economy, social life, debts, marriage
+- [x] 6. Tick steps: economy, social life, debts, marriage
   - Each leaf task below changes Checksums: it ends with `scripts/regen-fixtures.sh` (twice, the second run with no diff) and a commit that contains the regeneration line. Per-task acceptance: Rust gates, `cargo test -p sim-wasm --target wasm32-unknown-unknown`, `cargo run -q --release -p sim-cli -- batch --seeds 1..=20 --ticks 2000` (all `ok`), and the R15.8 check.
   - [x] 6.1 Implement the economy step (step 10)
     - Files: `crates/sim-core/src/economy.rs`, `crates/sim-core/src/tick.rs`.
@@ -162,7 +162,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Implement design "Loans" and "Repayments": eligibility, amount and due-date draws, the `Loan` and `Repayment` flows, Debts keyed by the `loan` Event ID, tags, `ceil(principal / 3)` as `(principal + 2) / 3` with a checked add, closing at 0, and overdue Debts kept open.
     - Unit tests: a repayment on the anniversary only, a partial repayment carries the `partial` tag, the Debt closes at 0, an overdue Debt stays open, and a debtor with balance 0 makes no repayment.
     - _Requirements: 5.1, 8.1, 8.2, 8.3, 8.4, 8.5_
-  - [ ] 6.5 Implement marriage (step 6)
+  - [x] 6.5 Implement marriage (step 6)
     - Files: `crates/sim-core/src/social.rs`, `crates/sim-core/src/tick.rs`.
     - Implement design "Marriage": candidates with no living spouse, the partner filter (no Kinship_Tag in either direction, affinity >= 0 both ways), `spouse` tags both ways with affinity raised to at least `SPOUSE_AFFINITY`, a new Household with both spouses and their children under 18, removal of emptied Households, and a `marriage` Event tagged `public`. A widowed Resident keeps the `spouse` tag toward the dead spouse.
     - Unit tests: a widowed Resident remarries, and both `spouse` Relations to the dead spouse are unchanged (R4.9); kin are never paired; the emptied old Household is removed.

@@ -9,12 +9,12 @@
 //! Marriage (step 6), the daily social rolls (step 9) and relation decay (step 11) are
 //! filled in tasks 6.2 and 6.5; until then their step functions do nothing.
 
-use crate::events::{CausedBy, EventKind, EventTags};
-use crate::ids::{EntityId, EventId, PersonId};
+use crate::events::{CausedBy, EventKind, EventTag, EventTags};
+use crate::ids::{EntityId, EventId, HouseholdId, PersonId};
 use crate::params::Params;
 use crate::rng::{StreamTag, below, draw, in_range};
 use crate::values::{Intensity, RelTags, RelationTag, Score, SocialKind};
-use crate::world::{AppendRefused, Life, Relation, World, unordered_pair};
+use crate::world::{AppendRefused, Household, Life, Relation, World, unordered_pair};
 
 /// The signed affinity and trust change one direction of a social act applies.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
@@ -173,8 +173,228 @@ pub(crate) fn apply_social(
     Ok(id)
 }
 
-/// Step 6 of the tick: marriage. Filled in task 6.5.
-pub(crate) fn process_marriage(_world: &mut World) {}
+/// Youngest and oldest age at which a Resident may marry.
+const MARRIAGE_AGE_MIN: u16 = 18;
+const MARRIAGE_AGE_MAX: u16 = 60;
+/// Age below which a child moves with a marrying parent.
+const CHILD_AGE_MAX: u16 = 18;
+/// Marriage draw sites within the world-level stream.
+const MARRIAGE_SUCCESS: u64 = 0;
+const MARRIAGE_A: u64 = 1;
+const MARRIAGE_B: u64 = 2;
+
+/// Whether `person` is a Resident.
+fn is_resident(world: &World, person: PersonId) -> bool {
+    world
+        .persons
+        .get(&person)
+        .is_some_and(|entry| matches!(entry.life, Life::Alive { .. }))
+}
+
+/// Whether `person` has a `spouse` Relation toward a Resident (R4.6).
+fn has_living_spouse(world: &World, person: PersonId) -> bool {
+    world
+        .relations
+        .iter()
+        .filter(|((from, _), _)| *from == person)
+        .any(|((_, to), relation)| {
+            relation.tags.contains(RelationTag::Spouse) && is_resident(world, *to)
+        })
+}
+
+/// Whether either direction of the pair carries a Kinship_Tag (R4.3).
+fn kin_between(world: &World, a: PersonId, b: PersonId) -> bool {
+    world
+        .relations
+        .get(&(a, b))
+        .is_some_and(|relation| relation.tags.has_kinship())
+        || world
+            .relations
+            .get(&(b, a))
+            .is_some_and(|relation| relation.tags.has_kinship())
+}
+
+/// The affinity of `from` toward `to`; a missing Relation counts as 0.
+fn affinity_toward(world: &World, from: PersonId, to: PersonId) -> i8 {
+    world
+        .relations
+        .get(&(from, to))
+        .map_or(0, |relation| relation.affinity.get())
+}
+
+/// The Household a Resident lives in.
+fn household_of(world: &World, person: PersonId) -> Option<HouseholdId> {
+    match world.persons.get(&person).map(|entry| &entry.life) {
+        Some(Life::Alive { household, .. }) => Some(*household),
+        _ => None,
+    }
+}
+
+/// Whether `child` carries a `parent` Relation toward `parent`.
+fn has_parent_link(world: &World, child: PersonId, parent: PersonId) -> bool {
+    world
+        .relations
+        .get(&(child, parent))
+        .is_some_and(|relation| relation.tags.contains(RelationTag::Parent))
+}
+
+/// Marriage candidates: Residents aged 18..=60 with no living spouse, in ID order.
+fn marriage_candidates(world: &World) -> Vec<PersonId> {
+    world
+        .persons
+        .values()
+        .filter(|person| matches!(person.life, Life::Alive { .. }))
+        .filter(|person| (MARRIAGE_AGE_MIN..=MARRIAGE_AGE_MAX).contains(&world.age_years(person)))
+        .filter(|person| !has_living_spouse(world, person.id))
+        .map(|person| person.id)
+        .collect()
+}
+
+/// Partners of `a`: candidates with no Kinship_Tag in either direction and affinity at
+/// least 0 both ways (a missing Relation counts as 0).
+fn partner_candidates(world: &World, a: PersonId, candidates: &[PersonId]) -> Vec<PersonId> {
+    candidates
+        .iter()
+        .copied()
+        .filter(|&b| b != a)
+        .filter(|&b| !kin_between(world, a, b))
+        .filter(|&b| affinity_toward(world, a, b) >= 0 && affinity_toward(world, b, a) >= 0)
+        .collect()
+}
+
+/// Sets the `spouse` tag from `from` toward `to` and raises the affinity to at least
+/// `SPOUSE_AFFINITY`, creating the Relation with the spouse trust if needed.
+fn raise_spouse(world: &mut World, from: PersonId, to: PersonId, params: &Params) {
+    let relation = world
+        .relations
+        .entry((from, to))
+        .or_insert_with(|| Relation {
+            affinity: Score::clamped(0),
+            trust: Score::clamped(i64::from(params.spouse_trust)),
+            tags: RelTags::empty(),
+        });
+    relation.tags.insert(RelationTag::Spouse);
+    if relation.affinity.get() < params.spouse_affinity {
+        relation.affinity = Score::clamped(i64::from(params.spouse_affinity));
+    }
+    apply_threshold_tags(&mut relation.tags, relation.affinity, params);
+}
+
+/// Marries `a` and `b` (design "Marriage"): a new Household with both and their
+/// children under 18, `spouse` tags both ways, removal of emptied old Households, then
+/// the `marriage` Event tagged `public`.
+fn perform_marriage(world: &mut World, a: PersonId, b: PersonId) -> Result<(), AppendRefused> {
+    let params = world.params;
+    let new_household = HouseholdId(
+        world
+            .household_ids
+            .next()
+            .map_err(|_| AppendRefused::IdExhausted)?,
+    );
+    let old_a = household_of(world, a);
+    let old_b = household_of(world, b);
+    let children: Vec<PersonId> = world
+        .persons
+        .values()
+        .filter(|person| matches!(person.life, Life::Alive { .. }))
+        .filter(|person| person.id != a && person.id != b)
+        .filter(|person| world.age_years(person) < CHILD_AGE_MAX)
+        .filter(|person| {
+            let home = household_of(world, person.id);
+            (home.is_some() && (home == old_a || home == old_b))
+                && (has_parent_link(world, person.id, a) || has_parent_link(world, person.id, b))
+        })
+        .map(|person| person.id)
+        .collect();
+    world.households.insert(
+        new_household,
+        Household {
+            id: new_household,
+            founded: world.tick,
+        },
+    );
+    for id in std::iter::once(a)
+        .chain(std::iter::once(b))
+        .chain(children.iter().copied())
+    {
+        if let Some(person) = world.persons.get_mut(&id)
+            && let Life::Alive { household, .. } = &mut person.life
+        {
+            *household = new_household;
+        }
+    }
+    for old in [old_a, old_b].into_iter().flatten() {
+        if old != new_household && world.household_members(old).is_empty() {
+            world.households.remove(&old);
+        }
+    }
+    raise_spouse(world, a, b, &params);
+    raise_spouse(world, b, a, &params);
+    let mut tags = EventTags::empty();
+    tags.insert(EventTag::Public);
+    world.append(EventKind::Marriage { a, b }, CausedBy::default(), tags)?;
+    Ok(())
+}
+
+/// Step 6 of the tick: marriage (design "Marriage").
+///
+/// One world-level roll. One candidate `a` is drawn from the Residents aged 18..=60
+/// with no living spouse; a second draw picks a partner among the candidates with no
+/// Kinship_Tag between them and affinity at least 0 both ways. A widowed Resident is a
+/// candidate again because "no living spouse" counts only Resident spouses.
+pub(crate) fn process_marriage(world: &mut World) {
+    let roll = draw(
+        world.seed,
+        EntityId(0),
+        StreamTag::Marriage,
+        world.tick,
+        MARRIAGE_SUCCESS,
+    );
+    if below(roll, 1_000_000) >= u64::from(world.params.marriage_ppm) {
+        return;
+    }
+    let candidates = marriage_candidates(world);
+    if candidates.len() < 2 {
+        return;
+    }
+    let a_roll = draw(
+        world.seed,
+        EntityId(0),
+        StreamTag::Marriage,
+        world.tick,
+        MARRIAGE_A,
+    );
+    let a = candidates[usize::try_from(below(
+        a_roll,
+        u64::try_from(candidates.len()).unwrap_or(u64::MAX),
+    ))
+    .unwrap_or(0)];
+    let partners = partner_candidates(world, a, &candidates);
+    if partners.is_empty() {
+        return;
+    }
+    let b_roll = draw(
+        world.seed,
+        EntityId(0),
+        StreamTag::Marriage,
+        world.tick,
+        MARRIAGE_B,
+    );
+    let b = partners[usize::try_from(below(
+        b_roll,
+        u64::try_from(partners.len()).unwrap_or(u64::MAX),
+    ))
+    .unwrap_or(0)];
+    if let Err(refused) = perform_marriage(world, a, b) {
+        // Selection guarantees living, distinct candidates, so only counter exhaustion
+        // can refuse here.
+        debug_assert_eq!(
+            refused,
+            AppendRefused::IdExhausted,
+            "marriage refused: {refused:?}"
+        );
+    }
+}
 
 /// Youngest age of a social actor.
 const SOCIAL_ACTOR_MIN_AGE: u16 = 12;
@@ -871,5 +1091,180 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn set_age(world: &mut World, id: PersonId, age: u16) {
+        if let Some(person) = world.persons.get_mut(&id) {
+            person.birth_day = 0i64.saturating_sub(i64::from(age).saturating_mul(365));
+        }
+    }
+
+    fn set_household(world: &mut World, id: PersonId, household: HouseholdId) {
+        if let Some(person) = world.persons.get_mut(&id)
+            && let Life::Alive {
+                household: current, ..
+            } = &mut person.life
+        {
+            *current = household;
+        }
+    }
+
+    fn make_household(world: &mut World) -> HouseholdId {
+        let id = HouseholdId(world.household_ids.next().unwrap());
+        world.households.insert(
+            id,
+            crate::world::Household {
+                id,
+                founded: world.tick,
+            },
+        );
+        id
+    }
+
+    fn remove_if_empty(world: &mut World, household: HouseholdId) {
+        if world.household_members(household).is_empty() {
+            world.households.remove(&household);
+        }
+    }
+
+    fn spouse_pair(world: &World) -> (PersonId, PersonId) {
+        world
+            .relations()
+            .iter()
+            .find_map(|(&(from, to), relation)| {
+                (relation.tags.contains(RelationTag::Spouse)
+                    && is_resident(world, from)
+                    && is_resident(world, to))
+                .then_some((from, to))
+            })
+            .expect("the opening world has a married couple")
+    }
+
+    #[test]
+    fn a_widowed_resident_remarries_and_keeps_the_dead_spouse_relations() {
+        let mut w = world();
+        let (a, dead) = spouse_pair(&w);
+        if let Some(person) = w.persons.get_mut(&dead) {
+            person.life = Life::Dead {
+                death: crate::ids::Tick(0),
+            };
+        }
+        set_age(&mut w, a, 30);
+        let candidates = marriage_candidates(&w);
+        assert!(
+            candidates.contains(&a),
+            "a widow(er) is eligible again (R4.9)"
+        );
+        let partners = partner_candidates(&w, a, &candidates);
+        let partner = *partners.first().expect("an unrelated partner exists");
+        let to_dead = (
+            w.relations()[&(a, dead)].clone(),
+            w.relations()[&(dead, a)].clone(),
+        );
+        perform_marriage(&mut w, a, partner).unwrap();
+        assert_eq!(
+            w.relations()[&(a, dead)],
+            to_dead.0,
+            "the living spouse's Relation to the dead spouse is unchanged"
+        );
+        assert_eq!(
+            w.relations()[&(dead, a)],
+            to_dead.1,
+            "the dead spouse's Relation is unchanged"
+        );
+        assert!(
+            w.relations()[&(a, partner)]
+                .tags
+                .contains(RelationTag::Spouse)
+        );
+        assert!(
+            w.relations()[&(partner, a)]
+                .tags
+                .contains(RelationTag::Spouse)
+        );
+        assert!(
+            w.relations()[&(a, partner)].affinity.get() >= w.params().spouse_affinity,
+            "affinity is raised to at least SPOUSE_AFFINITY"
+        );
+        assert!(w.relations()[&(partner, a)].affinity.get() >= w.params().spouse_affinity);
+    }
+
+    #[test]
+    fn kin_are_never_paired() {
+        let mut w = world();
+        let candidates = marriage_candidates(&w);
+        assert!(candidates.len() >= 2);
+        let a = candidates[0];
+        let b = candidates[1];
+        let mut parent = RelTags::empty();
+        parent.insert(RelationTag::Parent);
+        let mut child = RelTags::empty();
+        child.insert(RelationTag::Child);
+        w.relations.insert(
+            (a, b),
+            Relation {
+                affinity: Score::clamped(80),
+                trust: Score::clamped(80),
+                tags: parent,
+            },
+        );
+        w.relations.insert(
+            (b, a),
+            Relation {
+                affinity: Score::clamped(80),
+                trust: Score::clamped(80),
+                tags: child,
+            },
+        );
+        assert!(kin_between(&w, a, b));
+        assert!(!partner_candidates(&w, a, &candidates).contains(&b));
+        assert!(!partner_candidates(&w, b, &candidates).contains(&a));
+    }
+
+    #[test]
+    fn an_emptied_household_is_removed_and_children_move() {
+        let mut w = world();
+        // Make one spouse of an opening couple eligible again by removing the `spouse`
+        // tags both ways, so a young child lives in the candidate's Household.
+        let (a, former) = spouse_pair(&w);
+        for key in [(a, former), (former, a)] {
+            if let Some(relation) = w.relations.get_mut(&key) {
+                relation.tags.remove(RelationTag::Spouse);
+            }
+        }
+        let candidates = marriage_candidates(&w);
+        assert!(candidates.contains(&a));
+        let partner = *partner_candidates(&w, a, &candidates)
+            .iter()
+            .find(|person| **person != former)
+            .expect("an unrelated partner exists");
+        let home = household_of(&w, a).expect("a is a Resident");
+        let child = w
+            .persons
+            .values()
+            .filter(|person| matches!(person.life, Life::Alive { .. }))
+            .filter(|person| person.id != a && person.id != partner)
+            .filter(|person| household_of(&w, person.id) == Some(home))
+            .find(|person| has_parent_link(&w, person.id, a))
+            .map(|person| person.id)
+            .expect("a's Household has a child");
+        set_age(&mut w, child, 10);
+        let old_partner_home = household_of(&w, partner).expect("the partner is a Resident");
+        let alone = make_household(&mut w);
+        set_household(&mut w, partner, alone);
+        remove_if_empty(&mut w, old_partner_home);
+        perform_marriage(&mut w, a, partner).unwrap();
+        assert!(
+            !w.households().contains_key(&alone),
+            "an emptied Household is removed"
+        );
+        let new_home = household_of(&w, a).expect("a is still a Resident");
+        assert_eq!(household_of(&w, partner), Some(new_home));
+        assert_eq!(
+            household_of(&w, child),
+            Some(new_home),
+            "a child under 18 moves with the parent"
+        );
+        assert!(!w.household_members(new_home).is_empty());
     }
 }
