@@ -19,7 +19,8 @@
 //! * `final` is the checksum of the last tick; `invariants=pass` means the
 //!   [`InvariantChecker`] accepted the Opening_World and every tick (a failure is a
 //!   `FAIL` line instead, R17.7).
-//! * `max_wait_*` is the longest wait observed at the end of any tick; `queue_final` is
+//! * `max_wait_*` is the longest wait observed at the completed tick (`world.tick() - 1`,
+//!   the tick the [`InvariantChecker`] measures for R11.3); `queue_final` is
 //!   the number of waiting Souls at the end. `relations_max` is the largest Relation
 //!   count at the end of any tick (a measurement, not a target).
 //! * `band_40_60_ticks` counts ticks whose Resident count is in `40..=60`; `band_95` is
@@ -209,7 +210,9 @@ impl Tally {
             self.pop_ok = false;
         }
         self.relations_max = self.relations_max.max(world.relations().len() as u64);
-        let tick = world.tick().0;
+        // The tick just completed: step 12 already advanced the counter, and this is the
+        // value the invariant checker measures the wait against for R11.3.
+        let tick = world.tick().0.saturating_sub(1);
         for (&soul, place) in &world.souls().places {
             if let SoulPlace::Waiting { since } = place {
                 let wait = tick.saturating_sub(since.0);
@@ -594,6 +597,7 @@ fn setup(parsed: &Parsed) -> Result<BatchSetup, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sim_core::ids::SoulId;
 
     #[test]
     fn seed_ranges_parse() {
@@ -659,6 +663,49 @@ mod tests {
     }
 
     #[test]
+    fn a_release_past_max_wait_reports_exactly_max_wait() {
+        let mut params = sim_core::params::Params::DEFAULT;
+        // Zero births: the opening Souls stay waiting until the release, so one reaches
+        // Max_Wait exactly. With default Params no seed in 1..=20 reaches the bound
+        // within 1,200 ticks (the largest wait is 858), so the birth rolls are disabled.
+        params.birth_ppm_married = 0;
+        params.birth_ppm_unmarried = 0;
+        let max_wait = params.max_wait;
+        let mut sim = Sim::new_with_params(1, small_config(), params).unwrap();
+        let opening_waiting: Vec<SoulId> = {
+            let world = sim.world();
+            world
+                .souls()
+                .places
+                .iter()
+                .filter(|(soul, place)| {
+                    **soul != world.souls().player && matches!(**place, SoulPlace::Waiting { .. })
+                })
+                .map(|(&soul, _)| soul)
+                .collect()
+        };
+        assert!(
+            opening_waiting.len() >= 2,
+            "the opening world waits with two non-player Souls"
+        );
+
+        let mut tally = Tally::new(sim.world());
+        for _ in 0..1_100 {
+            sim.step();
+            tally.after_tick(sim.world());
+        }
+
+        for soul in opening_waiting {
+            assert!(
+                matches!(sim.world().souls().places[&soul], SoulPlace::Body(_)),
+                "every waiting Soul was released"
+            );
+        }
+        // Before the fix (wait measured at the already-advanced counter) this read 1,096.
+        assert_eq!(tally.max_wait_npc, max_wait);
+    }
+
+    #[test]
     fn healthy_batch_exits_zero_with_one_line_per_seed() {
         let (code, out, err) = run((1, 2), false, &|_| Ok(()));
         assert_eq!(code, 0, "{err}");
@@ -676,6 +723,16 @@ mod tests {
             assert!(line.contains(" queue_final="), "{line}");
             assert!(line.contains(" max_wait_npc="), "{line}");
             assert!(line.contains(" max_wait_player="), "{line}");
+            let max_wait: u64 = line
+                .split(' ')
+                .find_map(|field| field.strip_prefix("max_wait_npc="))
+                .expect("the max_wait_npc field")
+                .parse()
+                .expect("a decimal wait");
+            assert!(
+                max_wait <= sim_core::params::Params::DEFAULT.max_wait,
+                "{line}"
+            );
             // Counts depend on the calibrated birth rate; the fields must be there.
             assert!(line.contains(" births="), "{line}");
             assert!(line.contains(" deaths="), "{line}");

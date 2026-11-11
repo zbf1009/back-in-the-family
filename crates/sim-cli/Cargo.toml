@@ -12,5 +12,11 @@ sim-core = { path = "../sim-core" }
 # requirement as sim-core's own dependency.
 serde_json = "1.0.154"
 
+[dev-dependencies]
+# The same path crate, so `Cargo.lock` gains no package. Unit tests need the
+# `test-support` feature for `Sim::new_with_params` and `Params::DEFAULT` mutation
+# (the wait-bound scenario in `batch.rs` sets both birth rates to 0).
+sim-core = { path = "../sim-core", features = ["test-support"] }
+
 [lints]
 workspace = true
