@@ -32,7 +32,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
 
 ## Tasks
 
-- [ ] 1. Foundations: IDs, random streams, Params, names, value types
+- [x] 1. Foundations: IDs, random streams, Params, names, value types
   - [x] 1.1 Add the new ID newtypes and stream tags
     - Files: `crates/sim-core/src/ids.rs`, `crates/sim-core/src/rng.rs`, `crates/sim-core/src/canon.rs`.
     - Add `PersonId`, `HouseholdId`, `SoulId`, `EventId`, `PropertyId` as `u64` newtypes deriving `Clone, Copy, Eq, PartialEq, Ord, PartialOrd, Debug` (no `Hash`). Give each a `fn rng_key(self) -> EntityId`. Add `Canon` impls. Keep `EntityId` and the existing `IdCounter`. Leave the skeleton types alone for now.
@@ -64,7 +64,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Unit tests: clamping at bounds, refusal of out-of-range values, card tag names round trip, canonical tags distinct.
     - _Requirements: 2.2, 4.1, 5.9, 14.1_
     - Acceptance: Rust gates pass.
-  - [ ] 1.6 Add `events.rs` with the Event_Log and its digest
+  - [x] 1.6 Add `events.rs` with the Event_Log and its digest
     - Files: `crates/sim-core/src/events.rs` (new), `crates/sim-core/src/lib.rs`.
     - Implement `EventKind` (exactly the variants in design "Events"), `CausedBy`, `EventTags`, `Event` and `EventLog`. `events[i].id == EventId(i + 1)`. The digest fold is `digest_0 = [0; 32]`, `digest_{n+1} = blake3(digest_n || encode(event_{n+1}))`. Also implement:
       - `pub(crate) fn push` as the only mutator;
