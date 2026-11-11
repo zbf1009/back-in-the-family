@@ -1596,3 +1596,41 @@ batch: 5/5 seeds ok
 - Task 8.1 added `crates/sim-core/tests/life_gen/mod.rs`: a `proptest` scenario generator (seed, `opening_residents` in 40..=60, `Params::stress()` in 3 cases of 4 and `Params::DEFAULT` otherwise, 0 to 24 `Act` inputs mixed like `sim-cli inputs.rs`) plus direct checks of the six R19.1 invariants that do not call `InvariantChecker`, so the property tests run two independent implementations.
 - Added `[profile.dev.package.blake3] opt-level = 3` to the workspace `Cargo.toml` (design "Testing Strategy").
 - Measured `time cargo test -p sim-core` (warm target, nothing else running): before the profile change 28.85 s wall; after it 23.53 s wall (that run also recompiled `blake3` and `sim-core`, 3.63 s of the 23.53 s).
+
+### Spec: life-sim — fault injection: soul conservation (9.3) (2026-11-11)
+
+- Fault: in `death.rs` `settle_death`, the Soul entry was removed (`world.souls.places.remove(&soul)`) instead of being set to `SoulPlace::Waiting { since: death_tick }`.
+- Failure seen, first run: `cargo test -p sim-core --test invariants` failed through the independent Total_Souls assertion in `life_gen` (9.3); `batch --seeds 1..=5 --ticks 2000` failed on every seed but reported `criterion=9.4 detail: soul counter is 53 but the World holds 51 souls` (ticks 133, 208, 1124, 1015, 139). The checker compared the counter only with the current place count, and its R9.3 check compared Residents plus waiting Souls with that same count, so neither noticed the missing Soul.
+- Strengthened `check_souls`: the place count must now equal `opening_residents + initial_waiting` (Total_Souls), reported as 9.3 (commit `ae51670`). Repeated the injection: every seed prints `criterion=9.3 detail: Total_Souls is 51, expected 52` at the same ticks, and the property test fails at its 9.3 assertion.
+- Reverted with `git checkout -- crates/sim-core/src/death.rs`; `git status --short` empty; both commands pass again (invariants: 3 passed; batch: `5/5 seeds ok`).
+
+### Spec: life-sim — fault injection: one Soul in one place (9.1, 9.2) (2026-11-11)
+
+- Fault: in `births.rs` `bear`, the place update was commented out (`world.souls.places.insert(soul, SoulPlace::Body(id))`), so a newborn's Soul kept its `Waiting` place.
+- Failure seen: `batch --seeds 1..=5 --ticks 2000` failed on every seed with `criterion=9.1 detail: resident 51 is alive but its soul 51 waits since 0` (ticks 76, 753, 774, 244, 71). `cargo test -p sim-core --test invariants` failed at its first tick: Property 1's independent check reports 9.3 (`44 residents but 43 bodies`), and the structural property reports 9.1 through `InvariantChecker`.
+- The checker's per-resident place check (criterion 9.1) was added ahead of this run in commit `fb14b5c`; before it, the aggregate body count was checked first and this fault surfaced as 9.3.
+- Reverted with `git checkout -- crates/sim-core/src/births.rs`; `git status --short` empty; both commands pass again (invariants: 3 passed; batch: `5/5 seeds ok`).
+
+### Spec: life-sim — fault injection: one Household per Resident (3.1) (2026-11-11)
+
+- Fault: in `social.rs` `perform_marriage`, both old Households were removed unconditionally *before* the spouses and children were moved to the new Household (the original removal only ran for emptied Households after the move).
+- Failure seen: `batch --seeds 1..=5 --ticks 2000` failed on every seed with criterion 3.1: seed 1 `tick=924 detail: resident 34 names missing household 12`, seed 2 `tick=962 ... resident 38 ... household 14`, seed 3 `tick=167 ... resident 20 ... household 8`, seed 4 `tick=452 ... resident 1 ... household 1`, seed 5 `tick=441 ... resident 15 ... household 6`. `cargo test -p sim-core --test invariants` failed in `life_gen`'s household check with 3.1.
+- Reverted with `git checkout -- crates/sim-core/src/social.rs`; `git status --short` empty; both commands pass again (invariants: 3 passed; batch: `5/5 seeds ok`).
+
+### Spec: life-sim — fault injection: no actions by the dead (5.8, 6.4) (2026-11-11)
+
+- Fault: in `social.rs` `process_social_events`, the social actor list no longer filtered to Residents (dead Persons could be drawn), and in `world.rs` `append` the dead-actor check and the actor-alive `debug_assert!` in the social step were disabled.
+- Failure seen: `batch --seeds 1..=5 --ticks 2000` failed on every seed. Seeds 2, 4 and 5 reported 5.8 (`event 126 (quarrel) lists dead actor 8` at tick 271; `event 519 (theft) lists dead actor 41` at tick 1246; `event 124 (theft) lists dead actor 50` at tick 262); seeds 1 and 3 reported the other half of the same invariant pair, 6.4 (`dead person 22 has a non-kin relation to 10` at tick 352; `dead person 30 has a non-kin relation to 22` at tick 1173), because the injected social Event also creates a non-kin Relation from the dead actor. `cargo test -p sim-core --test invariants` failed at Property 1's dead-actions check (5.8).
+- Reverted with `git checkout -- crates/sim-core/src/social.rs crates/sim-core/src/world.rs`; `git status --short` empty; both commands pass again (invariants: 3 passed; batch: `5/5 seeds ok`).
+
+### Spec: life-sim — fault injection: acyclic kinship (4.4) (2026-11-11)
+
+- Fault: in `births.rs` `add_kinship`, the second parent also got the `parent` tag in the wrong direction (a `parent` Relation from the parent to the newborn with the `child` reverse), which makes the newborn and that parent each other's parent. The extra tag was only added when the parent had fewer than two `parent` Relations of its own, so R4.5 could not mask the cycle.
+- Failure seen: `batch --seeds 1..=5 --ticks 2000` failed on every seed with `criterion=4.4`: parent cycle through person 20 (tick 76), 27 (753), 50 (774), 1 (244) and 23 (71). `cargo test -p sim-core --test invariants` failed at tick 1 with `criterion=4.4 detail: parent cycle through person 35` (seed 13982102865683021753).
+- Reverted with `git checkout -- crates/sim-core/src/births.rs`; `git status --short` empty; both commands pass again (invariants: 3 passed; batch: `5/5 seeds ok`).
+
+### Spec: life-sim — fault injection: money conservation (3.5) (2026-11-11)
+
+- Fault: in `economy.rs` `process_economy`, the upkeep was subtracted with `set_balance` instead of `flow(world, Flow::Upkeep { from: id }, ..)`, so the balance fell without the sink being counted.
+- Failure seen: `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 2000` failed on every seed at tick 0 with `criterion=3.5`: seed 1 `money went from 529862 to 530068 with 1346 sources and 0 sinks` (seeds 2 to 5: 513196 to 513345, 582821 to 583172, 534007 to 534425, 530944 to 531010). `cargo test -p sim-core --test invariants` failed at tick 0 with 3.5.
+- Reverted with `git checkout -- crates/sim-core/src/economy.rs`; `git status --short` empty; both commands pass again (invariants: 3 passed; batch: `5/5 seeds ok`).
