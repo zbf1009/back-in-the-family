@@ -780,10 +780,74 @@ impl Canon for World {
 mod tests {
     use super::*;
     use crate::checksum::Checksum;
-    use crate::values::Intensity;
+    use crate::values::{Intensity, Trait};
+    use proptest::prelude::*;
 
     fn world() -> World {
         World::new(7, WorldConfig::try_new(40).unwrap()).unwrap()
+    }
+
+    fn zero_traits() -> Traits {
+        let zero = Trait::new(0).unwrap();
+        Traits {
+            greed: zero,
+            loyalty: zero,
+            pride: zero,
+            warmth: zero,
+            temper: zero,
+            vindictiveness: zero,
+            piety: zero,
+        }
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 100, ..ProptestConfig::default() })]
+
+        // Feature: life-sim, Property 11: Age is whole years rounded down.
+        #[test]
+        fn age_is_whole_years_rounded_down_for_any_birth_day(
+            birth_day in -100_000i64..=100_000,
+            extra in 0i64..=100_000,
+        ) {
+            // `e >= b` and `e >= 0` (a tick is never negative).
+            let end = birth_day.max(0).checked_add(extra).unwrap();
+            let person = Person {
+                id: PersonId(1),
+                name: FullName {
+                    first: 0,
+                    surname: 0,
+                },
+                birth_day,
+                sex: Sex::Female,
+                origin: Origin::Native,
+                traits: zero_traits(),
+                soul: SoulId(1),
+                wage: 0,
+                life: Life::Dead {
+                    death: Tick(u64::try_from(end).unwrap()),
+                },
+            };
+            let w = world();
+            let expected =
+                u16::try_from(end.checked_sub(birth_day).unwrap().checked_div(365).unwrap()).unwrap();
+            prop_assert_eq!(w.age_years(&person), expected);
+
+            // One day later the age is unchanged unless the new day is a birthday.
+            let next = end.checked_add(1).unwrap();
+            let next_person = Person {
+                life: Life::Dead {
+                    death: Tick(u64::try_from(next).unwrap()),
+                },
+                ..person
+            };
+            let next_age = w.age_years(&next_person);
+            let days = next.checked_sub(birth_day).unwrap();
+            if days.checked_rem(365).unwrap() == 0 {
+                prop_assert_eq!(next_age, expected.checked_add(1).unwrap());
+            } else {
+                prop_assert_eq!(next_age, expected);
+            }
+        }
     }
 
     fn residents(world: &World) -> Vec<PersonId> {
