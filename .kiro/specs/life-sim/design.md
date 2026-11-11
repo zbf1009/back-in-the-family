@@ -188,6 +188,8 @@ flowchart LR
 
 `sim-cli`: `batch.rs` (new report), `inputs.rs` (Act generator), `commands.rs` (default config), `measure.rs` (`--residents` replaces `--entities` and `Workload`). `sim-wasm`: `lib.rs` gains `snapshot()`; `bench` uses the new config JSON.
 
+**Note: value types, sync with code (Author, 2026-11-11, audit).** The value types (`Score`, `Trait`, `Intensity`, `Mood`, `Sex`, `Origin`, `Traits`, `RelationTag`, `RelTags`, `SocialKind`) live in `crates/sim-core/src/values.rs`, exposed as the module `sim_core::values`. `world.rs` only `use`s them and does not re-export them. Wherever this design (the table above, "Data Models") places them under `world.rs` or `world`, the actual path is `values`. `FullName` lives in `names.rs`.
+
 ## Components and Interfaces
 
 ### Public API (sim-core)
@@ -285,13 +287,15 @@ Checks in order: every actor exists (R5.7); no actor is dead unless the kind is 
 
 A later dying Resident in the same tick may already have received an inheritance from an earlier one; that is legal because its `death` Event gets a higher ID (R5.8 orders by Event ID).
 
+**Note: death settlement order, sync with code (Author, 2026-11-11, audit).** `death.rs::process_deaths` rolls mortality for all Residents first, then settles each death in Person ID order as: `death` Event, estate (inheritance or Escheat), Debts, removal of the deceased's non-kin Relations, then `Life::Dead`, removal of an emptied Household, and the Soul set to `Waiting` (the Waiting_Queue). The reason is that a `Dead` Person has no balance for `economy::flow` to move, so the estate must be settled while the Person is still `Alive`. The final state and the Event order are as designed above.
+
 **Births (`births.rs`).** Candidate mothers: female Residents aged 18..=45, in Person ID order. For each: if no non-player Soul is waiting, stop (R10.2); roll `birth_ppm(married)`; on success:
 1. Take the Soul with the longest wait (OP-3 A), never the Player_Soul (R20.3).
-2. Create the Person: next Person ID, `origin = Native`, `birth_day = T`, sex and Traits from streams keyed by the newborn's ID (R10.5: each trait is, by roll, either a copy of one parent's trait or a fresh draw; the fresh draw is uniform over -3..=3 through the shared weighted trait draw, see "Trait draws" under Opening_World generation (Author, 2026-11-11)), surname of the mother, first name by the name picker, `Alive { household: mother's household, mood: 0, money: 0 }`.
+2. Create the Person: next Person ID, `origin = Native`, `birth_day = T`, sex and Traits from streams keyed by the newborn's ID (R10.5, Author decision 2026-11-11, audit: each of the 7 traits picks, with equal probability, one source from {the mother, the mother's living spouse (if any), a fresh draw per "Trait draws" under Opening_World generation}, so the chance of copying a parent's trait is 1/2 with one parent and 2/3 with two; code: `births.rs::inherit_traits`, one source draw per trait from the `Traits` stream keyed by the newborn, `below(draw, parents + 1)`), surname of the mother, first name by the name picker, `Alive { household: mother's household, mood: 0, money: 0 }`.
 3. Kinship: `parent`/`child` with the mother and with her living spouse if any (R10.4); `sibling` both ways with every living child of either parent; `grandparent`/`grandchild` both ways with the parents' living parents. Dead siblings and grandparents get no Relation in either direction: a Relation from them would be a change on behalf of a dead Person (R6.4), and a one-way kinship tag would break the pairing of R4.3. Initial scores in Params.
 4. `souls[soul] = Body(newborn)`; append `birth [newborn]`.
 
-**Outsiders (`outsiders.rs`).** For a released Soul `s`: roll the kind by `s` (OP-4 A); create a Person aged `in_range(18, 40)` years (`birth_day = T - age*365 - below(365)`), sex and Traits fresh (each of the 7 traits drawn independently and uniformly over -3..=3 through the shared weighted trait draw, see "Trait draws" under Opening_World generation (Author, 2026-11-11)), name by the picker, wage drawn, money `in_range(500, 3000)` as Money_Flow source `ArrivalEndowment`, in a new single-person Household, no Relations (R11.2); `souls[s] = Body(person)`; append `possession [person]` or `rebuild [person]`.
+**Outsiders (`outsiders.rs`).** For a released Soul `s`: roll the kind by `s` (OP-4 A); create a Person aged `in_range(18, 40)` years (`birth_day = T - age*365 - below(365)`), sex and Traits fresh (each of the 7 traits drawn independently and uniformly over -3..=3 through the shared weighted trait draw, see "Trait draws" under Opening_World generation (Author, 2026-11-11)), name (Author decision 2026-11-11, audit): the surname is drawn from the surnames no living Resident currently uses, listed in ascending surname index, chosen with `below(draw, count)` from a draw keyed by the released Soul; if no surname is free, the surname falls back to a draw over all 60 surnames; the first name comes from the picker as before (this changes checksums, so the fixtures are regenerated, follow-up task 17.1), wage drawn, money `in_range(500, 3000)` as Money_Flow source `ArrivalEndowment`, in a new single-person Household, no Relations (R11.2); `souls[s] = Body(person)`; append `possession [person]` or `rebuild [person]`.
 
 **Marriage (`social.rs`).** Roll `marriage_ppm`. Candidates: Residents aged 18..=60 with no living spouse, in ID order. Pick `a = candidates[below(n)]`; partners are the candidates `b != a` with no Kinship_Tag between `a` and `b` in either direction and `affinity >= 0` both ways (a missing Relation counts as 0); pick `b` by a second draw. If none, nothing happens. Marrying: `spouse` tags both ways (creating Relations if needed, affinity raised to at least `SPOUSE_AFFINITY`), a new Household with both and every child under 18 who lived with either of them; old Households left empty are removed. Append `marriage [a, b]`, tag `public`. A widowed Resident keeps the `spouse` tag to the dead spouse (R4.7, R4.9); "no living spouse" is the eligibility test, and the invariant R4.6 counts only Resident spouses.
 
@@ -406,6 +410,8 @@ The builder never touches `llm/`; it constructs `llm::FrozenContext` values with
 ```
 
 Card_Person fields use the card JSON names and types (person IDs and `wealth` as JSON numbers, like the cards); project `u64` values that are not card fields (`tick`, household IDs, `since`) are decimal strings, like the replay format. Lists are in ascending ID order (R18.1). `wealth` is a `u64` written as a JSON integer; it stays far below 2^53 (largest reachable balance about 1.1 million plus property), so JavaScript reads it exactly. `WasmSim::snapshot()` (plain twin `snapshot_string`) returns `snapshot_json(self.inner.world())`; it takes `&self`, so it cannot change the World (R18.2).
+
+**Note: snapshot producer and fixture, sync with code (Author, 2026-11-11, audit).** `sim-cli snapshot --replay FILE --at TICK --out FILE` replays FILE up to TICK, verifies every recorded checksum on the way, and writes one line of compact Snapshot JSON with no trailing newline. It produces `fixtures/parity/seed1-pairwise.snapshot-500.json`, which `crates/sim-wasm/tests/parity.rs` (`snapshot_at_tick_500_matches_the_committed_file`) compares byte for byte with `WasmSim::snapshot()` (R18.3). `scripts/regen-fixtures.sh` regenerates it after the three replay files (`snapshot seed1-pairwise 500`).
 
 ### Inputs and replay format (OP-6 A)
 
@@ -694,6 +700,10 @@ seed 4 ok ticks=29200 final=b786e54976e82b1b residents_min=47 residents_max=52 b
 seed 5 ok ticks=29200 final=8ce9509847022d99 residents_min=49 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=332 max_wait_player=11593 births=53 deaths=52 imported=0 rebuilt=0 origin_final=native:51,possessed:0,rebuilt:0 arrivals=native:53,possessed:0,rebuilt:0 events=13113 relations_max=2330 rejections=unknown_person:3,dead_person:37,self_target:3,intensity_out_of_range:3,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
 ```
 
+**Correction: the one-third arrival target (Author, 2026-11-11, audit).** `outsiders_le_births_third` stays in the batch report, but `--require-targets` no longer fails a seed on it (follow-up task 17.3). R17.8 (`outsiders_le_births`) stays the hard target. The text of step 5 above is left as recorded.
+
+**Correction: `max_wait_*` off by one day (Author, 2026-11-11, audit).** The batch report computed `max_wait_npc` and `max_wait_player` from the already-advanced tick counter (`World::tick()` after step 12 of the tick), which is one day more than the completed tick the invariant checker uses for R11.3. After follow-up task 17.2 the report uses the completed tick, so a figure recorded here as 1,096 reads 1,095 (exactly Max_Wait), and every other recorded `max_wait_*` figure drops by 1. The figures above and in the "Calibration result" text stay as recorded. Checksums are not affected.
+
 ## Gate run time (OP-9)
 
 Measured baseline: 1 byte per ns of hashing, 22,620 ticks/s for a 37 KB state. Estimate for the new model, to be measured in the tasks with `sim-cli measure --residents 60`:
@@ -908,6 +918,8 @@ Only the six core invariants of R19.1 and the one new gate get an injected fault
 | Acyclic kinship (4.4) | Birth adds the `parent` tag in the wrong direction for the second parent | criterion 4.4 (and 4.3) |
 | Money conservation (3.5) | Upkeep subtracts from the balance without counting the sink | criterion 3.5 |
 | Acceptance batch gate | Mortality table scaled by 30 | `batch --require-targets` prints `FAIL targets: band_95=fail` and `gates.sh` stops |
+
+**Note: acceptance-gate injection under the full gates (Author, 2026-11-11, audit).** Any `Params` fault moves every checksum, so a full `scripts/gates.sh` run under the injected fault stops at the fixture replays, before the acceptance step. The acceptance command was shown failing on its own (exit 1). The Author accepts this as a note; no full-chain demonstration is required.
 
 ### Requirements without an automated test
 

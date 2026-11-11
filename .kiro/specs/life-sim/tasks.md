@@ -322,6 +322,45 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
   - [ ] 16.1 Placeholder: Kiro writes `docs/life-sim-audit.md`
     - Kiro checks every requirement criterion against code, tests and logs, as in the earlier spec audits (`docs/llm-probe-audit.md`). This covers the review-only criteria R13.2, R16.2, R17.2, R19.2, R19.4 and R19.5, and the deviations noted in this plan (`values.rs` placement, the `sim-cli snapshot` subcommand and fixture, any gate fallback). The terminal agent skips this task.
     - _Requirements: 13.2, 16.2, 17.2, 19.2, 19.4, 19.5_
+    - Checked after 17.x is reviewed by Kiro.
+
+- [ ] 17. Audit follow-ups (Author decisions 2026-11-11, docs/life-sim-audit.md)
+  - [ ] 17.1 Draw the outsider surname from the surnames no living Resident uses
+    - Files: `crates/sim-core/src/outsiders.rs`, `fixtures/parity/*` (regenerated), `docs/kiro-log.md`.
+    - Follow design "Outsiders" ("Steps in detail", Author decision 2026-11-11, audit) and audit finding 6. In `release`, replace the current surname draw (`below(draw(..., RELEASE_SURNAME), SURNAME_COUNT)`) as follows. Collect the surname indices used by living Residents from `world.derived.living_names` (it holds exactly the names of living Residents, R13.3, and is rebuilt after load, R16.5) into a `BTreeSet<u16>`. List the free surnames `0..SURNAME_COUNT` not in that set, in ascending index. If the list is not empty, pick `free[below(draw, count)]`. If no surname is free, fall back to `below(draw, SURNAME_COUNT)` over all 60. The draw stays the existing one: keyed by the released Soul (`soul.rng_key()`), `StreamTag::Outsiders`, `world.tick`, index `RELEASE_SURNAME`. Add no new stream tag or index constant. The first name still comes from `pick_full_name` with `RELEASE_NAME`, unchanged. Several releases in one tick see each other's surnames, because `living_names` is updated after each release; keep that order.
+    - Put the selection in a small pure helper (for example `fn outsider_surname(draw: u64, used: &BTreeSet<u16>) -> u16`) so it can be tested without a World. Update the module doc comment ("a fresh name") to state the rule.
+    - Unit tests in `outsiders.rs` `mod tests`: (a) for several draws and a `used` set that leaves at least one surname free, the result is not in `used`; also one World-level case where, after `release_outsiders`, the newcomer's surname is used by no other living Resident; (b) when `used` holds all 60 surnames, the result is `below(draw, 60)` and in `0..60`; (c) determinism: the same World and tick released twice from clones give the same `FullName`.
+    - This changes the Checksums (R19.2). Run `scripts/regen-fixtures.sh` twice; the second run must leave `git status` unchanged. The commit message must contain the line `Parity fixtures regenerated with scripts/regen-fixtures.sh.`
+    - Run the acceptance batch. If any seed fails a target, stop and ask the Author; do not tune Params. Do not edit `design.md` (Kiro updates the calibration figures). Append a `docs/kiro-log.md` entry (`### Spec: life-sim — outsider surname rule (task 17.1, <date>)`) with the five new acceptance lines exactly as printed.
+    - _Requirements: 11.2, 13.1, 13.3, 19.2_
+    - Acceptance: Rust gates pass; `cargo test -p sim-core outsiders` passes; `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0; `cargo test -p sim-wasm` passes (native/WASM parity against the regenerated fixtures). Commit as `feat(sim-core): draw outsider surnames from unused surnames`.
+  - [ ] 17.2 Report `max_wait_*` from the completed tick
+    - Files: `crates/sim-cli/src/batch.rs`, `crates/sim-cli/Cargo.toml` (dev-dependency only).
+    - Follow the design note "Correction: `max_wait_*` off by one day (Author, 2026-11-11, audit)" and audit finding 1. In `Tally::after_tick`, compute each wait from the completed tick, `world.tick().0.saturating_sub(1)`, the same value as `completed_tick` in `crates/sim-core/src/invariants.rs`, instead of `world.tick().0`. Keep the opening world (`Tally::new`) at 0. Fix the module doc comment: the example line keeps `max_wait_npc=1095`, and the `max_wait_*` bullet says the wait is measured at the completed tick, as the invariant checker measures it for R11.3.
+    - Unit tests in `batch.rs` `mod tests`: (a) a scenario in which a non-player Soul is released on the first tick past Max_Wait reports `max_wait_npc` = 1,095. With default Params no seed in 1..=20 reaches the bound within 1,200 ticks (checked by Kiro: the largest is 858), so build the scenario with zero births: add `[dev-dependencies] sim-core = { path = "../sim-core", features = ["test-support"] }` to `crates/sim-cli/Cargo.toml` (the same path crate, so `Cargo.lock` gains no package), create `Sim::new_with_params(seed, small_config(), params)` with `Params::DEFAULT` except `birth_ppm_married = 0` and `birth_ppm_unmarried = 0`, step 1,100 ticks feeding `Tally::after_tick` after each step, and assert that the opening world's non-player waiting Souls are in a body at the end (they were released) and that `tally.max_wait_npc == 1095`. Before the fix the same test reads 1,096; say so in the commit body. (b) In `healthy_batch_exits_zero_with_one_line_per_seed`, or a new test over the same run, parse `max_wait_npc` from every `ok` line and assert it is at most 1,095 (Max_Wait, `Params::DEFAULT.max_wait`).
+    - The Checksums do not change; do not regenerate fixtures. If `git status` shows a change under `fixtures/`, stop and ask.
+    - _Requirements: 17.3, 11.3_
+    - Acceptance: `cargo test -p sim-cli` passes; Rust gates pass; `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0 and every line has `max_wait_npc` at most 1095. Commit as `fix(sim-cli): measure max_wait from the completed tick`.
+  - [ ] 17.3 Make the one-third arrival target report-only
+    - Files: `crates/sim-cli/src/batch.rs`, `crates/sim-cli/src/lib.rs` (help text, only if it needs a change), `crates/sim-cli/tests/cli.rs` (only if an assertion depends on the old behavior).
+    - Follow the design note "Correction: the one-third arrival target (Author, 2026-11-11, audit)" and audit finding 8. `outsiders_le_births_third` stays in the `ok` line, in the same position, printed as `=pass` or `=fail`. `--require-targets` fails a seed only on the hard targets `pop_35_65` (R17.1), `band_95` (R17.9) and `outsiders_le_births` (R17.8). For example, split `Targets::failing` into the hard list used by `pass()` and the `FAIL targets:` line, and keep the third as a reported field outside that list.
+    - Update the texts: `BATCH_USAGE` ("--require-targets fails a seed whose R17.1, R17.8 or R17.9 target does not pass; outsiders_le_births_third is reported only"), the module doc comment bullet on `outsiders_le_births_third` and the `Targets` doc comment. Check that the `sim-cli --help` text in `lib.rs` matches.
+    - Unit tests in `batch.rs`: (a) a seed whose only failing target is `outsiders_le_births_third` exits 0 under `--require-targets`, and its `ok` line shows `outsiders_le_births_third=fail` (test at the `Targets` / `run_seed` level with a constructed `Targets` or `SeedStats`, as `failing_targets_are_printed_in_report_order` does); (b) a seed failing `outsiders_le_births` (R17.8) still gives a `FAIL targets: outsiders_le_births=fail` line and exit status 1. Update `failing_targets_are_printed_in_report_order` for the new list.
+    - No Checksum change; do not regenerate fixtures.
+    - _Requirements: 17.4, 17.8_
+    - Acceptance: `cargo test -p sim-cli` passes; Rust gates pass; `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0. Commit as `fix(sim-cli): report the one-third arrival target without enforcing it`.
+  - [ ] 17.4 Log the Property 6 expectation fix from `f058096`
+    - Files: `docs/kiro-log.md` (append only).
+    - Audit finding on R8 (table row R8.1 to R8.5). Append one entry, `### Spec: life-sim — Property 6 expectation fix (commit f058096, logged late, <date>)`, with only facts from the commit and the regression file: Property 6 (`crates/sim-core/tests/history.rs`) compared a repayment's payer with the Debt's debtor at the start of the tick; a death earlier in the same tick can transfer the Debt first (`debt_transfer` keeps the open amount and changes the debtor), so the expected payer is the debtor after the last `debt_transfer` before the repayment; the case was found by a full-file run at seed 6399358489806569765 and is kept in `crates/sim-core/tests/history.proptest-regressions`; the fix changed the test expectation, not simulation code; this entry is written late, at the audit's request (`docs/life-sim-audit.md`). Do not edit any earlier entry.
+    - _Requirements: 19.4_
+    - Acceptance: before committing, `git diff --numstat -- docs/kiro-log.md` shows 0 deleted lines and `git diff -- docs/kiro-log.md` shows one hunk at the end of the file. Commit as `docs: log the Property 6 expectation fix`.
+  - [ ] 17.5 Final check from a clean build, then hand back to Kiro
+    - Files: `docs/kiro-log.md` (append only).
+    - Run `cargo clean`, then `time scripts/gates.sh`. It must exit 0. Record the wall time. Run the R15.8 check `git diff --exit-code afaf87c -- crates/sim-core/src/llm eval/probe/templates/decision.system_one.v1.txt`; it must exit 0. Run `git status`; it must be clean before the log entry.
+    - Append `### Spec: life-sim — audit follow-ups final check (task 17.5, <date>)` with the gate result, the wall time, the R15.8 result, the five acceptance-batch lines from this gate run exactly as printed, and "stopped for Kiro's 16.1 review". Commit it.
+    - **STOP.** Hand back to Kiro for the 16.1 review. Do not push, open a pull request or deploy; a green push to `main` deploys the site. Do not check 16.1.
+    - _Requirements: 19.3, 15.8_
+    - Acceptance: `scripts/gates.sh` exits 0 from a clean build, the R15.8 check exits 0, and after the log commit `git status` is clean. Commit as `docs: record the life-sim audit follow-up gate run`.
 
 ## Notes
 
@@ -369,7 +408,12 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     { "id": 31, "tasks": ["13.2", "14.1"] },
     { "id": 32, "tasks": ["14.2"] },
     { "id": 33, "tasks": ["15.1"] },
-    { "id": 34, "tasks": ["16.1"] }
+    { "id": 34, "tasks": ["17.1"] },
+    { "id": 35, "tasks": ["17.2"] },
+    { "id": 36, "tasks": ["17.3"] },
+    { "id": 37, "tasks": ["17.4"] },
+    { "id": 38, "tasks": ["17.5"] },
+    { "id": 39, "tasks": ["16.1"] }
   ]
 }
 ```
