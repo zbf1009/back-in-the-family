@@ -5,38 +5,42 @@
 //! and compares each tick's checksum with the recorded one; the recorded checksums are
 //! never used to build state.
 //!
-//! # Format (version 2)
+//! # Format (version 3)
 //!
 //! ```json
 //! {
 //!   "format": "back-in-the-family/replay",
-//!   "version": 2,
-//!   "seed": "1234567890123",
-//!   "config": { "entity_count": 50, "workload": "Pairwise" },
+//!   "version": 3,
+//!   "seed": "1",
+//!   "config": { "opening_residents": 50 },
 //!   "ticks": "2000",
 //!   "inputs": [ { "tick": "5", "seq": "0",
-//!                 "payload": { "SetValue": { "entity": "3", "value": 500 } } } ],
+//!                 "payload": { "Act": { "kind": "help", "actor": "3",
+//!                                       "target": "17", "intensity": 40 } } } ],
 //!   "checksums": [ "9f2c0a7d41e3b856" ]
 //! }
 //! ```
 //!
-//! - Every `u64` (`seed`, `ticks`, input `tick` and `seq`, entity ids) is a JSON string
+//! - Every `u64` (`seed`, `ticks`, input `tick` and `seq`, person ids) is a JSON string
 //!   in canonical decimal form: ASCII digits only, no sign, no leading zeros except
 //!   `"0"` itself, no overflow. JavaScript numbers cannot hold a `u64` exactly, and one
 //!   textual form per value keeps files diffable. A JSON number in its place is an
 //!   error.
-//! - Small integers (`value`, `entity_count`, `version`) are JSON
-//!   numbers. No field is a float; `1.5` anywhere an integer is expected is an error.
+//! - Small integers (`opening_residents`, `intensity`, `version`) are JSON numbers. No
+//!   field is a float; `1.5` anywhere an integer is expected is an error.
 //! - Checksums are 16 lowercase hex characters ([`Checksum`]'s `Display`).
 //! - Unknown fields are rejected, so a typo or a newer format cannot be silently
-//!   ignored.
+//!   ignored. [`ReplayConfig`] rejects a `workload` field with serde's `unknown field
+//!   \`workload\`` and no World is created (R1.3).
+//! - Version 2 files (the skeleton format) are rejected as
+//!   [`ReplayError::UnsupportedVersion`].
 //!
 //! # Layering
 //!
 //! The serde derives live only on the DTO types in this module ([`ReplayFile`],
-//! [`ReplayInput`], [`ReplayPayload`], [`ReplayConfig`], [`ReplayWorkload`]). Core types
-//! (`WorldConfig`, `InputPayload`, ...) convert to and from them, so a change to a core
-//! type cannot change the on-disk format by accident.
+//! [`ReplayInput`], [`ReplayPayload`], [`ReplaySocialKind`], [`ReplayConfig`]). Core
+//! types (`WorldConfig`, `InputPayload`, ...) convert to and from them, so a change to a
+//! core type cannot change the on-disk format by accident.
 //!
 //! # Input order
 //!
@@ -50,15 +54,16 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::checksum::Checksum;
-use crate::ids::{EntityId, Tick};
+use crate::ids::{PersonId, Tick};
 use crate::input::{InputPayload, SubmitError};
 use crate::tick::{Sim, SimError};
-use crate::world::{ConfigError, Workload, WorldConfig};
+use crate::values::SocialKind;
+use crate::world::{ConfigError, WorldConfig};
 
 /// The `format` string of every replay file.
 pub const REPLAY_FORMAT: &str = "back-in-the-family/replay";
 /// The only replay `version` this code reads and writes.
-pub const REPLAY_VERSION: u32 = 2;
+pub const REPLAY_VERSION: u32 = 3;
 
 /// Strict decimal-string codec for `u64`, for `#[serde(with = "u64_string")]`.
 mod u64_string {
@@ -151,41 +156,16 @@ mod checksum_list {
     }
 }
 
-/// File-format twin of [`Workload`].
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
-pub enum ReplayWorkload {
-    Light,
-    Pairwise,
-}
-
-impl From<Workload> for ReplayWorkload {
-    fn from(w: Workload) -> Self {
-        match w {
-            Workload::Light => Self::Light,
-            Workload::Pairwise => Self::Pairwise,
-        }
-    }
-}
-
-impl From<ReplayWorkload> for Workload {
-    fn from(w: ReplayWorkload) -> Self {
-        match w {
-            ReplayWorkload::Light => Self::Light,
-            ReplayWorkload::Pairwise => Self::Pairwise,
-        }
-    }
-}
-
 /// File-format twin of [`WorldConfig`]. Not validated until converted.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReplayConfig {
-    pub entity_count: u16,
-    pub workload: ReplayWorkload,
+    pub opening_residents: u16,
 }
 
 impl ReplayConfig {
-    /// Parses a bare config (the `config` object of a replay file). Never panics.
+    /// Parses a bare config (the `config` object of a replay file, or the Sim_Cli
+    /// `--config` file). Never panics.
     pub fn from_json_str(s: &str) -> Result<Self, ReplayError> {
         serde_json::from_str(s).map_err(|e| ReplayError::Malformed(e.to_string()))
     }
@@ -193,13 +173,8 @@ impl ReplayConfig {
 
 impl From<WorldConfig> for ReplayConfig {
     fn from(c: WorldConfig) -> Self {
-        let WorldConfig {
-            entity_count,
-            workload,
-        } = c;
         Self {
-            entity_count,
-            workload: workload.into(),
+            opening_residents: c.opening_residents,
         }
     }
 }
@@ -207,9 +182,47 @@ impl From<WorldConfig> for ReplayConfig {
 impl TryFrom<ReplayConfig> for WorldConfig {
     type Error = ConfigError;
 
-    /// Validates the ranges (`WorldConfig::try_new`).
+    /// Validates the range (`WorldConfig::try_new`).
     fn try_from(c: ReplayConfig) -> Result<Self, ConfigError> {
-        Self::try_new(c.entity_count, c.workload.into())
+        Self::try_new(c.opening_residents)
+    }
+}
+
+/// File-format twin of [`SocialKind`], written as the card event-type name.
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReplaySocialKind {
+    Help,
+    Gift,
+    Quarrel,
+    Insult,
+    Theft,
+    Apology,
+}
+
+impl From<SocialKind> for ReplaySocialKind {
+    fn from(kind: SocialKind) -> Self {
+        match kind {
+            SocialKind::Help => Self::Help,
+            SocialKind::Gift => Self::Gift,
+            SocialKind::Quarrel => Self::Quarrel,
+            SocialKind::Insult => Self::Insult,
+            SocialKind::Theft => Self::Theft,
+            SocialKind::Apology => Self::Apology,
+        }
+    }
+}
+
+impl From<ReplaySocialKind> for SocialKind {
+    fn from(kind: ReplaySocialKind) -> Self {
+        match kind {
+            ReplaySocialKind::Help => Self::Help,
+            ReplaySocialKind::Gift => Self::Gift,
+            ReplaySocialKind::Quarrel => Self::Quarrel,
+            ReplaySocialKind::Insult => Self::Insult,
+            ReplaySocialKind::Theft => Self::Theft,
+            ReplaySocialKind::Apology => Self::Apology,
+        }
     }
 }
 
@@ -217,29 +230,30 @@ impl TryFrom<ReplayConfig> for WorldConfig {
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub enum ReplayPayload {
-    SetValue {
+    Act {
+        kind: ReplaySocialKind,
         #[serde(with = "u64_string")]
-        entity: u64,
-        value: i32,
-    },
-    Spawn {
-        value: i32,
-    },
-    Despawn {
+        actor: u64,
         #[serde(with = "u64_string")]
-        entity: u64,
+        target: u64,
+        intensity: u8,
     },
 }
 
 impl From<InputPayload> for ReplayPayload {
     fn from(p: InputPayload) -> Self {
         match p {
-            InputPayload::SetValue { entity, value } => Self::SetValue {
-                entity: entity.0,
-                value,
+            InputPayload::Act {
+                kind,
+                actor,
+                target,
+                intensity,
+            } => Self::Act {
+                kind: kind.into(),
+                actor: actor.0,
+                target: target.0,
+                intensity,
             },
-            InputPayload::Spawn { value } => Self::Spawn { value },
-            InputPayload::Despawn { entity } => Self::Despawn { entity: entity.0 },
         }
     }
 }
@@ -247,13 +261,16 @@ impl From<InputPayload> for ReplayPayload {
 impl From<ReplayPayload> for InputPayload {
     fn from(p: ReplayPayload) -> Self {
         match p {
-            ReplayPayload::SetValue { entity, value } => Self::SetValue {
-                entity: EntityId(entity),
-                value,
-            },
-            ReplayPayload::Spawn { value } => Self::Spawn { value },
-            ReplayPayload::Despawn { entity } => Self::Despawn {
-                entity: EntityId(entity),
+            ReplayPayload::Act {
+                kind,
+                actor,
+                target,
+                intensity,
+            } => Self::Act {
+                kind: kind.into(),
+                actor: PersonId(actor),
+                target: PersonId(target),
+                intensity,
             },
         }
     }
@@ -272,28 +289,6 @@ pub struct ReplayInput {
 
 /// A replay file. Fields are public so tooling and tests can inspect and tamper with
 /// them; [`verify`] re-checks everything it relies on.
-/// One input as submitted by a live caller (e.g. the browser): a tick and a payload.
-/// There is no `seq`: the input stream assigns it. Same strict `u64` string rules as
-/// [`ReplayInput`].
-///
-/// ```json
-/// { "tick": "5", "payload": { "SetValue": { "entity": "3", "value": 500 } } }
-/// ```
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SubmitInput {
-    #[serde(with = "u64_string")]
-    pub tick: u64,
-    pub payload: ReplayPayload,
-}
-
-impl SubmitInput {
-    /// Parses one submitted input. Never panics.
-    pub fn from_json_str(s: &str) -> Result<Self, ReplayError> {
-        serde_json::from_str(s).map_err(|e| ReplayError::Malformed(e.to_string()))
-    }
-}
-
 #[derive(Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct ReplayFile {
@@ -308,6 +303,29 @@ pub struct ReplayFile {
     /// One checksum per tick: index `n` is the checksum after running tick `n`.
     #[serde(with = "checksum_list")]
     pub checksums: Vec<Checksum>,
+}
+
+/// One input as submitted by a live caller (e.g. the browser): a tick and a payload.
+/// There is no `seq`: the input stream assigns it. Same strict `u64` string rules as
+/// [`ReplayInput`].
+///
+/// ```json
+/// { "tick": "5", "payload": { "Act": { "kind": "help", "actor": "3",
+///                                     "target": "17", "intensity": 40 } } }
+/// ```
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct SubmitInput {
+    #[serde(with = "u64_string")]
+    pub tick: u64,
+    pub payload: ReplayPayload,
+}
+
+impl SubmitInput {
+    /// Parses one submitted input. Never panics.
+    pub fn from_json_str(s: &str) -> Result<Self, ReplayError> {
+        serde_json::from_str(s).map_err(|e| ReplayError::Malformed(e.to_string()))
+    }
 }
 
 /// The first tick at which a re-run disagrees with the recorded checksum.
@@ -540,4 +558,198 @@ pub fn verify(file: &ReplayFile) -> Result<(), ReplayError> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::input::TickInput;
+    use crate::values::Intensity;
+    use crate::world::{Life, RejectReason, World};
+
+    fn payload() -> InputPayload {
+        InputPayload::Act {
+            kind: SocialKind::Help,
+            actor: PersonId(3),
+            target: PersonId(17),
+            intensity: 40,
+        }
+    }
+
+    fn world() -> World {
+        World::new(1, WorldConfig::try_new(40).unwrap()).unwrap()
+    }
+
+    #[test]
+    fn a_config_with_a_workload_field_is_rejected_before_any_world() {
+        let text = r#"{"opening_residents":50,"workload":"Pairwise"}"#;
+        match ReplayConfig::from_json_str(text) {
+            Err(ReplayError::Malformed(message)) => {
+                assert!(
+                    message.contains("unknown field `workload`"),
+                    "message was {message:?}"
+                );
+            }
+            other => panic!("expected Malformed, got {other:?}"),
+        }
+        // A whole replay file with the same config fails the same way.
+        let file = r#"{"format":"back-in-the-family/replay","version":3,"seed":"1","config":{"opening_residents":50,"workload":"Pairwise"},"ticks":"0","inputs":[],"checksums":[]}"#;
+        match ReplayFile::from_json_str(file) {
+            Err(ReplayError::Malformed(message)) => assert!(
+                message.contains("unknown field `workload`"),
+                "message was {message:?}"
+            ),
+            other => panic!("expected Malformed, got {other:?}"),
+        }
+        // And the `--config` shape is exactly the replay config object.
+        assert_eq!(
+            ReplayConfig::from_json_str(r#"{"opening_residents":50}"#),
+            Ok(ReplayConfig {
+                opening_residents: 50
+            })
+        );
+    }
+
+    #[test]
+    fn a_version_2_file_is_rejected_as_unsupported() {
+        let v2 = r#"{"format":"back-in-the-family/replay","version":2,"seed":"1","config":{"entity_count":5,"workload":"Pairwise"},"ticks":"0","inputs":[],"checksums":[]}"#;
+        assert_eq!(
+            ReplayFile::from_json_str(v2),
+            Err(ReplayError::UnsupportedVersion { found: 2 })
+        );
+    }
+
+    #[test]
+    fn payload_round_trips_through_the_documented_json() {
+        let payload = payload();
+        let dto: ReplayPayload = payload.into();
+        let json = serde_json::to_string(&dto).unwrap();
+        assert_eq!(
+            json,
+            r#"{"Act":{"kind":"help","actor":"3","target":"17","intensity":40}}"#
+        );
+        let back: ReplayPayload = serde_json::from_str(&json).unwrap();
+        assert_eq!(InputPayload::from(back), payload);
+        // Every kind map both ways.
+        for (kind, name) in [
+            (SocialKind::Help, "help"),
+            (SocialKind::Gift, "gift"),
+            (SocialKind::Quarrel, "quarrel"),
+            (SocialKind::Insult, "insult"),
+            (SocialKind::Theft, "theft"),
+            (SocialKind::Apology, "apology"),
+        ] {
+            let dto: ReplayPayload = InputPayload::Act {
+                kind,
+                actor: PersonId(1),
+                target: PersonId(2),
+                intensity: 1,
+            }
+            .into();
+            assert!(serde_json::to_string(&dto).unwrap().contains(name));
+            assert_eq!(SocialKind::from(ReplaySocialKind::from(kind)), kind);
+        }
+    }
+
+    fn reason_for(world: &mut World, payload: InputPayload) -> RejectReason {
+        let seq = crate::ids::InputSeq(0);
+        let tick = world.tick();
+        world.step(&[TickInput { tick, seq, payload }]);
+        world
+            .rejections()
+            .last
+            .map(|(_, _, reason)| reason)
+            .expect("an input was rejected")
+    }
+
+    #[test]
+    fn every_reject_reason_is_produced_by_a_matching_input() {
+        let other = PersonId(2);
+        let mut w = world();
+        let resident = *w
+            .persons()
+            .values()
+            .find(|p| matches!(p.life, Life::Alive { .. }))
+            .map(|p| &p.id)
+            .unwrap();
+        assert_eq!(
+            reason_for(
+                &mut w,
+                InputPayload::Act {
+                    kind: SocialKind::Help,
+                    actor: PersonId(u64::MAX),
+                    target: other,
+                    intensity: 40,
+                }
+            ),
+            RejectReason::UnknownPerson
+        );
+
+        let mut w = world();
+        let dead = PersonId(2);
+        if let Some(person) = w.persons.get_mut(&dead) {
+            person.life = Life::Dead { death: Tick(0) };
+        }
+        assert_eq!(
+            reason_for(
+                &mut w,
+                InputPayload::Act {
+                    kind: SocialKind::Help,
+                    actor: resident,
+                    target: dead,
+                    intensity: 40,
+                }
+            ),
+            RejectReason::DeadPerson
+        );
+
+        let mut w = world();
+        assert_eq!(
+            reason_for(
+                &mut w,
+                InputPayload::Act {
+                    kind: SocialKind::Help,
+                    actor: resident,
+                    target: resident,
+                    intensity: 40,
+                }
+            ),
+            RejectReason::SelfTarget
+        );
+
+        let mut w = world();
+        assert_eq!(
+            reason_for(
+                &mut w,
+                InputPayload::Act {
+                    kind: SocialKind::Help,
+                    actor: resident,
+                    target: other,
+                    intensity: 0,
+                }
+            ),
+            RejectReason::IntensityOutOfRange
+        );
+
+        let mut w = world();
+        w.log.exhaust_ids();
+        assert_eq!(
+            reason_for(
+                &mut w,
+                InputPayload::Act {
+                    kind: SocialKind::Help,
+                    actor: resident,
+                    target: other,
+                    intensity: 40,
+                }
+            ),
+            RejectReason::IdExhausted
+        );
+    }
+
+    #[test]
+    fn invalid_intensity_values_stay_out_of_the_event_log() {
+        assert_eq!(Intensity::new(0), None);
+        assert_eq!(Intensity::new(101), None);
+    }
 }

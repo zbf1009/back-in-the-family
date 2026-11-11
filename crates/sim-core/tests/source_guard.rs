@@ -11,6 +11,9 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 /// Identifiers that must not appear in simulation code.
+///
+/// `Entity`, `Workload` and `SetValue` are the skeleton model removed by R1.1. They are
+/// matched as whole identifiers, so the `EntityId` rng key (which stays) is allowed.
 const BANNED_IDENTS: &[&str] = &[
     "f32",
     "f64",
@@ -20,6 +23,9 @@ const BANNED_IDENTS: &[&str] = &[
     "SystemTime",
     "thread_rng",
     "getrandom",
+    "Entity",
+    "Workload",
+    "SetValue",
 ];
 
 /// `a::b` pairs that must not appear in simulation code.
@@ -530,8 +536,22 @@ fn identifiers_merely_containing_a_banned_word_pass() {
     assert!(
         scan(
             "t.rs",
-            "let my_f64_like = 1; struct HashMapLike; fn instant_replay() {}"
+            "let my_f64_like = 1; struct HashMapLike; fn instant_replay() {}; \
+             let key: EntityId; fn entity_count() {} struct Workloadish; enum SetValueless {}"
         )
         .is_empty()
     );
+}
+
+#[test]
+fn skeleton_model_names_are_flagged_as_whole_identifiers() {
+    for src in [
+        "struct Entity { id: EntityId }",
+        "enum Workload { Light }",
+        "enum InputPayload { SetValue { entity: u8 } }",
+    ] {
+        assert!(!scan("t.rs", src).is_empty(), "should flag: {src}");
+    }
+    // `EntityId` is the rng key and must stay allowed.
+    assert!(scan("t.rs", "fn f(key: EntityId) -> EntityId { key }").is_empty());
 }

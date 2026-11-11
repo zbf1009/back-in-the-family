@@ -16,10 +16,13 @@ use crate::ids::{EntityId, Tick};
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 #[repr(u8)]
 pub enum StreamTag {
-    /// Per-tick value drift of an entity.
-    Drift = 1,
-    /// Per-tick affinity change between a pair of entities.
-    Affinity = 2,
+    /// **Retired; the life-sim never draws from this stream.** The placeholder
+    /// skeleton's per-tick value drift. The value 1 stays permanent so the pinned
+    /// `draw` outputs below never change.
+    RetiredDrift = 1,
+    /// **Retired; the life-sim never draws from this stream.** The placeholder
+    /// skeleton's per-tick affinity change. The value 2 stays permanent like the others.
+    RetiredAffinity = 2,
     /// **Tooling only; the simulation never draws from this stream.** `sim-cli record
     /// --random-inputs` uses it to generate test inputs from a seed. It exists so that
     /// tooling can never alias a simulation stream. Value 3 is permanent like the others.
@@ -139,8 +142,8 @@ mod tests {
 
     #[test]
     fn stream_tag_values_are_permanent() {
-        assert_eq!(StreamTag::Drift as u8, 1);
-        assert_eq!(StreamTag::Affinity as u8, 2);
+        assert_eq!(StreamTag::RetiredDrift as u8, 1);
+        assert_eq!(StreamTag::RetiredAffinity as u8, 2);
         assert_eq!(StreamTag::ToolingInputs as u8, 3);
     }
 
@@ -151,7 +154,7 @@ mod tests {
             (
                 0,
                 EntityId(0),
-                StreamTag::Drift,
+                StreamTag::RetiredDrift,
                 Tick(0),
                 0,
                 0x96E7_C3AB_4C46_8327,
@@ -159,7 +162,7 @@ mod tests {
             (
                 1,
                 EntityId(0),
-                StreamTag::Drift,
+                StreamTag::RetiredDrift,
                 Tick(0),
                 0,
                 0x62DB_2EAA_C058_5BE9,
@@ -167,7 +170,7 @@ mod tests {
             (
                 12345,
                 EntityId(7),
-                StreamTag::Affinity,
+                StreamTag::RetiredAffinity,
                 Tick(100),
                 9,
                 0xBFC1_0C01_63EC_16CF,
@@ -175,7 +178,7 @@ mod tests {
             (
                 u64::MAX,
                 EntityId(u64::MAX),
-                StreamTag::Affinity,
+                StreamTag::RetiredAffinity,
                 Tick(u64::MAX),
                 u64::MAX,
                 0xF06C_331C_A2E0_82C4,
@@ -192,29 +195,33 @@ mod tests {
 
     #[test]
     fn draw_changes_when_any_single_input_changes() {
-        let base = draw(42, E, StreamTag::Drift, T, 5);
-        assert_eq!(base, draw(42, E, StreamTag::Drift, T, 5));
+        let base = draw(42, E, StreamTag::RetiredDrift, T, 5);
+        assert_eq!(base, draw(42, E, StreamTag::RetiredDrift, T, 5));
         for seed in [0, 41, 43, u64::MAX] {
-            assert_ne!(draw(seed, E, StreamTag::Drift, T, 5), base, "seed {seed}");
+            assert_ne!(
+                draw(seed, E, StreamTag::RetiredDrift, T, 5),
+                base,
+                "seed {seed}"
+            );
         }
         for ent in [0, 2, 4, u64::MAX] {
             assert_ne!(
-                draw(42, EntityId(ent), StreamTag::Drift, T, 5),
+                draw(42, EntityId(ent), StreamTag::RetiredDrift, T, 5),
                 base,
                 "entity {ent}"
             );
         }
-        assert_ne!(draw(42, E, StreamTag::Affinity, T, 5), base, "tag");
+        assert_ne!(draw(42, E, StreamTag::RetiredAffinity, T, 5), base, "tag");
         for tick in [0, 9, 11, u64::MAX] {
             assert_ne!(
-                draw(42, E, StreamTag::Drift, Tick(tick), 5),
+                draw(42, E, StreamTag::RetiredDrift, Tick(tick), 5),
                 base,
                 "tick {tick}"
             );
         }
         for index in [0, 4, 6, u64::MAX] {
             assert_ne!(
-                draw(42, E, StreamTag::Drift, T, index),
+                draw(42, E, StreamTag::RetiredDrift, T, index),
                 base,
                 "index {index}"
             );

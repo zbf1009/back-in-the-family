@@ -491,8 +491,6 @@ impl EventLog {
     /// The only mutator: appends one Event and folds it into the digest.
     ///
     /// The Event ID comes from the log's counter. On counter exhaustion nothing changes.
-    // `World::append` (task 3.1) is the production caller.
-    #[allow(dead_code)]
     pub(crate) fn push(
         &mut self,
         tick: Tick,
@@ -511,6 +509,39 @@ impl EventLog {
         self.digest = fold_digest(&self.digest, &event);
         self.events.push(event);
         Ok(id)
+    }
+
+    /// Mutable access to the stored Events, for the test-support mutation API only.
+    /// Mutating through it breaks the log's hash-chain guarantee, which is exactly what
+    /// the checksum-sensitivity mutation needs to prove.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn events_for_test_mut(&mut self) -> &mut Vec<Event> {
+        &mut self.events
+    }
+
+    /// Recomputes and stores the digest after a test-support mutation of a stored
+    /// Event (test-support only).
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn refresh_digest(&mut self) {
+        self.digest = self.recompute_digest();
+    }
+
+    /// Removes one stored Event and recomputes the digest (test-support only).
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn remove_for_test(&mut self, index: usize) -> bool {
+        if index >= self.events.len() {
+            return false;
+        }
+        self.events.remove(index);
+        self.digest = self.recompute_digest();
+        true
+    }
+
+    /// Forces the ID counter to its last value, so the next append is refused with
+    /// [`IdExhausted`] (tests and test-support only).
+    #[cfg(test)]
+    pub(crate) fn exhaust_ids(&mut self) {
+        self.ids = IdCounter::starting_at(u64::MAX);
     }
 
     /// Recomputes the digest from scratch: `digest_0 = [0; 32]`,
@@ -540,7 +571,7 @@ impl CanonWriter for DigestWriter<'_> {
 }
 
 /// One digest fold step: `blake3(previous || canonical bytes of event)`.
-fn fold_digest(previous: &[u8; 32], event: &Event) -> [u8; 32] {
+pub(crate) fn fold_digest(previous: &[u8; 32], event: &Event) -> [u8; 32] {
     let mut hasher = blake3::Hasher::new();
     hasher.update(previous);
     {

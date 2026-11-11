@@ -1522,3 +1522,8 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 ### Spec: life-sim — checkpoint 2 (2026-11-11)
 
 - `scripts/gates.sh` first failed at `cargo clippy -p sim-core -p sim-wasm --target wasm32-unknown-unknown -- -D warnings`: `scaled_mortality_ppm_by_age` was unused because only `Params::stress` (cfg-gated to test/test-support) calls it. Added the same cfg to the helper; the full gates then passed and `git status fixtures/` stayed clean.
+
+### Spec: life-sim — opening world: undefined trait distribution (2026-11-11)
+
+- Design "Opening_World generation" step 2 says "Traits from the opening distribution" but no section defines that distribution and `Params` has no trait fields. Without a rule generation cannot run, so `opening.rs` draws each of the seven traits uniformly in -3..=3 with the `Traits` stream keyed by the Person ID, one fixed index per trait. This is a mechanical placeholder, not a calibrated distribution; the Author may replace it with real opening biases. Reported to the Author by the terminal agent; no other design or requirement text changes.
+- Also chosen while implementing step 6 and 7: the opening `loan` Events carry the `cash` tag (money moved) and the opening grievance Event carries no tags, because the design specifies tags only for the live steps. Both choices are recorded in `opening.rs` comments.

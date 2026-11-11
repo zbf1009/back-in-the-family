@@ -178,6 +178,11 @@ pub const MALE_FIRST_COUNT: usize = 80;
 /// Number of surnames.
 pub const SURNAME_COUNT: usize = 60;
 
+/// Number of distinct `(first, surname)` index pairs per sex: `FEMALE_FIRST_COUNT *
+/// SURNAME_COUNT`. The picker can always find a free name because it is far above the
+/// 62 Residents the World can hold (R13.3).
+pub const FULL_NAME_COUNT: usize = 4_800;
+
 /// Indices into the Name_List. Equal values are the same full name (R13.3); the caller
 /// resolves `first` with the Person's sex.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]

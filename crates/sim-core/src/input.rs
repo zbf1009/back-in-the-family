@@ -4,23 +4,61 @@
 //! it applies on. Inputs for the same tick apply in `seq` order, and `seq` is assigned
 //! in submission order when the stream accepts the input.
 //!
-//! Submission only checks the past-tick rule. Whether an input makes sense for the
-//! current world (target entity exists, value in range) is decided at apply time inside
-//! the tick loop (R4.4).
+//! Submission only checks the past-tick rule. Whether a payload makes sense for the
+//! current world (persons exist, both are alive, intensity in range) is decided at
+//! apply time inside the tick loop (R1.5, R6.5); an invalid payload is skipped and
+//! recorded in the world's [`Rejections`](crate::world::Rejections).
 
 use std::fmt;
 
-use crate::ids::{EntityId, IdCounter, InputSeq, Tick};
+use crate::canon::{Canon, CanonWriter};
+use crate::ids::{IdCounter, InputSeq, PersonId, Tick};
+use crate::values::SocialKind;
 
-/// Placeholder payloads; real game inputs arrive with later specs.
+/// The one input kind of the life-sim (OP-6 A): one social act between two Residents.
+///
+/// `intensity` is the raw `u8` so that out-of-range values can be *rejected* at apply
+/// time instead of being refused by the type. A valid payload turns into an
+/// [`Intensity`] and appends the matching social Event through the normal path.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum InputPayload {
-    /// Set an entity's value. Valid when the entity exists and `value` is `0..=1000`.
-    SetValue { entity: EntityId, value: i32 },
-    /// Create an entity with this value. Valid when `value` is `0..=1000`.
-    Spawn { value: i32 },
-    /// Remove an entity and every affinity entry pointing at it.
-    Despawn { entity: EntityId },
+    /// Perform a social act: `actor` acts on `target` with `intensity` (1..=100).
+    Act {
+        kind: SocialKind,
+        actor: PersonId,
+        target: PersonId,
+        intensity: u8,
+    },
+}
+
+/// Why an input was skipped at apply time (R1.5, R6.5).
+///
+/// The variant names are also the `batch` report labels (`unknown_person`, ...).
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+pub enum RejectReason {
+    /// The actor or the target is not a Person in the World.
+    UnknownPerson,
+    /// The actor or the target is dead (R6.5).
+    DeadPerson,
+    /// The actor and the target are the same Person.
+    SelfTarget,
+    /// The intensity is outside 1..=100.
+    IntensityOutOfRange,
+    /// The Event ID counter ran out.
+    IdExhausted,
+}
+
+impl RejectReason {
+    /// The report label used by `sim-cli batch`.
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::UnknownPerson => "unknown_person",
+            Self::DeadPerson => "dead_person",
+            Self::SelfTarget => "self_target",
+            Self::IntensityOutOfRange => "intensity_out_of_range",
+            Self::IdExhausted => "id_exhausted",
+        }
+    }
 }
 
 /// One recorded input.
@@ -120,20 +158,38 @@ impl InputStream {
     }
 }
 
+impl Canon for RejectReason {
+    fn encode<W: CanonWriter>(&self, w: &mut W) {
+        let tag: u8 = match self {
+            Self::UnknownPerson => 0,
+            Self::DeadPerson => 1,
+            Self::SelfTarget => 2,
+            Self::IntensityOutOfRange => 3,
+            Self::IdExhausted => 4,
+        };
+        tag.encode(w);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const SPAWN: InputPayload = InputPayload::Spawn { value: 1 };
+    const ACT: InputPayload = InputPayload::Act {
+        kind: SocialKind::Help,
+        actor: PersonId(1),
+        target: PersonId(2),
+        intensity: 40,
+    };
 
     #[test]
     fn past_tick_is_rejected_and_stream_is_unchanged() {
         let mut s = InputStream::new();
-        s.submit(Tick(0), Tick(5), SPAWN).unwrap();
-        s.submit(Tick(0), Tick(2), SPAWN).unwrap();
+        s.submit(Tick(0), Tick(5), ACT).unwrap();
+        s.submit(Tick(0), Tick(2), ACT).unwrap();
         let before = s.clone();
         assert_eq!(
-            s.submit(Tick(4), Tick(3), SPAWN),
+            s.submit(Tick(4), Tick(3), ACT),
             Err(SubmitError::PastTick {
                 tick: Tick(3),
                 current: Tick(4)
@@ -141,22 +197,22 @@ mod tests {
         );
         assert_eq!(s, before);
         // The seq counter was not consumed by the rejection.
-        assert_eq!(s.submit(Tick(4), Tick(4), SPAWN), Ok(InputSeq(2)));
+        assert_eq!(s.submit(Tick(4), Tick(4), ACT), Ok(InputSeq(2)));
     }
 
     #[test]
     fn current_tick_is_accepted() {
         let mut s = InputStream::new();
-        assert_eq!(s.submit(Tick(3), Tick(3), SPAWN), Ok(InputSeq(0)));
+        assert_eq!(s.submit(Tick(3), Tick(3), ACT), Ok(InputSeq(0)));
     }
 
     #[test]
     fn for_tick_returns_seq_order_even_when_submitted_out_of_tick_order() {
         let mut s = InputStream::new();
-        let a = s.submit(Tick(0), Tick(7), SPAWN).unwrap();
-        let b = s.submit(Tick(0), Tick(2), SPAWN).unwrap();
-        let c = s.submit(Tick(0), Tick(7), SPAWN).unwrap();
-        let d = s.submit(Tick(0), Tick(2), SPAWN).unwrap();
+        let a = s.submit(Tick(0), Tick(7), ACT).unwrap();
+        let b = s.submit(Tick(0), Tick(2), ACT).unwrap();
+        let c = s.submit(Tick(0), Tick(7), ACT).unwrap();
+        let d = s.submit(Tick(0), Tick(2), ACT).unwrap();
         let seqs = |t| {
             s.for_tick(Tick(t))
                 .iter()
@@ -169,5 +225,42 @@ mod tests {
         assert!(seqs(100).is_empty());
         let all: Vec<_> = s.all().iter().map(|i| (i.tick.0, i.seq.0)).collect();
         assert_eq!(all, [(2, 1), (2, 3), (7, 0), (7, 2)]);
+    }
+
+    #[test]
+    fn reject_reason_labels_are_distinct_and_match_the_report() {
+        let all = [
+            RejectReason::UnknownPerson,
+            RejectReason::DeadPerson,
+            RejectReason::SelfTarget,
+            RejectReason::IntensityOutOfRange,
+            RejectReason::IdExhausted,
+        ];
+        let labels: std::collections::BTreeSet<&str> = all.iter().map(|r| r.label()).collect();
+        assert_eq!(labels.len(), all.len());
+        assert_eq!(RejectReason::UnknownPerson.label(), "unknown_person");
+        assert_eq!(RejectReason::DeadPerson.label(), "dead_person");
+        assert_eq!(RejectReason::SelfTarget.label(), "self_target");
+        assert_eq!(
+            RejectReason::IntensityOutOfRange.label(),
+            "intensity_out_of_range"
+        );
+        assert_eq!(RejectReason::IdExhausted.label(), "id_exhausted");
+    }
+
+    #[test]
+    fn canonical_reject_reason_tags_are_distinct() {
+        use crate::canon::encode_to_vec;
+        let tags: std::collections::BTreeSet<Vec<u8>> = [
+            RejectReason::UnknownPerson,
+            RejectReason::DeadPerson,
+            RejectReason::SelfTarget,
+            RejectReason::IntensityOutOfRange,
+            RejectReason::IdExhausted,
+        ]
+        .iter()
+        .map(encode_to_vec)
+        .collect();
+        assert_eq!(tags.len(), 5);
     }
 }

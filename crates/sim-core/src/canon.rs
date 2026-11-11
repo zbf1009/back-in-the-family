@@ -24,7 +24,7 @@ use crate::ids::{
 
 /// Version of the canonical layout. Bump it whenever any encoding rule or any encoded
 /// field changes, so old and new checksums can never be confused for each other.
-pub const CANON_VERSION: u16 = 1;
+pub const CANON_VERSION: u16 = 2;
 
 /// Sink for canonical bytes.
 pub trait CanonWriter {
@@ -121,6 +121,15 @@ impl<T: Canon> Canon for Vec<T> {
         for item in self {
             item.encode(w);
         }
+    }
+}
+
+impl<A: Canon, B: Canon> Canon for (A, B) {
+    /// Two values in order: used for `(from, to)` Relation keys.
+    fn encode<W: CanonWriter>(&self, w: &mut W) {
+        let (a, b) = self;
+        a.encode(w);
+        b.encode(w);
     }
 }
 
@@ -238,6 +247,6 @@ mod tests {
 
     #[test]
     fn canon_version_is_encoded_as_u16() {
-        assert_eq!(encode_to_vec(&CANON_VERSION), [1, 0]);
+        assert_eq!(encode_to_vec(&CANON_VERSION), [2, 0]);
     }
 }

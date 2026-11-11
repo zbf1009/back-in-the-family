@@ -11,16 +11,23 @@
     clippy::cast_possible_truncation
 )]
 
+pub mod births;
 pub mod canon;
 pub mod checksum;
+pub mod death;
+pub mod economy;
 pub mod events;
 pub mod ids;
 pub mod input;
+pub mod invariants;
 pub mod llm;
 pub mod names;
+pub mod opening;
+pub mod outsiders;
 pub mod params;
 pub mod replay;
 pub mod rng;
+pub mod social;
 #[cfg(any(test, feature = "test-support"))]
 pub mod testing;
 pub mod tick;

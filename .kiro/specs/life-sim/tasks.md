@@ -80,9 +80,9 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
 - [x] 2. Checkpoint: foundations green
   - Run the full gates. `scripts/gates.sh` must exit 0, and the skeleton behaviour and fixtures must be unchanged (`git status fixtures/` is clean). Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 3. Model swap in sim-core (start of the red window: crates other than `sim-core` stop building)
+- [x] 3. Model swap in sim-core (start of the red window: crates other than `sim-core` stop building)
   - Tasks 3.1 to 3.3 are one unit. `sim-core` may not compile between them. Make **one commit at the end of 3.3** (`feat(sim-core)!: replace the skeleton model with the life-sim world`), with the body line `Workspace build is red until the sim-cli, sim-wasm and web adaptation (tasks 4.1 to 4.4).`
-  - [ ] 3.1 Rewrite `world.rs` and add the world-level pieces
+  - [x] 3.1 Rewrite `world.rs` and add the world-level pieces
     - Files: `crates/sim-core/src/world.rs` (rewritten), `crates/sim-core/src/economy.rs` (new, with only `economy::flow` and `FlowTotals`), `crates/sim-core/src/opening.rs` (new), `crates/sim-core/src/rng.rs` (rename tags 1 and 2 to `RetiredDrift` and `RetiredAffinity`, never drawn), `crates/sim-core/src/canon.rs` (`CANON_VERSION = 2`), `crates/sim-core/src/lib.rs`.
     - Delete `Entity`, `Workload`, Light and Pairwise. Implement `WorldConfig::try_new` (40..=60), `ConfigError` (`OpeningResidentsOutOfRange`, `Generation(&'static str)`), `Person`, `Life`, `Household`, `Property`, `PropertyKind`, `Relation`, `Debt`, `SoulPlace`, `Souls`, `Rejections`, `World` and `Derived`, exactly as in design "Data Models". All four ID counters start at 1 (OP-10).
     - Add the public accessors listed in design "Public API": `age_years` per R2.3 (floor division), `wealth` per OP-1 A, `household_members`, `rebuild_derived`, and `discard_derived` under test-support.
@@ -93,7 +93,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Unit tests in `opening.rs`: generation succeeds for seeds 0..=999 and every N in 40..=60 (generation only, no ticks). Household 1 is a couple with a child. A grudge, an opening loan with `due_tick > 0`, and a Player_Soul aged 20..=50 exist.
     - _Requirements: 1.1, 2.1, 2.3, 2.5, 3.1, 3.3, 3.4, 4.1, 5.6, 5.7, 5.8, 9.4, 9.6, 12.1, 12.2, 12.3, 12.4, 12.5, 13.1, 14.1, 16.3_
     - Acceptance: completed together with 3.3.
-  - [ ] 3.2 Rewrite inputs, the tick and the replay format
+  - [x] 3.2 Rewrite inputs, the tick and the replay format
     - Files: `crates/sim-core/src/input.rs`, `crates/sim-core/src/tick.rs`, `crates/sim-core/src/replay.rs`, `crates/sim-core/src/social.rs` (new, with only `apply_social` and the effect table), `crates/sim-core/src/death.rs`, `births.rs`, `outsiders.rs` (new, each with an empty step function that is filled in task 6 or 7).
     - `InputPayload::Act { kind, actor, target, intensity }` and `RejectReason`, with the validation order of design "Inputs and replay format". Invalid inputs go to `rejections` (count and `last`).
     - `World::step` runs the 13 steps of design "The tick" in order. Steps 1, 2, 12 and 13 work now. Steps 3 to 11 call the step functions of their modules, which do nothing until tasks 6 to 7 fill them. Add a comment block in `tick.rs` that lists the 13 steps (R16.2). `apply_social` implements the effect table and the friend and rival thresholds (R4.8) and is shared with step 9 later.
@@ -101,7 +101,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Unit tests in `replay.rs`: a config with `workload` is rejected with "unknown field `workload`" and no World is created (R1.3); a version 2 file is rejected; the payload round trip works; each `RejectReason` is produced by a matching input.
     - _Requirements: 1.3, 1.4, 1.5, 4.8, 6.5, 16.2, 16.6_
     - Acceptance: completed together with 3.3.
-  - [ ] 3.3 Add the invariant checker and rewrite the test-support code and existing sim-core tests
+  - [x] 3.3 Add the invariant checker and rewrite the test-support code and existing sim-core tests
     - Files: `crates/sim-core/src/invariants.rs` (new), `crates/sim-core/src/testing.rs` (rewritten), `crates/sim-core/tests/replay.rs`, `crates/sim-core/tests/properties.rs` (rewritten, minimal for now), `crates/sim-core/tests/source_guard.rs`.
     - `InvariantChecker::new(world)` and `after_tick(world)`, which return `Violation { criterion, tick, detail }`. They check every invariant of R17.6 (3.1, 3.2, 3.5, 4.2 to 4.6, 5.6 to 5.8, 9.1 to 9.3, 11.3, 20.1) plus the structural checks of Property 2 and the log digest (stored equals recomputed). The checker is stateful: it keeps the previous total money, the previous log length and the previous Player_Soul place. `criterion` is the requirement number as text, for example `"9.3"`.
     - `testing.rs`: `Mutation` covers every World field, including changing, adding or dropping one stored Event. `apply` changes exactly one field.
