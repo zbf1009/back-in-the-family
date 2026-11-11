@@ -349,7 +349,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - No Checksum change; do not regenerate fixtures.
     - _Requirements: 17.4, 17.8_
     - Acceptance: `cargo test -p sim-cli` passes; Rust gates pass; `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0. Commit as `fix(sim-cli): report the one-third arrival target without enforcing it`.
-  - [ ] 17.4 Log the Property 6 expectation fix from `f058096`
+  - [x] 17.4 Log the Property 6 expectation fix from `f058096`
     - Files: `docs/kiro-log.md` (append only).
     - Audit finding on R8 (table row R8.1 to R8.5). Append one entry, `### Spec: life-sim — Property 6 expectation fix (commit f058096, logged late, <date>)`, with only facts from the commit and the regression file: Property 6 (`crates/sim-core/tests/history.rs`) compared a repayment's payer with the Debt's debtor at the start of the tick; a death earlier in the same tick can transfer the Debt first (`debt_transfer` keeps the open amount and changes the debtor), so the expected payer is the debtor after the last `debt_transfer` before the repayment; the case was found by a full-file run at seed 6399358489806569765 and is kept in `crates/sim-core/tests/history.proptest-regressions`; the fix changed the test expectation, not simulation code; this entry is written late, at the audit's request (`docs/life-sim-audit.md`). Do not edit any earlier entry.
     - _Requirements: 19.4_

@@ -1703,3 +1703,10 @@ batch: 5/5 seeds ok
 ```
 
 - `scripts/regen-fixtures.sh` ran twice and the second run left `git status` unchanged. No committed fixture changed: the three replay fixtures (seeds 1, 2 and 18446744073709551557, 2,000 ticks each) contain no release, so no fixture carries an outsider surname and their checksums stay put; `seed1-pairwise.snapshot-500.json` stays byte-identical. The snapshot is unrelated (tick 500).
+
+### Spec: life-sim — Property 6 expectation fix (commit f058096, logged late, 2026-11-11)
+
+- Property 6 (`crates/sim-core/tests/history.rs`) compared a repayment's payer with the Debt's debtor at the start of the tick. A death earlier in the same tick can transfer the Debt first (`debt_transfer` keeps the open amount and changes the debtor), so the expected payer is the debtor after the last `debt_transfer` before the repayment.
+- The case was found by a full-file run at seed 6399358489806569765 and is kept in `crates/sim-core/tests/history.proptest-regressions` (`seed: 6399358489806569765, residents: 58, params: Stress`, four `Act` inputs).
+- The fix changed the test expectation, not simulation code.
+- This entry is written late, at the audit's request (`docs/life-sim-audit.md`); no earlier entry was edited.
