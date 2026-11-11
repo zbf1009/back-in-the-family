@@ -180,7 +180,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Implement design "Births" sub-steps 1 to 4: candidate mothers aged 18..=45; a stop when only the Player_Soul waits; selection by longest wait, ties by lower Soul ID; the newborn's fields; traits copied or drawn per trait from streams keyed by the newborn's ID; the mother's surname and a picked first name; kinship with living parents, siblings and grandparents only; the soul placed; the `birth` Event.
     - Unit tests: only the Player_Soul waiting gives no birth (R10.2); a tie on wait goes to the lower Soul ID; a dead grandparent gets no Relation.
     - _Requirements: 5.1, 9.1, 9.2, 10.1, 10.2, 10.3, 10.4, 10.5, 13.3, 20.3_
-  - [ ] 7.3 Implement outsider releases (step 3)
+  - [x] 7.3 Implement outsider releases (step 3)
     - Files: `crates/sim-core/src/outsiders.rs`, `crates/sim-core/src/tick.rs`.
     - Implement design "Outsiders": every non-player Soul with `T - since > MAX_WAIT`, in Soul ID order; the kind rolled per Soul (rebuilt share 200,000 ppm); age 18..=40; the `ArrivalEndowment` source; a new single-person Household; no Relations; the `possession` or `rebuild` Event.
     - Unit tests: a waiting Player_Soul past Max_Wait is not released (R20.2); a Soul at exactly Max_Wait is not released, and one day later it is.

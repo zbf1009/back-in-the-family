@@ -26,8 +26,8 @@
 //! 12. **Advance** `tick` to `T + 1`.
 //! 13. **Checksum** of the resulting World.
 //!
-//! Steps 3 to 11 call the step functions of their modules (`outsiders`, `death`,
-//! `births`, `social`, `economy`); until tasks 6 and 7 fill them in, a step does nothing.
+//! Steps 3 to 11 call the step function of their module (`outsiders`, `death`, `births`,
+//! `social`, `economy`); each of those modules documents its step.
 
 use crate::checksum::Checksum;
 use crate::events::CausedBy;
