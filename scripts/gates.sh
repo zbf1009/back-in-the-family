@@ -36,6 +36,8 @@ run cargo test --workspace
 # Invariants after every tick plus a record-and-verify round trip, 20 seeds x 2,000 ticks.
 # Release build: a few seconds.
 run cargo run -q --release -p sim-cli -- batch --seeds 1..=20 --ticks 2000
+# R17: Life_Runs (80 years) on the Acceptance_Seeds, with targets enforced.
+run cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets
 run cargo test -p sim-wasm --features bench --test bench
 run cargo test -p sim-wasm --target wasm32-unknown-unknown
 run scripts/wasm-build.sh

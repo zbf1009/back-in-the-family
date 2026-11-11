@@ -715,6 +715,23 @@ run cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --req
 
 If the measured acceptance step exceeds 60 s, the first fallback is to skip the record-and-verify round trip for the Life_Runs only (one run per seed; replay is still covered by the short batch and the fixtures); the invariant checks stay per tick, because R17.6 requires them at the end of every tick. The second fallback is OP-9 with fewer seeds, which needs the Author's approval because R17 says at least 5.
 
+### Measured gate time (2026-11-11)
+
+After adding the acceptance batch to `scripts/gates.sh`, measured on the development
+machine with a warm release build for the two batch steps and a clean build for the whole
+chain:
+
+| Step | Time |
+|---|---|
+| Acceptance batch (`--seeds 1..=5 --ticks 29200 --require-targets`) | 20.4 s |
+| Short batch (`--seeds 1..=20 --ticks 2000`) | 1.9 s |
+| Full `scripts/gates.sh` from `cargo clean` | 311 s (5 min 11 s) |
+
+The acceptance step is well inside the 60 s limit, so the `--no-verify-replay` fallback
+is not used and the record-and-verify round trip stays in the gate. The full run includes
+the Rust build, the property suite, the web typecheck/unit tests, the Web_Build and the
+Smoke_Test; the batch steps are a small fraction of it.
+
 ## Correctness Properties
 
 *A property is a characteristic or behavior that should hold true across all valid executions of a system-essentially, a formal statement about what the system should do. Properties serve as the bridge between human-readable specifications and machine-verifiable correctness guarantees.*

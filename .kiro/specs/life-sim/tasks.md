@@ -285,8 +285,8 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - _Requirements: 17.1, 17.2, 17.3, 17.8, 17.9_
     - Acceptance: `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0 with five `ok` lines and every target `=pass`. Rust gates pass. If Params changed, the fixtures are regenerated and the commit message has the regeneration line. Commit as `feat(sim-core): calibrate life-sim params`.
 
-- [ ] 13. Acceptance gate and measurements
-  - [ ] 13.1 Add the acceptance batch to the gates and prove that it fails on a fault
+- [x] 13. Acceptance gate and measurements
+  - [x] 13.1 Add the acceptance batch to the gates and prove that it fails on a fault
     - Files: `scripts/gates.sh`, `docs/kiro-log.md`, `.kiro/specs/life-sim/design.md` (dated note under "Gate run time").
     - Add, right after the existing short batch line, the comment and `run cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` from design "Gate run time". Time the step with `time`. If it exceeds 60 s, apply the first fallback of the design (skip record-and-verify for the Life_Runs only, keep the per-tick invariant checks), behind a flag such as `--no-verify-replay`, used only in this gate line, and log it. Reducing the seed count needs the Author: stop and ask.
     - Fault injection (R19.4): scale the mortality table by 30 in `params.rs`, run `scripts/gates.sh` and confirm that it stops at the acceptance step with `FAIL targets: ...band_95=fail` (or the target that fails first; copy the actual line). Revert, and confirm that `git status` is clean. Log the fault, the failure seen and the revert.
