@@ -24,7 +24,7 @@ use sim_core::ids::{EventId, PersonId, SoulId, Tick};
 use sim_core::input::{InputPayload, InputStream};
 use sim_core::params::Params;
 use sim_core::tick::Sim;
-use sim_core::values::{RelationTag, SocialKind, Trait, SCORE_MAX, SCORE_MIN};
+use sim_core::values::{RelationTag, SCORE_MAX, SCORE_MIN, SocialKind, Trait};
 use sim_core::world::{Life, SoulPlace, World, WorldConfig};
 
 /// Ticks generated per property case (design "Testing Strategy").
@@ -73,7 +73,8 @@ impl Scenario {
             ParamsChoice::Default => Sim::new(self.seed, config).expect("opening world"),
         };
         for &(tick, payload) in &self.inputs {
-            sim.submit(tick, payload).expect("input tick is in the future");
+            sim.submit(tick, payload)
+                .expect("input tick is in the future");
         }
         sim
     }
@@ -175,11 +176,10 @@ pub fn arb_run() -> impl Strategy<Value = Scenario> {
 pub fn arb_scenario() -> impl Strategy<Value = Scenario> {
     arb_run().prop_flat_map(|scenario| {
         let residents = scenario.residents;
-        prop::collection::vec(arb_input(residents), 0..=24)
-            .prop_map(move |inputs| Scenario {
-                inputs,
-                ..scenario.clone()
-            })
+        prop::collection::vec(arb_input(residents), 0..=24).prop_map(move |inputs| Scenario {
+            inputs,
+            ..scenario.clone()
+        })
     })
 }
 
@@ -280,11 +280,7 @@ pub fn assert_same_except_rejections(a: &World, b: &World) {
     assert_eq!(a.relations(), b.relations(), "relations differ");
     assert_eq!(a.debts(), b.debts(), "debts differ");
     assert_eq!(a.souls(), b.souls(), "souls differ");
-    assert_eq!(
-        a.log().events(),
-        b.log().events(),
-        "event logs differ"
-    );
+    assert_eq!(a.log().events(), b.log().events(), "event logs differ");
     assert_eq!(a.log().digest(), b.log().digest(), "log digests differ");
     assert_eq!(a.last_flows(), b.last_flows(), "flows differ");
 }
@@ -356,8 +352,8 @@ fn check_souls(world: &World, context: &str) {
         soul_count,
         "{context}: {alive_count} residents + {waiting} waiting souls != {soul_count} souls (9.3)"
     );
-    let expected_souls = u64::from(world.config().opening_residents)
-        .saturating_add(world.params().initial_waiting);
+    let expected_souls =
+        u64::from(world.config().opening_residents).saturating_add(world.params().initial_waiting);
     assert_eq!(
         soul_count, expected_souls,
         "{context}: Total_Souls changed (9.3)"
