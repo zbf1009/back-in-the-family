@@ -733,7 +733,21 @@ proptest! {
                             )))
                         })?;
                     let old = &before.debts()[&loan];
-                    prop_assert_eq!(old.debtor, *payer);
+                    // A death earlier in this tick may have transferred the Debt, so the
+                    // payer is the debtor after any `debt_transfer` before this Event.
+                    let transferred_to = tail
+                        .iter()
+                        .rev()
+                        .filter(|candidate| candidate.id.0 < event.id.0)
+                        .find_map(|candidate| match &candidate.kind {
+                            EventKind::DebtTransfer { to, .. }
+                                if candidate.caused_by.iter().any(|cause| cause == loan) =>
+                            {
+                                Some(*to)
+                            }
+                            _ => None,
+                        });
+                    prop_assert_eq!(transferred_to.unwrap_or(old.debtor), *payer);
                     prop_assert_eq!(old.creditor, *payee);
                     prop_assert!(*amount >= 1 && *amount <= old.open);
                     let remaining = after.debts().get(&loan).map(|debt| debt.open).unwrap_or(0);
