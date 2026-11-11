@@ -6,7 +6,7 @@
 
 use sim_core::invariants::InvariantChecker;
 use sim_core::tick::Sim;
-use sim_core::world::WorldConfig;
+use sim_core::world::{Life, SoulPlace, WorldConfig};
 
 #[test]
 fn a_240_tick_run_passes_the_invariant_checker() {
@@ -22,10 +22,25 @@ fn a_240_tick_run_passes_the_invariant_checker() {
                 .unwrap_or_else(|violation| panic!("seed {seed}, tick {tick}: {violation}"));
         }
         assert_eq!(sim.world().tick().0, 240);
+        // Soul conservation (R9.3) over the whole run: every Soul is in exactly one of
+        // the two places, whatever births and deaths happened.
+        let residents = sim
+            .world()
+            .persons()
+            .values()
+            .filter(|person| matches!(person.life, Life::Alive { .. }))
+            .count();
+        let waiting = sim
+            .world()
+            .souls()
+            .places
+            .values()
+            .filter(|place| matches!(place, SoulPlace::Waiting { .. }))
+            .count();
         assert_eq!(
-            sim.world().persons().len(),
-            40,
-            "no births or deaths yet: steps 3 to 11 are still empty"
+            residents.saturating_add(waiting),
+            sim.world().souls().places.len(),
+            "seed {seed}: residents plus waiting Souls equal Total_Souls"
         );
     }
 }
