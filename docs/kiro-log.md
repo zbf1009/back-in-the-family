@@ -1527,3 +1527,9 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 
 - Design "Opening_World generation" step 2 says "Traits from the opening distribution" but no section defines that distribution and `Params` has no trait fields. Without a rule generation cannot run, so `opening.rs` draws each of the seven traits uniformly in -3..=3 with the `Traits` stream keyed by the Person ID, one fixed index per trait. This is a mechanical placeholder, not a calibrated distribution; the Author may replace it with real opening biases. Reported to the Author by the terminal agent; no other design or requirement text changes.
 - Also chosen while implementing step 6 and 7: the opening `loan` Events carry the `cash` tag (money moved) and the opening grievance Event carries no tags, because the design specifies tags only for the live steps. Both choices are recorded in `opening.rs` comments.
+
+### Spec: life-sim — batch acceptance length before task 7.3 (2026-11-11)
+
+- At task 4.2 the acceptance run `batch --seeds 1..=3 --ticks 2000` reports R11.3 for every seed: `seed N FAIL tick=1096 criterion=11.3 detail: soul 51 has waited 1096 days`. The Opening_World creates `Params::INITIAL_WAITING` (2) waiting NPC Souls at tick 0, and the outsider-release step (tick step 3, task 7.3) is still a stub, so nothing is released and the wait passes `MAX_WAIT` (1,095) at tick 1096. The `InvariantChecker` is correct; the 2000-tick acceptance is simply not reachable before task 7.3.
+- Decision: do not weaken the checker and do not implement step 3 early. Batch acceptance runs use `--ticks 1000` for tasks 4.2, 6.1 to 6.5, 7.1 and 7.2; from 7.3 on the plan text (`--ticks 2000`) applies unchanged. With `--ticks 1000` the 4.2 acceptance prints 3 `ok` lines and `batch: 3/3 seeds ok`.
+- This is a plan inconsistency for the Kiro audit (task 16). Task text is unchanged.
