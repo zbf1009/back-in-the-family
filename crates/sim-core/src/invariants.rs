@@ -537,6 +537,19 @@ fn check_event_tail(world: &World, start: usize) -> Result<(), Violation> {
 /// R9.1 to R9.4.
 fn check_souls(world: &World) -> Result<(), Violation> {
     let souls = world.souls();
+    // R9.3: Total_Souls is fixed at opening, so the place count must still match it.
+    // Comparing against Total_Souls (not only against the live place count) catches a
+    // Soul entry that disappeared.
+    let expected_total =
+        u64::from(world.config().opening_residents).saturating_add(world.params().initial_waiting);
+    let soul_count = u64::try_from(souls.places.len()).unwrap_or(u64::MAX);
+    if soul_count != expected_total {
+        return Err(violation(
+            "9.3",
+            world,
+            format!("Total_Souls is {soul_count}, expected {expected_total}"),
+        ));
+    }
     let counter = souls.ids.peek();
     let expected_counter = u64::try_from(souls.places.len())
         .unwrap_or(u64::MAX)
