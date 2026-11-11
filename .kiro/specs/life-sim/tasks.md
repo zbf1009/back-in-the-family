@@ -318,8 +318,8 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - _Requirements: 19.3_
     - Acceptance: `scripts/gates.sh` exits 0, the working tree is clean, and the Author has been asked.
 
-- [ ] 16. Kiro audit (assigned to Kiro, NOT executed by the terminal agent)
-  - [ ] 16.1 Placeholder: Kiro writes `docs/life-sim-audit.md`
+- [x] 16. Kiro audit (assigned to Kiro, NOT executed by the terminal agent)
+  - [x] 16.1 Placeholder: Kiro writes `docs/life-sim-audit.md`
     - Kiro checks every requirement criterion against code, tests and logs, as in the earlier spec audits (`docs/llm-probe-audit.md`). This covers the review-only criteria R13.2, R16.2, R17.2, R19.2, R19.4 and R19.5, and the deviations noted in this plan (`values.rs` placement, the `sim-cli snapshot` subcommand and fixture, any gate fallback). The terminal agent skips this task.
     - _Requirements: 13.2, 16.2, 17.2, 19.2, 19.4, 19.5_
     - Checked after 17.x is reviewed by Kiro.

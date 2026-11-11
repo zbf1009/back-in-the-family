@@ -1727,3 +1727,9 @@ batch: 5/5 seeds ok
 ```
 
 - Stopped for Kiro's 16.1 review. Nothing was pushed, no pull request was opened and nothing was deployed; task 16.1 stays unchecked.
+
+### Spec: life-sim — Kiro review of the audit follow-ups and close of task 16.1 (2026-11-11)
+
+- Kiro reviewed tasks 17.1 to 17.5 at `a446e74`: read the three code commits, ran `cargo test -p sim-cli` (all pass) and the release acceptance batch (`5/5 seeds ok`, seed 3 final `f5daa246698a3229`, `max_wait_npc` at most 1,095, figures equal to the 17.5 entry), and the R15.8 diff check (exit 0). The full clean-build gates were not re-run; the 17.5 run is the evidence.
+- Noted: the 17.1 commit message claims a fixture regeneration although no fixture changed (the script ran and produced no diff); a wording slip, not an R19.2 gap.
+- At the Author's request, a correction note on seed 3's final checksum was appended to the design's calibration result. `docs/life-sim-audit.md` gained a follow-up section; tasks 16 and 16.1 are checked. `validate_spec_format`: no issues on design.md and tasks.md. Nothing pushed.

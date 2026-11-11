@@ -704,6 +704,8 @@ seed 5 ok ticks=29200 final=8ce9509847022d99 residents_min=49 residents_max=52 b
 
 **Correction: `max_wait_*` off by one day (Author, 2026-11-11, audit).** The batch report computed `max_wait_npc` and `max_wait_player` from the already-advanced tick counter (`World::tick()` after step 12 of the tick), which is one day more than the completed tick the invariant checker uses for R11.3. After follow-up task 17.2 the report uses the completed tick, so a figure recorded here as 1,096 reads 1,095 (exactly Max_Wait), and every other recorded `max_wait_*` figure drops by 1. The figures above and in the "Calibration result" text stay as recorded. Checksums are not affected.
 
+**Correction: seed 3 final checksum (Correction, 2026-11-11, after task 17.1).** The outsider surname rule of follow-up task 17.1 (commit `23c533e`) changed seed 3's final checksum from `46a8b40a7d8c34f0` to `f5daa246698a3229`. Seed 3 is the only acceptance seed with outsider arrivals (`imported=2 rebuilt=2`). All other figures on the five lines above are unchanged, except the `max_wait_*` values, which drop by 1 after task 17.2 (seed 3 `max_wait_npc` 1,095). The three parity fixtures and the snapshot fixture did not change, because no release happens within their 2,000 ticks. The current lines are in `docs/kiro-log.md`, entry "audit follow-ups final check (task 17.5)". The lines above stay as recorded.
+
 ## Gate run time (OP-9)
 
 Measured baseline: 1 byte per ns of hashing, 22,620 ticks/s for a 37 KB state. Estimate for the new model, to be measured in the tasks with `sim-cli measure --residents 60`:

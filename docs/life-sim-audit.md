@@ -75,3 +75,37 @@ Status values: `met`, `met with note`, `not met`.
 10. **Values placement.** Value types live in `values.rs`; the task asked for a re-export from `world` so the design's paths stay valid, but `world.rs` only `use`s them and `lib.rs` exposes `values` as its own module. `structure.md` lists `values.rs`. Harmless; the design's module paths are out of date.
 11. **Agent edits to design.md.** The agent added the dated notes "Measured baseline", "Calibration result" and "Measured gate time", which tasks 12.1 to 13.2 asked for. No other design, requirement or steering text was changed by the agent except `structure.md` (task 14.2).
 12. **Task 16.1** stays unchecked until the Author has reviewed these findings.
+   - Update (2026-11-11): checked after the 17.x review below.
+
+## Follow-up review (tasks 17.1 to 17.5, 2026-11-11)
+
+Reviewed by Kiro against `a446e74` (working tree clean, nothing pushed). The Author's decisions on findings 1 to 9 are recorded in kiro-log ("Author's audit decisions, design sync and follow-up tasks") and in design notes marked "(Author, 2026-11-11, audit)".
+
+Checks run in this review:
+
+- Code read: `23c533e` (outsider surname), `23f549b` (`max_wait_*` from the completed tick), `e5f17c1` (one-third target report-only), `crates/sim-cli/Cargo.toml` (dev-dependency on the same path crate with `test-support`; `Cargo.lock` unchanged).
+- `cargo test -p sim-cli`: all pass (29 and 23 tests in the two test binaries).
+- `sim-cli batch --seeds 1..=5 --ticks 29200 --require-targets` with a release build: `batch: 5/5 seeds ok`, final checksums `0b75afbd35cf9e3b`, `fe6084a6bbbac176`, `f5daa246698a3229`, `b786e54976e82b1b`, `8ce9509847022d99`; `max_wait_npc` 762, 917, 1,095, 773, 331; `outsiders_le_births_third=pass` on every seed. Equal to the agent's task 17.5 lines.
+- R15.8 diff check exits 0.
+- Full gates from a clean build: not re-run by Kiro; the agent's task 17.5 run (`cargo clean`, `All gates passed.`, 5 min 46 s) is the evidence.
+
+| Finding | Decision | Result |
+|---|---|---|
+| 1 `max_wait_npc` one day long | fix (A) | closed. `after_tick` uses `world.tick() - 1`; new unit test `a_release_past_max_wait_reports_exactly_max_wait` (birth rates 0, 1,100 ticks) reports exactly 1,095. Design correction note appended. |
+| 2 snapshot subcommand | sync design | closed. Design sync note. |
+| 3 short batch before 7.3 | none | closed earlier. |
+| 4 death write order | sync design | closed. Design sync note. |
+| 5 newborn trait inheritance | keep (A), write into design | closed. Design "Births" states the rule. |
+| 6 outsider surname | change (A) | closed. Free surnames in ascending index, `below(draw, count)` keyed by the Soul, fallback to all 60; unit tests for both branches and determinism. Only seed 3's final checksum moved (the only acceptance seed with arrivals); the parity and snapshot fixtures did not change because no release happens within their 2,000 ticks. Design correction note appended. |
+| 7 calibration | none | as recorded. |
+| 8 one-third target | report-only (B) | closed. `--require-targets` checks R17.1, R17.8, R17.9 only; unit tests cover a seed failing only the third target (exit 0) and one failing R17.8 (non-zero). Design correction note appended. |
+| 9 acceptance-gate fault injection | accept as note (A) | closed. Design note. |
+| 10 values path | sync design | closed. Design sync note: `sim_core::values`, not re-exported from `world`. |
+| Property 6 log gap | log late | closed. kiro-log entry for `f058096`, marked as written late. |
+
+Notes from this review:
+
+- The 17.1 commit message says "Parity fixtures regenerated with scripts/regen-fixtures.sh", but the commit changes no fixture: the script was run twice and produced no diff (kiro-log 17.1 entry). R19.2 requires the line only when a recorded Checksum changes, so this is a wording slip, not a gap.
+- Rows R11.1/R11.2 (surname note), R11.3 and R17.3/R17.4 (off-by-one note) in the table above are now `met`; R19.4 stays `met with note` by the Author's choice.
+
+Task 16 and 16.1 are checked.
