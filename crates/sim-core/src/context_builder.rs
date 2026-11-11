@@ -95,12 +95,14 @@ pub fn build_decision_context(
     }
 
     // 2. The last 12 Events that list the subject as an actor, in ascending live ID.
-    let events = world.log().events();
-    let first = events.len().saturating_sub(MAX_EVENTS).min(events.len());
-    let chosen: Vec<&WorldEvent> = events[first..]
+    let mut chosen: Vec<&WorldEvent> = world
+        .log()
+        .events()
         .iter()
         .filter(|event| event.kind.actors().iter().any(|actor| actor == subject))
         .collect();
+    let first = chosen.len().saturating_sub(MAX_EVENTS);
+    chosen.drain(..first);
 
     // 3. The subject, every actor of the chosen Events, then up to 6 more people from
     //    the subject's Relations (both directions): highest |affinity| first, ties by
