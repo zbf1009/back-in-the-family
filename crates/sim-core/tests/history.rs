@@ -9,8 +9,8 @@ use std::collections::BTreeSet;
 use life_gen::*;
 use proptest::prelude::*;
 use sim_core::events::EventKind;
-use sim_core::ids::PersonId;
-use sim_core::values::RelationTag;
+use sim_core::ids::{EventId, PersonId, SoulId};
+use sim_core::values::{RelationTag, Sex};
 use sim_core::world::{Life, SoulPlace, World};
 
 fn is_resident(world: &World, person: PersonId) -> bool {
@@ -25,6 +25,17 @@ fn is_dead(world: &World, person: PersonId) -> bool {
         .persons()
         .get(&person)
         .is_some_and(|p| matches!(p.life, Life::Dead { .. }))
+}
+
+/// The parents of `person`, from the `parent` tags on its outgoing Relations.
+fn parents(world: &World, person: PersonId) -> Vec<PersonId> {
+    world
+        .relations()
+        .iter()
+        .filter(|((from, _), _)| *from == person)
+        .filter(|(_, relation)| relation.tags.contains(RelationTag::Parent))
+        .map(|((_, to), _)| *to)
+        .collect()
 }
 
 proptest! {
@@ -422,6 +433,238 @@ proptest! {
                         }
                         _ => unreachable!(),
                     }
+                }
+            }
+        }
+    }
+
+    // Feature: life-sim, Property 5: Births and arrivals use waiting Souls correctly.
+    #[test]
+    fn births_and_arrivals_use_waiting_souls_correctly(scenario in arb_scenario()) {
+        let mut sim = scenario.sim();
+        for tick in 0..TICKS {
+            let before = sim.world().clone();
+            let log_start = before.log().len();
+            sim.step();
+            let after = sim.world();
+            let today = before.tick();
+            let tail = events_since(after, log_start);
+            let tick_error = |message: String| format!("seed {} tick {tick}: {message}", scenario.seed);
+
+            let births: Vec<(EventId, PersonId)> = tail
+                .iter()
+                .filter_map(|event| match &event.kind {
+                    EventKind::Birth { person } => Some((event.id, *person)),
+                    _ => None,
+                })
+                .collect();
+            let arrivals: Vec<(EventId, PersonId)> = tail
+                .iter()
+                .filter_map(|event| match &event.kind {
+                    EventKind::Possession { person } | EventKind::Rebuild { person } => {
+                        Some((event.id, *person))
+                    }
+                    _ => None,
+                })
+                .collect();
+            let newcomers = new_persons(&before, after);
+            for &id in &newcomers {
+                let born = births.iter().any(|(_, person)| *person == id);
+                let arrived = arrivals.iter().any(|(_, person)| *person == id);
+                prop_assert!(
+                    born ^ arrived,
+                    "{}",
+                    tick_error(format!(
+                        "new person {} has {} birth and {} arrival events",
+                        id.0,
+                        usize::from(born),
+                        usize::from(arrived)
+                    ))
+                );
+            }
+
+            // The Souls available to births, in take order: Souls waiting at the start
+            // of the tick (except the Player_Soul and the ones released in step 3),
+            // sorted by longest wait with ties by lower Soul ID, then the Souls freed by
+            // this tick's deaths (all since today, so ordered by Soul ID).
+            let player = before.souls().player;
+            let released: BTreeSet<SoulId> = arrivals
+                .iter()
+                .map(|(_, person)| after.persons()[person].soul)
+                .collect();
+            let mut eligible: Vec<(sim_core::ids::Tick, SoulId)> = waiting_souls(&before)
+                .into_iter()
+                .filter(|(soul, _)| *soul != player && !released.contains(soul))
+                .map(|(soul, since)| (since, soul))
+                .collect();
+            let mut freed: Vec<SoulId> = before
+                .persons()
+                .values()
+                .filter(|person| matches!(person.life, Life::Alive { .. }))
+                .filter(|person| is_dead(after, person.id))
+                .map(|person| person.soul)
+                .filter(|soul| *soul != player && !released.contains(soul))
+                .collect();
+            freed.sort();
+            eligible.extend(freed.into_iter().map(|soul| (today, soul)));
+            eligible.sort();
+
+            for (index, (_, person)) in births.iter().enumerate() {
+                let newborn = &after.persons()[person];
+                prop_assert_eq!(newborn.origin, sim_core::values::Origin::Native);
+                prop_assert_eq!(
+                    newborn.birth_day,
+                    i64::try_from(today.0).unwrap(),
+                    "{}",
+                    tick_error(format!("newborn {} has the wrong birth day", person.0))
+                );
+                let expected_soul = eligible
+                    .get(index)
+                    .map(|(_, soul)| *soul)
+                    .ok_or_else(|| {
+                        TestCaseError::fail(tick_error(format!(
+                            "birth {} has no waiting Soul to take",
+                            person.0
+                        )))
+                    })?;
+                prop_assert_eq!(
+                    newborn.soul,
+                    expected_soul,
+                    "{}",
+                    tick_error(format!(
+                        "birth {} took soul {} instead of {}",
+                        person.0, newborn.soul.0, expected_soul.0
+                    ))
+                );
+                prop_assert_ne!(newborn.soul, player);
+
+                // One or two living parents, the mother among them, all in the newborn's
+                // Household.
+                let parents = parents(after, *person);
+                prop_assert!(
+                    (1..=2).contains(&parents.len()),
+                    "{}",
+                    tick_error(format!("newborn {} has {} parents", person.0, parents.len()))
+                );
+                prop_assert!(
+                    parents
+                        .iter()
+                        .any(|parent| before.persons()[parent].sex == Sex::Female),
+                    "{}",
+                    tick_error(format!("newborn {} has no female parent", person.0))
+                );
+                let household = match after.persons()[person].life {
+                    Life::Alive { household, .. } => household,
+                    Life::Dead { .. } => {
+                        return Err(TestCaseError::fail(tick_error(format!(
+                            "newborn {} is dead",
+                            person.0
+                        ))));
+                    }
+                };
+                for parent in &parents {
+                    prop_assert!(is_resident(&before, *parent));
+                    prop_assert!(is_resident(after, *parent));
+                    let parent_household = match after.persons()[parent].life {
+                        Life::Alive { household, .. } => household,
+                        Life::Dead { .. } => unreachable!(),
+                    };
+                    prop_assert_eq!(
+                        parent_household,
+                        household,
+                        "{}",
+                        tick_error(format!(
+                            "parent {} does not live with newborn {}",
+                            parent.0, person.0
+                        ))
+                    );
+                }
+            }
+
+            for (_, person) in &arrivals {
+                let person = *person;
+                let event_id = arrivals
+                    .iter()
+                    .find(|(_, p)| *p == person)
+                    .map(|(id, _)| *id)
+                    .unwrap();
+                let body = &after.persons()[&person];
+                let event = after.log().event(event_id).unwrap();
+                let expected_origin = match event.kind {
+                    EventKind::Possession { .. } => sim_core::values::Origin::Possessed,
+                    EventKind::Rebuild { .. } => sim_core::values::Origin::Rebuilt,
+                    _ => unreachable!(),
+                };
+                prop_assert_eq!(body.origin, expected_origin);
+                prop_assert!(
+                    after.age_years(body) >= 18,
+                    "{}",
+                    tick_error(format!("outsider {} is too young", person.0))
+                );
+
+                // The Soul was waiting at the start of the tick, was not the
+                // Player_Soul, and had exceeded Max_Wait.
+                let since = match before.souls().places.get(&body.soul) {
+                    Some(SoulPlace::Waiting { since }) => *since,
+                    _ => {
+                        return Err(TestCaseError::fail(tick_error(format!(
+                            "outsider {} did not take a waiting Soul",
+                            person.0
+                        ))));
+                    }
+                };
+                prop_assert_ne!(body.soul, player);
+                prop_assert!(
+                    today.0.saturating_sub(since.0) > after.params().max_wait,
+                    "{}",
+                    tick_error(format!(
+                        "outsider {} took a Soul that waited only {} days",
+                        person.0,
+                        today.0.saturating_sub(since.0)
+                    ))
+                );
+
+                // A marriage later in the same tick may add a spouse Relation and move
+                // the newcomer; otherwise the arrival has no kinship and lives alone.
+                let married_this_tick = tail.iter().any(|event| {
+                    matches!(&event.kind, EventKind::Marriage { a, b } if *a == person || *b == person)
+                });
+                if !married_this_tick {
+                    for (&(from, to), relation) in after.relations() {
+                        if from == person || to == person {
+                            prop_assert!(
+                                !relation.tags.has_kinship(),
+                                "{}",
+                                tick_error(format!(
+                                    "outsider {} has a kinship relation to {}",
+                                    person.0,
+                                    if from == person { to.0 } else { from.0 }
+                                ))
+                            );
+                        }
+                    }
+                    let household = match body.life {
+                        Life::Alive { household, .. } => household,
+                        Life::Dead { .. } => unreachable!(),
+                    };
+                    prop_assert_eq!(
+                        after.household_members(household),
+                        vec![person],
+                        "{}",
+                        tick_error(format!("outsider {} does not live alone", person.0))
+                    );
+                }
+            }
+
+            // R11.1: every non-player Soul whose wait exceeded Max_Wait at the start of
+            // the tick was released in this tick.
+            for (soul, since) in waiting_souls(&before) {
+                if soul != player && today.0.saturating_sub(since.0) > before.params().max_wait {
+                    prop_assert!(
+                        released.contains(&soul),
+                        "{}",
+                        tick_error(format!("soul {} was not released", soul.0))
+                    );
                 }
             }
         }
