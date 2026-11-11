@@ -168,7 +168,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Unit tests: a widowed Resident remarries, and both `spouse` Relations to the dead spouse are unchanged (R4.9); kin are never paired; the emptied old Household is removed.
     - _Requirements: 3.1, 3.6, 4.3, 4.6, 4.7, 4.9, 5.1_
 
-- [ ] 7. Tick steps: deaths, births, outsiders
+- [x] 7. Tick steps: deaths, births, outsiders
   - Same per-task rules and acceptance as task 6, including fixture regeneration.
   - [x] 7.1 Implement deaths, inheritance and debts at death (step 4)
     - Files: `crates/sim-core/src/death.rs`, `crates/sim-core/src/tick.rs`.
@@ -185,7 +185,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Implement design "Outsiders": every non-player Soul with `T - since > MAX_WAIT`, in Soul ID order; the kind rolled per Soul (rebuilt share 200,000 ppm); age 18..=40; the `ArrivalEndowment` source; a new single-person Household; no Relations; the `possession` or `rebuild` Event.
     - Unit tests: a waiting Player_Soul past Max_Wait is not released (R20.2); a Soul at exactly Max_Wait is not released, and one day later it is.
     - _Requirements: 5.1, 7.3, 9.3, 11.1, 11.2, 11.3, 11.4, 20.1, 20.2_
-  - [ ] 7.4 Append the first full-model batch figures to the log
+  - [x] 7.4 Append the first full-model batch figures to the log
     - Files: `docs/kiro-log.md`.
     - Run `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200` (no `--require-targets`). Paste the five seed lines and the wall time (`time`) into a new log entry. Do not tune anything yet; task 12 does that. Commit as `docs: log first life-sim batch figures`.
     - _Requirements: 17.3_
