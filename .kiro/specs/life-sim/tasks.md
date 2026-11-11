@@ -152,7 +152,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Social rolls with actor and target selection, the weight table with clamping to at least 1, `apology` only when the actor's affinity toward the target is below 0, `caused_by` from `last_grievance`, and intensity 10..=60, through `World::append` and `apply_social`. Decay runs only when `T % 30 == 29` and moves affinity one point toward 0 for every Relation whose `from` is a Resident (including Relations toward the dead), except negative affinity held by a `from` with `vindictiveness >= 2`.
     - Unit tests: weight table at trait extremes, apology eligibility, decay skip for vindictive holders, decay applies to a living-to-dead Relation.
     - _Requirements: 4.8, 5.6, 16.4_
-  - [ ] 6.3 Property test: Property 8 (social effects stay within their bounds)
+  - [x] 6.3 Property test: Property 8 (social effects stay within their bounds)
     - File: `crates/sim-core/src/social.rs` (`#[cfg(test)]`, proptest).
     - Generate two distinct Residents, any prior Relations (including none), any kind and any intensity in 1..=100. Assert that only the two Relations between the actors change, each change is within the table bound for its kind and direction, the results are in -100..=100, and the friend and rival tags match the thresholds.
     - **Property 8: Social effects stay within their bounds.** **Validates: Requirements 4.8**

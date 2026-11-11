@@ -442,6 +442,7 @@ pub(crate) fn process_relation_decay(world: &mut World) {
 mod tests {
     use super::*;
     use crate::world::{Life, WorldConfig};
+    use proptest::prelude::*;
 
     fn world() -> World {
         World::new(9, WorldConfig::try_new(40).unwrap()).unwrap()
@@ -693,5 +694,182 @@ mod tests {
             w.log().events().last().map(|event| &event.kind),
             Some(EventKind::Social { .. })
         ));
+    }
+
+    // Feature: life-sim, Property 8: Social effects stay within their bounds.
+    //
+    // For any two distinct Residents, any prior Relations between them (or none), any
+    // kind and any intensity in 1..=100, applying the act changes only the two Relations
+    // between the actors, each change is exactly the documented bound for its kind and
+    // direction with the result clamped to -100..=100, and the friend/rival tags follow
+    // the thresholds. **Validates: Requirements 4.8**
+    proptest! {
+        #![proptest_config(ProptestConfig { cases: 100, ..ProptestConfig::default() })]
+
+        #[test]
+        fn property_8_social_effects_stay_within_their_bounds(
+            a_index in 0usize..40,
+            offset in 1usize..40,
+            kind_index in 0usize..6,
+            intensity_value in 1u8..=100,
+            prior_to_actor in proptest::option::of((-100i16..=100, -100i16..=100, 0u8..=3)),
+            prior_to_target in proptest::option::of((-100i16..=100, -100i16..=100, 0u8..=3)),
+        ) {
+            const KINDS: [SocialKind; 6] = [
+                SocialKind::Help,
+                SocialKind::Gift,
+                SocialKind::Quarrel,
+                SocialKind::Insult,
+                SocialKind::Theft,
+                SocialKind::Apology,
+            ];
+            let kind = KINDS[kind_index];
+            let intensity = intensity(intensity_value);
+            let mut w = world();
+            let ids = residents(&w);
+            prop_assume!(ids.len() >= 2);
+            let a = ids[a_index.checked_rem(ids.len()).unwrap_or(0)];
+            let b = ids[a_index
+                .saturating_add(offset)
+                .checked_rem(ids.len())
+                .unwrap_or(0)];
+            prop_assume!(a != b);
+
+            let tag_bits = |roll: u8| {
+                let mut tags = RelTags::empty();
+                if roll & 1 != 0 {
+                    tags.insert(RelationTag::Friend);
+                }
+                if roll & 2 != 0 {
+                    tags.insert(RelationTag::Rival);
+                }
+                tags
+            };
+            if let Some((affinity, trust, roll)) = prior_to_target {
+                w.relations.insert(
+                    (a, b),
+                    Relation {
+                        affinity: Score::clamped(i64::from(affinity)),
+                        trust: Score::clamped(i64::from(trust)),
+                        tags: tag_bits(roll),
+                    },
+                );
+            }
+            if let Some((affinity, trust, roll)) = prior_to_actor {
+                w.relations.insert(
+                    (b, a),
+                    Relation {
+                        affinity: Score::clamped(i64::from(affinity)),
+                        trust: Score::clamped(i64::from(trust)),
+                        tags: tag_bits(roll),
+                    },
+                );
+            }
+            let before = w.relations().clone();
+
+            apply_social(&mut w, kind, a, b, intensity, CausedBy::default())
+                .expect("living, distinct actors never refuse an event");
+
+            // Only the two Relations between the actors may change.
+            for (key, relation) in &before {
+                if *key != (a, b) && *key != (b, a) {
+                    prop_assert_eq!(w.relations().get(key), Some(relation), "{:?} changed", key);
+                }
+            }
+            for key in w.relations().keys() {
+                prop_assert!(
+                    before.contains_key(key) || *key == (a, b) || *key == (b, a),
+                    "{:?} appeared",
+                    key
+                );
+            }
+
+            // The table bound, restated independently of `effects`: intensity `i`, the
+            // `<=` caps, and every division on the non-negative intensity rounded down.
+            let i = i64::from(intensity_value);
+            let p2 = i.checked_div(2).unwrap_or(0);
+            let p3 = i.checked_div(3).unwrap_or(0);
+            let p4 = i.checked_div(4).unwrap_or(0);
+            let p5 = i.checked_div(5).unwrap_or(0);
+            let p10 = i.checked_div(10).unwrap_or(0);
+            let p20 = i.checked_div(20).unwrap_or(0);
+            let (to_actor, to_target) = match kind {
+                SocialKind::Help => ((p5.min(20), p10.min(10)), (p10.min(10), 0)),
+                SocialKind::Gift => ((p5.min(20), 0), (p20.min(5), 0)),
+                SocialKind::Quarrel => (
+                    (p4.min(25).saturating_neg(), p10.min(10).saturating_neg()),
+                    (p4.min(25).saturating_neg(), p10.min(10).saturating_neg()),
+                ),
+                SocialKind::Insult => (
+                    (p3.min(33).saturating_neg(), p5.min(20).saturating_neg()),
+                    (0, 0),
+                ),
+                SocialKind::Theft => (
+                    (p2.min(50).saturating_neg(), p2.min(50).saturating_neg()),
+                    (0, 0),
+                ),
+                SocialKind::Apology => ((p5.min(20), p10.min(10)), (0, 0)),
+            };
+            let params = *w.params();
+            for (key, (affinity_delta, trust_delta)) in [((b, a), to_actor), ((a, b), to_target)] {
+                let old_affinity = before
+                    .get(&key)
+                    .map_or(0, |relation| i64::from(relation.affinity.get()));
+                let old_trust = before
+                    .get(&key)
+                    .map_or(0, |relation| i64::from(relation.trust.get()));
+                let expected_affinity = old_affinity
+                    .saturating_add(affinity_delta)
+                    .clamp(-100, 100);
+                let expected_trust = old_trust.saturating_add(trust_delta).clamp(-100, 100);
+                match w.relations().get(&key) {
+                    None => prop_assert_eq!(
+                        (affinity_delta, trust_delta),
+                        (0, 0),
+                        "{:?} is missing",
+                        key
+                    ),
+                    Some(relation) => {
+                        prop_assert_eq!(
+                            i64::from(relation.affinity.get()),
+                            expected_affinity,
+                            "{:?} affinity",
+                            key
+                        );
+                        prop_assert_eq!(
+                            i64::from(relation.trust.get()),
+                            expected_trust,
+                            "{:?} trust",
+                            key
+                        );
+                        prop_assert!((-100..=100).contains(&i64::from(relation.affinity.get())));
+                        prop_assert!((-100..=100).contains(&i64::from(relation.trust.get())));
+                        // A touched Relation is re-derived exactly; an act with both deltas
+                        // 0 leaves the Relation untouched.
+                        if (affinity_delta, trust_delta) != (0, 0) {
+                            prop_assert_eq!(
+                                relation.tags.contains(RelationTag::Friend),
+                                expected_affinity >= i64::from(params.friend_at),
+                                "{:?} friend tag",
+                                key
+                            );
+                            prop_assert_eq!(
+                                relation.tags.contains(RelationTag::Rival),
+                                expected_affinity < i64::from(params.grudge_threshold),
+                                "{:?} rival tag",
+                                key
+                            );
+                        } else if let Some(previous) = before.get(&key) {
+                            prop_assert_eq!(
+                                relation.tags,
+                                previous.tags,
+                                "{:?} tags changed without an effect",
+                                key
+                            );
+                        }
+                    }
+                }
+            }
+        }
     }
 }
