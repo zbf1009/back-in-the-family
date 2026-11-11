@@ -56,4 +56,23 @@ proptest! {
         }
         prop_assert_eq!(sim.world().tick().0, TICKS);
     }
+
+    // Feature: life-sim, Property 2: Structural invariants hold at the end of every tick.
+    #[test]
+    fn structural_invariants_hold_at_the_end_of_every_tick(scenario in arb_scenario()) {
+        let mut sim = scenario.sim();
+        check_structure(sim.world());
+        let mut checker = InvariantChecker::new(sim.world())
+            .unwrap_or_else(|violation| panic!("opening world: {violation}"));
+        for tick in 0..TICKS {
+            sim.step();
+            check_structure(sim.world());
+            checker
+                .after_tick(sim.world())
+                .unwrap_or_else(|violation| {
+                    panic!("seed {} tick {tick}: {violation}", scenario.seed)
+                });
+        }
+        prop_assert_eq!(sim.world().tick().0, TICKS);
+    }
 }
