@@ -111,7 +111,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - _Requirements: 1.1, 5.10, 17.6, 19.1_
     - Acceptance: `cargo fmt --check`, `cargo clippy -p sim-core --all-targets -- -D warnings` and `cargo test -p sim-core` pass. The R15.8 diff check exits 0. Then commit 3.1 to 3.3 as one commit (see the message above). `cargo build --workspace` is still expected to fail in `sim-cli` and `sim-wasm`.
 
-- [ ] 4. Adapt sim-cli, sim-wasm, the web unit tests and the fixtures (closes the red window)
+- [x] 4. Adapt sim-cli, sim-wasm, the web unit tests and the fixtures (closes the red window)
   - [x] 4.1 Adapt the sim-cli `record`, `replay` and `inputs`
     - Files: `crates/sim-cli/src/commands.rs`, `crates/sim-cli/src/inputs.rs`, `crates/sim-cli/src/args.rs` (if needed), `crates/sim-cli/tests/cli.rs`.
     - The default config is `{"opening_residents":50}`, and the help text describes it. Rewrite `generate_inputs` per design "sim-cli" `inputs.rs`: 12 roll buckets of `Act` inputs (0..=7 valid-looking, 8 unknown person, 9 self target, 10 intensity 0 or 101..=255, 11 actor from `1..=N`). Update the module doc table. Update `cli.rs` so that every test uses the new config and payload shape, and add a test that `--config` with a `workload` field exits 2 with the unknown-field message.
@@ -129,7 +129,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Update the unit tests in `measure.rs`. A test checks that every labelled row is printed.
     - _Requirements: 17.5_
     - Acceptance: `cargo test -p sim-cli measure` passes, `cargo clippy -p sim-cli --all-targets -- -D warnings` passes, and `cargo run -q --release -p sim-cli -- measure --runs 1 --residents 60` prints every row. Commit.
-  - [ ] 4.4 Adapt sim-wasm, the configs and fixtures, and the web unit tests; regenerate the fixtures
+  - [x] 4.4 Adapt sim-wasm, the configs and fixtures, and the web unit tests; regenerate the fixtures
     - Files: `crates/sim-wasm/src/lib.rs` (module docs and examples for the new config and payload JSON), `crates/sim-wasm/tests/parity.rs`, `crates/sim-wasm/tests/bench.rs`, `scripts/measure-wasm.mjs`, `scripts/measure-wasm.sh`, `fixtures/configs/pairwise.json` (`{"opening_residents":50}`), `fixtures/parity/*.replay.json` (regenerated), `fixtures/parity/README.md`, `web/tests/unit/helpers/gen.ts`, `web/tests/unit/helpers/reference.ts`, `web/tests/unit/controller.test.ts`, `controller-rejects.test.ts`, `controller-speed.test.ts`, `controller-frames.test.ts`, `controller-clock.test.ts`.
     - `parity.rs`: switch to the new config and payloads, and add a comment that the fixture names `pairwise` and `seedbig-pairwise` are kept from the skeleton era and no longer describe a workload. `fixtures/parity/README.md`: use a config column instead of workload and entities, state format version 3, and add the same naming note.
     - Web helpers: `configArb` becomes `{ opening_residents: 40..=60 }`; the payload arbitrary becomes `Act` (kinds `help`, `gift`, `quarrel`, `insult`, `theft`, `apology`; actor and target as decimal strings; intensity 0..=255, so some are invalid); invalid config examples include one with a `workload` field; update the doc comments. Replace every config string and payload literal in the five controller tests. Do **not** change `web/src` or `web/tests/smoke/*` (R18.4). The stale type annotation in the smoke specs stays as it is.

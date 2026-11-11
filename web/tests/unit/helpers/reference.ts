@@ -20,7 +20,7 @@ import type { SimHandle } from '../../../src/worker/controller.ts';
 export interface ReferenceInput {
   /** The tick (0-based) before which this input is submitted. */
   readonly tick: number;
-  /** The `payload` object of the SubmitInput JSON (SetValue / Spawn / Despawn). */
+  /** The `payload` object of the SubmitInput JSON (an `Act`, see gen.ts). */
   readonly payload: unknown;
 }
 
@@ -42,7 +42,7 @@ export function submitInputJson(input: ReferenceInput): string {
  * so `checksums[n]` is the checksum of tick `n` (matching `WasmSim.tick() === n+1`
  * after that step, and the fixture's `checksums[n]`).
  *
- * `config` is the World_Config JSON string (e.g. `{"entity_count":50,...}`),
+ * `config` is the World_Config JSON string (e.g. `{"opening_residents":50}`),
  * the same string the controller receives. A caller holding a config object must
  * `JSON.stringify` it first.
  *

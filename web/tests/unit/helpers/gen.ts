@@ -6,15 +6,17 @@
 // runs at most ~3,000 ticks (Property 4's bound), keeping 100 runs fast.
 //
 // Shapes verified against sim-core:
-//   - ReplayConfig / WorldConfig (crates/sim-core/src/world.rs, replay.rs): legal
-//     `workload` values are exactly "Light" and "Pairwise"; `entity_count` is a
-//     u16 (legal 0..=200). The generators use 1..20 per R6.6, "any workload".
-//   - SubmitInput (crates/sim-core/src/replay.rs): {"tick":"<u64>","payload":P}
-//     with no `seq`; P is one of SetValue {entity:"<u64>", value:i32},
-//     Spawn {value:i32}, Despawn {entity:"<u64>"}. `value` is a JSON number;
-//     `entity` and `tick` are decimal strings.
+//   - ReplayConfig / WorldConfig (crates/sim-core/src/world.rs, replay.rs):
+//     {"opening_residents": N}, a u16 in 40..=60 (R12.1). The generator uses the
+//     whole legal range, because the skeleton's small entities/workload configs are
+//     gone (R1.1, R1.2).
+//   - SubmitInput (crates/sim-core/src/replay.rs):
+//     {"tick":"<u64>","payload":{"Act":{"kind":"help","actor":"3","target":"17",
+//     "intensity":40}}}. `tick`, `actor` and `target` are decimal strings; `kind` is
+//     one of the six card event names; `intensity` is a JSON number 0..=255, so some
+//     generated inputs are invalid on purpose.
 //   - The parity fixture (fixtures/parity/seedbig-pairwise.replay.json) uses this
-//     exact payload shape, e.g. {"SetValue":{"entity":"37","value":264}}.
+//     exact payload shape.
 
 import fc from 'fast-check';
 import type { Request } from '../../../src/shared/protocol.ts';
@@ -24,13 +26,12 @@ import type { ReferenceInput } from './reference.ts';
 /** The maximum u64 value, for the seed generator. */
 export const U64_MAX = 18_446_744_073_709_551_615n;
 
-/** Legal workload strings, as sim-core's ReplayWorkload enum (world.rs, replay.rs). */
-export const WORKLOADS = ['Light', 'Pairwise'] as const;
+/** The six card social kinds, as sim-core's SocialKind (input.rs, values.rs). */
+export const SOCIAL_KINDS = ['help', 'gift', 'quarrel', 'insult', 'theft', 'apology'] as const;
 
-/** A World_Config object with a small entity count (1..20) and any legal workload (R6.6). */
-export const configArb: fc.Arbitrary<{ entity_count: number; workload: string }> = fc.record({
-  entity_count: fc.integer({ min: 1, max: 20 }),
-  workload: fc.constantFrom(...WORKLOADS),
+/** A World_Config object with any legal opening resident count (40..=60, R12.1). */
+export const configArb: fc.Arbitrary<{ opening_residents: number }> = fc.record({
+  opening_residents: fc.integer({ min: 40, max: 60 }),
 });
 
 /** A World_Config as the JSON string `new WasmSim` receives. */
@@ -59,21 +60,22 @@ export const seedBigIntArb: fc.Arbitrary<bigint> = fc.oneof(
 /** A seed as the decimal string carried over the protocol. */
 export const seedStringArb: fc.Arbitrary<string> = seedBigIntArb.map((n) => n.toString());
 
-/** An i32 `value`, within the i32 range so sim-core never rejects the shape itself. */
-const valueArb = fc.integer({ min: -2_147_483_648, max: 2_147_483_647 });
-
-/** An entity id as a decimal string (u64), biased small so SetValue/Despawn often hit a live entity. */
-const entityStringArb = fc.oneof(
-  { arbitrary: fc.integer({ min: 0, max: 60 }).map((n) => n.toString()), weight: 3 },
+/** A Person ID as a decimal string (u64), biased small so Acts often hit a live Person. */
+const personStringArb = fc.oneof(
+  { arbitrary: fc.integer({ min: 1, max: 60 }).map((n) => n.toString()), weight: 3 },
   { arbitrary: fc.bigInt({ min: 0n, max: U64_MAX }).map((n) => n.toString()), weight: 1 },
 );
 
-/** One SubmitInput `payload` object: SetValue, Spawn or Despawn (replay.rs shape). */
-export const payloadArb: fc.Arbitrary<unknown> = fc.oneof(
-  fc.record({ SetValue: fc.record({ entity: entityStringArb, value: valueArb }) }),
-  fc.record({ Spawn: fc.record({ value: valueArb }) }),
-  fc.record({ Despawn: fc.record({ entity: entityStringArb }) }),
-);
+/** One SubmitInput `payload` object: an `Act` (replay.rs shape). */
+export const payloadArb: fc.Arbitrary<unknown> = fc.record({
+  Act: fc.record({
+    kind: fc.constantFrom(...SOCIAL_KINDS),
+    actor: personStringArb,
+    target: personStringArb,
+    // 0..=255, so values outside the valid 1..=100 are generated on purpose.
+    intensity: fc.integer({ min: 0, max: 255 }),
+  }),
+});
 
 /**
  * A protocol input bound to a tick in `[0, maxTick)`, as the reference and the
@@ -132,7 +134,17 @@ export function commandsArb(tickBudget = 3_000): fc.Arbitrary<Command[]> {
   const badCreateArb = fc
     .record({
       seed: fc.oneof(fc.string(), fc.constantFrom('', ' 1', '-1', '1e3', '99999999999999999999999')),
-      config: fc.oneof(configJsonArb, fc.constantFrom('', '{}', 'not json', '{"entity_count":99999}')),
+      config: fc.oneof(
+        configJsonArb,
+        fc.constantFrom(
+          '',
+          '{}',
+          'not json',
+          '{"opening_residents":39}',
+          '{"opening_residents":61}',
+          '{"opening_residents":50,"workload":"Pairwise"}',
+        ),
+      ),
     })
     .map((c): Command => ({ kind: 'create-world', seed: c.seed, config: c.config }));
 

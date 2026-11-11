@@ -3,13 +3,13 @@
 
 use sim_core::checksum::Checksum;
 use sim_core::tick::Sim;
-use sim_core::world::{Workload, WorldConfig};
+use sim_core::world::WorldConfig;
 use sim_wasm::{BENCH_WARMUP_TICKS, bench_checksum_hex};
 
-const CONFIG: &str = r#"{"entity_count":6,"workload":"Pairwise"}"#;
+const CONFIG: &str = r#"{"opening_residents":45}"#;
 
 fn expected(seed: u64) -> u64 {
-    let config = WorldConfig::try_new(6, Workload::Pairwise).unwrap();
+    let config = WorldConfig::try_new(45).unwrap();
     let mut sim = Sim::new(seed, config).unwrap();
     for _ in 0..BENCH_WARMUP_TICKS {
         sim.step();

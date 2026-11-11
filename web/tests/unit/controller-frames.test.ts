@@ -463,7 +463,7 @@ test('a set-speed mid-run changes only the batches that start after it (R4.5)', 
   controller.ready();
 
   let id = 1;
-  controller.handle({ type: 'create-world', id: id++, seed: '7', config: '{"entity_count":5,"workload":"Light"}' });
+  controller.handle({ type: 'create-world', id: id++, seed: '7', config: '{"opening_residents":45}' });
   assert.ok(recorder !== null);
   const rec = recorder as unknown as RecordingSimHandle;
 
@@ -525,7 +525,7 @@ test('no batch runs while not running, and the scheduler never holds two frames 
   assert.equal(scheduler.isPending, false, 'no-world: run schedules no frame (R4.6)');
   assert.equal(scheduler.flush(), false, 'no-world: nothing to fire');
 
-  controller.handle({ type: 'create-world', id: 2, seed: '1', config: '{"entity_count":4,"workload":"Light"}' });
+  controller.handle({ type: 'create-world', id: 2, seed: '1', config: '{"opening_residents":40}' });
   assert.ok(recorder !== null);
   const rec = recorder as unknown as RecordingSimHandle;
 

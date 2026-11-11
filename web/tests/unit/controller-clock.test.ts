@@ -290,8 +290,8 @@ test('a clock frozen at one value drives the identical Sim calls as a moving clo
   loadWasm();
 
   const commands: Command[] = [
-    { kind: 'create-world', seed: '42', config: '{"entity_count":6,"workload":"Pairwise"}' },
-    { kind: 'submit', input: JSON.stringify({ tick: '1', payload: { SetValue: { entity: '2', value: 11 } } }) },
+    { kind: 'create-world', seed: '42', config: '{"opening_residents":45}' },
+    { kind: 'submit', input: JSON.stringify({ tick: '1', payload: { Act: { kind: 'help', actor: '1', target: '2', intensity: 40 } } }) },
     { kind: 'set-speed', speed: 7 },
     { kind: 'run' },
     { kind: 'fire-frames', count: 5 },

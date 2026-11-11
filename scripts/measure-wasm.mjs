@@ -1,5 +1,5 @@
 // R10: WASM tick performance benchmark (one tick is one day) (Node, no dependencies).
-// Usage: node scripts/measure-wasm.mjs WASM_DIR [--runs N] [--entities N]
+// Usage: node scripts/measure-wasm.mjs WASM_DIR [--runs N] [--residents N]
 // Run through scripts/measure-wasm.sh, which builds WASM_DIR (a --target nodejs build of
 // sim-wasm with the `bench` feature). Same parameters and table layout as
 // `sim-cli measure`. Timing uses performance.now() in JavaScript, outside the simulation.
@@ -12,30 +12,32 @@ const TICKS_PER_YEAR = 365; // one tick is one day
 const CHECKSUM_ITERATIONS = 2000;
 const WARMUP_TICKS = 100;
 const MAX_RUNS = 50;
-const MAX_ENTITIES = 200;
+const MIN_RESIDENTS = 40;
+const MAX_RESIDENTS = 60;
 
 function usage(msg) {
-  console.error(`error: ${msg}\nusage: node scripts/measure-wasm.mjs WASM_DIR [--runs N] [--entities N]`);
+  console.error(`error: ${msg}\nusage: node scripts/measure-wasm.mjs WASM_DIR [--runs N] [--residents N]`);
   process.exit(2);
 }
 
 const argv = process.argv.slice(2);
 let dir = null;
 let runs = 5;
-let entities = 60;
+let residents = 60;
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   const num = (v) => (/^\d+$/.test(v ?? "") ? Number(v) : usage(`${a} needs a non-negative number`));
   if (a === "--runs") runs = num(argv[++i]);
   else if (a.startsWith("--runs=")) runs = num(a.slice(7));
-  else if (a === "--entities") entities = num(argv[++i]);
-  else if (a.startsWith("--entities=")) entities = num(a.slice(11));
+  else if (a === "--residents") residents = num(argv[++i]);
+  else if (a.startsWith("--residents=")) residents = num(a.slice(12));
   else if (!a.startsWith("-") && dir === null) dir = a;
   else usage(`unexpected argument ${a}`);
 }
 if (dir === null) usage("missing WASM_DIR");
 if (runs < 1 || runs > MAX_RUNS) usage(`--runs must be 1..=${MAX_RUNS}`);
-if (entities > MAX_ENTITIES) usage(`--entities must be 0..=${MAX_ENTITIES}`);
+if (residents < MIN_RESIDENTS || residents > MAX_RESIDENTS)
+  usage(`--residents must be ${MIN_RESIDENTS}..=${MAX_RESIDENTS}`);
 
 const require = createRequire(import.meta.url);
 const { WasmSim, bench_checksum } = require(path.resolve(dir, "sim_wasm.js"));
@@ -53,7 +55,7 @@ const time = (f) => {
 };
 
 function measureOne() {
-  const config = JSON.stringify({ entity_count: entities, workload: "Pairwise" });
+  const config = JSON.stringify({ opening_residents: residents });
   const ticks = LIFETIME_YEARS * TICKS_PER_YEAR;
 
   // Whole lifetime in one run_ticks call (one JS-to-WASM crossing).
@@ -90,7 +92,7 @@ const r0 = measureOne();
 
 console.log(`sim-wasm measure (node ${process.version}, wasm-bindgen ${process.env.WASM_BINDGEN_VERSION ?? "unknown"}) build=release+bench`);
 console.log(
-  `params: seed=1 entities=${entities} workload=Pairwise runs=${runs} checksum_iterations=${CHECKSUM_ITERATIONS} checksum_state_after_ticks=${WARMUP_TICKS}`,
+  `params: seed=1 residents=${residents} runs=${runs} checksum_iterations=${CHECKSUM_ITERATIONS} checksum_state_after_ticks=${WARMUP_TICKS}`,
 );
 console.log("lifetime: 80 years = 80 x 365 = 29200 daily ticks; no inputs; fresh WasmSim per run");
 console.log("definitions: best/median over runs; ticks/s = lifetime ticks / best lifetime (run_ticks);");

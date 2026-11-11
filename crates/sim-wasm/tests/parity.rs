@@ -1,8 +1,12 @@
-//! Native-vs-WASM parity (design D7). The same golden fixtures that
-//! `sim-core/tests/replay.rs` checks natively are checked here; under
+//! Native-vs-WASM parity (design D7): the committed Parity_Fixtures in
+//! `fixtures/parity/` are the golden runs. Under
 //! `cargo test -p sim-wasm --target wasm32-unknown-unknown` they run in Node through
 //! `wasm-bindgen-test-runner`, and under plain `cargo test` they run natively
 //! (`unsupported = test` falls back to `#[test]`).
+//!
+//! The fixture names `seed1-pairwise`, `seed2-pairwise` and `seedbig-pairwise` are kept
+//! from the skeleton era and no longer describe a workload (`Pairwise` is gone); only
+//! their contents changed with the life-sim model.
 
 use serde_json::Value;
 use sim_wasm::{WasmSim, verify_replay, verify_replay_str};
@@ -75,7 +79,7 @@ fn wasm_sim_api_reproduces_every_recorded_checksum() {
 
 #[wasm_bindgen_test(unsupported = test)]
 fn run_ticks_returns_last_checksum_and_handles_zero() {
-    let cfg = r#"{"entity_count":5,"workload":"Light"}"#;
+    let cfg = r#"{"opening_residents":45}"#;
     let mut a = WasmSim::create(7, cfg).unwrap();
     assert_eq!(a.run_ticks(0), "", "no tick has run yet");
     let last = a.run_ticks(10);
@@ -91,23 +95,28 @@ fn run_ticks_returns_last_checksum_and_handles_zero() {
 
 #[wasm_bindgen_test(unsupported = test)]
 fn bad_caller_input_is_an_error_not_a_panic() {
-    let cfg = r#"{"entity_count":5,"workload":"Light"}"#;
+    let cfg = r#"{"opening_residents":45}"#;
     assert!(WasmSim::create(1, "not json").is_err());
-    assert!(WasmSim::create(1, r#"{"entity_count":201,"workload":"Light"}"#).is_err());
+    // Below the 40..=60 range and the retired `workload` field both fail validation.
+    assert!(WasmSim::create(1, r#"{"opening_residents":39}"#).is_err());
+    assert!(WasmSim::create(1, r#"{"opening_residents":45,"workload":"Pairwise"}"#).is_err());
     let mut sim = WasmSim::create(1, cfg).unwrap();
     sim.step();
     for bad in [
         "",
         "{}",
-        r#"{"tick":5,"payload":{"Spawn":{"value":1}}}"#,
-        r#"{"tick":"05","payload":{"Spawn":{"value":1}}}"#,
-        r#"{"tick":"0","payload":{"Spawn":{"value":1}}}"#,
+        r#"{"tick":5,"payload":{"Act":{"kind":"help","actor":"1","target":"2","intensity":40}}}"#,
+        r#"{"tick":"05","payload":{"Act":{"kind":"help","actor":"1","target":"2","intensity":40}}}"#,
+        r#"{"tick":"1","payload":{"SetValue":{"entity":"1","value":1}}}"#,
+        r#"{"tick":"1","payload":{"Act":{"kind":"dream","actor":"1","target":"2","intensity":40}}}"#,
     ] {
         assert!(sim.submit_json(bad).is_err(), "should reject {bad:?}");
     }
     assert!(
-        sim.submit_json(r#"{"tick":"1","payload":{"Spawn":{"value":1}}}"#)
-            .is_ok()
+        sim.submit_json(
+            r#"{"tick":"1","payload":{"Act":{"kind":"help","actor":"1","target":"2","intensity":40}}}"#
+        )
+        .is_ok()
     );
 }
 

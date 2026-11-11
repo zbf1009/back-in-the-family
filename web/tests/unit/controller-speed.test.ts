@@ -2,8 +2,8 @@
 //
 // Validates: Requirements 3.5, 3.7, 4.1, 4.2, 4.5, 5.4, 6.6
 //
-// Property 4 (design.md): For any seed, small World_Config (entity count 1-20,
-// any workload), list of inputs, and sequence of commands drawn from create-world,
+// Property 4 (design.md): For any seed, World_Config (opening_residents 40..=60),
+// list of inputs, and sequence of commands drawn from create-world,
 // run, pause, step, set-speed, submit and "fire k frames", with total ticks per
 // case capped at 3,000: every snapshot the controller reports with tick N >= 1 has
 // the checksum that a reference run returns from its N-th step() call, where the
@@ -334,10 +334,10 @@ test('a tick reached by stepping, by Speed 1, and by Speed 365 reports one check
   loadWasm();
 
   const seed = 1234n;
-  const config = '{"entity_count":8,"workload":"Pairwise"}';
+  const config = '{"opening_residents":45}';
   const inputs: ReferenceInput[] = [
-    { tick: 2, payload: { SetValue: { entity: '3', value: 100 } } },
-    { tick: 370, payload: { Spawn: { value: 7 } } },
+    { tick: 2, payload: { Act: { kind: 'help', actor: '3', target: '4', intensity: 40 } } },
+    { tick: 370, payload: { Act: { kind: 'gift', actor: '5', target: '6', intensity: 60 } } },
   ].map((i) => i as ReferenceInput);
   const sorted = stableSortByTick(inputs);
 

@@ -7,10 +7,13 @@
 //! `JsError` cannot be inspected or even built on native.
 //!
 //! JSON formats:
-//! - `config_json`: the `ReplayConfig` shape, e.g.
-//!   `{"entity_count":50,"workload":"Pairwise"}`.
-//! - `input_json`: `{"tick":"5","payload":{"SetValue":{"entity":"3","value":500}}}`;
-//!   `u64` values are strict decimal strings, and there is no `seq` (the stream assigns it).
+//! - `config_json`: the `ReplayConfig` shape, e.g. `{"opening_residents":50}`. An
+//!   unknown field (such as the retired `workload`) is rejected and no World is created.
+//! - `input_json`:
+//!   `{"tick":"5","payload":{"Act":{"kind":"help","actor":"3","target":"17","intensity":40}}}`;
+//!   `u64` values (`tick`, `actor`, `target`) are strict decimal strings, `kind` is one
+//!   of `help`, `gift`, `quarrel`, `insult`, `theft`, `apology`, and there is no `seq`
+//!   (the stream assigns it).
 //! - Checksums are returned as 16 lowercase hex characters.
 //!
 //! `u64` arguments and results (`seed`, `tick()`) are JavaScript `BigInt`s.

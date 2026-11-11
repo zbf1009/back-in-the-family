@@ -2,7 +2,7 @@
 # R10: WASM tick-granularity timings. Builds sim-wasm in release mode WITH the `bench`
 # feature, runs wasm-bindgen for Node into target/wasm-bench (kept apart from the
 # production web build in target/wasm-pkg), then runs scripts/measure-wasm.mjs.
-# Usage: scripts/measure-wasm.sh [--runs N] [--entities N]   (defaults 5 and 60)
+# Usage: scripts/measure-wasm.sh [--runs N] [--residents N]   (defaults 5 and 60)
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

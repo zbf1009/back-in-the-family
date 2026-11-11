@@ -37,8 +37,8 @@ type ReplyMessage = Extract<WorkerMessage, { type: 'reply' }>;
 /** A status message, narrowed from WorkerMessage. */
 type StatusMessage = Extract<WorkerMessage, { type: 'status' }>;
 
-/** The pairwise config every real-world case here creates from (same shape as the fixture). */
-const CONFIG = '{"entity_count":8,"workload":"Pairwise"}';
+/** The config every real-world case here creates from (same shape as the fixture). */
+const CONFIG = '{"opening_residents":45}';
 
 // --- R2.8: WASM load failure --------------------------------------------------
 

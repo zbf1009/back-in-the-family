@@ -278,7 +278,7 @@ test('a failed create while running leaves the running world running and untouch
   controller.ready();
 
   // Create a valid world and start running.
-  controller.handle({ type: 'create-world', id: 1, seed: '42', config: '{"entity_count":5,"workload":"Pairwise"}' });
+  controller.handle({ type: 'create-world', id: 1, seed: '42', config: '{"opening_residents":45}' });
   controller.handle({ type: 'run', id: 2 });
   // Fire a couple of frames so the world has actually advanced ticks.
   for (let i = 0; i < 3; i++) {
