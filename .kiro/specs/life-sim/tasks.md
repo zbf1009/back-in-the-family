@@ -325,7 +325,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Checked after 17.x is reviewed by Kiro.
 
 - [ ] 17. Audit follow-ups (Author decisions 2026-11-11, docs/life-sim-audit.md)
-  - [ ] 17.1 Draw the outsider surname from the surnames no living Resident uses
+  - [x] 17.1 Draw the outsider surname from the surnames no living Resident uses
     - Files: `crates/sim-core/src/outsiders.rs`, `fixtures/parity/*` (regenerated), `docs/kiro-log.md`.
     - Follow design "Outsiders" ("Steps in detail", Author decision 2026-11-11, audit) and audit finding 6. In `release`, replace the current surname draw (`below(draw(..., RELEASE_SURNAME), SURNAME_COUNT)`) as follows. Collect the surname indices used by living Residents from `world.derived.living_names` (it holds exactly the names of living Residents, R13.3, and is rebuilt after load, R16.5) into a `BTreeSet<u16>`. List the free surnames `0..SURNAME_COUNT` not in that set, in ascending index. If the list is not empty, pick `free[below(draw, count)]`. If no surname is free, fall back to `below(draw, SURNAME_COUNT)` over all 60. The draw stays the existing one: keyed by the released Soul (`soul.rng_key()`), `StreamTag::Outsiders`, `world.tick`, index `RELEASE_SURNAME`. Add no new stream tag or index constant. The first name still comes from `pick_full_name` with `RELEASE_NAME`, unchanged. Several releases in one tick see each other's surnames, because `living_names` is updated after each release; keep that order.
     - Put the selection in a small pure helper (for example `fn outsider_surname(draw: u64, used: &BTreeSet<u16>) -> u16`) so it can be tested without a World. Update the module doc comment ("a fresh name") to state the rule.
