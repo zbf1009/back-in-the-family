@@ -6,7 +6,6 @@ use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use sim_core::replay::{ReplayFile, verify};
-use sim_core::world::Workload;
 
 /// A unique directory under the system temp dir, removed on drop.
 struct TempDir(PathBuf);
@@ -93,12 +92,7 @@ fn record_without_config_uses_the_documented_defaults() {
     let dir = TempDir::new("defaults");
     let path = record_small(&dir, "a.replay.json");
     let file = ReplayFile::from_json_str(&fs::read_to_string(&path).unwrap()).unwrap();
-    assert_eq!(file.config.entity_count, 50);
-    assert_eq!(
-        Workload::from(file.config.workload),
-        Workload::Pairwise,
-        "default workload"
-    );
+    assert_eq!(file.config.opening_residents, 50, "default config");
     assert_eq!(file.inputs.len(), 20);
     assert_eq!(file.ticks, 40);
     assert_eq!(verify(&file), Ok(()));
@@ -147,7 +141,7 @@ fn record_is_reproducible_byte_for_byte_and_creates_parent_directories() {
 fn record_reads_a_config_file() {
     let dir = TempDir::new("config");
     let cfg = dir.path("cfg.json");
-    fs::write(&cfg, r#"{"entity_count":7,"workload":"Light"}"#).unwrap();
+    fs::write(&cfg, r#"{"opening_residents":45}"#).unwrap();
     let out = dir.path("a.json");
     let o = sim_cli(&[
         "record",
@@ -162,7 +156,33 @@ fn record_reads_a_config_file() {
     ]);
     assert_eq!(code(&o), 0, "{}", stderr(&o));
     let file = ReplayFile::from_json_str(&fs::read_to_string(&out).unwrap()).unwrap();
-    assert_eq!(file.config.entity_count, 7);
+    assert_eq!(file.config.opening_residents, 45);
+}
+
+#[test]
+fn a_config_with_a_retired_workload_field_exits_two_with_the_unknown_field_message() {
+    let dir = TempDir::new("config-workload");
+    let cfg = dir.path("cfg.json");
+    fs::write(&cfg, r#"{"opening_residents":50,"workload":"Pairwise"}"#).unwrap();
+    let out = dir.path("never.json");
+    let o = sim_cli(&[
+        "record",
+        "--seed",
+        "1",
+        "--ticks",
+        "5",
+        "--config",
+        s(&cfg),
+        "--out",
+        s(&out),
+    ]);
+    assert_eq!(code(&o), 2, "{}", stderr(&o));
+    assert!(
+        stderr(&o).contains("unknown field `workload`"),
+        "{}",
+        stderr(&o)
+    );
+    assert!(!out.exists(), "no World is created, so no file is written");
 }
 
 #[test]
@@ -171,7 +191,7 @@ fn record_usage_errors_exit_two_and_write_nothing() {
     let out = dir.path("never.json");
     let o_arg = s(&out);
     let bad_cfg = dir.path("bad.json");
-    fs::write(&bad_cfg, r#"{"entity_count":201,"workload":"Light"}"#).unwrap();
+    fs::write(&bad_cfg, r#"{"opening_residents":39}"#).unwrap();
     let garbage_cfg = dir.path("garbage.json");
     fs::write(&garbage_cfg, "not json").unwrap();
     let huge = "9".repeat(5000);
@@ -345,10 +365,10 @@ fn replay_malformed_inputs_exit_two() {
     // A directory is not a replay file.
     assert_eq!(code(&sim_cli(&["replay", s(&dir.path(""))])), 2);
 
-    // Unsupported versions: 1 (the old format) and 3 (a future one).
-    for (n, version) in [(1, 1), (3, 3)] {
+    // Unsupported versions: 2 (the skeleton format) and 4 (a future one).
+    for (n, version) in [(2, 2), (4, 4)] {
         let bad = dir.path(&format!("v{n}.json"));
-        let changed = text.replacen("\"version\":2", &format!("\"version\":{version}"), 1);
+        let changed = text.replacen("\"version\":3", &format!("\"version\":{version}"), 1);
         assert_ne!(changed, text);
         fs::write(&bad, changed).unwrap();
         let o = sim_cli(&["replay", s(&bad)]);
@@ -515,7 +535,7 @@ fn batch_usage_errors_exit_two() {
 fn batch_uses_a_config_file() {
     let dir = TempDir::new("batch-config");
     let cfg = dir.path("c.json");
-    fs::write(&cfg, r#"{"entity_count":5,"workload":"Light"}"#).unwrap();
+    fs::write(&cfg, r#"{"opening_residents":45}"#).unwrap();
     let o = sim_cli(&[
         "batch",
         "--seeds",
@@ -528,7 +548,7 @@ fn batch_uses_a_config_file() {
         s(&cfg),
     ]);
     assert_eq!(code(&o), 0, "{}", stderr(&o));
-    assert!(stdout(&o).contains(" entities=5 "));
+    assert!(stdout(&o).contains(" residents=45 "));
 }
 
 #[test]

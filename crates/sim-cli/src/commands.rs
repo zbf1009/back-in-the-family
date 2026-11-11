@@ -9,7 +9,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use sim_core::replay::{ReplayConfig, ReplayError, ReplayFile, record as core_record, verify};
-use sim_core::world::{DEFAULT_ENTITY_COUNT, Workload, WorldConfig};
+use sim_core::world::WorldConfig;
 
 use crate::args::{self, Parsed};
 use crate::inputs::generate_inputs;
@@ -22,7 +22,8 @@ pub const EXIT_FAILED: i32 = 1;
 pub const EXIT_OK: i32 = 0;
 
 /// Reads a `--config` file: JSON with exactly the replay file's `config` shape, e.g.
-/// `{"entity_count":50,"workload":"Pairwise"}`, then validates it.
+/// `{"opening_residents":50}`, then validates it. Unknown fields (such as the retired
+/// `workload`) are rejected with serde's `unknown field` message (R1.3).
 pub(crate) fn load_config(path: &str) -> Result<WorldConfig, String> {
     let text =
         fs::read_to_string(path).map_err(|e| format!("cannot read config file {path}: {e}"))?;
@@ -37,18 +38,15 @@ pub const MAX_TICKS: u64 = 1_000_000;
 /// Largest `--random-inputs` accepted by `record`.
 pub const MAX_RANDOM_INPUTS: u64 = 1_000_000;
 
-/// The config used when `record` gets no `--config`: 50 entities, `Pairwise`.
-/// (`WorldConfig::default()` is `Light`, so it is not used here.)
+/// The config used when `record` gets no `--config`: `{"opening_residents":50}`
+/// (`WorldConfig::default()`).
 pub fn default_config() -> WorldConfig {
-    WorldConfig {
-        entity_count: DEFAULT_ENTITY_COUNT,
-        workload: Workload::Pairwise,
-    }
+    WorldConfig::default()
 }
 
 pub const RECORD_USAGE: &str = "usage: sim-cli record --seed S --ticks N [--config FILE] \
 [--random-inputs K] --out FILE\n\
-without --config: 50 entities, Pairwise workload";
+without --config: {\"opening_residents\":50}";
 
 pub fn record(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let parsed = match args::parse(args, &["seed", "ticks", "config", "random-inputs", "out"]) {
@@ -110,7 +108,12 @@ fn run_record(parsed: &Parsed) -> Result<String, RecordError> {
         Some(path) => load_config(path)?,
         None => default_config(),
     };
-    let inputs = generate_inputs(seed, random_inputs, ticks, u64::from(config.entity_count));
+    let inputs = generate_inputs(
+        seed,
+        random_inputs,
+        ticks,
+        u64::from(config.opening_residents),
+    );
 
     let file = core_record(seed, config, &inputs, ticks).map_err(|e| e.to_string())?;
     // Safety net: verify the freshly produced replay in-process before writing it.

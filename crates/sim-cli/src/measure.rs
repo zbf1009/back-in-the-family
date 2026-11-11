@@ -21,7 +21,7 @@ use std::time::{Duration, Instant};
 use sim_core::canon::encode_to_vec;
 use sim_core::checksum::Checksum;
 use sim_core::tick::Sim;
-use sim_core::world::{ENTITY_COUNT_MAX, Workload, WorldConfig};
+use sim_core::world::{OPENING_RESIDENTS_MAX, OPENING_RESIDENTS_MIN, WorldConfig};
 
 use crate::args;
 use crate::commands::{EXIT_OK, EXIT_USAGE_OR_MALFORMED};
@@ -41,7 +41,7 @@ pub const DEFAULT_ENTITIES: u64 = 60;
 pub const MAX_RUNS: u64 = 50;
 
 pub const MEASURE_USAGE: &str = "usage: sim-cli measure [--runs N] [--entities N]\n\
-defaults: --runs 5 (1..=50), --entities 60 (0..=200)";
+defaults: --runs 5 (1..=50), --entities 60 (40..=60)";
 
 /// Timings for the daily lifetime.
 #[derive(Debug)]
@@ -72,11 +72,18 @@ pub fn measure(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32
         .get_u64("entities")
         .map(|v| v.unwrap_or(DEFAULT_ENTITIES));
     let (runs, entities) = match (runs, entities) {
-        (Ok(r), Ok(e)) if (1..=MAX_RUNS).contains(&r) && e <= u64::from(ENTITY_COUNT_MAX) => (r, e),
+        (Ok(r), Ok(e))
+            if (1..=MAX_RUNS).contains(&r)
+                && (u64::from(OPENING_RESIDENTS_MIN)..=u64::from(OPENING_RESIDENTS_MAX))
+                    .contains(&e) =>
+        {
+            (r, e)
+        }
         (Ok(r), Ok(e)) => {
             let _ = writeln!(
                 err,
-                "error: --runs must be 1..={MAX_RUNS} (got {r}) and --entities 0..={ENTITY_COUNT_MAX} (got {e})\n{MEASURE_USAGE}"
+                "error: --runs must be 1..={MAX_RUNS} (got {r}) and --entities \
+{OPENING_RESIDENTS_MIN}..={OPENING_RESIDENTS_MAX} (got {e})\n{MEASURE_USAGE}"
             );
             return EXIT_USAGE_OR_MALFORMED;
         }
@@ -106,8 +113,8 @@ pub fn measure(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32
     EXIT_OK
 }
 
-fn measure_one(entities: u16, runs: usize) -> Result<Row, String> {
-    let config = WorldConfig::try_new(entities, Workload::Pairwise).map_err(|e| e.to_string())?;
+fn measure_one(residents: u16, runs: usize) -> Result<Row, String> {
+    let config = WorldConfig::try_new(residents).map_err(|e| e.to_string())?;
     let lifetime_ticks = LIFETIME_YEARS * TICKS_PER_YEAR;
 
     let mut samples = Vec::with_capacity(runs);
@@ -168,14 +175,14 @@ fn best_and_median(samples: &[Duration]) -> (Duration, Duration) {
 fn write_report(
     out: &mut dyn Write,
     build: &str,
-    entities: u16,
+    residents: u16,
     runs: usize,
     row: &Row,
 ) -> std::io::Result<()> {
     writeln!(out, "sim-cli measure (native) build={build}")?;
     writeln!(
         out,
-        "params: seed={MEASURE_SEED} entities={entities} workload=Pairwise runs={runs} \
+        "params: seed={MEASURE_SEED} residents={residents} runs={runs} \
          checksum_iterations={CHECKSUM_ITERATIONS} checksum_state_after_ticks={WARMUP_TICKS}"
     )?;
     writeln!(
@@ -249,13 +256,10 @@ mod tests {
 
     #[test]
     fn tiny_run_prints_every_labelled_row() {
-        let (code, out, err) = run(&["--runs", "1", "--entities", "3"]);
+        let (code, out, err) = run(&["--runs", "1", "--entities", "40"]);
         assert_eq!(code, 0, "{err}");
         assert!(out.contains("build="), "{out}");
-        assert!(
-            out.contains("seed=1 entities=3 workload=Pairwise runs=1"),
-            "{out}"
-        );
+        assert!(out.contains("seed=1 residents=40 runs=1"), "{out}");
         for label in [
             "lifetime_ticks",
             "ticks_per_second",
@@ -283,7 +287,7 @@ mod tests {
         for bad in [
             &["--runs", "0"][..],
             &["--runs", "51"],
-            &["--entities", "201"],
+            &["--entities", "39"],
             &["--runs", "x"],
             &["--entities=-1"],
             &["--seed", "1"],
@@ -295,12 +299,6 @@ mod tests {
             assert!(out.is_empty(), "{bad:?}");
             assert!(err.starts_with("error:"), "{bad:?}: {err}");
         }
-    }
-
-    #[test]
-    fn zero_entities_is_accepted() {
-        let (code, _, err) = run(&["--runs", "1", "--entities", "0"]);
-        assert_eq!(code, 0, "{err}");
     }
 
     #[test]

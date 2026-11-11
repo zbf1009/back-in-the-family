@@ -35,10 +35,11 @@ USAGE:
   sim-cli --help
 
 record       Run N ticks from seed S and write a replay file (parent directories are
-             created). Without --config the world has 50 entities and the Pairwise
-             workload. --config FILE is JSON with the replay file's config shape:
-             {\"entity_count\":50,\"workload\":\"Pairwise\"}.
-             --random-inputs K adds K inputs generated from the seed (about one third are
+             created). Without --config the world config is {\"opening_residents\":50}.
+             --config FILE is JSON with the replay file's config shape:
+             {\"opening_residents\":50}; an unknown field (such as the retired
+             `workload`) is an error.
+             --random-inputs K adds K inputs generated from the seed (about a quarter are
              invalid on purpose). The same command line always writes identical bytes.
 replay       Re-run each replay file from its seed, config and inputs and compare every
              tick's checksum. Prints `ok FILE` on stdout per verified file; problems go to
