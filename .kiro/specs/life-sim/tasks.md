@@ -157,7 +157,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Generate two distinct Residents, any prior Relations (including none), any kind and any intensity in 1..=100. Assert that only the two Relations between the actors change, each change is within the table bound for its kind and direction, the results are in -100..=100, and the friend and rival tags match the thresholds.
     - **Property 8: Social effects stay within their bounds.** **Validates: Requirements 4.8**
     - Acceptance: `cargo test -p sim-core social` passes. No fixture change, so commit without regeneration.
-  - [ ] 6.4 Implement loans (step 7) and repayments (step 8)
+  - [x] 6.4 Implement loans (step 7) and repayments (step 8)
     - Files: `crates/sim-core/src/economy.rs`, `crates/sim-core/src/tick.rs`.
     - Implement design "Loans" and "Repayments": eligibility, amount and due-date draws, the `Loan` and `Repayment` flows, Debts keyed by the `loan` Event ID, tags, `ceil(principal / 3)` as `(principal + 2) / 3` with a checked add, closing at 0, and overdue Debts kept open.
     - Unit tests: a repayment on the anniversary only, a partial repayment carries the `partial` tag, the Debt closes at 0, an overdue Debt stays open, and a debtor with balance 0 makes no repayment.
