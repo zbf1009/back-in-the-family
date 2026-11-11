@@ -26,6 +26,23 @@ The names `pairwise` and `seedbig-pairwise` are kept from the skeleton era, when
 described a synthetic workload. The life-sim has no workload; only the contents of the
 files changed.
 
+## Snapshot fixture
+
+`seed1-pairwise.snapshot-500.json` is the native Snapshot (R18) of the World after tick
+500 of `seed1-pairwise.replay.json`. The design asks only for "a snapshot recorded
+natively at tick 500"; `sim-cli snapshot` is the chosen recorder and this file is its
+output:
+
+```sh
+sim-cli snapshot --replay fixtures/parity/seed1-pairwise.replay.json --at 500 \
+  --out fixtures/parity/seed1-pairwise.snapshot-500.json
+```
+
+It replays the file's seed, config and inputs, checks every recorded checksum on the
+way, and writes one line of compact Snapshot JSON. The file has no trailing newline so
+`WasmSim::snapshot()` can be compared with it byte for byte in
+`crates/sim-wasm/tests/parity.rs` (R18.3).
+
 ## Who checks them
 
 - Native and WASM: `crates/sim-wasm/tests/parity.rs`. Under
@@ -53,6 +70,8 @@ sim-cli record --seed 2 --ticks 2000 --random-inputs 120 \
   --config fixtures/configs/pairwise.json --out fixtures/parity/seed2-pairwise.replay.json
 sim-cli record --seed 18446744073709551557 --ticks 2000 --random-inputs 120 \
   --config fixtures/configs/pairwise.json --out fixtures/parity/seedbig-pairwise.replay.json
+sim-cli snapshot --replay fixtures/parity/seed1-pairwise.replay.json --at 500 \
+  --out fixtures/parity/seed1-pairwise.snapshot-500.json
 ```
 
 The output is byte-identical on every run, so running the script twice leaves

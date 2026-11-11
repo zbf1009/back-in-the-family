@@ -415,6 +415,65 @@ fn replay_with_several_files_processes_all_and_reports_the_worst_code() {
 }
 
 #[test]
+fn snapshot_writes_the_committed_tick_500_file_and_rejects_bad_usage() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let replay = root.join("fixtures/parity/seed1-pairwise.replay.json");
+    let committed = root.join("fixtures/parity/seed1-pairwise.snapshot-500.json");
+    let dir = TempDir::new("snapshot");
+    let out = dir.path("snap.json");
+
+    let o = sim_cli(&[
+        "snapshot",
+        "--replay",
+        s(&replay),
+        "--at",
+        "500",
+        "--out",
+        s(&out),
+    ]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    assert!(
+        stdout(&o).starts_with("snapshot tick=500 residents="),
+        "{}",
+        stdout(&o)
+    );
+    assert_eq!(
+        fs::read(&out).unwrap(),
+        fs::read(&committed).unwrap(),
+        "the native snapshot differs from the committed fixture"
+    );
+
+    // Past the end of the replay and a missing file are both usage errors.
+    let bad = dir.path("never.json");
+    let o = sim_cli(&[
+        "snapshot",
+        "--replay",
+        s(&replay),
+        "--at",
+        "2001",
+        "--out",
+        s(&bad),
+    ]);
+    assert_eq!(code(&o), 2);
+    assert!(stderr(&o).contains("past the replay"));
+    assert!(!bad.exists());
+
+    let missing = dir.path("missing.replay.json");
+    let o = sim_cli(&[
+        "snapshot",
+        "--replay",
+        s(&missing),
+        "--at",
+        "500",
+        "--out",
+        s(&bad),
+    ]);
+    assert_eq!(code(&o), 2);
+    assert!(stderr(&o).contains("cannot read replay file"));
+    assert!(!bad.exists());
+}
+
+#[test]
 fn check_size_boundary_is_strictly_below_the_limit() {
     let dir = TempDir::new("size");
     fs::write(dir.path("ten"), [0u8; 10]).unwrap();

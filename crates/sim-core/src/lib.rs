@@ -28,6 +28,7 @@ pub mod outsiders;
 pub mod params;
 pub mod replay;
 pub mod rng;
+pub mod snapshot;
 pub mod social;
 #[cfg(any(test, feature = "test-support"))]
 pub mod testing;

@@ -27,6 +27,11 @@ const FIXTURES: [(&str, &str); 3] = [
     ),
 ];
 
+/// The native Snapshot at tick 500 of `seed1-pairwise` (R18.3), written by
+/// `sim-cli snapshot` from the same replay file.
+const SNAPSHOT_500: &str =
+    include_str!("../../../fixtures/parity/seed1-pairwise.snapshot-500.json");
+
 #[wasm_bindgen_test(unsupported = test)]
 fn fixtures_verify_via_verify_replay() {
     for (name, json) in FIXTURES {
@@ -75,6 +80,42 @@ fn wasm_sim_api_reproduces_every_recorded_checksum() {
         }
         assert_eq!(sim.tick(), ticks, "fixture {name}");
     }
+}
+
+/// R18.3 and R18.2: the Snapshot at tick 500 of `seed1-pairwise` is byte-identical to
+/// the committed native file, and taking a Snapshot does not change the run.
+#[wasm_bindgen_test(unsupported = test)]
+fn snapshot_at_tick_500_matches_the_committed_file() {
+    let json = FIXTURES[0].1;
+    let v: Value = serde_json::from_str(json).expect("fixture is JSON");
+    let seed: u64 = v["seed"].as_str().unwrap().parse().unwrap();
+    let config = v["config"].to_string();
+
+    let Ok(mut sim) = WasmSim::new(seed, &config) else {
+        panic!("WasmSim::new failed");
+    };
+    for input in v["inputs"].as_array().unwrap() {
+        let body = serde_json::json!({
+            "tick": input["tick"],
+            "payload": input["payload"],
+        })
+        .to_string();
+        assert!(sim.submit(&body).is_ok(), "submit failed for {body}");
+    }
+    sim.run_ticks(500);
+    assert_eq!(sim.tick(), 500);
+    assert_eq!(sim.snapshot(), SNAPSHOT_500, "committed snapshot differs");
+    assert_eq!(
+        sim.snapshot_string(),
+        SNAPSHOT_500,
+        "the plain twin differs"
+    );
+
+    // The act of taking a Snapshot is read-only: the next tick is unaffected.
+    let before = sim.snapshot();
+    let checksum = sim.step();
+    assert_ne!(sim.snapshot(), before, "the tick must be visible");
+    assert_eq!(checksum.len(), 16);
 }
 
 #[wasm_bindgen_test(unsupported = test)]

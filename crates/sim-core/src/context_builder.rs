@@ -15,7 +15,6 @@ use std::fmt;
 
 use crate::events::Event as WorldEvent;
 use crate::ids::{EventId, PersonId};
-use crate::names::{FEMALE_FIRST, MALE_FIRST, SURNAMES};
 use crate::world::Life;
 use crate::world::World;
 
@@ -295,22 +294,11 @@ fn world_tick(world: &World) -> i64 {
 
 /// The full name of a Person, resolved through the sex's first-name list.
 fn person_name(world: &World, id: PersonId) -> String {
-    let Some(person) = world.persons().get(&id) else {
-        return String::from("Unknown");
-    };
-    let first_names: &[&str] = match person.sex {
-        crate::values::Sex::Female => &FEMALE_FIRST,
-        crate::values::Sex::Male => &MALE_FIRST,
-    };
-    let first = first_names
-        .get(usize::from(person.name.first))
-        .copied()
-        .unwrap_or("Unknown");
-    let surname = SURNAMES
-        .get(usize::from(person.name.surname))
-        .copied()
-        .unwrap_or("Unknown");
-    format!("{first} {surname}")
+    world
+        .persons()
+        .get(&id)
+        .map(|person| person.name.text(person.sex))
+        .unwrap_or_else(|| String::from("Unknown"))
 }
 
 #[cfg(test)]

@@ -16,6 +16,10 @@
 //!   (the stream assigns it).
 //! - Checksums are returned as 16 lowercase hex characters.
 //!
+//! `snapshot()` returns the Snapshot JSON (R18) of the current World: a read-only,
+//! compact view of Residents, Households and Souls in ascending ID order. It takes
+//! `&self`, so calling it cannot change the run.
+//!
 //! `u64` arguments and results (`seed`, `tick()`) are JavaScript `BigInt`s.
 #![forbid(unsafe_code)]
 
@@ -67,6 +71,12 @@ impl WasmSim {
             .last()
             .map_or_else(String::new, |c| c.to_hex_string())
     }
+
+    /// Plain-Rust body of [`WasmSim::snapshot`]: the Snapshot JSON of the current World
+    /// (R18). Takes `&self`, so it cannot change the World.
+    pub fn snapshot_string(&self) -> String {
+        sim_core::snapshot::snapshot_json(self.inner.world())
+    }
 }
 
 #[wasm_bindgen]
@@ -98,6 +108,11 @@ impl WasmSim {
     /// has run yet. A very large `n` simply takes as long as it takes.
     pub fn run_ticks(&mut self, n: u32) -> String {
         self.run_ticks_hex(n)
+    }
+
+    /// The Snapshot JSON of the current World (R18), compact and read-only.
+    pub fn snapshot(&self) -> String {
+        self.snapshot_string()
     }
 }
 

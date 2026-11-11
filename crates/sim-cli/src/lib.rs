@@ -24,6 +24,7 @@ sim-cli: native headless runner for sim-core
 USAGE:
   sim-cli record --seed S --ticks N --out FILE [--config FILE] [--random-inputs K]
   sim-cli replay FILE...
+  sim-cli snapshot --replay FILE --at TICK --out FILE
   sim-cli check-size DIR [--max-bytes N]
   sim-cli batch --seeds A..=B --ticks N [--random-inputs K] [--config FILE]
   sim-cli measure [--runs N] [--residents N]
@@ -44,6 +45,9 @@ record       Run N ticks from seed S and write a replay file (parent directories
 replay       Re-run each replay file from its seed, config and inputs and compare every
              tick's checksum. Prints `ok FILE` on stdout per verified file; problems go to
              stderr.
+snapshot     Replay FILE up to TICK (checking every recorded checksum) and write the
+             Snapshot JSON of that World to --out. The committed native snapshot fixture
+             fixtures/parity/seed1-pairwise.snapshot-500.json is produced this way.
 check-size   Fail if any file under DIR (recursive) is at or above --max-bytes
              (default 26214400, 25 MiB).
 batch        For each seed in the inclusive range A..=B (or a single seed A; at most 10000
@@ -110,6 +114,7 @@ fn dispatch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     match command.as_str() {
         "record" => commands::record(rest, out, err),
         "replay" => commands::replay(rest, out, err),
+        "snapshot" => commands::snapshot(rest, out, err),
         "check-size" => commands::check_size(rest, out, err),
         "batch" => batch::batch(rest, out, err),
         "measure" => measure::measure(rest, out, err),

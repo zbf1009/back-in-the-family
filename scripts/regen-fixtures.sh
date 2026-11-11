@@ -19,3 +19,14 @@ record() {
 record seed1-pairwise 1 pairwise.json
 record seed2-pairwise 2 pairwise.json
 record seedbig-pairwise 18446744073709551557 pairwise.json
+
+# The native Snapshot (R18) at tick 500 of seed1-pairwise. The design asks for "a
+# snapshot recorded natively at tick 500"; `sim-cli snapshot` is that recorder and
+# fixtures/parity/README.md names the subcommand.
+snapshot() {
+  local name="$1" at="$2"
+  "$cli" snapshot --replay "fixtures/parity/$name.replay.json" --at "$at" \
+    --out "fixtures/parity/$name.snapshot-$at.json"
+}
+
+snapshot seed1-pairwise 500

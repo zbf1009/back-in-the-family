@@ -9,6 +9,7 @@ use std::collections::BTreeSet;
 
 use crate::canon::{Canon, CanonWriter};
 use crate::rng::below;
+use crate::values::Sex;
 
 /// Female first names, 80 entries.
 pub const FEMALE_FIRST: [&str; FEMALE_FIRST_COUNT] = [
@@ -239,6 +240,27 @@ pub fn pick_full_name(
             .expect("the surname count is non-zero");
     }
     unreachable!("4,800 full names cannot all be occupied by at most 62 Residents");
+}
+
+impl FullName {
+    /// The full name as text (`"<first> <surname>"`), resolving `first` through the
+    /// sex's first-name list. Indices come from the picker, so they are always valid;
+    /// an invalid index renders as `Unknown` rather than panicking.
+    pub fn text(self, sex: Sex) -> String {
+        let first_names: &[&str] = match sex {
+            Sex::Female => &FEMALE_FIRST,
+            Sex::Male => &MALE_FIRST,
+        };
+        let first = first_names
+            .get(usize::from(self.first))
+            .copied()
+            .unwrap_or("Unknown");
+        let surname = SURNAMES
+            .get(usize::from(self.surname))
+            .copied()
+            .unwrap_or("Unknown");
+        format!("{first} {surname}")
+    }
 }
 
 impl Canon for FullName {

@@ -8,7 +8,9 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
+use sim_core::ids::Tick;
 use sim_core::replay::{ReplayConfig, ReplayError, ReplayFile, record as core_record, verify};
+use sim_core::tick::Sim;
 use sim_core::world::WorldConfig;
 
 use crate::args::{self, Parsed};
@@ -196,6 +198,114 @@ pub fn replay(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 
     } else {
         EXIT_OK
     }
+}
+
+pub const SNAPSHOT_USAGE: &str = "usage: sim-cli snapshot --replay FILE --at TICK --out FILE\n\
+Replays the file's seed, config and inputs up to TICK, checks every recorded checksum \
+on the way, and writes the Snapshot JSON of that World to --out (one line, compact).";
+
+/// Writes the Snapshot JSON at `--at` (R18): the design names only a snapshot recorded
+/// natively at tick 500; this subcommand is how the committed fixture is produced.
+pub fn snapshot(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let parsed = match args::parse(args, &["replay", "at", "out"]) {
+        Ok(p) => p,
+        Err(e) => {
+            let _ = writeln!(err, "error: {e}\n{SNAPSHOT_USAGE}");
+            return EXIT_USAGE_OR_MALFORMED;
+        }
+    };
+    match run_snapshot(&parsed) {
+        Ok(summary) => {
+            let _ = writeln!(out, "{summary}");
+            EXIT_OK
+        }
+        Err(SnapshotError::Diverged(message)) => {
+            let _ = writeln!(err, "error: {message}");
+            EXIT_FAILED
+        }
+        Err(SnapshotError::Other(message)) => {
+            let _ = writeln!(err, "error: {message}");
+            EXIT_USAGE_OR_MALFORMED
+        }
+    }
+}
+
+/// Why `snapshot` failed: a checksum divergence is exit 1, everything else exit 2.
+enum SnapshotError {
+    Other(String),
+    Diverged(String),
+}
+
+impl From<String> for SnapshotError {
+    fn from(s: String) -> Self {
+        Self::Other(s)
+    }
+}
+
+fn run_snapshot(parsed: &Parsed) -> Result<String, SnapshotError> {
+    if let Some(stray) = parsed.positionals().first() {
+        return Err(format!("unexpected argument {stray:?}").into());
+    }
+    let replay_path = parsed
+        .get("replay")
+        .ok_or_else(|| "missing required flag --replay".to_owned())?;
+    let at = parsed.require_u64("at")?;
+    let out_path = parsed
+        .get("out")
+        .ok_or_else(|| "missing required flag --out".to_owned())?;
+
+    let text = fs::read_to_string(replay_path)
+        .map_err(|e| format!("cannot read replay file {replay_path}: {e}"))?;
+    let file = ReplayFile::from_json_str(&text).map_err(|e| e.to_string())?;
+    if at > file.ticks {
+        return Err(format!("--at {at} is past the replay's {} ticks", file.ticks).into());
+    }
+    let config = WorldConfig::try_from(file.config).map_err(|e| e.to_string())?;
+    let mut sim = Sim::new(file.seed, config).map_err(|e| e.to_string())?;
+
+    // Submit the whole input stream, as `verify` does: the stream assigns `seq` in
+    // submission order and `seq` enters the checksum, so skipping later inputs would
+    // renumber the rest. Inputs for ticks at or after `at` simply stay pending.
+    for (index, input) in (0u64..).zip(&file.inputs) {
+        if input.seq != index {
+            return Err(format!("input {index} has seq {}, expected {index}", input.seq).into());
+        }
+        sim.submit(Tick(input.tick), input.payload.into())
+            .map_err(|e| e.to_string())?;
+    }
+
+    for n in 0..at {
+        let actual = sim.step();
+        let Some(&expected) = file.checksums.get(usize::try_from(n).unwrap_or(usize::MAX)) else {
+            return Err(format!("the replay has no checksum for tick {n}").into());
+        };
+        if actual != expected {
+            return Err(SnapshotError::Diverged(format!(
+                "replay diverged at tick {n}: expected {}, got {}",
+                expected.to_hex_string(),
+                actual.to_hex_string()
+            )));
+        }
+    }
+
+    // No trailing newline: the committed fixture is compared byte for byte with
+    // `WasmSim::snapshot()`, which returns `snapshot_json` unchanged (R18.3).
+    let json = sim_core::snapshot::snapshot_json(sim.world());
+    if let Some(parent) = Path::new(out_path).parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("cannot create directory for {out_path}: {e}"))?;
+    }
+    fs::write(out_path, &json).map_err(|e| format!("cannot write {out_path}: {e}"))?;
+    Ok(format!(
+        "snapshot tick={at} residents={} -> {out_path}",
+        sim.world()
+            .persons()
+            .values()
+            .filter(|p| matches!(p.life, sim_core::world::Life::Alive { .. }))
+            .count()
+    ))
 }
 
 pub const CHECK_SIZE_USAGE: &str =
