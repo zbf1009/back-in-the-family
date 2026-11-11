@@ -487,9 +487,58 @@ fn batch_small_healthy_run_exits_zero_with_one_line_per_seed() {
     let out = stdout(&o);
     let lines: Vec<&str> = out.lines().collect();
     assert_eq!(lines.len(), 4, "{out}");
-    assert!(lines[0].starts_with("seed 1 ok ticks=50 final="), "{out}");
-    assert!(lines[0].contains(" entities="), "{out}");
+    for (line, seed) in lines.iter().zip(1..=3) {
+        assert!(
+            line.starts_with(&format!("seed {seed} ok ticks=50 final=")),
+            "{out}"
+        );
+        for field in [
+            " residents_min=",
+            " residents_max=",
+            " band_40_60_ticks=",
+            " queue_final=",
+            " max_wait_npc=",
+            " max_wait_player=",
+            " births=",
+            " deaths=",
+            " imported=",
+            " rebuilt=",
+            " origin_final=native:",
+            " arrivals=native:",
+            " events=",
+            " relations_max=",
+            " rejections=unknown_person:",
+            " invariants=pass ",
+            " pop_35_65=pass",
+            " band_95=pass",
+            " outsiders_le_births=pass",
+        ] {
+            assert!(line.contains(field), "{field} missing from {line}");
+        }
+    }
     assert_eq!(lines[3], "batch: 3/3 seeds ok");
+}
+
+#[test]
+fn batch_require_targets_is_accepted_and_passes_here() {
+    // With the tick steps still empty the targets cannot fail: the population stays in
+    // the band and there are no births or outsiders. The failing-target formatting is
+    // covered by the unit tests in batch.rs.
+    let o = sim_cli(&[
+        "batch",
+        "--seeds",
+        "1..=2",
+        "--ticks",
+        "20",
+        "--require-targets",
+    ]);
+    assert_eq!(code(&o), 0, "{}", stderr(&o));
+    let out = stdout(&o);
+    assert!(out.ends_with("batch: 2/2 seeds ok\n"), "{out}");
+    assert!(
+        out.contains("pop_35_65=pass band_95=pass outsiders_le_births=pass"),
+        "{out}"
+    );
 }
 
 #[test]
@@ -548,7 +597,7 @@ fn batch_uses_a_config_file() {
         s(&cfg),
     ]);
     assert_eq!(code(&o), 0, "{}", stderr(&o));
-    assert!(stdout(&o).contains(" residents=45 "));
+    assert!(stdout(&o).contains(" residents_max=45 "), "{}", stdout(&o));
 }
 
 #[test]

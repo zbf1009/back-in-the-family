@@ -70,6 +70,17 @@ fn shorten(text: &str) -> String {
 /// Parses `args` (without the subcommand name). `allowed` lists the flag names, without
 /// the leading `--`, that this subcommand accepts.
 pub fn parse(args: &[String], allowed: &[&str]) -> Result<Parsed, String> {
+    parse_with_switches(args, allowed, &[])
+}
+
+/// Parses `args` like [`parse`], but `switches` names boolean flags that take no value
+/// (`--flag` alone, or `--flag=anything`). A switch is stored as `"true"` so
+/// [`Parsed::get`] reports it.
+pub fn parse_with_switches(
+    args: &[String],
+    allowed: &[&str],
+    switches: &[&str],
+) -> Result<Parsed, String> {
     let mut parsed = Parsed::default();
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
@@ -84,7 +95,7 @@ pub fn parse(args: &[String], allowed: &[&str]) -> Result<Parsed, String> {
             Some((name, value)) => (name, Some(value.to_owned())),
             None => (flag, None),
         };
-        if !allowed.contains(&name) {
+        if !allowed.contains(&name) && !switches.contains(&name) {
             return Err(format!(
                 "unknown flag --{}",
                 shorten(name).trim_matches('"')
@@ -92,6 +103,7 @@ pub fn parse(args: &[String], allowed: &[&str]) -> Result<Parsed, String> {
         }
         let value = match inline_value {
             Some(value) => value,
+            None if switches.contains(&name) => "true".to_owned(),
             None => match rest.next() {
                 Some(next) if !next.starts_with("--") => next.clone(),
                 _ => return Err(format!("flag --{name} needs a value")),

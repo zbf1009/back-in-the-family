@@ -49,16 +49,17 @@ check-size   Fail if any file under DIR (recursive) is at or above --max-bytes
 batch        For each seed in the inclusive range A..=B (or a single seed A; at most 10000
              seeds), in ascending order: generate K random inputs (default 60), run N ticks
              checking the world invariants before the first tick and after every tick,
-             then record and verify a replay in memory and compare its checksums with the
-             stepped run's. Same default world as record. Prints one line per seed
-             (`seed 7 ok ticks=... final=... entities=... rejections=... value_min=...
-             value_max=... value_mean=...`, or `seed 7 FAIL ...`) and `batch: OK/TOTAL
-             seeds ok`; output has no timestamps and is identical across runs. value_mean
-             is integer division rounded down; with no entities the three value fields
-             print `-`. FAIL tick=T means T ticks had run when the invariant broke (0 =
-             before the first tick). All seeds are run even after a failure; failures are
-             also written to stderr. NOTE: --seeds A..=B is a range, unlike the plain
-             decimal numbers of the other flags.
+             then build the replay from the stepped run's own checksums and verify it in
+             memory, and recompute the Event_Log digest from scratch. Same default world
+             as record. Prints one line per seed with resident counts and band ticks,
+             waiting-queue and max-wait figures, births/deaths/arrivals by origin, event
+             and relation counts, rejection counts and the target results (or
+             `seed 7 FAIL ...`), then `batch: OK/TOTAL seeds ok`; output has no timestamps
+             and is identical across runs. --require-targets makes a failing R17.1, R17.8
+             or R17.9 target fail the seed (without it, targets print `=fail` but the seed
+             stays ok). A failed invariant prints its tick, criterion and detail and
+             exits 1. NOTE: --seeds A..=B is a range, unlike the plain decimal numbers of
+             the other flags.
 measure      Time one 80-year lifetime (80 x 365 = 29200 daily ticks)
              on a fresh Sim, Pairwise workload, seed 1, no inputs, --runs times (default 5,
              1..=50) with --entities entities (default 60, 0..=200). Prints best and median
