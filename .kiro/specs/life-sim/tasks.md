@@ -170,7 +170,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
 
 - [ ] 7. Tick steps: deaths, births, outsiders
   - Same per-task rules and acceptance as task 6, including fixture regeneration.
-  - [ ] 7.1 Implement deaths, inheritance and debts at death (step 4)
+  - [x] 7.1 Implement deaths, inheritance and debts at death (step 4)
     - Files: `crates/sim-core/src/death.rs`, `crates/sim-core/src/tick.rs`.
     - Implement design "Deaths" sub-steps 1 to 7: mortality rolls against the state at the start of the step, then processing in Person ID order; `Life::Dead`; Household removal; the `death` Event; the Soul waiting; heirs by class order with an equal split, the remainder one dollar each in heir order and property round-robin; `Escheat` when there is no heir; one `inheritance` Event per heir who received anything, with the tags; debtor Debts transferred to the first heir or forgiven; creditor Debts forgiven; the deceased's non-kin outgoing Relations removed; Relations toward the deceased kept.
     - Unit tests (design "Unit and example tests", `death.rs`): 10 dollars to 3 heirs gives 4, 3, 3; no heir leads to escheat and removed property; a first heir who is the creditor gets the Debt forgiven; a creditor's death forgives the Debt; Relations at death (a living Resident's `rival` and `friend` toward the deceased are kept with their scores and tags; the deceased's non-kin Relations are removed; kin Relations are kept in both directions); age 120 always dies.
