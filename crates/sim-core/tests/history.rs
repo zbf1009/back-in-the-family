@@ -4,13 +4,13 @@
 
 mod life_gen;
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use life_gen::*;
 use proptest::prelude::*;
-use sim_core::events::{EventKind, EventTag};
+use sim_core::events::{EventKind, EventTag, mood_delta};
 use sim_core::ids::{EventId, PersonId, SoulId};
-use sim_core::values::{RelationTag, Sex};
+use sim_core::values::{Mood, RelationTag, Sex};
 use sim_core::world::{Life, SoulPlace, World};
 
 fn is_resident(world: &World, person: PersonId) -> bool {
@@ -768,6 +768,53 @@ proptest! {
                         repaid, old.open
                     ))
                 );
+            }
+        }
+    }
+
+    // Feature: life-sim, Property 7: Mood changes only through Events.
+    #[test]
+    fn mood_changes_only_through_events(scenario in arb_scenario()) {
+        let mut sim = scenario.sim();
+        let mut expected: BTreeMap<PersonId, Mood> = sim
+            .world()
+            .persons()
+            .values()
+            .filter_map(|person| match person.life {
+                Life::Alive { mood, .. } => Some((person.id, mood)),
+                Life::Dead { .. } => None,
+            })
+            .collect();
+        for tick in 0..TICKS {
+            let before = sim.world().clone();
+            let log_start = before.log().len();
+            sim.step();
+            let after = sim.world();
+            let tail = events_since(after, log_start);
+
+            // A newborn starts at Mood 0 and only the tick's Events may move it after.
+            for id in new_persons(&before, after) {
+                expected.entry(id).or_insert_with(|| Mood::clamped(0));
+            }
+            for event in tail {
+                for (position, actor) in event.kind.actors().iter().enumerate() {
+                    if let Some(mood) = expected.get_mut(&actor) {
+                        *mood = mood.add_clamped(mood_delta(&event.kind, position));
+                    }
+                }
+            }
+            for (&id, person) in after.persons() {
+                if let Life::Alive { mood, .. } = person.life {
+                    let want = expected.get(&id).copied().unwrap_or_else(|| Mood::clamped(0));
+                    prop_assert_eq!(
+                        mood,
+                        want,
+                        "seed {} tick {}: Mood of {} changed without an Event",
+                        scenario.seed,
+                        tick,
+                        id.0
+                    );
+                }
             }
         }
     }
