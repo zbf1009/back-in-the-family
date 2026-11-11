@@ -305,7 +305,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Check that the Name_List entry from 1.3 is present. Confirm that no third-party library was added: compare `Cargo.lock` and both `pnpm-lock.yaml` files with `afaf87c` (`git diff afaf87c -- Cargo.lock web/pnpm-lock.yaml eval/probe/pnpm-lock.yaml`). For any new crate or package, add its name and license. Update any README text that describes the skeleton model, the `workload` config or the `measure --entities` flag.
     - _Requirements: 19.5_
     - Acceptance: `git diff afaf87c -- Cargo.lock` shows no new package, or each new package is listed in `README.md`. Commit as `docs: update README for life-sim`.
-  - [ ] 14.2 Update the planned layout in `.kiro/steering/structure.md`
+  - [x] 14.2 Update the planned layout in `.kiro/steering/structure.md`
     - Files: `.kiro/steering/structure.md`.
     - Edit only the layout and the module table. Under `crates/sim-core/` list the new modules (`params`, `names`, `values`, `events`, `opening`, `economy`, `social`, `death`, `births`, `outsiders`, `invariants`, `context_builder`, `snapshot`), the new test files (`tests/life_gen/`, `invariants.rs`, `history.rs`, `inputs.rs`, `opening.rs`, `context_builder.rs`, `snapshot.rs`), the `sim-cli snapshot` subcommand, and `fixtures/parity/seed1-pairwise.snapshot-500.json`. Mark spec 4 `life-sim` as done in "Next steps", with the open item "push pending the Author's approval". Do not change any other steering file.
     - Acceptance: the file lists every new file that exists under `crates/sim-core/src` (`ls crates/sim-core/src`). Commit as `docs(steering): update structure for life-sim`.

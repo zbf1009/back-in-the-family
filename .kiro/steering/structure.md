@@ -12,8 +12,12 @@ This is the initial proposal. Each part is created by its spec, and the spec may
 back-in-the-family/
   crates/
     sim-core/     # deterministic simulation: model, tick steps, event log, narrator, rules, TickInput, checksum
+      src/        # params, names, values, events, world, opening, tick, economy, social, death,
+                  # births, outsiders, invariants, context_builder, snapshot, replay; llm/ unchanged
+      tests/      # life_gen/, invariants.rs, history.rs, inputs.rs, opening.rs, properties.rs,
+                  # replay.rs, context_builder.rs, snapshot.rs, source_guard.rs
     sim-wasm/     # wasm-bindgen bindings: create world, step, submit input, read snapshot
-    sim-cli/      # native headless runner: seed batches, replay check, metrics
+    sim-cli/      # native headless runner: record/replay/snapshot, seed batches, measure
   web/            # Svelte 5 + Vite TypeScript front end (web-shell spec)
     index.html
     vite.config.ts
@@ -47,6 +51,7 @@ back-in-the-family/
       budget/     # Workers AI Request_Budget counter (gitignored)
   fixtures/
     parity/       # golden replay files shared by native and WASM parity tests (seed1/seed2/seedbig-pairwise)
+                  # plus seed1-pairwise.snapshot-500.json, the native Snapshot at tick 500
     configs/      # world config JSON used to record them
     grading/      # golden grading files (dev, System One, perm_avg) generated from the Dev_Cards by sim-cli; checked by Rust and probe tests (regenerate on purpose with scripts/regen-grading-golden.sh)
   scripts/        # gates.sh, wasm-build.sh, web-build.sh, measure-wasm.*, regen-fixtures.sh, regen-grading-golden.sh, check-wasm-bindgen.sh, check-pnpm-version.sh
@@ -106,5 +111,6 @@ eval runner ──> sim-core (context rendering + validation) and the LLM adapte
 - Spec 1 (`sim-core-skeleton`) is done: gates pass from a clean build, and the audit is in `docs/sim-core-skeleton-audit.md`. Known open item from it: the weekly half of the tick measurement can only be re-run at commit `bac46e3`.
 - Spec 2 (`web-shell`) is **fully done, including the live deploy.** The `web/` app, the Web_Build (`scripts/web-build.sh` → `web/dist`), the Type_Check / Unit_Tests / Smoke_Test gates, the `wrangler.jsonc` Static Assets config and `.github/workflows/deploy.yml` are all in place; gates pass from a clean build and in CI; and the audit is in `docs/web-shell-audit.md`. The site is live at <https://back-in-the-family.2290698778.workers.dev> (first deploy of commit `76ab0bb`, 2026-11-05). The Deploy_Workflow is **enabled**: a push to `main` runs the gates and, when they pass, deploys `web/dist` to Cloudflare Workers Static Assets automatically. The Cloudflare secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) and the repo variable `DEPLOY_ENABLED=true` are set. The "ask before any deploy" spirit still holds for manual or out-of-band deploys, but pushing green commits to `main` now deploys on its own — merge to `main` deliberately.
 - Spec 3 (`llm-probe`) is done, audited (`docs/llm-probe-audit.md`) and deployed: commit `b121253` was pushed to `main` and CI run `42751453227` deployed it on 2026-11-10. The Report is `docs/llm-probe.md`; no Combination passed the Thresholds, and its recommendation was Rules_Default for both task types. The Author decided on 2026-11-10 (see the tech.md "LLM runtime" row and `docs/kiro-log.md`): D = Rules_Default plus Workers AI clef picking inside the rule-generated closed set (not Threshold-passing; an informed choice, to be validated in the slow-think spec with in-simulation metrics), S = rules only, a generative LLM for presentation text only, no in-browser LLM.
-- Next: the vertical-slice specs, starting with `life-sim` (thin, with the soul-identity core). `slow-think` in the slice carries the rules path only; the Cloudflare Worker script, request budget, clef wiring and one-click deploy button follow as their own spec after it. A presentation-text layer (with caching) is pending.
+- Spec 4 (`life-sim`) is **done** (2026-11-11): the thin life simulation and soul-identity core replace the skeleton model in `sim-core`; the Context_Builder and the Snapshot are in; the 80-year acceptance batch runs in `scripts/gates.sh`; the Params are calibrated (births 1,000/100 ppm, tighter arrival ratio `outsiders <= births / 3`). Open item: **push pending the Author's approval** (a green push to `main` deploys).
+- Next: the remaining vertical-slice specs `underworld`, `narrator`, `slow-think`, `scenes`, starting with `underworld`. `slow-think` in the slice carries the rules path only; the Cloudflare Worker script, request budget, clef wiring and one-click deploy button follow as their own spec after it. A presentation-text layer (with caching) is pending.
 - Hooks were tried and removed on 2026-11-04 (output never reached the agent; see `docs/kiro-log.md`); `sim-cli batch` runs as a step in `scripts/gates.sh`. When a later spec changes tick logic, regenerate the fixtures on purpose (`scripts/regen-fixtures.sh`) and say so in the commit.
