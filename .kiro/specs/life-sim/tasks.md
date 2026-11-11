@@ -275,8 +275,8 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - **Property 18: Snapshots are faithful and read-only.** **Validates: Requirements 18.1, 18.2**
     - Acceptance: `cargo test -p sim-core --test snapshot` passes. Commit.
 
-- [ ] 12. Calibration of the Params (OP-5)
-  - [ ] 12.1 Calibrate against the primary metrics and record the result
+- [x] 12. Calibration of the Params (OP-5)
+  - [x] 12.1 Calibrate against the primary metrics and record the result
     - Files: `crates/sim-core/src/params.rs` (only if values change), `fixtures/parity/*` (regenerated if values change), `.kiro/specs/life-sim/design.md` (append a dated note under "Parameters and calibration"; do not rewrite existing text), `docs/kiro-log.md`.
     - Follow the "Calibration procedure" in the design exactly. Run `cargo run --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200`, and also `--seeds 1..=20` for a wider look, which is not gated. Change one parameter at a time, in the design's order. The primary metrics are `outsiders_le_births` (R17.8) and `max_wait_npc`. `pop_35_65`, `band_95`, `residents_min` and `band_40_60_ticks` are confirmed only, never tuned against. Also check `deaths` (40 to 70), `events` (under 20,000) and `relations_max` (expected near 4,500).
     - Decide on the tighter arrival ratio (design step 5). Adopt it only if all five seeds meet it with the final values. If adopted, add it as a target in `batch` and its test, and say so in the note.

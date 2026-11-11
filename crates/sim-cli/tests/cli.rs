@@ -571,6 +571,7 @@ fn batch_small_healthy_run_exits_zero_with_one_line_per_seed() {
             " pop_35_65=pass",
             " band_95=pass",
             " outsiders_le_births=pass",
+            " outsiders_le_births_third=pass",
         ] {
             assert!(line.contains(field), "{field} missing from {line}");
         }
@@ -595,7 +596,9 @@ fn batch_require_targets_is_accepted_and_passes_here() {
     let out = stdout(&o);
     assert!(out.ends_with("batch: 2/2 seeds ok\n"), "{out}");
     assert!(
-        out.contains("pop_35_65=pass band_95=pass outsiders_le_births=pass"),
+        out.contains(
+            "pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass"
+        ),
         "{out}"
     );
 }

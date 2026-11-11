@@ -166,8 +166,8 @@ impl Params {
     /// The calibrated defaults of design "Parameters and calibration".
     pub const DEFAULT: Self = Self {
         mortality_ppm_by_age: default_mortality_ppm_by_age(),
-        birth_ppm_married: 500,
-        birth_ppm_unmarried: 50,
+        birth_ppm_married: 1_000,
+        birth_ppm_unmarried: 100,
         max_wait: 1_095,
         initial_waiting: 2,
         marriage_ppm: 2_000,
@@ -361,8 +361,8 @@ mod tests {
     #[test]
     fn default_values_are_pinned() {
         let p = Params::DEFAULT;
-        assert_eq!(p.birth_ppm(true), 500);
-        assert_eq!(p.birth_ppm(false), 50);
+        assert_eq!(p.birth_ppm(true), 1_000);
+        assert_eq!(p.birth_ppm(false), 100);
         assert_eq!(p.max_wait, 1_095);
         assert_eq!(p.initial_waiting, 2);
         assert_eq!(p.marriage_ppm, 2_000);

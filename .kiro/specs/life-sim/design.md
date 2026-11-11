@@ -639,6 +639,44 @@ The final values and the batch output are recorded in `docs/kiro-log.md` by the 
 
 **Note: trait concentration, later (Author, 2026-11-11).** A later spec, together with the settings page, may add an integer parameter "trait concentration" that interpolates proportionally between the uniform `TRAIT_WEIGHTS` table (1:1:1:1:1:1:1) and the binomial bell table (1:6:15:20:15:6:1), possibly extended toward a U-shaped polarized table. That parameter would enter `WorldConfig`, the replay config and the checksum. It is out of scope for life-sim, which ships the uniform table only.
 
+### Calibration result (2026-11-11)
+
+Run with `sim-cli batch --seeds 1..=5 --ticks 29200` (and `--seeds 1..=20` for the wider
+look, not gated), one parameter at a time in the procedure's order.
+
+- **Step 1, mortality: no change.** `deaths` 51..56 per Life_Run (target 40 to 70) and
+  every seed ends with 7 to 11 women aged 18..=45 (the procedure's minimum is 6).
+- **Step 2, births: changed.** `birth_ppm_married` **500 to 1,000** and
+  `birth_ppm_unmarried` **50 to 100**. With the initial values `max_wait_npc` sat at
+  Max_Wait + 1 (1,096) on all five acceptance seeds and 17 of 20 wide-look seeds, which
+  is the procedure's "sits at Max_Wait on most seeds". A first raise to 750 / 75 still
+  sat there on 4 of 5 seeds; the pair was then doubled. Final `max_wait_npc`: 332, 763,
+  918, 1,096, 774 on the acceptance seeds (only seed 3 reaches the bound, where the
+  release happens at the first tick past Max_Wait as designed).
+- **Step 3, `max_wait`: no change** (1,095 days).
+- **Step 4, `loan_ppm` / `social_ppm`: no change.** `events` 13,113..13,874 per
+  Life_Run (target under 20,000) and `relations_max` 2,330..2,492. The "near 4,500"
+  estimate in "Relation map growth" was high by about a factor of two; `relations_max`
+  is a measurement, not a target, and raising `social_ppm` to chase it would spend the
+  event budget. Open Debts are exercised by the opening loan and by Property 15, which
+  builds a context for every open Debt at the Opening_World and after sampled ticks.
+- **Step 5, tighter arrival ratio: adopted.** `outsiders <= births / 3`, checked as
+  `3 * (imported + rebuilt) <= births`. All five acceptance seeds meet it with the final
+  values (arrivals 0, 0, 4, 0, 0 against births 52, 57, 49, 52, 53), and all 20
+  wide-look seeds meet it (10 arrivals in total against 1,048 births). `batch` prints it
+  as the target `outsiders_le_births_third` after `outsiders_le_births`, and
+  `--require-targets` fails a seed that misses it; R17.8 is still checked as well.
+
+Final five batch lines (`--require-targets`, exit 0):
+
+```text
+seed 1 ok ticks=29200 final=0b75afbd35cf9e3b residents_min=48 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=763 max_wait_player=15667 births=52 deaths=51 imported=0 rebuilt=0 origin_final=native:51,possessed:0,rebuilt:0 arrivals=native:52,possessed:0,rebuilt:0 events=13435 relations_max=2471 rejections=unknown_person:8,dead_person:31,self_target:5,intensity_out_of_range:0,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 2 ok ticks=29200 final=fe6084a6bbbac176 residents_min=48 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=918 max_wait_player=17455 births=57 deaths=56 imported=0 rebuilt=0 origin_final=native:51,possessed:0,rebuilt:0 arrivals=native:57,possessed:0,rebuilt:0 events=13661 relations_max=2447 rejections=unknown_person:5,dead_person:37,self_target:4,intensity_out_of_range:1,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 3 ok ticks=29200 final=46a8b40a7d8c34f0 residents_min=47 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=1096 max_wait_player=16310 births=49 deaths=52 imported=2 rebuilt=2 origin_final=native:48,possessed:1,rebuilt:2 arrivals=native:49,possessed:2,rebuilt:2 events=13874 relations_max=2343 rejections=unknown_person:3,dead_person:27,self_target:6,intensity_out_of_range:2,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 4 ok ticks=29200 final=b786e54976e82b1b residents_min=47 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=774 max_wait_player=20637 births=52 deaths=51 imported=0 rebuilt=0 origin_final=native:51,possessed:0,rebuilt:0 arrivals=native:52,possessed:0,rebuilt:0 events=13290 relations_max=2492 rejections=unknown_person:3,dead_person:38,self_target:5,intensity_out_of_range:3,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 5 ok ticks=29200 final=8ce9509847022d99 residents_min=49 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=332 max_wait_player=11593 births=53 deaths=52 imported=0 rebuilt=0 origin_final=native:51,possessed:0,rebuilt:0 arrivals=native:53,possessed:0,rebuilt:0 events=13113 relations_max=2330 rejections=unknown_person:3,dead_person:37,self_target:3,intensity_out_of_range:3,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+```
+
 ## Gate run time (OP-9)
 
 Measured baseline: 1 byte per ns of hashing, 22,620 ticks/s for a 37 KB state. Estimate for the new model, to be measured in the tasks with `sim-cli measure --residents 60`:

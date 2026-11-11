@@ -9,7 +9,7 @@
 //! One stdout line per seed, in ascending seed order:
 //!
 //! ```text
-//! seed 3 ok ticks=29200 final=<hex> residents_min=46 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=1095 max_wait_player=0 births=51 deaths=52 imported=3 rebuilt=1 origin_final=native:46,possessed:3,rebuilt:1 arrivals=native:51,possessed:3,rebuilt:1 events=14212 relations_max=4410 rejections=unknown_person:9,dead_person:4,self_target:3,intensity_out_of_range:7,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass
+//! seed 3 ok ticks=29200 final=<hex> residents_min=46 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=1095 max_wait_player=0 births=51 deaths=52 imported=3 rebuilt=1 origin_final=native:46,possessed:3,rebuilt:1 arrivals=native:51,possessed:3,rebuilt:1 events=14212 relations_max=4410 rejections=unknown_person:9,dead_person:4,self_target:3,intensity_out_of_range:7,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
 //! seed 4 FAIL tick=812 criterion=9.1 detail: soul S-0012 is in body 31 and waiting
 //! seed 5 FAIL targets: band_95=fail
 //! ```
@@ -24,7 +24,10 @@
 //!   count at the end of any tick (a measurement, not a target).
 //! * `band_40_60_ticks` counts ticks whose Resident count is in `40..=60`; `band_95` is
 //!   `band_40_60_ticks * 100 >= ticks * 95` (R17.9).
-//! * `pop_35_65` is R17.1 and `outsiders_le_births` is R17.8. Without
+//! * `pop_35_65` is R17.1 and `outsiders_le_births` is R17.8.
+//!   `outsiders_le_births_third` is the tighter arrival ratio the calibration adopted
+//!   (design "Parameters and calibration", step 5): outsider arrivals at most a third of
+//!   native births, as `3 * arrivals <= births`. Without
 //!   `--require-targets` a failing target prints `=fail` but the seed stays `ok`; with
 //!   it, the seed FAILs and the exit status is 1. A failed invariant or a failed
 //!   record/verify always FAILs the seed and the exit status is 1.
@@ -69,7 +72,8 @@ pub const BATCH_USAGE: &str = "usage: sim-cli batch --seeds A..=B --ticks N \
 [--random-inputs K] [--config FILE] [--require-targets]\n\
 --seeds is an inclusive range (or a single seed A), at most 10000 seeds; \
 --random-inputs defaults to 60; without --config: {\"opening_residents\":50}; \
---require-targets fails a seed whose R17.1, R17.8 or R17.9 target does not pass";
+--require-targets fails a seed whose R17.1, R17.8, R17.9 or calibrated arrival-ratio \
+target does not pass";
 
 /// Parses `--seeds`: `A..=B` (inclusive) or a single `A`. Rejects descending ranges,
 /// malformed text and ranges of more than [`MAX_SEEDS`] seeds.
@@ -99,12 +103,15 @@ pub fn parse_seed_range(text: &str) -> Result<(u64, u64), String> {
     Ok((first, last))
 }
 
-/// The three target criteria of R17.1, R17.8 and R17.9.
+/// The three target criteria of R17.1, R17.8 and R17.9 plus the tighter arrival ratio
+/// that the calibration adopted (design "Parameters and calibration", step 5): outsider
+/// arrivals at most a third of native births.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Targets {
     pop_35_65: bool,
     band_95: bool,
     outsiders_le_births: bool,
+    outsiders_le_births_third: bool,
 }
 
 impl Targets {
@@ -119,6 +126,9 @@ impl Targets {
         }
         if !self.outsiders_le_births {
             failing.push("outsiders_le_births");
+        }
+        if !self.outsiders_le_births_third {
+            failing.push("outsiders_le_births_third");
         }
         failing
     }
@@ -284,6 +294,9 @@ fn stats_of(world: &World, ticks: u64, tally: &Tally, final_checksum: String) ->
         pop_35_65: tally.pop_ok,
         band_95,
         outsiders_le_births: imported + rebuilt <= births,
+        // The calibrated tighter ratio: outsider arrivals <= births / 3, in integer
+        // arithmetic (3 x arrivals <= births).
+        outsiders_le_births_third: (imported + rebuilt).saturating_mul(3) <= births,
     };
     SeedStats {
         final_checksum,
@@ -325,7 +338,8 @@ band_40_60_ticks={} queue_final={} max_wait_npc={} max_wait_player={} births={} 
 imported={} rebuilt={} origin_final=native:{},possessed:{},rebuilt:{} \
 arrivals=native:{},possessed:{},rebuilt:{} events={} relations_max={} \
 rejections=unknown_person:{},dead_person:{},self_target:{},intensity_out_of_range:{},\
-id_exhausted:{} invariants=pass pop_35_65={} band_95={} outsiders_le_births={}",
+id_exhausted:{} invariants=pass pop_35_65={} band_95={} outsiders_le_births={} \
+outsiders_le_births_third={}",
         s.final_checksum,
         s.residents_min,
         s.residents_max,
@@ -353,6 +367,7 @@ id_exhausted:{} invariants=pass pop_35_65={} band_95={} outsiders_le_births={}",
         Targets::label(s.targets.pop_35_65),
         Targets::label(s.targets.band_95),
         Targets::label(s.targets.outsiders_le_births),
+        Targets::label(s.targets.outsiders_le_births_third),
     )
 }
 
@@ -661,22 +676,22 @@ mod tests {
             assert!(line.contains(" queue_final="), "{line}");
             assert!(line.contains(" max_wait_npc="), "{line}");
             assert!(line.contains(" max_wait_player="), "{line}");
-            assert!(line.contains(" births=0 deaths=0 "), "{line}");
-            assert!(line.contains(" imported=0 rebuilt=0 "), "{line}");
-            assert!(
-                line.contains(" origin_final=native:40,possessed:0,rebuilt:0 "),
-                "{line}"
-            );
-            assert!(
-                line.contains(" arrivals=native:0,possessed:0,rebuilt:0 "),
-                "{line}"
-            );
+            // Counts depend on the calibrated birth rate; the fields must be there.
+            assert!(line.contains(" births="), "{line}");
+            assert!(line.contains(" deaths="), "{line}");
+            assert!(line.contains(" imported="), "{line}");
+            assert!(line.contains(" rebuilt="), "{line}");
+            assert!(line.contains(" origin_final=native:"), "{line}");
+            assert!(line.contains(" arrivals=native:"), "{line}");
             assert!(line.contains(" events="), "{line}");
             assert!(line.contains(" relations_max="), "{line}");
             assert!(line.contains(" rejections=unknown_person:"), "{line}");
             assert!(line.contains(" invariants=pass "), "{line}");
             assert!(
-                line.contains(" pop_35_65=pass band_95=pass outsiders_le_births=pass"),
+                line.contains(
+                    " pop_35_65=pass band_95=pass outsiders_le_births=pass \
+outsiders_le_births_third=pass"
+                ),
                 "{line}"
             );
         }
@@ -739,6 +754,7 @@ mod tests {
             pop_35_65: false,
             band_95: false,
             outsiders_le_births: true,
+            outsiders_le_births_third: true,
         };
         assert_eq!(targets.failing(), ["pop_35_65", "band_95"]);
         assert_eq!(
@@ -749,6 +765,7 @@ mod tests {
             pop_35_65: true,
             band_95: false,
             outsiders_le_births: true,
+            outsiders_le_births_third: true,
         };
         assert_eq!(
             targets_line(5, &lone.failing()),
@@ -786,6 +803,7 @@ mod tests {
             "pop_35_65=",
             "band_95=",
             "outsiders_le_births=",
+            "outsiders_le_births_third=",
         ];
         assert_eq!(fields.len(), expected.len(), "{line}");
         for (field, prefix) in fields.iter().zip(expected) {
