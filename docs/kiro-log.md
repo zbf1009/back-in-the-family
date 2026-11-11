@@ -1672,3 +1672,10 @@ batch: 5/5 seeds ok
 - Working tree clean before this entry; 61 commits ahead of `origin/main` (`git log --oneline origin/main..main`). Nothing was pushed, no pull request was opened and nothing was deployed.
 - **Stopped for the Author's push decision.** A green push to `main` runs the Deploy_Workflow and deploys `web/dist`, and the push would carry the two local docs commits `c0d718d` and `0c9251b`, the life-sim requirements/design/tasks commits and every commit of this plan.
 - One deviation from task 13.1, already recorded in its entry: the mortality x30 fault was demonstrated on the acceptance command (exit 1, `seed 2 FAIL targets: pop_35_65=fail,band_95=fail,outsiders_le_births_third=fail`), but a full `scripts/gates.sh` run stops earlier under that fault because every checksum (and so every committed fixture replay) changes.
+
+### Spec: life-sim — Kiro audit (task 16.1, 2026-11-11)
+
+- Kiro wrote `docs/life-sim-audit.md` against `e115870`. `scripts/gates.sh` in a fresh clone (no `env`): `All gates passed.`, acceptance batch `5/5 seeds ok` with final checksums equal to the design's calibration note; wall time not captured. R15.8 diff check exits 0; every fixture-changing commit names the regeneration.
+- New finding not in the agent's entries: `sim-cli batch` computes `max_wait_npc` from the already-advanced tick counter while the invariant checker uses the completed tick, so the report shows 1,096 where R11.3 passes at 1,095.
+- Other findings left for the Author: newborn trait-inheritance probabilities and outsider surnames were chosen by the agent with no design rule; the one-third arrival target was adopted under the written calibration step without asking the Author; the death write order and the snapshot subcommand have no design sync note; the acceptance-gate fault injection cannot be seen through the full gates; a Property 6 expectation fix (`f058096`) is in its commit message only. The short-batch length problem before task 7.3 was a plan error in Kiro's tasks.
+- Task 16.1 left unchecked pending the Author's review. Nothing pushed.
