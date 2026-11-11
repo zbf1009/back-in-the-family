@@ -324,7 +324,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - _Requirements: 13.2, 16.2, 17.2, 19.2, 19.4, 19.5_
     - Checked after 17.x is reviewed by Kiro.
 
-- [ ] 17. Audit follow-ups (Author decisions 2026-11-11, docs/life-sim-audit.md)
+- [x] 17. Audit follow-ups (Author decisions 2026-11-11, docs/life-sim-audit.md)
   - [x] 17.1 Draw the outsider surname from the surnames no living Resident uses
     - Files: `crates/sim-core/src/outsiders.rs`, `fixtures/parity/*` (regenerated), `docs/kiro-log.md`.
     - Follow design "Outsiders" ("Steps in detail", Author decision 2026-11-11, audit) and audit finding 6. In `release`, replace the current surname draw (`below(draw(..., RELEASE_SURNAME), SURNAME_COUNT)`) as follows. Collect the surname indices used by living Residents from `world.derived.living_names` (it holds exactly the names of living Residents, R13.3, and is rebuilt after load, R16.5) into a `BTreeSet<u16>`. List the free surnames `0..SURNAME_COUNT` not in that set, in ascending index. If the list is not empty, pick `free[below(draw, count)]`. If no surname is free, fall back to `below(draw, SURNAME_COUNT)` over all 60. The draw stays the existing one: keyed by the released Soul (`soul.rng_key()`), `StreamTag::Outsiders`, `world.tick`, index `RELEASE_SURNAME`. Add no new stream tag or index constant. The first name still comes from `pick_full_name` with `RELEASE_NAME`, unchanged. Several releases in one tick see each other's surnames, because `living_names` is updated after each release; keep that order.
@@ -354,7 +354,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Audit finding on R8 (table row R8.1 to R8.5). Append one entry, `### Spec: life-sim — Property 6 expectation fix (commit f058096, logged late, <date>)`, with only facts from the commit and the regression file: Property 6 (`crates/sim-core/tests/history.rs`) compared a repayment's payer with the Debt's debtor at the start of the tick; a death earlier in the same tick can transfer the Debt first (`debt_transfer` keeps the open amount and changes the debtor), so the expected payer is the debtor after the last `debt_transfer` before the repayment; the case was found by a full-file run at seed 6399358489806569765 and is kept in `crates/sim-core/tests/history.proptest-regressions`; the fix changed the test expectation, not simulation code; this entry is written late, at the audit's request (`docs/life-sim-audit.md`). Do not edit any earlier entry.
     - _Requirements: 19.4_
     - Acceptance: before committing, `git diff --numstat -- docs/kiro-log.md` shows 0 deleted lines and `git diff -- docs/kiro-log.md` shows one hunk at the end of the file. Commit as `docs: log the Property 6 expectation fix`.
-  - [ ] 17.5 Final check from a clean build, then hand back to Kiro
+  - [x] 17.5 Final check from a clean build, then hand back to Kiro
     - Files: `docs/kiro-log.md` (append only).
     - Run `cargo clean`, then `time scripts/gates.sh`. It must exit 0. Record the wall time. Run the R15.8 check `git diff --exit-code afaf87c -- crates/sim-core/src/llm eval/probe/templates/decision.system_one.v1.txt`; it must exit 0. Run `git status`; it must be clean before the log entry.
     - Append `### Spec: life-sim — audit follow-ups final check (task 17.5, <date>)` with the gate result, the wall time, the R15.8 result, the five acceptance-batch lines from this gate run exactly as printed, and "stopped for Kiro's 16.1 review". Commit it.

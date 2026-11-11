@@ -1710,3 +1710,20 @@ batch: 5/5 seeds ok
 - The case was found by a full-file run at seed 6399358489806569765 and is kept in `crates/sim-core/tests/history.proptest-regressions` (`seed: 6399358489806569765, residents: 58, params: Stress`, four `Act` inputs).
 - The fix changed the test expectation, not simulation code.
 - This entry is written late, at the audit's request (`docs/life-sim-audit.md`); no earlier entry was edited.
+
+### Spec: life-sim — audit follow-ups final check (task 17.5, 2026-11-11)
+
+- `cargo clean` (2,778 files, 3.1 GiB) then `scripts/gates.sh`: exit 0, ending with `All gates passed.` Wall time (`time`): `real 5m46.267s`, `user 11m28.954s`, `sys 0m37.803s`. The run included the short batch (`batch: 20/20 seeds ok`), the acceptance batch, the workspace tests, both WASM targets and the web, probe and Smoke_Test gates.
+- R15.8: `git diff --exit-code afaf87c -- crates/sim-core/src/llm eval/probe/templates/decision.system_one.v1.txt` exits 0. `git status --short` was empty before this entry.
+- The acceptance batch lines as printed by that gate run:
+
+```text
+seed 1 ok ticks=29200 final=0b75afbd35cf9e3b residents_min=48 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=762 max_wait_player=15666 births=52 deaths=51 imported=0 rebuilt=0 origin_final=native:51,possessed:0,rebuilt:0 arrivals=native:52,possessed:0,rebuilt:0 events=13435 relations_max=2471 rejections=unknown_person:8,dead_person:31,self_target:5,intensity_out_of_range:0,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 2 ok ticks=29200 final=fe6084a6bbbac176 residents_min=48 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=917 max_wait_player=17454 births=57 deaths=56 imported=0 rebuilt=0 origin_final=native:51,possessed:0,rebuilt:0 arrivals=native:57,possessed:0,rebuilt:0 events=13661 relations_max=2447 rejections=unknown_person:5,dead_person:37,self_target:4,intensity_out_of_range:1,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 3 ok ticks=29200 final=f5daa246698a3229 residents_min=47 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=1095 max_wait_player=16309 births=49 deaths=52 imported=2 rebuilt=2 origin_final=native:48,possessed:1,rebuilt:2 arrivals=native:49,possessed:2,rebuilt:2 events=13874 relations_max=2343 rejections=unknown_person:3,dead_person:27,self_target:6,intensity_out_of_range:2,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 4 ok ticks=29200 final=b786e54976e82b1b residents_min=47 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=773 max_wait_player=20636 births=52 deaths=51 imported=0 rebuilt=0 origin_final=native:51,possessed:0,rebuilt:0 arrivals=native:52,possessed:0,rebuilt:0 events=13290 relations_max=2492 rejections=unknown_person:3,dead_person:38,self_target:5,intensity_out_of_range:3,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 5 ok ticks=29200 final=8ce9509847022d99 residents_min=49 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=331 max_wait_player=11592 births=53 deaths=52 imported=0 rebuilt=0 origin_final=native:51,possessed:0,rebuilt:0 arrivals=native:53,possessed:0,rebuilt:0 events=13113 relations_max=2330 rejections=unknown_person:3,dead_person:37,self_target:3,intensity_out_of_range:3,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+batch: 5/5 seeds ok
+```
+
+- Stopped for Kiro's 16.1 review. Nothing was pushed, no pull request was opened and nothing was deployed; task 16.1 stays unchecked.
