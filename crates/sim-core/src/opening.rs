@@ -23,7 +23,7 @@ use crate::params::Params;
 use crate::rng::{StreamTag, below, draw, in_range};
 use crate::social::apply_threshold_tags;
 use crate::values::{
-    Intensity, Mood, Origin, RelTags, RelationTag, Score, Sex, SocialKind, Trait, Traits,
+    Intensity, Mood, Origin, RelTags, RelationTag, Score, Sex, SocialKind, Traits,
 };
 use crate::world::{
     ConfigError, Debt, Derived, Household, Life, Person, Property, PropertyKind, Rejections,
@@ -667,23 +667,16 @@ fn birth_day_for(seed: u64, person: PersonId, age: u16) -> i64 {
     whole.saturating_add(extra).saturating_neg()
 }
 
-/// Seven trait draws in -3..=3, keyed by the Person.
-///
-/// The design says "Traits from the opening distribution" without defining it; this is
-/// the mechanical placeholder (uniform over the trait range) recorded in
-/// `docs/kiro-log.md`, not a calibrated distribution.
+/// Seven trait draws, keyed by the Person, through the shared weighted draw of design
+/// "Trait draws" (Author, 2026-11-11).
 fn draw_traits(seed: u64, person: PersonId) -> Traits {
     let trait_at = |index: u64| {
-        Trait::clamped(in_range(
-            draw(
-                seed,
-                person.rng_key(),
-                StreamTag::Traits,
-                OPENING_TICK,
-                index,
-            ),
-            i64::from(crate::values::TRAIT_MIN),
-            i64::from(crate::values::TRAIT_MAX),
+        crate::params::draw_trait(draw(
+            seed,
+            person.rng_key(),
+            StreamTag::Traits,
+            OPENING_TICK,
+            index,
         ))
     };
     Traits {

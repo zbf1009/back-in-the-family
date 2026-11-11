@@ -6,11 +6,39 @@
 //! different Params can never be confused with a default one.
 
 use crate::canon::{Canon, CanonWriter};
+use crate::rng::below;
+use crate::values::Trait;
 
 /// Age at which mortality is certain (R6.2).
 pub const CERTAIN_DEATH_AGE: u16 = 120;
 /// Mortality rate reported at [`CERTAIN_DEATH_AGE`] and above: every roll succeeds.
 pub const CERTAIN_MORTALITY_PPM: u32 = 1_000_000;
+
+/// Weights of the seven trait values `-3..=3`, indexed by `value + 3` (design
+/// "Trait draws", Author 2026-11-11). All equal today, so the distribution is uniform;
+/// a later spec may make the table configurable.
+pub const TRAIT_WEIGHTS: [u32; 7] = [1; 7];
+
+/// The shared weighted trait draw (design "Trait draws", Author 2026-11-11).
+///
+/// Maps one 64-bit draw onto `-3..=3` through [`TRAIT_WEIGHTS`]. Every trait site
+/// (Opening_World, the fresh draw of a birth, an outsider body) uses this function; no
+/// site uses a direct `in_range(-3, 3)`.
+pub(crate) fn draw_trait(roll: u64) -> Trait {
+    let total: u64 = TRAIT_WEIGHTS
+        .iter()
+        .fold(0u64, |sum, weight| sum.saturating_add(u64::from(*weight)));
+    let mut pick = below(roll, total);
+    for (index, weight) in TRAIT_WEIGHTS.iter().enumerate() {
+        let weight = u64::from(*weight);
+        if pick < weight {
+            let value = i64::try_from(index).unwrap_or(0).saturating_sub(3);
+            return Trait::clamped(value);
+        }
+        pick = pick.saturating_sub(weight);
+    }
+    Trait::clamped(3)
+}
 
 /// The simulation's numeric parameters.
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
@@ -407,5 +435,16 @@ mod tests {
             encode_to_vec(&Params::DEFAULT),
             encode_to_vec(&Params::DEFAULT)
         );
+    }
+
+    #[test]
+    fn the_shared_trait_draw_maps_the_table_onto_the_trait_range() {
+        assert_eq!(TRAIT_WEIGHTS, [1; 7]);
+        assert_eq!(draw_trait(0).get(), -3);
+        assert_eq!(draw_trait(u64::MAX).get(), 3);
+        // Only values in the table exist, whatever the draw.
+        for roll in [1u64, u64::MAX, 1_000_000, 7, 12_345] {
+            assert!((-3..=3).contains(&draw_trait(roll).get()));
+        }
     }
 }

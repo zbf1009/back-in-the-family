@@ -1552,3 +1552,8 @@ Done at the Author's request, as the conditions of the approval for task 20.1 (n
 
 - While implementing step 9 and writing Property 8 (task 6.3), the property failed on a `quarrel`: `social::effects` returned positive magnitudes but `apply_social` added them unchanged, so `quarrel`, `insult` and `theft` raised affinity and trust instead of lowering them, although the design table writes those rows with a minus sign. The defect dates from task 3.2; the existing unit test compared magnitude bounds only, so the sign was never asserted.
 - Fixed in `social.rs`: `effects` now returns the signed deltas exactly as the design table writes them. `effect_table_bounds_follow_the_design` pins the negative rows and a new regression test (`negative_kinds_lower_affinity_through_apply_social`) drives an insult through the shared path. No design or requirement text changed. The fix changes the checksums of runs with social events, so the parity fixtures were regenerated in the same commit.
+
+### Spec: life-sim — trait draws through the weight table (2026-11-11)
+
+- Implemented the Author's "Trait draws" decision after task 6.5: `params.rs` gains `TRAIT_WEIGHTS: [u32; 7] = [1; 7]` and the shared `draw_trait(roll) -> Trait` weighted draw, and `opening.rs` `draw_traits` now calls it instead of `in_range(-3, 3)` (the placeholder note is gone). A unit test pins the table, both ends of the range and the range of the result.
+- With all-equal weights the mapping is identical to the old `in_range` call for the same draw, so the per-tick checksums did not change; `scripts/regen-fixtures.sh` was still run twice and left the fixtures byte-identical, so the commit carries no regeneration line. Births (task 7.2) and outsiders (task 7.3) will use the same function.
