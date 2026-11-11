@@ -14,6 +14,7 @@
 pub mod births;
 pub mod canon;
 pub mod checksum;
+pub mod context_builder;
 pub mod death;
 pub mod economy;
 pub mod events;
