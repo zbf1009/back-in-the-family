@@ -1590,3 +1590,9 @@ batch: 5/5 seeds ok
 - Wall time (`time`): `real 0m23.301s`, `user 0m24.028s`, `sys 0m0.060s`.
 - No Params were tuned for this entry (task 12 does the calibration). The figures to hand to calibration: `deaths` 52 to 60 per Life_Run, `events` 13,285 to 15,882, `relations_max` 2,237 to 2,449, `max_wait_npc` 1,096 on every seed, and `outsiders_le_births` passing with 2 to 14 releases per seed.
 - Observation logged, not acted on: the `max_wait_player` column grows large (11,593 to 20,637 days) because the Player_Soul starts in a body in every seed and dies at some point without any input to place it, and R20.1/R20.2 keep it waiting for the rest of the run; this is the documented Player_Soul behaviour, not a defect.
+
+### Spec: life-sim — shared property-test generator and blake3 dev profile (2026-11-11)
+
+- Task 8.1 added `crates/sim-core/tests/life_gen/mod.rs`: a `proptest` scenario generator (seed, `opening_residents` in 40..=60, `Params::stress()` in 3 cases of 4 and `Params::DEFAULT` otherwise, 0 to 24 `Act` inputs mixed like `sim-cli inputs.rs`) plus direct checks of the six R19.1 invariants that do not call `InvariantChecker`, so the property tests run two independent implementations.
+- Added `[profile.dev.package.blake3] opt-level = 3` to the workspace `Cargo.toml` (design "Testing Strategy").
+- Measured `time cargo test -p sim-core` (warm target, nothing else running): before the profile change 28.85 s wall; after it 23.53 s wall (that run also recompiled `blake3` and `sim-core`, 3.63 s of the 23.53 s).

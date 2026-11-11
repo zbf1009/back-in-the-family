@@ -17,3 +17,9 @@ all = { level = "warn", priority = -1 }
 dbg_macro = "deny"
 todo = "deny"
 unimplemented = "deny"
+
+# Debug builds hash slowly, and the per-tick checksum is most of a property-test run.
+# Optimising this one dependency keeps `cargo test` inside the time budget; no code
+# change (design "Testing Strategy").
+[profile.dev.package.blake3]
+opt-level = 3
