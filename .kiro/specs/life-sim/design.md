@@ -21,6 +21,23 @@ Scope is kept to what the requirements ask. There is no narrator, no player choi
 
 So hashing runs at roughly 1 byte per nanosecond, and the checksum, not the tick logic, sets the cost. The design therefore keeps the canonical state small and hashes the growing Event_Log incrementally (OP-8). All run-time estimates below are scaled from these numbers and must be re-measured in the tasks.
 
+### Measured baseline (2026-11-11, life-sim model)
+
+`cargo run --release -p sim-cli -- measure --runs 5 --residents 60` and
+`scripts/measure-wasm.sh` on the same development machine, after the calibration:
+
+| Metric | Skeleton (60 entities, Pairwise) | life-sim (60 residents) |
+|---|---|---|
+| ticks per second, native release | 22,620 | 23,777 |
+| ticks per second, WASM release+bench (Node) | not measured here | 10,245 (`run_ticks`), 9,971 (`step()` incl. the JS boundary) |
+| checksum per call, native | 34,544 ns | 17,263 ns |
+| checksum share of tick time | 78.1% | 41.0% |
+| canonical state | 36,878 bytes | 13,748 bytes after 365 ticks |
+
+The new model hashes less per tick (the Event_Log is a digest, OP-8) and its canonical
+state is smaller. `measure` times the checksum after one simulated year (365 ticks),
+as R17.5 requires. Report only; no threshold (OP-8 A).
+
 ## Decisions for the Author
 
 **Decided by the Author on 2026-11-10:** every open point takes the option marked **Recommended**. OP-8 versioning was decided separately (choice A, see OP-8). The alternatives stay listed below for history. The rest of this document follows the decided options; switching one later is a local change in the module named in brackets.

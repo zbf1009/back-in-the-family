@@ -1644,3 +1644,23 @@ batch: 5/5 seeds ok
 - Step 3 (`max_wait`) and step 4 (`loan_ppm`, `social_ppm`) unchanged: events stay well under 20,000 and `relations_max` is a measurement, not a target; the design's "near 4,500" estimate was high by about half.
 - Step 5: the tighter arrival ratio `outsiders <= births / 3` is adopted (all five acceptance seeds meet it with the final values). `sim-cli batch` prints it as `outsiders_le_births_third` after `outsiders_le_births`; `--require-targets` fails a seed that misses it. The design note "Calibration result (2026-11-11)" records the values and the five final lines.
 - The Params change moves every checksum, so the three replay fixtures were regenerated with `scripts/regen-fixtures.sh`, run twice with the second run leaving `git status` unchanged. `seed1-pairwise.snapshot-500.json` is byte-identical (no birth before tick 500 in that seed); the replay checksums differ because Params enter the canonical encoding.
+
+
+### Spec: life-sim — Snapshot fixture and subcommand (task 11.3, 2026-11-11)
+
+- The design names only "a snapshot recorded natively at tick 500"; it does not name a producer or a file. Task 11.3 chose `sim-cli snapshot --replay FILE --at TICK --out FILE` (replays the file's seed, config and inputs, checks every recorded checksum, writes one line of compact Snapshot JSON) and `fixtures/parity/seed1-pairwise.snapshot-500.json` as that native recording. The file has no trailing newline so `WasmSim::snapshot()` equals it byte for byte in `crates/sim-wasm/tests/parity.rs`; `fixtures/parity/README.md` and the `sim-cli --help` text state both.
+- The replay fixtures themselves did not change in that commit. Later, the calibration (births 1,000/100 ppm) moved every checksum because Params enter the canonical encoding; the snapshot file stayed byte-identical (no birth happens before tick 500 in seed 1).
+
+### Spec: life-sim — gate time and acceptance-step fault injection (task 13.1, 2026-11-11)
+
+- Added the acceptance batch to `scripts/gates.sh` right after the short batch: `sim-cli batch --seeds 1..=5 --ticks 29200 --require-targets`.
+- Measured with the warm release binary: the acceptance step 20.35 s (no `--no-verify-replay` fallback needed; the design's 60 s limit is far away) and the short batch (`--seeds 1..=20 --ticks 2000`) 1.87 s. The full `scripts/gates.sh` time from a clean build is in the task 15.1 entry.
+- Fault injection: `Params::DEFAULT` was temporarily built from a mortality table scaled by 30 (a temporary `injected_mortality_ppm_by_age` used only by `DEFAULT`, so the property tests' `Params::stress` stayed unchanged), and the two pinned mortality assertions were scaled to match. Running only the acceptance step under the fault (release binary rebuilt with it) exits 1 with `seed 2 FAIL targets: pop_35_65=fail,band_95=fail,outsiders_le_births_third=fail` (seed 1 passes, seeds 3 to 5 fail only `outsiders_le_births_third`; `batch: 1/5 seeds ok`). Reverted with `git checkout -- crates/sim-core/src/params.rs`.
+- A full `scripts/gates.sh` run cannot reach the acceptance step under this fault: changing `Params` changes every checksum, so committed fixture replays diverge (the `snapshot` CLI test failed first with `replay diverged at tick 0`) and a batch report-field unit test fails because 30 ticks under the fault leave the population outside the band. The acceptance command itself is the step the gate runs, and it fails as shown. Recorded for the Kiro audit as a deviation from the task's literal "gates stops at the acceptance step".
+- Reverted state: `git status --short` shows only `scripts/gates.sh` (the added gate line) and this entry.
+
+### Spec: life-sim — measurements (task 13.2, 2026-11-11)
+
+- `cargo run --release -p sim-cli -- measure --runs 5 --residents 60` (release, seed 1, no inputs): 23,777 ticks/s (lifetime best 1,228.08 ms, median 1,228.37 ms), 17,263 ns per checksum call (41.0% of the tick), 13,748 canonical state bytes after 365 ticks. Skeleton baseline: 22,620 ticks/s, 34,544 ns, 36,878 bytes, 78.1% share.
+- `scripts/measure-wasm.sh` (Node 26.7.0, wasm-bindgen 0.2.130, release+bench): 10,245 ticks/s through `run_ticks`, 9,971 ticks/s through `step()` including the JS boundary, 32,532 ns per checksum call, 33.3% checksum share; the script prints no canonical state size.
+- Both commands exited 0. The numbers are in the design note "Measured baseline (2026-11-11, life-sim model)" under "Baseline measurement"; no threshold applies (OP-8 A).
