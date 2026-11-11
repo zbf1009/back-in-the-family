@@ -191,54 +191,54 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - _Requirements: 17.3_
     - Acceptance: the batch exits 0 (invariants pass). If an invariant fails, fix the bug in the step that caused it, add a regression unit test and log the cause before you continue.
 
-- [ ] 8. Property tests for the tick invariants
+- [x] 8. Property tests for the tick invariants
   - Each test uses the shared generator from 8.1 and runs 240 ticks per case, with `Params::stress()` in 3 cases of 4 and `Params::DEFAULT` otherwise (design "Testing Strategy"). Acceptance for each: `cargo test -p sim-core --test <file>` passes, and Rust gates pass. Commit each with `test(sim-core): ...`.
-  - [ ] 8.1 Add the shared run generator and the blake3 dev profile
+  - [x] 8.1 Add the shared run generator and the blake3 dev profile
     - Files: `crates/sim-core/tests/life_gen/mod.rs` (new), `Cargo.toml` (workspace root: `[profile.dev.package.blake3] opt-level = 3`).
     - The scenario strategy covers a seed, N in 40..=60, the Params choice, and a list of Act inputs with valid and invalid ones mixed as in `sim-cli` `inputs.rs`. Add a helper that steps a `Sim` and yields `(before, after)` World pairs per tick.
     - Measure `time cargo test -p sim-core` before and after the profile change, and log both numbers in `docs/kiro-log.md`.
     - _Requirements: 19.1_
-  - [ ] 8.2 Property test: Property 1 (core invariants hold at the end of every tick)
+  - [x] 8.2 Property test: Property 1 (core invariants hold at the end of every tick)
     - File: `crates/sim-core/tests/invariants.rs` (new). Use `InvariantChecker` (the same code as `sim-cli batch`) and also assert each of the six R19.1 invariants directly, so a checker bug cannot hide them.
     - **Property 1: Core invariants hold at the end of every tick.** **Validates: Requirements 3.1, 3.5, 4.4, 5.8, 6.4, 9.1, 9.2, 9.3, 19.1, 20.4**
-  - [ ] 8.3 Property test: Property 2 (structural invariants hold at the end of every tick)
+  - [x] 8.3 Property test: Property 2 (structural invariants hold at the end of every tick)
     - File: `crates/sim-core/tests/invariants.rs`.
     - **Property 2: Structural invariants hold at the end of every tick.** **Validates: Requirements 2.2, 3.3, 3.6, 4.2, 4.3, 4.5, 4.6, 5.6, 5.7, 6.2, 6.4, 7.3, 8.3, 8.4, 11.3, 13.3, 20.2**
-  - [ ] 8.4 Property test: Property 3 (history is preserved across ticks)
+  - [x] 8.4 Property test: Property 3 (history is preserved across ticks)
     - File: `crates/sim-core/tests/history.rs` (new).
     - **Property 3: History is preserved across ticks.** **Validates: Requirements 2.4, 2.5, 4.7, 4.9, 5.2, 6.4, 9.4, 9.5, 9.6, 20.1**
-  - [ ] 8.5 Property test: Property 4 (every death is settled in its own tick)
+  - [x] 8.5 Property test: Property 4 (every death is settled in its own tick)
     - File: `crates/sim-core/tests/history.rs`.
     - **Property 4: Every death is settled in its own tick.** **Validates: Requirements 5.1, 6.3, 7.1, 7.2**
-  - [ ] 8.6 Property test: Property 5 (births and arrivals use waiting Souls correctly)
+  - [x] 8.6 Property test: Property 5 (births and arrivals use waiting Souls correctly)
     - File: `crates/sim-core/tests/history.rs`.
     - **Property 5: Births and arrivals use waiting Souls correctly.** **Validates: Requirements 5.1, 10.1, 10.3, 10.4, 11.1, 11.2, 11.4, 20.2, 20.3**
-  - [ ] 8.7 Property test: Property 6 (debts follow their Events)
+  - [x] 8.7 Property test: Property 6 (debts follow their Events)
     - File: `crates/sim-core/tests/history.rs`.
     - **Property 6: Debts follow their Events.** **Validates: Requirements 5.1, 8.1, 8.2, 8.4, 8.5**
-  - [ ] 8.8 Property test: Property 7 (Mood changes only through Events)
+  - [x] 8.8 Property test: Property 7 (Mood changes only through Events)
     - File: `crates/sim-core/tests/history.rs`.
     - **Property 7: Mood changes only through Events.** **Validates: Requirements 14.2, 14.3**
-  - [ ] 8.9 Property tests: Property 9 (a valid Act changes the Checksum) and Property 10 (an invalid input is skipped and recorded)
+  - [x] 8.9 Property tests: Property 9 (a valid Act changes the Checksum) and Property 10 (an invalid input is skipped and recorded)
     - File: `crates/sim-core/tests/inputs.rs` (new). Write one `proptest!` per property.
     - **Property 9: A valid Act changes the Checksum.** **Validates: Requirements 1.4**
     - **Property 10: An invalid input is skipped and recorded.** **Validates: Requirements 1.5, 6.5**
-  - [ ] 8.10 Property test: Property 11 (age is whole years rounded down)
+  - [x] 8.10 Property test: Property 11 (age is whole years rounded down)
     - File: `crates/sim-core/src/world.rs` (`#[cfg(test)]`, proptest over `birth_day` including negative values and `e >= b`).
     - **Property 11: Age is whole years rounded down.** **Validates: Requirements 2.3**
-  - [ ] 8.11 Property test: Property 12 (the Opening_World is valid and reproducible)
+  - [x] 8.11 Property test: Property 12 (the Opening_World is valid and reproducible)
     - File: `crates/sim-core/tests/opening.rs` (new).
     - **Property 12: The Opening_World is valid and reproducible.** **Validates: Requirements 12.1, 12.2, 12.3, 12.4, 12.5, 12.6**
-  - [ ] 8.12 Property tests: Property 14 (every state field reaches the Checksum) and Property 16 (rebuilding Derived_State changes nothing)
+  - [x] 8.12 Property tests: Property 14 (every state field reaches the Checksum) and Property 16 (rebuilding Derived_State changes nothing)
     - File: `crates/sim-core/tests/properties.rs` (replace the minimal test from 3.3).
     - **Property 14: Every state field reaches the Checksum.** **Validates: Requirements 5.10**
     - **Property 16: Rebuilding Derived_State changes nothing.** **Validates: Requirements 16.5**
-  - [ ] 8.13 Property test: Property 17 (replays reproduce every Checksum)
+  - [x] 8.13 Property test: Property 17 (replays reproduce every Checksum)
     - File: `crates/sim-core/tests/replay.rs`.
     - **Property 17: Replays reproduce every Checksum.** **Validates: Requirements 16.6**
 
-- [ ] 9. Fault injection for the six core invariants (R19.4)
-  - [ ] 9.1 Inject, observe and revert each core-invariant fault, and log it
+- [x] 9. Fault injection for the six core invariants (R19.4)
+  - [x] 9.1 Inject, observe and revert each core-invariant fault, and log it
     - Files: temporary edits only (reverted); `docs/kiro-log.md` (appended).
     - For each row of design "Fault injection" (soul conservation 9.3, one soul one place 9.1/9.2, one Household per Resident 3.1, no actions by the dead 5.8/6.4, acyclic kinship 4.4, money conservation 3.5):
       1. Make the injected edit.
@@ -250,7 +250,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - _Requirements: 19.1, 19.4_
     - Acceptance: six log entries; `git status` shows only `docs/kiro-log.md`; commit as `docs: log life-sim invariant fault injections`.
 
-- [ ] 10. Checkpoint: full model and properties green
+- [x] 10. Checkpoint: full model and properties green
   - `scripts/gates.sh` must exit 0. The R15.8 diff check exits 0. Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 11. Context_Builder and Snapshot
