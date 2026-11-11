@@ -1664,3 +1664,11 @@ batch: 5/5 seeds ok
 - `cargo run --release -p sim-cli -- measure --runs 5 --residents 60` (release, seed 1, no inputs): 23,777 ticks/s (lifetime best 1,228.08 ms, median 1,228.37 ms), 17,263 ns per checksum call (41.0% of the tick), 13,748 canonical state bytes after 365 ticks. Skeleton baseline: 22,620 ticks/s, 34,544 ns, 36,878 bytes, 78.1% share.
 - `scripts/measure-wasm.sh` (Node 26.7.0, wasm-bindgen 0.2.130, release+bench): 10,245 ticks/s through `run_ticks`, 9,971 ticks/s through `step()` including the JS boundary, 32,532 ns per checksum call, 33.3% checksum share; the script prints no canonical state size.
 - Both commands exited 0. The numbers are in the design note "Measured baseline (2026-11-11, life-sim model)" under "Baseline measurement"; no threshold applies (OP-8 A).
+
+
+### Spec: life-sim — final checkpoint (task 15.1, 2026-11-11)
+
+- `cargo clean` then `scripts/gates.sh`: exit 0 in 311 s (5 min 11 s), `All gates passed.` The R15.8 diff check (`git diff --exit-code afaf87c -- crates/sim-core/src/llm eval/probe/templates/decision.system_one.v1.txt`) exited 0. The acceptance step inside that run is the 20.4 s figure recorded under "Measured gate time"; the full run time includes the clean Rust build, the property suite and the web gates.
+- Working tree clean before this entry; 61 commits ahead of `origin/main` (`git log --oneline origin/main..main`). Nothing was pushed, no pull request was opened and nothing was deployed.
+- **Stopped for the Author's push decision.** A green push to `main` runs the Deploy_Workflow and deploys `web/dist`, and the push would carry the two local docs commits `c0d718d` and `0c9251b`, the life-sim requirements/design/tasks commits and every commit of this plan.
+- One deviation from task 13.1, already recorded in its entry: the mortality x30 fault was demonstrated on the acceptance command (exit 1, `seed 2 FAIL targets: pop_35_65=fail,band_95=fail,outsiders_le_births_third=fail`), but a full `scripts/gates.sh` run stops earlier under that fault because every checksum (and so every committed fixture replay) changes.

@@ -310,8 +310,8 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Edit only the layout and the module table. Under `crates/sim-core/` list the new modules (`params`, `names`, `values`, `events`, `opening`, `economy`, `social`, `death`, `births`, `outsiders`, `invariants`, `context_builder`, `snapshot`), the new test files (`tests/life_gen/`, `invariants.rs`, `history.rs`, `inputs.rs`, `opening.rs`, `context_builder.rs`, `snapshot.rs`), the `sim-cli snapshot` subcommand, and `fixtures/parity/seed1-pairwise.snapshot-500.json`. Mark spec 4 `life-sim` as done in "Next steps", with the open item "push pending the Author's approval". Do not change any other steering file.
     - Acceptance: the file lists every new file that exists under `crates/sim-core/src` (`ls crates/sim-core/src`). Commit as `docs(steering): update structure for life-sim`.
 
-- [ ] 15. Final checkpoint and hand-off
-  - [ ] 15.1 Run the full gates from a clean build and stop before pushing
+- [x] 15. Final checkpoint and hand-off
+  - [x] 15.1 Run the full gates from a clean build and stop before pushing
     - Run `cargo clean`, then `scripts/gates.sh`. It must exit 0. Run the R15.8 diff check: it must exit 0. Run `git status`: it must be clean. Run `git log --oneline origin/main..main` and save the list.
     - **STOP AND ASK THE AUTHOR before any push.** A green push to `main` deploys the site automatically. The push would also carry the two local docs commits `c0d718d` and `0c9251b`, the life-sim requirements and design commits, and every commit of this plan. Give the Author the commit list and the gate result, and wait. Do not push, open a pull request or deploy unless the Author explicitly says so.
     - Append a log entry with the date, the gate result and "stopped for the Author's push decision". Commit it.
