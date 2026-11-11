@@ -293,14 +293,14 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Design note `### Measured gate time (YYYY-MM-DD)`: the acceptance step time, the short batch time and the full `scripts/gates.sh` time.
     - _Requirements: 17.1, 17.8, 17.9, 19.3, 19.4_
     - Acceptance: `scripts/gates.sh` exits 0. Commit as `ci: add the 80-year acceptance batch to the gates`.
-  - [ ] 13.2 Measure ticks per second and record them
+  - [x] 13.2 Measure ticks per second and record them
     - Files: `docs/kiro-log.md`, `.kiro/specs/life-sim/design.md` (dated note under "Baseline measurement").
     - Run `cargo run --release -p sim-cli -- measure --runs 5 --residents 60` and `scripts/measure-wasm.sh`. Record ticks per second, checksum ns per call, checksum share and canonical state bytes, next to the skeleton baseline in the design (22,620 ticks/s, 34,544 ns, 36,878 bytes). Report only; there is no threshold (OP-8 A).
     - _Requirements: 17.5_
     - Acceptance: both commands exit 0, and the numbers appear in both files. Commit as `docs: record life-sim measurements`.
 
 - [ ] 14. README and steering layout
-  - [ ] 14.1 Update `README.md`
+  - [x] 14.1 Update `README.md`
     - Files: `README.md`.
     - Check that the Name_List entry from 1.3 is present. Confirm that no third-party library was added: compare `Cargo.lock` and both `pnpm-lock.yaml` files with `afaf87c` (`git diff afaf87c -- Cargo.lock web/pnpm-lock.yaml eval/probe/pnpm-lock.yaml`). For any new crate or package, add its name and license. Update any README text that describes the skeleton model, the `workload` config or the `measure --entities` flag.
     - _Requirements: 19.5_

@@ -6,7 +6,7 @@ A reincarnation life-sim set in a small American town where, after a Halloween c
 
 Built for Kiroween 2026 (Frankenstein category). Development is done with Kiro CLI; the `.kiro/` directory (steering, specs) is part of this repository.
 
-Status: the deterministic simulation skeleton (`sim-core`, with the native runner `sim-cli` and the browser bindings `sim-wasm`) is built and checked, and the web shell (`web/`) is now built — a Svelte 5 + Vite page that loads the WASM in a dedicated Web Worker and shows the tick, checksum and ticks-per-second, together with the Web_Build (into `web/dist`), the Type_Check, Unit_Tests and Smoke_Test gates, and the Cloudflare deploy workflow (enabled: every green push to `main` deploys to <https://back-in-the-family.2290698778.workers.dev>). The `llm-probe` spec is also built (the Probe_Runner in `eval/probe/`, the locked evaluation cards in `eval/cards/`, its Results in `eval/results/`, and the Report `docs/llm-probe.md`). There is no playable game yet. The next specs are the vertical-slice ones.
+Status: spec 4, the `life-sim` core, is built: `sim-core` now runs a thin deterministic life simulation (residents, households, relationships, debts, births, deaths, inheritance and the soul-identity core), and `sim-cli` and `sim-wasm` run it natively, from replay files and in the browser. The web shell (`web/`) is built — a Svelte 5 + Vite page that loads the WASM in a dedicated Web Worker and shows the tick, checksum and ticks-per-second, together with the Web_Build (into `web/dist`), the Type_Check, Unit_Tests and Smoke_Test gates, and the Cloudflare deploy workflow (enabled: every green push to `main` deploys to <https://back-in-the-family.2290698778.workers.dev>). The `llm-probe` spec is also built (the Probe_Runner in `eval/probe/`, the locked evaluation cards in `eval/cards/`, its Results in `eval/results/`, and the Report `docs/llm-probe.md`). There is no playable game yet. The next specs are the rest of the vertical slice (`underworld`, `narrator`, `slow-think`, `scenes`).
 
 ## Build and test
 
@@ -15,15 +15,15 @@ Prerequisites (Linux; commands below were run on Arch Linux):
 - [`rustup`](https://rustup.rs). It reads `rust-toolchain.toml`, which pins Rust 1.99.1 with `rustfmt`, `clippy` and the `wasm32-unknown-unknown` target; if that toolchain is not installed yet, `rustup toolchain install` (run in the repository) installs it.
 - [`mise`](https://mise.jdx.dev) with the project's `mise.toml`: `mise install` provides `wasm-bindgen-cli` 0.2.130 (it must equal the `wasm-bindgen` crate version in `Cargo.lock`; `scripts/check-wasm-bindgen.sh` checks this) and Node 26.7.0. Only the WASM steps need them.
 
-Everything, in one command (about 2.5 minutes from a clean `target/`, about 2 minutes with a warm one):
+Everything, in one command (several minutes from a clean `target/`, mostly the Rust test suite and the web gates):
 
 ```sh
 scripts/gates.sh
 ```
 
-It runs `cargo fmt --check`, a check that `sim-core`'s normal dependency tree has no `rand` or `getrandom`, `cargo clippy --workspace --all-targets -- -D warnings` (plus wasm32 clippy), `cargo test --workspace`, `sim-cli batch --seeds 1..=20 --ticks 2000` (release build; invariants after every tick and a record-and-verify round trip per seed, which the 150-tick property tests do not cover), the `bench`-feature test, `cargo test -p sim-wasm --target wasm32-unknown-unknown` (the fixtures replayed in Node), and `scripts/wasm-build.sh` (release build, `wasm-bindgen --target web` into `target/wasm-pkg`, and a check that every output file is under 25 MiB).
+It runs `cargo fmt --check`, a check that `sim-core`'s normal dependency tree has no `rand` or `getrandom`, `cargo clippy --workspace --all-targets -- -D warnings` (plus wasm32 clippy), `cargo test --workspace`, `sim-cli batch --seeds 1..=20 --ticks 2000` (release build; invariants after every tick and a record-and-verify round trip per seed, which the 240-tick property tests do not cover), `sim-cli batch --seeds 1..=5 --ticks 29200 --require-targets` (the 80-year Life_Runs on the Acceptance_Seeds, about 20 s), the `bench`-feature test, `cargo test -p sim-wasm --target wasm32-unknown-unknown` (the fixtures replayed in Node), and `scripts/wasm-build.sh` (release build, `wasm-bindgen --target web` into `target/wasm-pkg`, and a check that every output file is under 25 MiB).
 
-Tests only: `cargo test --workspace` (the property tests take about 30 seconds in a debug build).
+Tests only: `cargo test --workspace` (the property tests take about two and a half minutes in a debug build).
 
 ### Command-line runner
 
@@ -31,6 +31,7 @@ Tests only: `cargo test --workspace` (the property tests take about 30 seconds i
 cargo run -p sim-cli -- --help
 cargo run -p sim-cli -- record --seed 1 --ticks 2000 --random-inputs 120 --out /tmp/run.replay.json
 cargo run -p sim-cli -- replay /tmp/run.replay.json      # exit 0 and "ok", or exit 1 and the first divergent tick
+cargo run -p sim-cli -- snapshot --replay /tmp/run.replay.json --at 500 --out /tmp/snapshot.json  # read-only Snapshot JSON at tick 500
 cargo run -p sim-cli -- batch --seeds 1..=20 --ticks 2000 # invariants after every tick, in-memory record and verify
 cargo run -p sim-cli -- check-size target/wasm-pkg --max-bytes 26214400
 cargo run --release -p sim-cli -- measure                 # native timing of one 80-year lifetime (29,200 daily ticks)
@@ -40,7 +41,7 @@ cargo run --release -p sim-cli -- measure                 # native timing of one
 
 ### Fixtures
 
-`fixtures/parity/*.replay.json` are golden replay files (three seeds, 2,000 ticks each). The native test (`cargo test -p sim-core --test replay`) and the WASM test replay them and must produce the recorded checksum at every tick. Regenerate them only after an intentional change to tick logic, random streams, the canonical encoding or the replay format: `scripts/regen-fixtures.sh`, then read the diff. Details are in `fixtures/parity/README.md`.
+`fixtures/parity/*.replay.json` are golden replay files (three seeds, 2,000 ticks each). The native test (`cargo test -p sim-core --test replay`) and the WASM test replay them and must produce the recorded checksum at every tick. `fixtures/parity/seed1-pairwise.snapshot-500.json` is the native Snapshot at tick 500 of the first file, compared byte for byte by `crates/sim-wasm/tests/parity.rs`. Regenerate them only after an intentional change to tick logic, random streams, the canonical encoding or the replay format: `scripts/regen-fixtures.sh`, then read the diff. Details are in `fixtures/parity/README.md`.
 
 Kiro hooks were tried and removed on 2026-11-04: they ran only on the agent's edit-tool saves and on task completions, and their output did not reach the agent. The evidence is in `docs/kiro-log.md` and `docs/sim-core-skeleton-audit.md`; `sim-cli batch` is now a gate step instead.
 
