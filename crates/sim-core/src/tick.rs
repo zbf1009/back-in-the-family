@@ -1,6 +1,6 @@
 //! The tick loop (R16.2).
 //!
-//! [`World::step`] runs exactly these 13 steps, in this order, on every tick. "Today"
+//! [`World::step`] runs exactly these 14 steps, in this order, on every tick. "Today"
 //! is the world's tick `T` throughout the step.
 //!
 //! 1. **Reset flows.** `flows = FlowTotals { sources: 0, sinks: 0 }`.
@@ -11,22 +11,26 @@
 //!    wait exceeds Max_Wait gets an outsider body, in Soul ID order.
 //! 4. **Deaths** (R6, R7): mortality rolls against the state at the start of the step,
 //!    then each death is settled in Person ID order.
-//! 5. **Births** (R10): a birth roll per candidate mother in Person ID order, while a
-//!    non-player Soul is waiting.
-//! 6. **Marriage** (R4): one world-level roll, then a couple is married.
-//! 7. **Loans** (R8): one world-level roll, then a Debt is opened.
-//! 8. **Repayments** (R8): for every open Debt in loan Event ID order whose monthly
+//! 5. **Births from slots** (R7.5): every open Birth_Slot whose birth tick is today, in
+//!    slot ID order, gives birth to the longest-waiting non-player Soul, or to no
+//!    newborn when none waits; the slot closes either way.
+//! 6. **Birth announcements** (R7.1): one roll per candidate mother in Person ID order,
+//!    while the number of waiting Souls (the Player_Soul included) exceeds the number
+//!    of open Birth_Slots; a success opens a slot due `birth_lead_days` later.
+//! 7. **Marriage** (R4): one world-level roll, then a couple is married.
+//! 8. **Loans** (R8): one world-level roll, then a Debt is opened.
+//! 9. **Repayments** (R8): for every open Debt in loan Event ID order whose monthly
 //!    anniversary is today, a roll and possibly a repayment.
-//! 9. **Social events** (R4): `SOCIAL_ROLLS_PER_DAY` world-level rolls, each success
-//!    appending one social Event.
-//! 10. **Economy**: for every Resident in Person ID order, wage then upkeep.
-//! 11. **Relation decay**, only when `T % 30 == 29`: every Relation whose `from` is a
+//! 10. **Social events** (R4): `SOCIAL_ROLLS_PER_DAY` world-level rolls, each success
+//!     appending one social Event.
+//! 11. **Economy**: for every Resident in Person ID order, wage then upkeep.
+//! 12. **Relation decay**, only when `T % 30 == 29`: every Relation whose `from` is a
 //!     Resident moves one point toward 0, except negative affinity of a vindictive
 //!     holder.
-//! 12. **Advance** `tick` to `T + 1`.
-//! 13. **Checksum** of the resulting World.
+//! 13. **Advance** `tick` to `T + 1`.
+//! 14. **Checksum** of the resulting World.
 //!
-//! Steps 3 to 11 call the step function of their module (`outsiders`, `death`, `births`,
+//! Steps 3 to 12 call the step function of their module (`outsiders`, `death`, `births`,
 //! `social`, `economy`); each of those modules documents its step.
 
 use crate::checksum::Checksum;
@@ -67,28 +71,30 @@ impl World {
         crate::outsiders::release_outsiders(self);
         // 4. Deaths, inheritance and debts at death.
         crate::death::process_deaths(self);
-        // 5. Births.
-        crate::births::process_births(self);
-        // 6. Marriage.
+        // 5. Births from open Birth_Slots.
+        crate::births::process_slot_births(self);
+        // 6. Birth announcements.
+        crate::births::process_announcements(self);
+        // 7. Marriage.
         crate::social::process_marriage(self);
-        // 7. Loans.
+        // 8. Loans.
         crate::economy::process_loans(self);
-        // 8. Repayments.
+        // 9. Repayments.
         crate::economy::process_repayments(self);
-        // 9. Social events.
+        // 10. Social events.
         crate::social::process_social_events(self);
-        // 10. Economy: wages and upkeep.
+        // 11. Economy: wages and upkeep.
         crate::economy::process_economy(self);
-        // 11. Relation decay.
+        // 12. Relation decay.
         crate::social::process_relation_decay(self);
-        // 12. Advance the tick.
+        // 13. Advance the tick.
         self.tick = Tick(
             self.tick
                 .0
                 .checked_add(1)
                 .expect("tick counter overflow (u64) — unreachable in any realistic run"),
         );
-        // 13. Checksum.
+        // 14. Checksum.
         (Checksum::of(self), outcomes)
     }
 

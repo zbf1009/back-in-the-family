@@ -163,6 +163,8 @@ pub(crate) fn generate(
         rejections: Rejections::default(),
         magistrate: crate::underworld::magistrate::Magistrate::vacant(),
         joss: std::collections::BTreeMap::new(),
+        slot_ids: crate::underworld::slots::slot_ids(),
+        slots: std::collections::BTreeMap::new(),
         derived: Derived::default(),
     };
 

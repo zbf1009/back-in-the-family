@@ -14,7 +14,9 @@ use std::fmt;
 use crate::canon::{CANON_VERSION, Canon, CanonWriter};
 use crate::economy::FlowTotals;
 use crate::events::{CausedBy, EventKind, EventLog, EventTags, mood_delta};
-use crate::ids::{EventId, HouseholdId, IdCounter, InputSeq, PersonId, PropertyId, SoulId, Tick};
+use crate::ids::{
+    BirthSlotId, EventId, HouseholdId, IdCounter, InputSeq, PersonId, PropertyId, SoulId, Tick,
+};
 use crate::names::FullName;
 use crate::params::Params;
 use crate::underworld::joss::JossAccount;
@@ -323,6 +325,8 @@ pub struct World {
     pub(crate) rejections: Rejections,
     pub(crate) magistrate: crate::underworld::magistrate::Magistrate,
     pub(crate) joss: BTreeMap<SoulId, JossAccount>,
+    pub(crate) slot_ids: IdCounter,
+    pub(crate) slots: BTreeMap<BirthSlotId, crate::underworld::slots::BirthSlot>,
     pub(crate) derived: Derived,
 }
 
@@ -409,6 +413,16 @@ impl World {
     /// The one fixed official Person, created with the Opening_World (R15.1).
     pub fn magistrate(&self) -> &crate::underworld::magistrate::Magistrate {
         &self.magistrate
+    }
+
+    /// Every open Birth_Slot, in slot ID order (R7.1). A closed slot is not listed.
+    pub fn slots(&self) -> &BTreeMap<BirthSlotId, crate::underworld::slots::BirthSlot> {
+        &self.slots
+    }
+
+    /// The next Birth_Slot ID the counter would issue (tests and tooling).
+    pub fn next_slot_id(&self) -> u64 {
+        self.slot_ids.peek()
     }
 
     /// Sources and sinks of the last tick run.
@@ -781,6 +795,8 @@ impl Canon for World {
             rejections,
             magistrate,
             joss,
+            slot_ids,
+            slots,
             derived: _,
         } = self;
         CANON_VERSION.encode(w);
@@ -802,6 +818,8 @@ impl Canon for World {
         rejections.encode(w);
         magistrate.encode(w);
         joss.encode(w);
+        slot_ids.encode(w);
+        slots.encode(w);
     }
 }
 

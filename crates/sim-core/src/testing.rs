@@ -16,8 +16,9 @@
 //!
 //! [`apply`] destructures [`World`], [`WorldConfig`], [`Souls`], [`FlowTotals`],
 //! [`Rejections`], [`Derived`], [`Person`], [`Life`], [`Household`], [`Property`],
-//! [`Relation`], [`Debt`], [`JossAccount`] and
-//! [`crate::underworld::magistrate::Magistrate`] with every field named and no `..`.
+//! [`Relation`], [`Debt`], [`JossAccount`],
+//! [`crate::underworld::magistrate::Magistrate`] and
+//! [`crate::underworld::slots::BirthSlot`] with every field named and no `..`.
 //! Adding a field to any of those structs therefore fails to compile here until the new field
 //! gets a [`Mutation`] variant (the same discipline as the `Canon` impls). Selectors are
 //! raw integers resolved by modulo over the live collection, so a caller can never
@@ -25,7 +26,9 @@
 
 use crate::economy::FlowTotals;
 use crate::events::{CausedBy, EventKind, EventTags};
-use crate::ids::{EventId, HouseholdId, IdCounter, InputSeq, PersonId, PropertyId, SoulId, Tick};
+use crate::ids::{
+    BirthSlotId, EventId, HouseholdId, IdCounter, InputSeq, PersonId, PropertyId, SoulId, Tick,
+};
 use crate::names::{FEMALE_FIRST_COUNT, SURNAME_COUNT};
 use crate::underworld::joss::JossAccount;
 use crate::values::{Mood, Origin, RelTags, RelationTag, Score, Sex, Trait};
@@ -127,6 +130,12 @@ pub enum Mutation {
     /// One Yearly_Cap counter of one Soul: `part % 3` picks `credited` (+1),
     /// `capped_spent` (+1) or `cap_year` (+1).
     JossCapCounter { soul: u64, part: u8 },
+    /// `World::slot_ids`: counter plus one.
+    SlotIdCounter,
+    /// `World::slots`: insert an open Birth_Slot under the counter's next id.
+    AddSlot,
+    /// `BirthSlot::birth` of one slot: plus one.
+    SlotBirth { slot: u64 },
     /// `Derived::living_names`: add a free full name. **Not checksummed** (R16.5).
     DerivedName,
     /// `Derived::last_grievance`: add or bump one pair. **Not checksummed** (R16.5).
@@ -166,6 +175,8 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
         rejections,
         magistrate,
         joss,
+        slot_ids,
+        slots,
         derived,
     } = world;
 
@@ -779,6 +790,41 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
             }
             true
         }
+        Mutation::SlotIdCounter => {
+            *slot_ids = IdCounter::starting_at(slot_ids.peek().wrapping_add(1));
+            true
+        }
+        Mutation::AddSlot => {
+            let Some(mother) = persons.keys().next().copied() else {
+                return false;
+            };
+            let Ok(raw) = slot_ids.next() else {
+                return false;
+            };
+            let id = BirthSlotId(raw);
+            slots
+                .insert(
+                    id,
+                    crate::underworld::slots::BirthSlot {
+                        id,
+                        mother,
+                        announced: *tick,
+                        birth: Tick(tick.0.wrapping_add(1)),
+                    },
+                )
+                .is_none()
+        }
+        Mutation::SlotBirth { slot } => {
+            let keys: Vec<BirthSlotId> = slots.keys().copied().collect();
+            let Some(&key) = pick(&keys, slot) else {
+                return false;
+            };
+            let Some(entry) = slots.get_mut(&key) else {
+                return false;
+            };
+            entry.birth = Tick(entry.birth.0.wrapping_add(1));
+            true
+        }
         Mutation::DerivedName => {
             // Exhaustive: a new `Derived` field is a compile error here.
             let Derived {
@@ -926,6 +972,9 @@ mod tests {
         }
         v.push(Mutation::JossBalance { soul: 0 });
         v.push(Mutation::MagistrateTraits);
+        v.push(Mutation::SlotIdCounter);
+        v.push(Mutation::AddSlot);
+        v.push(Mutation::SlotBirth { slot: 0 });
         for part in 0..3u8 {
             v.push(Mutation::JossCapCounter { soul: 0, part });
         }
@@ -937,7 +986,10 @@ mod tests {
         for _ in 0..3 {
             sim.step();
         }
-        sim.world().clone()
+        let mut world = sim.world().clone();
+        // A base slot lets `SlotBirth` and a second `AddSlot` find a target.
+        assert!(apply(&mut world, Mutation::AddSlot));
+        world
     }
 
     #[test]

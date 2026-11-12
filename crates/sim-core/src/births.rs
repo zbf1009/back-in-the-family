@@ -1,11 +1,17 @@
-//! Births (design "Births", R10).
+//! Births from announced Birth_Slots (design "Birth_Slots", "The tick" steps 6 and 7,
+//! R7.1, R7.5, R10).
 //!
-//! Step 5 of the tick. Candidate mothers are the female Residents aged 18..=45, in
-//! Person ID order. For each of them, while a Soul other than the Player_Soul is
-//! waiting, one `birth_ppm(married)` roll decides a birth. On success the newborn takes
-//! the Soul with the longest wait (ties go to the lower Soul ID, OP-3 A), is linked to
-//! its living parents and living siblings and grandparents, and enters the Event_Log
-//! with one `birth` Event.
+//! Step 7 ([`process_announcements`]) rolls a birth announcement for every candidate
+//! mother in Person ID order: female Residents aged 18..=45 without an open Birth_Slot,
+//! rolled only while the number of waiting Souls (the Player_Soul included) exceeds the
+//! number of open Birth_Slots (OP-U13 A). A success opens a slot whose birth is
+//! `birth_lead_days` after the announcement (OP-U7 A).
+//!
+//! Step 6 ([`process_slot_births`]) closes every open slot whose birth tick is today, in
+//! slot ID order. The Soul is chosen at that birth tick: the waiting Soul with the
+//! longest wait (ties go to the lower Soul ID, OP-3 A), or no newborn at all when none
+//! waits (LS-R10.2). The newborn is created by [`bear`], which takes the Soul instead of
+//! choosing it; the second parent is the mother's living spouse at the birth tick.
 //!
 //! Each of the newborn's seven Traits is, by its own roll, either a copy of one parent's
 //! Trait or a fresh draw through the shared weighted trait draw (design "Trait draws",
@@ -19,10 +25,11 @@
 use std::collections::BTreeSet;
 
 use crate::events::{CausedBy, EventKind, EventTags};
-use crate::ids::{PersonId, SoulId, Tick};
+use crate::ids::{BirthSlotId, PersonId, SoulId, Tick};
 use crate::names::pick_full_name;
 use crate::params::draw_trait;
 use crate::rng::{StreamTag, below, draw, in_range};
+use crate::underworld::slots;
 use crate::values::{Mood, Origin, RelTags, RelationTag, Score, Sex, Traits};
 use crate::world::{Life, Person, Relation, SoulPlace, World};
 
@@ -39,22 +46,47 @@ const NEWBORN_NAME: u64 = 0;
 const NEWBORN_TRAIT_SOURCE_BASE: u64 = 0;
 const NEWBORN_TRAIT_FRESH_BASE: u64 = 8;
 
-/// Rolls a birth for every candidate mother in Person ID order while a non-player Soul
-/// is waiting.
-pub(crate) fn process_births(world: &mut World) {
+/// Step 6: every open Birth_Slot with `birth == T`, in slot ID order, gives birth to the
+/// longest-waiting non-player Soul (LS-R10.1, OP-3 A) or to no newborn when none waits
+/// (LS-R10.2). The slot closes either way.
+pub(crate) fn process_slot_births(world: &mut World) {
+    let today = world.tick;
+    let due: Vec<BirthSlotId> = world
+        .slots
+        .iter()
+        .filter(|(_, slot)| slot.birth == today)
+        .map(|(&id, _)| id)
+        .collect();
+    for id in due {
+        let Some(slot) = world.slots.remove(&id) else {
+            continue;
+        };
+        let Some(soul) = longest_waiting_soul(world) else {
+            continue;
+        };
+        let _ = bear(world, slot.mother, soul);
+    }
+}
+
+/// Step 7: a birth announcement roll per candidate mother in Person ID order, while the
+/// number of waiting Souls (the Player_Soul included) exceeds the number of open
+/// Birth_Slots (OP-U13 A). A success opens a slot with `birth = T + birth_lead_days`.
+pub(crate) fn process_announcements(world: &mut World) {
     let mothers: Vec<PersonId> = world
         .persons
         .values()
         .filter(|person| matches!(person.life, Life::Alive { .. }))
         .filter(|person| person.sex == Sex::Female)
         .filter(|person| (MOTHER_AGE_MIN..=MOTHER_AGE_MAX).contains(&world.age_years(person)))
+        .filter(|person| !slots::mother_has_open_slot(world, person.id))
         .map(|person| person.id)
         .collect();
     for mother in mothers {
-        // R10.2: with no non-player Soul waiting the step stops, whatever the roll shows.
-        let Some(soul) = longest_waiting_soul(world) else {
+        // OP-U13 A: slots track the Souls that need bodies, so the gate counts every
+        // waiting Soul, the Player_Soul included.
+        if waiting_soul_count(world) <= open_slot_count(world) {
             break;
-        };
+        }
         let married = living_spouse(world, mother).is_some();
         let ppm = world.params.birth_ppm(married);
         let roll = draw(
@@ -67,8 +99,26 @@ pub(crate) fn process_births(world: &mut World) {
         if below(roll, 1_000_000) >= u64::from(ppm) {
             continue;
         }
-        bear(world, mother, soul);
+        slots::open(world, mother);
     }
+}
+
+/// Every waiting Soul, the Player_Soul included.
+fn waiting_soul_count(world: &World) -> u64 {
+    u64::try_from(
+        world
+            .souls
+            .places
+            .values()
+            .filter(|place| matches!(place, SoulPlace::Waiting { .. }))
+            .count(),
+    )
+    .unwrap_or(u64::MAX)
+}
+
+/// The number of open Birth_Slots.
+fn open_slot_count(world: &World) -> u64 {
+    u64::try_from(world.slots.len()).unwrap_or(u64::MAX)
 }
 
 /// The non-player waiting Soul with the longest wait; ties go to the lower Soul ID
@@ -114,13 +164,13 @@ fn living_spouse(world: &World, person: PersonId) -> Option<PersonId> {
 }
 
 /// Creates the newborn and its Relations, places the Soul and appends the `birth` Event
-/// (design "Births" steps 1 to 4).
-fn bear(world: &mut World, mother: PersonId, soul: SoulId) {
-    let Some(mother_person) = world.persons.get(&mother) else {
-        return;
-    };
+/// (design "Births" steps 1 to 4). Returns the new Person's ID, or `None` when the
+/// mother left the state the slot required (her death closes the slot) or the Person ID
+/// counter is exhausted.
+fn bear(world: &mut World, mother: PersonId, soul: SoulId) -> Option<PersonId> {
+    let mother_person = world.persons.get(&mother)?;
     let Life::Alive { household, .. } = mother_person.life else {
-        return;
+        return None;
     };
     let surname = mother_person.name.surname;
     let parents: Vec<(PersonId, Traits)> = std::iter::once((mother, mother_person.traits.clone()))
@@ -131,7 +181,7 @@ fn bear(world: &mut World, mother: PersonId, soul: SoulId) {
         )
         .collect();
     let Ok(raw_id) = world.person_ids.next() else {
-        return;
+        return None;
     };
     let id = PersonId(raw_id);
 
@@ -204,6 +254,7 @@ fn bear(world: &mut World, mother: PersonId, soul: SoulId) {
         // Unreachable: the newborn is a known, living Person and the counter has room.
         debug_assert!(false, "the birth Event was refused: {refused:?}");
     }
+    Some(id)
 }
 
 /// One Trait of the newborn: with probability proportional to the number of parents a
@@ -365,8 +416,12 @@ mod tests {
     }
 
     #[test]
-    fn only_the_player_soul_waiting_gives_no_birth() {
-        let mut world = world_with(Params::stress());
+    fn only_the_player_soul_waiting_announces_a_slot_but_gives_no_newborn() {
+        let mut params = Params::DEFAULT;
+        params.birth_ppm_married = 1_000_000;
+        params.birth_ppm_unmarried = 1_000_000;
+        params.birth_lead_days = 5;
+        let mut world = world_with(params);
         // Leave only the Player_Soul in the Waiting_Queue.
         let player = world.souls.player;
         for (soul, place) in world.souls.places.clone() {
@@ -385,13 +440,73 @@ mod tests {
                 world.souls.places.insert(soul, SoulPlace::Body(dead));
             }
         }
+
+        // OP-U13 A: the waiting Player_Soul makes the announcement gate roll.
+        process_announcements(&mut world);
+        assert_eq!(world.slots.len(), 1, "the gate rolls for a waiting Soul");
+        let slot = world
+            .slots
+            .values()
+            .next()
+            .cloned()
+            .expect("the slot opened");
+        assert_eq!(slot.birth, Tick(world.tick.0 + 5));
+
+        // At its birth tick there is no non-player Soul to take (LS-R10.2).
+        world.tick = slot.birth;
         let persons_before = world.persons.len();
         let births_before = birth_count(&world);
-
-        process_births(&mut world);
+        process_slot_births(&mut world);
 
         assert_eq!(world.persons.len(), persons_before, "no newborn (R10.2)");
         assert_eq!(birth_count(&world), births_before, "no birth Event (R10.2)");
+        assert!(world.slots.is_empty(), "the slot closes either way");
+    }
+
+    #[test]
+    fn a_slot_gives_birth_to_the_longest_waiting_non_player_soul() {
+        let mut world = world_with(Params::DEFAULT);
+        let mother = residents(&world)
+            .into_iter()
+            .find(|&id| world.persons[&id].sex == Sex::Female)
+            .expect("the town has a woman");
+        let player = world.souls.player;
+        // The opening queue waits with two non-player Souls.
+        let longest = world
+            .souls
+            .places
+            .iter()
+            .filter(|(soul, place)| **soul != player && matches!(place, SoulPlace::Waiting { .. }))
+            .map(|(&soul, _)| soul)
+            .next()
+            .expect("a non-player Soul waits");
+        for (soul, place) in world.souls.places.clone() {
+            if soul != player && matches!(place, SoulPlace::Waiting { .. }) {
+                world
+                    .souls
+                    .places
+                    .insert(soul, SoulPlace::Waiting { since: Tick(9) });
+            }
+        }
+        world
+            .souls
+            .places
+            .insert(longest, SoulPlace::Waiting { since: Tick(4) });
+
+        let slot = slots::open(&mut world, mother).expect("the counter has room");
+        world.tick = world.slots()[&slot].birth;
+        let persons_before = world.persons.len();
+        process_slot_births(&mut world);
+
+        assert!(!world.slots().contains_key(&slot), "the slot closed");
+        assert_eq!(world.persons.len(), persons_before.saturating_add(1));
+        let newborn = *world
+            .persons
+            .keys()
+            .next_back()
+            .expect("the newborn has the highest Person ID");
+        assert_eq!(world.persons[&newborn].soul, longest);
+        assert_eq!(world.souls.places[&longest], SoulPlace::Body(newborn));
     }
 
     #[test]
@@ -478,7 +593,10 @@ mod tests {
         let persons_before = world.persons.len();
         let births_before = birth_count(&world);
 
-        bear(&mut world, mother, soul);
+        assert!(
+            bear(&mut world, mother, soul).is_some(),
+            "the birth happens"
+        );
 
         assert_eq!(world.persons.len(), persons_before.saturating_add(1));
         assert_eq!(birth_count(&world), births_before.saturating_add(1));
@@ -528,7 +646,10 @@ mod tests {
         };
         let soul = longest_waiting_soul(&world).expect("a non-player Soul waits");
 
-        bear(&mut world, mother, soul);
+        assert!(
+            bear(&mut world, mother, soul).is_some(),
+            "the birth happens"
+        );
 
         let newborn = *world
             .persons

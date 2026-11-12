@@ -215,20 +215,36 @@ proptest! {
                     _ => None,
                 })
                 .collect();
+            let newcomers = new_persons(&before, after);
+            // A Person created in this tick can die in the same tick: the Player_Soul's
+            // forced placement (step 3) is rolled for in step 4. Those deaths have no
+            // start-of-tick balance or property, so they are checked separately.
+            let (same_tick_deaths, earlier_deaths): (Vec<_>, Vec<_>) = death_events
+                .iter()
+                .partition(|(_, person)| !before.persons().contains_key(person));
             prop_assert_eq!(
-                death_events.len(),
+                earlier_deaths.len(),
                 died.len(),
                 "{}",
                 tick_error(format!(
-                    "{} deaths but {} death events",
+                    "{} deaths but {} death events of Persons present before the tick",
                     died.len(),
-                    death_events.len()
+                    earlier_deaths.len()
                 ))
             );
-            for (_, person) in &death_events {
+            for (_, person) in &earlier_deaths {
                 prop_assert!(died.contains(person));
             }
-            let newcomers = new_persons(&before, after);
+            for (_, person) in &same_tick_deaths {
+                prop_assert!(
+                    newcomers.contains(person),
+                    "{}",
+                    tick_error(format!(
+                        "death event names person {} that existed before the tick",
+                        person.0
+                    ))
+                );
+            }
 
             for &dead in &died {
                 let death_id = death_events
@@ -581,6 +597,44 @@ proptest! {
                 }
             }
 
+            // R7.1, R7.5: every birth comes from an open Birth_Slot whose birth tick is the
+            // slot's birth tick (LS-R10.1/2 with announced slots), and every slot due
+            // today closes in this tick.
+            for (_, person) in &births {
+                let newborn_parents = parents(after, *person);
+                prop_assert!(
+                    !newborn_parents.is_empty(),
+                    "{}",
+                    tick_error(format!("newborn {} has no parent", person.0))
+                );
+                // The mother may be one of two parents (a same-sex spouse can also be
+                // female), so the slot is matched against every parent.
+                prop_assert!(
+                    newborn_parents.iter().any(|parent| before
+                        .slots()
+                        .values()
+                        .any(|slot| slot.mother == *parent && slot.birth == today)),
+                    "{}",
+                    tick_error(format!(
+                        "newborn {} was not born from an open slot due today",
+                        person.0
+                    ))
+                );
+            }
+            for slot in before.slots().values() {
+                prop_assert_eq!(
+                    slot.birth.0,
+                    slot.announced.0.saturating_add(after.params().birth_lead_days)
+                );
+                if slot.birth == today {
+                    prop_assert!(
+                        !after.slots().contains_key(&slot.id),
+                        "{}",
+                        tick_error(format!("slot {} stayed open after its birth tick", slot.id.0))
+                    );
+                }
+            }
+
             for (_, person) in &arrivals {
                 let person = *person;
                 let event_id = arrivals
@@ -644,15 +698,31 @@ proptest! {
                         }
                     }
                     let household = match body.life {
-                        Life::Alive { household, .. } => household,
-                        Life::Dead { .. } => unreachable!(),
+                        Life::Alive { household, .. } => Some(household),
+                        Life::Dead { .. } => {
+                            // The Player_Soul's forced placement (step 3) can die in
+                            // step 4 of the same tick; both Events are legitimate.
+                            prop_assert!(
+                                tail.iter().any(|event| {
+                                    matches!(event.kind, EventKind::Death { person: dead } if dead == person)
+                                }),
+                                "{}",
+                                tick_error(format!(
+                                    "outsider {} is dead without a death Event this tick",
+                                    person.0
+                                ))
+                            );
+                            None
+                        }
                     };
-                    prop_assert_eq!(
-                        after.household_members(household),
-                        vec![person],
-                        "{}",
-                        tick_error(format!("outsider {} does not live alone", person.0))
-                    );
+                    if let Some(household) = household {
+                        prop_assert_eq!(
+                            after.household_members(household),
+                            vec![person],
+                            "{}",
+                            tick_error(format!("outsider {} does not live alone", person.0))
+                        );
+                    }
                 }
             }
 

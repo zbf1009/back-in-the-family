@@ -6,3 +6,4 @@
 
 pub mod joss;
 pub mod magistrate;
+pub mod slots;

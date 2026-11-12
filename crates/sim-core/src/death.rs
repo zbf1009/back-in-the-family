@@ -77,6 +77,9 @@ fn settle_death(world: &mut World, deceased: PersonId) {
         return;
     };
 
+    // A dying mother's open Birth_Slots close in her death tick, with no birth (design
+    // "Birth_Slots"; a claim on them is released in task 3.3).
+    crate::underworld::slots::close_for_mother(world, deceased);
     // Step 4: the estate (OP-2 A), settled while the balance still exists.
     let heirs = heirs(world, deceased);
     settle_estate(world, deceased, &heirs, death, estate);
