@@ -1733,3 +1733,10 @@ batch: 5/5 seeds ok
 - Kiro reviewed tasks 17.1 to 17.5 at `a446e74`: read the three code commits, ran `cargo test -p sim-cli` (all pass) and the release acceptance batch (`5/5 seeds ok`, seed 3 final `f5daa246698a3229`, `max_wait_npc` at most 1,095, figures equal to the 17.5 entry), and the R15.8 diff check (exit 0). The full clean-build gates were not re-run; the 17.5 run is the evidence.
 - Noted: the 17.1 commit message claims a fixture regeneration although no fixture changed (the script ran and produced no diff); a wording slip, not an R19.2 gap.
 - At the Author's request, a correction note on seed 3's final checksum was appended to the design's calibration result. `docs/life-sim-audit.md` gained a follow-up section; tasks 16 and 16.1 are checked. `validate_spec_format`: no issues on design.md and tasks.md. Nothing pushed.
+
+### Spec: life-sim — push and live deploy (2026-11-12)
+
+- The Author approved the push. `git push origin main`: `b121253..cb8e88f`, 71 commits (the two local llm-probe docs commits plus all life-sim planning, implementation, audit and follow-up commits).
+- CI run `43134392006` (`deploy`), 457 s, conclusion success: gates, deploy configuration check and the `web/dist` deploy all passed.
+- Live check of https://back-in-the-family.2290698778.workers.dev in a headless browser: the page loads with the default World_Config `{"opening_residents":50}`; seed 1, Create, Run: the tick advanced from 239 to 415 in about 3 s with changing checksums, Run_State `running`, 60 ticks per second.
+- This entry stays local; it goes out with the next spec's first code push, to avoid a deploy for a log-only commit.
