@@ -13,6 +13,8 @@ use std::fmt;
 
 use crate::canon::{Canon, CanonWriter};
 use crate::ids::{IdCounter, InputSeq, PersonId, Tick};
+use crate::underworld::carry_over::TraitName;
+use crate::underworld::slots::SlotRef;
 use crate::values::SocialKind;
 
 /// The one input kind of the life-sim (OP-6 A): one social act between two Residents.
@@ -20,6 +22,9 @@ use crate::values::SocialKind;
 /// `intensity` is the raw `u8` so that out-of-range values can be *rejected* at apply
 /// time instead of being refused by the type. A valid payload turns into an
 /// [`Intensity`] and appends the matching social Event through the normal path.
+///
+/// The underworld kinds are the slot claim (Birth_Slot or Standing_Slot) and the
+/// Carry_Over choice; each is applied in step 2a of its tick (design "Inputs").
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum InputPayload {
     /// Perform a social act: `actor` acts on `target` with `intensity` (1..=100).
@@ -28,6 +33,16 @@ pub enum InputPayload {
         actor: PersonId,
         target: PersonId,
         intensity: u8,
+    },
+    /// Claim one slot: a Birth_Slot by ID, or one of the two Standing_Slots (R7.2, R7.7).
+    ClaimSlot {
+        /// The slot the Player_Soul claims.
+        slot: SlotRef,
+    },
+    /// Choose the trait the next body inherits (R9.1).
+    CarryOver {
+        /// One of the seven Traits.
+        trait_name: TraitName,
     },
 }
 

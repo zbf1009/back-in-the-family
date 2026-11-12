@@ -93,6 +93,13 @@ fn release(world: &mut World, soul: SoulId) {
     create_outsider(world, soul, origin, 0);
 }
 
+/// Whether [`create_outsider`] can allocate a Person and a Household: a counter fails
+/// only at `u64::MAX`, so this is the pre-flight check that lets a caller spend joss
+/// paper only when the body can follow.
+pub(crate) fn can_create(world: &World) -> bool {
+    world.person_ids.peek() != u64::MAX && world.household_ids.peek() != u64::MAX
+}
+
 /// Creates the outsider body that holds `soul`, with the caller's kind and price, and
 /// appends its `possession` or `rebuild` Event (design "Outsiders", R11.2).
 ///

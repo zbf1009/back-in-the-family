@@ -21,7 +21,16 @@
 //! }
 //! ```
 //!
-//! - Every `u64` (`seed`, `ticks`, input `tick` and `seq`, person ids) is a JSON string
+//! One input per underworld payload kind:
+//!
+//! ```json
+//! {"ClaimSlot":{"slot":{"Birth":"3"}}}
+//! {"ClaimSlot":{"slot":"ImportedVessel"}}
+//! {"ClaimSlot":{"slot":"RebuiltBody"}}
+//! {"CarryOver":{"trait_name":"piety"}}
+//! ```
+//!
+//! - Every `u64` (`seed`, `ticks`, input `tick` and `seq`, person ids, slot ids) is a JSON string
 //!   in canonical decimal form: ASCII digits only, no sign, no leading zeros except
 //!   `"0"` itself, no overflow. JavaScript numbers cannot hold a `u64` exactly, and one
 //!   textual form per value keeps files diffable. A JSON number in its place is an
@@ -39,7 +48,8 @@
 //! # Layering
 //!
 //! The serde derives live only on the DTO types in this module ([`ReplayFile`],
-//! [`ReplayInput`], [`ReplayPayload`], [`ReplaySocialKind`], [`ReplayConfig`]). Core
+//! [`ReplayInput`], [`ReplayPayload`], [`ReplaySlotRef`], [`ReplayTraitName`],
+//! [`ReplaySocialKind`], [`ReplayConfig`]). Core
 //! types (`WorldConfig`, `InputPayload`, ...) convert to and from them, so a change to a
 //! core type cannot change the on-disk format by accident.
 //!
@@ -55,9 +65,11 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::checksum::Checksum;
-use crate::ids::{PersonId, Tick};
+use crate::ids::{BirthSlotId, PersonId, Tick};
 use crate::input::{InputPayload, SubmitError};
 use crate::tick::{Sim, SimError};
+use crate::underworld::carry_over::TraitName;
+use crate::underworld::slots::SlotRef;
 use crate::values::SocialKind;
 use crate::world::{ConfigError, WorldConfig};
 
@@ -227,6 +239,79 @@ impl From<ReplaySocialKind> for SocialKind {
     }
 }
 
+/// File-format twin of [`SlotRef`]: `{"Birth":"3"}` or `"ImportedVessel"`.
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum ReplaySlotRef {
+    /// An announced Birth_Slot by ID.
+    Birth(#[serde(with = "u64_string")] u64),
+    /// The Imported_Vessel Standing_Slot.
+    ImportedVessel,
+    /// The Rebuilt_Body Standing_Slot.
+    RebuiltBody,
+}
+
+impl From<SlotRef> for ReplaySlotRef {
+    fn from(slot: SlotRef) -> Self {
+        match slot {
+            SlotRef::Birth(id) => Self::Birth(id.0),
+            SlotRef::ImportedVessel => Self::ImportedVessel,
+            SlotRef::RebuiltBody => Self::RebuiltBody,
+        }
+    }
+}
+
+impl From<ReplaySlotRef> for SlotRef {
+    fn from(slot: ReplaySlotRef) -> Self {
+        match slot {
+            ReplaySlotRef::Birth(id) => Self::Birth(BirthSlotId(id)),
+            ReplaySlotRef::ImportedVessel => Self::ImportedVessel,
+            ReplaySlotRef::RebuiltBody => Self::RebuiltBody,
+        }
+    }
+}
+
+/// File-format twin of [`TraitName`], written as its card snake_case name.
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ReplayTraitName {
+    Greed,
+    Loyalty,
+    Pride,
+    Warmth,
+    Temper,
+    Vindictiveness,
+    Piety,
+}
+
+impl From<TraitName> for ReplayTraitName {
+    fn from(name: TraitName) -> Self {
+        match name {
+            TraitName::Greed => Self::Greed,
+            TraitName::Loyalty => Self::Loyalty,
+            TraitName::Pride => Self::Pride,
+            TraitName::Warmth => Self::Warmth,
+            TraitName::Temper => Self::Temper,
+            TraitName::Vindictiveness => Self::Vindictiveness,
+            TraitName::Piety => Self::Piety,
+        }
+    }
+}
+
+impl From<ReplayTraitName> for TraitName {
+    fn from(name: ReplayTraitName) -> Self {
+        match name {
+            ReplayTraitName::Greed => Self::Greed,
+            ReplayTraitName::Loyalty => Self::Loyalty,
+            ReplayTraitName::Pride => Self::Pride,
+            ReplayTraitName::Warmth => Self::Warmth,
+            ReplayTraitName::Temper => Self::Temper,
+            ReplayTraitName::Vindictiveness => Self::Vindictiveness,
+            ReplayTraitName::Piety => Self::Piety,
+        }
+    }
+}
+
 /// File-format twin of [`InputPayload`].
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -238,6 +323,12 @@ pub enum ReplayPayload {
         #[serde(with = "u64_string")]
         target: u64,
         intensity: u8,
+    },
+    ClaimSlot {
+        slot: ReplaySlotRef,
+    },
+    CarryOver {
+        trait_name: ReplayTraitName,
     },
 }
 
@@ -254,6 +345,10 @@ impl From<InputPayload> for ReplayPayload {
                 actor: actor.0,
                 target: target.0,
                 intensity,
+            },
+            InputPayload::ClaimSlot { slot } => Self::ClaimSlot { slot: slot.into() },
+            InputPayload::CarryOver { trait_name } => Self::CarryOver {
+                trait_name: trait_name.into(),
             },
         }
     }
@@ -272,6 +367,10 @@ impl From<ReplayPayload> for InputPayload {
                 actor: PersonId(actor),
                 target: PersonId(target),
                 intensity,
+            },
+            ReplayPayload::ClaimSlot { slot } => Self::ClaimSlot { slot: slot.into() },
+            ReplayPayload::CarryOver { trait_name } => Self::CarryOver {
+                trait_name: trait_name.into(),
             },
         }
     }
@@ -658,6 +757,59 @@ mod tests {
             .into();
             assert!(serde_json::to_string(&dto).unwrap().contains(name));
             assert_eq!(SocialKind::from(ReplaySocialKind::from(kind)), kind);
+        }
+    }
+
+    #[test]
+    fn underworld_payloads_round_trip_through_the_documented_json() {
+        let cases = [
+            (
+                InputPayload::ClaimSlot {
+                    slot: SlotRef::Birth(BirthSlotId(3)),
+                },
+                r#"{"ClaimSlot":{"slot":{"Birth":"3"}}}"#,
+            ),
+            (
+                InputPayload::ClaimSlot {
+                    slot: SlotRef::ImportedVessel,
+                },
+                r#"{"ClaimSlot":{"slot":"ImportedVessel"}}"#,
+            ),
+            (
+                InputPayload::ClaimSlot {
+                    slot: SlotRef::RebuiltBody,
+                },
+                r#"{"ClaimSlot":{"slot":"RebuiltBody"}}"#,
+            ),
+            (
+                InputPayload::CarryOver {
+                    trait_name: TraitName::Piety,
+                },
+                r#"{"CarryOver":{"trait_name":"piety"}}"#,
+            ),
+        ];
+        for (payload, json) in cases {
+            let dto: ReplayPayload = payload.into();
+            assert_eq!(serde_json::to_string(&dto).unwrap(), json);
+            let back: ReplayPayload = serde_json::from_str(json).unwrap();
+            assert_eq!(InputPayload::from(back), payload);
+        }
+        for name in TraitName::ALL {
+            let payload = InputPayload::CarryOver { trait_name: name };
+            let text = serde_json::to_string(&ReplayPayload::from(payload)).unwrap();
+            let back: ReplayPayload = serde_json::from_str(&text).unwrap();
+            assert_eq!(InputPayload::from(back), payload);
+        }
+        // An unknown trait name or a malformed slot ID never reaches the World (R4.2,
+        // R9.2).
+        for text in [
+            r#"{"CarryOver":{"trait_name":"wrath"}}"#,
+            r#"{"ClaimSlot":{"slot":{"Birth":"three"}}}"#,
+        ] {
+            assert!(
+                serde_json::from_str::<ReplayPayload>(text).is_err(),
+                "{text}"
+            );
         }
     }
 

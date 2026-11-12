@@ -61,6 +61,28 @@ pub(crate) fn process_slot_births(world: &mut World) {
         let Some(slot) = world.slots.remove(&id) else {
             continue;
         };
+        let claim = world
+            .player_wait
+            .as_ref()
+            .and_then(|wait| wait.claim)
+            .filter(|claim| *claim == id);
+        if claim.is_some() {
+            // R7.4: the newborn holds the Player_Soul, the wait ends and the Carry_Over
+            // applies (R9.1).
+            let Some(wait) = world.player_wait.clone() else {
+                continue;
+            };
+            world.player_wait = None;
+            let player = world.souls.player;
+            if let Some(newborn) = bear(world, slot.mother, player) {
+                crate::underworld::carry_over::apply(world, newborn, wait.ghost, wait.carry_over);
+            } else {
+                // Unreachable: the slot closes when its mother dies, and the Person ID
+                // counter has room for a birth in any realistic run.
+                debug_assert!(false, "a claimed birth failed");
+            }
+            continue;
+        }
         let Some(soul) = longest_waiting_soul(world) else {
             continue;
         };

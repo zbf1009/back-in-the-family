@@ -116,24 +116,32 @@ impl World {
         outcomes
     }
 
-    /// Validates and applies one payload (design "Inputs and replay format"): actor and
-    /// target exist, both are alive, they differ, the intensity is 1..=100.
+    /// Validates and applies one payload (design "Inputs and replay format"): the `Act`
+    /// checks are actor and target exist, both are alive, they differ, the intensity is
+    /// 1..=100; the underworld kinds run the check tables of design "Inputs".
     fn apply_one(&mut self, payload: InputPayload) -> Result<(), RejectReason> {
-        let InputPayload::Act {
-            kind,
-            actor,
-            target,
-            intensity,
-        } = payload;
-        let intensity = validate_act(self, actor, target, intensity)?;
-        match apply_social(self, kind, actor, target, intensity, CausedBy::default()) {
-            Ok(_) => Ok(()),
-            Err(AppendRefused::IdExhausted) => Err(RejectReason::IdExhausted),
-            Err(_other) => {
-                // Unreachable: validation above guarantees existing, living, distinct
-                // actors and no causes, so only counter exhaustion can refuse a
-                // validated input.
-                Err(RejectReason::IdExhausted)
+        match payload {
+            InputPayload::Act {
+                kind,
+                actor,
+                target,
+                intensity,
+            } => {
+                let intensity = validate_act(self, actor, target, intensity)?;
+                match apply_social(self, kind, actor, target, intensity, CausedBy::default()) {
+                    Ok(_) => Ok(()),
+                    Err(AppendRefused::IdExhausted) => Err(RejectReason::IdExhausted),
+                    Err(_other) => {
+                        // Unreachable: validation above guarantees existing, living,
+                        // distinct actors and no causes, so only counter exhaustion can
+                        // refuse a validated input.
+                        Err(RejectReason::IdExhausted)
+                    }
+                }
+            }
+            InputPayload::ClaimSlot { slot } => crate::underworld::slots::claim(self, slot),
+            InputPayload::CarryOver { trait_name } => {
+                crate::underworld::player::store_carry_over(self, trait_name)
             }
         }
     }

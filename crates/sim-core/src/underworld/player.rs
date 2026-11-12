@@ -14,7 +14,7 @@
 use crate::canon::{Canon, CanonWriter};
 use crate::ids::{BirthSlotId, PersonId, SoulId, Tick};
 use crate::underworld::carry_over::TraitName;
-use crate::world::{Life, World};
+use crate::world::{Life, RejectReason, World};
 
 /// One stay of the Player_Soul in the Waiting_Queue (design "Data Models").
 #[derive(Clone, Eq, PartialEq, Debug)]
@@ -64,6 +64,37 @@ pub fn latest_body(world: &World, soul: SoulId) -> Option<PersonId> {
         };
     }
     best.map(|(_, id)| id)
+}
+
+/// Whether the Player_Soul has died at least once in this run, so it has a Ghost
+/// (glossary "Ghost").
+pub(crate) fn has_ghost(world: &World) -> bool {
+    latest_body(world, world.souls.player).is_some()
+}
+
+/// Rejects an underworld input that needs a Ghost and a wait (design "Inputs"): the
+/// `no_ghost` check first, then `not_waiting` (R4.3, R5.3, R7.8, R9.2).
+pub(crate) fn require_waiting(world: &World) -> Result<(), RejectReason> {
+    if !has_ghost(world) {
+        return Err(RejectReason::NoGhost);
+    }
+    if world.player_wait.is_none() {
+        return Err(RejectReason::NotWaiting);
+    }
+    Ok(())
+}
+
+/// Applies a `CarryOver` input: stores it until the wait ends (OP-U9 A). A later valid
+/// input replaces it.
+pub(crate) fn store_carry_over(
+    world: &mut World,
+    trait_name: TraitName,
+) -> Result<(), RejectReason> {
+    require_waiting(world)?;
+    if let Some(wait) = world.player_wait.as_mut() {
+        wait.carry_over = Some(trait_name);
+    }
+    Ok(())
 }
 
 /// Starts the Player_Soul's wait at its death (design "Player wait").
