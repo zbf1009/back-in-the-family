@@ -835,13 +835,15 @@ fn next_person_other_than_field(
 }
 
 fn next_reason(reason: RejectReason) -> RejectReason {
-    match reason {
-        RejectReason::UnknownPerson => RejectReason::DeadPerson,
-        RejectReason::DeadPerson => RejectReason::SelfTarget,
-        RejectReason::SelfTarget => RejectReason::IntensityOutOfRange,
-        RejectReason::IntensityOutOfRange => RejectReason::IdExhausted,
-        RejectReason::IdExhausted => RejectReason::UnknownPerson,
-    }
+    let position = RejectReason::ALL
+        .iter()
+        .position(|candidate| *candidate == reason)
+        .unwrap_or(0);
+    let next = position
+        .checked_add(1)
+        .and_then(|index| index.checked_rem(RejectReason::ALL.len()))
+        .unwrap_or(0);
+    RejectReason::ALL[next]
 }
 
 #[cfg(test)]
@@ -901,13 +903,7 @@ mod tests {
         for part in 0..12u8 {
             v.push(Mutation::PersonField { person: 0, part });
         }
-        for reason in [
-            RejectReason::UnknownPerson,
-            RejectReason::DeadPerson,
-            RejectReason::SelfTarget,
-            RejectReason::IntensityOutOfRange,
-            RejectReason::IdExhausted,
-        ] {
+        for reason in RejectReason::ALL {
             v.push(Mutation::RejectionCount { reason });
         }
         for part in 0..4u8 {

@@ -9,7 +9,7 @@
 //! One stdout line per seed, in ascending seed order:
 //!
 //! ```text
-//! seed 3 ok ticks=29200 final=<hex> residents_min=46 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=1095 max_wait_player=0 births=51 deaths=52 imported=3 rebuilt=1 origin_final=native:46,possessed:3,rebuilt:1 arrivals=native:51,possessed:3,rebuilt:1 events=14212 relations_max=4410 rejections=unknown_person:9,dead_person:4,self_target:3,intensity_out_of_range:7,id_exhausted:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+//! seed 3 ok ticks=29200 final=<hex> residents_min=46 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=1095 max_wait_player=0 births=51 deaths=52 imported=3 rebuilt=1 origin_final=native:46,possessed:3,rebuilt:1 arrivals=native:51,possessed:3,rebuilt:1 events=14212 relations_max=4410 rejections=unknown_person:9,dead_person:4,self_target:3,intensity_out_of_range:7,id_exhausted:0,official_person:0,...,already_chosen:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
 //! seed 4 FAIL tick=812 criterion=9.1 detail: soul S-0012 is in body 31 and waiting
 //! seed 5 FAIL targets: band_95=fail
 //! ```
@@ -164,7 +164,7 @@ struct SeedStats {
     arrivals: [u64; 3],
     events: u64,
     relations_max: u64,
-    rejections: [u64; 5],
+    rejections: Vec<u64>,
     targets: Targets,
 }
 
@@ -325,26 +325,28 @@ fn stats_of(world: &World, ticks: u64, tally: &Tally, final_checksum: String) ->
         arrivals,
         events: world.log().len() as u64,
         relations_max: tally.relations_max,
-        rejections: [
-            count_of(world, RejectReason::UnknownPerson),
-            count_of(world, RejectReason::DeadPerson),
-            count_of(world, RejectReason::SelfTarget),
-            count_of(world, RejectReason::IntensityOutOfRange),
-            count_of(world, RejectReason::IdExhausted),
-        ],
+        rejections: RejectReason::ALL
+            .iter()
+            .map(|&reason| count_of(world, reason))
+            .collect(),
         targets,
     }
 }
 
 /// The exact `ok` line of the design.
 fn ok_line(seed: u64, ticks: u64, s: &SeedStats) -> String {
+    let rejections: String = RejectReason::ALL
+        .iter()
+        .zip(&s.rejections)
+        .map(|(reason, count)| format!("{}:{}", reason.label(), count))
+        .collect::<Vec<_>>()
+        .join(",");
     format!(
         "seed {seed} ok ticks={ticks} final={} residents_min={} residents_max={} \
 band_40_60_ticks={} queue_final={} max_wait_npc={} max_wait_player={} births={} deaths={} \
 imported={} rebuilt={} origin_final=native:{},possessed:{},rebuilt:{} \
 arrivals=native:{},possessed:{},rebuilt:{} events={} relations_max={} \
-rejections=unknown_person:{},dead_person:{},self_target:{},intensity_out_of_range:{},\
-id_exhausted:{} invariants=pass pop_35_65={} band_95={} outsiders_le_births={} \
+rejections={rejections} invariants=pass pop_35_65={} band_95={} outsiders_le_births={} \
 outsiders_le_births_third={}",
         s.final_checksum,
         s.residents_min,
@@ -365,11 +367,6 @@ outsiders_le_births_third={}",
         s.arrivals[2],
         s.events,
         s.relations_max,
-        s.rejections[0],
-        s.rejections[1],
-        s.rejections[2],
-        s.rejections[3],
-        s.rejections[4],
         Targets::label(s.targets.pop_35_65),
         Targets::label(s.targets.band_95),
         Targets::label(s.targets.outsiders_le_births),

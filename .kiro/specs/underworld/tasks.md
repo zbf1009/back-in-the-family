@@ -61,7 +61,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Unit tests: credit at the cap boundary and above it (credit 0, magnitude unchanged); lazy reset in a later Cap_Year; spend cap at `yearly_cap`; one account per Soul after opening.
     - _Requirements: 1.1, 2.4, 2.5, 2.6_
     - Acceptance: fixture acceptance. Commit as `feat(sim-core): add joss paper accounts` with the regeneration line.
-  - [ ] 1.4 Extend rejections, add input outcomes and bump `REPLAY_VERSION` to 4
+  - [x] 1.4 Extend rejections, add input outcomes and bump `REPLAY_VERSION` to 4
     - Files: `crates/sim-core/src/input.rs`, `crates/sim-core/src/tick.rs`, `crates/sim-core/src/replay.rs`, `crates/sim-cli/src/batch.rs` (rejection list), `crates/sim-cli/tests/cli.rs`, `crates/sim-wasm/src/lib.rs` (docs only, if they state the version), `fixtures/parity/*` (regenerated), `fixtures/parity/README.md`.
     - Follow design "Inputs" (rejection table, "Input outcomes") and OP-D4 A. Add the 15 `RejectReason` variants with their labels and `Canon` tags 5..=19 in the design order; the batch report's `rejections=` field lists all 20 reasons. Add `InputOutcome { seq, result }`, `World::step_with_outcomes(inputs) -> (Checksum, Vec<InputOutcome>)` (`World::step` keeps its signature), and `Sim::last_outcomes()`. The outcome vector is never encoded or checksummed. `REPLAY_VERSION` 4; a version 3 file is rejected `UnsupportedVersion`. No new payload kind yet.
     - Unit tests: `last_outcomes()` lists every input of the last tick in `(tick, seq)` order with its result; it is empty after loading a run; a version 3 file is rejected.

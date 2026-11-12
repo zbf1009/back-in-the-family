@@ -46,9 +46,68 @@ pub enum RejectReason {
     IntensityOutOfRange,
     /// The Event ID counter ran out.
     IdExhausted,
+    /// The input names the Magistrate in a Person field (R15.9).
+    OfficialPerson,
+    /// The Player_Soul has no Ghost yet (before its first death, R4.3).
+    NoGhost,
+    /// The Player_Soul is not in the Waiting_Queue.
+    NotWaiting,
+    /// The dreamer or the haunting target is not a Connected_Person of the Ghost.
+    NotConnected,
+    /// A dream or a haunting was already applied in this tick (OP-U5 A).
+    RateLimited,
+    /// The Joss_Balance is below the price.
+    InsufficientJoss,
+    /// The spend would exceed the Yearly_Cap (R2.6).
+    YearlyCap,
+    /// A Bribe amount of 0 (R6.2).
+    BadAmount,
+    /// A `magistrate_ruling` node for the Player_Soul is already pending.
+    NodePending,
+    /// The named Birth_Slot is not open.
+    SlotClosed,
+    /// The named Birth_Slot is already claimed (R7.3).
+    SlotClaimed,
+    /// The Player_Soul already holds a claim on another Birth_Slot (R7.3).
+    ClaimHeld,
+    /// The Player_Soul may not claim a Birth_Slot before its `access_from` (OP-U6 A).
+    RegisterWait,
+    /// No pending node was fired by the named trigger input in this tick.
+    UnknownNode,
+    /// The option is outside the node's option set (R3.4).
+    OptionNotInSet,
+    /// The pending node already has a valid External_Choice (R3.4).
+    AlreadyChosen,
 }
 
 impl RejectReason {
+    /// Every reason in report order: the life-sim reasons first, then the underworld
+    /// reasons in the order their labels first appear in the design's input table.
+    /// The `batch` report lists all of them.
+    pub const ALL: [Self; 21] = [
+        Self::UnknownPerson,
+        Self::DeadPerson,
+        Self::SelfTarget,
+        Self::IntensityOutOfRange,
+        Self::IdExhausted,
+        Self::OfficialPerson,
+        Self::NoGhost,
+        Self::NotWaiting,
+        Self::NotConnected,
+        Self::RateLimited,
+        Self::InsufficientJoss,
+        Self::YearlyCap,
+        Self::BadAmount,
+        Self::NodePending,
+        Self::SlotClosed,
+        Self::SlotClaimed,
+        Self::ClaimHeld,
+        Self::RegisterWait,
+        Self::UnknownNode,
+        Self::OptionNotInSet,
+        Self::AlreadyChosen,
+    ];
+
     /// The report label used by `sim-cli batch`.
     pub const fn label(self) -> &'static str {
         match self {
@@ -57,6 +116,22 @@ impl RejectReason {
             Self::SelfTarget => "self_target",
             Self::IntensityOutOfRange => "intensity_out_of_range",
             Self::IdExhausted => "id_exhausted",
+            Self::OfficialPerson => "official_person",
+            Self::NoGhost => "no_ghost",
+            Self::NotWaiting => "not_waiting",
+            Self::NotConnected => "not_connected",
+            Self::RateLimited => "rate_limited",
+            Self::InsufficientJoss => "insufficient_joss",
+            Self::YearlyCap => "yearly_cap",
+            Self::BadAmount => "bad_amount",
+            Self::NodePending => "node_pending",
+            Self::SlotClosed => "slot_closed",
+            Self::SlotClaimed => "slot_claimed",
+            Self::ClaimHeld => "claim_held",
+            Self::RegisterWait => "register_wait",
+            Self::UnknownNode => "unknown_node",
+            Self::OptionNotInSet => "option_not_in_set",
+            Self::AlreadyChosen => "already_chosen",
         }
     }
 }
@@ -69,6 +144,20 @@ pub struct TickInput {
     /// Submission order, assigned by [`InputStream::submit`].
     pub seq: InputSeq,
     pub payload: InputPayload,
+}
+
+/// The result of one input of a tick (R11.5), returned by
+/// [`World::step_with_outcomes`](crate::world::World::step_with_outcomes) in `(tick, seq)`
+/// order.
+///
+/// It is a return value, not World state: it is never encoded, never checksummed and
+/// empty after loading a run (LS-R16.5, LS-R16.6).
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub struct InputOutcome {
+    /// The input's `seq`.
+    pub seq: InputSeq,
+    /// `Ok(())` when the input applied, `Err(reason)` when it was skipped (LS-R1.5).
+    pub result: Result<(), RejectReason>,
 }
 
 /// Why [`InputStream::submit`] refused an input.
@@ -166,6 +255,22 @@ impl Canon for RejectReason {
             Self::SelfTarget => 2,
             Self::IntensityOutOfRange => 3,
             Self::IdExhausted => 4,
+            Self::OfficialPerson => 5,
+            Self::NoGhost => 6,
+            Self::NotWaiting => 7,
+            Self::NotConnected => 8,
+            Self::RateLimited => 9,
+            Self::InsufficientJoss => 10,
+            Self::YearlyCap => 11,
+            Self::BadAmount => 12,
+            Self::NodePending => 13,
+            Self::SlotClosed => 14,
+            Self::SlotClaimed => 15,
+            Self::ClaimHeld => 16,
+            Self::RegisterWait => 17,
+            Self::UnknownNode => 18,
+            Self::OptionNotInSet => 19,
+            Self::AlreadyChosen => 20,
         };
         tag.encode(w);
     }
@@ -229,38 +334,51 @@ mod tests {
 
     #[test]
     fn reject_reason_labels_are_distinct_and_match_the_report() {
-        let all = [
-            RejectReason::UnknownPerson,
-            RejectReason::DeadPerson,
-            RejectReason::SelfTarget,
-            RejectReason::IntensityOutOfRange,
-            RejectReason::IdExhausted,
+        let labels: std::collections::BTreeSet<&str> =
+            RejectReason::ALL.iter().map(|r| r.label()).collect();
+        assert_eq!(labels.len(), RejectReason::ALL.len());
+        let expected = [
+            "unknown_person",
+            "dead_person",
+            "self_target",
+            "intensity_out_of_range",
+            "id_exhausted",
+            "official_person",
+            "no_ghost",
+            "not_waiting",
+            "not_connected",
+            "rate_limited",
+            "insufficient_joss",
+            "yearly_cap",
+            "bad_amount",
+            "node_pending",
+            "slot_closed",
+            "slot_claimed",
+            "claim_held",
+            "register_wait",
+            "unknown_node",
+            "option_not_in_set",
+            "already_chosen",
         ];
-        let labels: std::collections::BTreeSet<&str> = all.iter().map(|r| r.label()).collect();
-        assert_eq!(labels.len(), all.len());
-        assert_eq!(RejectReason::UnknownPerson.label(), "unknown_person");
-        assert_eq!(RejectReason::DeadPerson.label(), "dead_person");
-        assert_eq!(RejectReason::SelfTarget.label(), "self_target");
-        assert_eq!(
-            RejectReason::IntensityOutOfRange.label(),
-            "intensity_out_of_range"
-        );
-        assert_eq!(RejectReason::IdExhausted.label(), "id_exhausted");
+        let actual: Vec<&str> = RejectReason::ALL.iter().map(|r| r.label()).collect();
+        assert_eq!(actual, expected);
     }
 
     #[test]
-    fn canonical_reject_reason_tags_are_distinct() {
+    fn canonical_reject_reason_tags_are_distinct_and_run_from_zero() {
         use crate::canon::encode_to_vec;
-        let tags: std::collections::BTreeSet<Vec<u8>> = [
-            RejectReason::UnknownPerson,
-            RejectReason::DeadPerson,
-            RejectReason::SelfTarget,
-            RejectReason::IntensityOutOfRange,
-            RejectReason::IdExhausted,
-        ]
-        .iter()
-        .map(encode_to_vec)
-        .collect();
-        assert_eq!(tags.len(), 5);
+        let tags: Vec<u8> = RejectReason::ALL
+            .iter()
+            .map(|reason| encode_to_vec(reason)[0])
+            .collect();
+        let unique: std::collections::BTreeSet<u8> = tags.iter().copied().collect();
+        assert_eq!(unique.len(), RejectReason::ALL.len());
+        for (index, tag) in tags.iter().enumerate() {
+            assert_eq!(usize::from(*tag), index, "tag order follows ALL");
+        }
+        assert_eq!(encode_to_vec(&RejectReason::UnknownPerson), [0]);
+        assert_eq!(encode_to_vec(&RejectReason::IdExhausted), [4]);
+        assert_eq!(encode_to_vec(&RejectReason::OfficialPerson), [5]);
+        assert_eq!(encode_to_vec(&RejectReason::AlreadyChosen), [20]);
     }
 }

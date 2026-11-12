@@ -5,12 +5,12 @@
 //! and compares each tick's checksum with the recorded one; the recorded checksums are
 //! never used to build state.
 //!
-//! # Format (version 3)
+//! # Format (version 4)
 //!
 //! ```json
 //! {
 //!   "format": "back-in-the-family/replay",
-//!   "version": 3,
+//!   "version": 4,
 //!   "seed": "1",
 //!   "config": { "opening_residents": 50 },
 //!   "ticks": "2000",
@@ -32,8 +32,9 @@
 //! - Unknown fields are rejected, so a typo or a newer format cannot be silently
 //!   ignored. [`ReplayConfig`] rejects a `workload` field with serde's `unknown field
 //!   \`workload\`` and no World is created (R1.3).
-//! - Version 2 files (the skeleton format) are rejected as
-//!   [`ReplayError::UnsupportedVersion`].
+//! - Version 3 files (the life-sim format) and version 2 files (the skeleton format)
+//!   are rejected as [`ReplayError::UnsupportedVersion`]. Version 4 is the same shape
+//!   as version 3; the bump marks the underworld payloads that later tasks add.
 //!
 //! # Layering
 //!
@@ -63,7 +64,7 @@ use crate::world::{ConfigError, WorldConfig};
 /// The `format` string of every replay file.
 pub const REPLAY_FORMAT: &str = "back-in-the-family/replay";
 /// The only replay `version` this code reads and writes.
-pub const REPLAY_VERSION: u32 = 3;
+pub const REPLAY_VERSION: u32 = 4;
 
 /// Strict decimal-string codec for `u64`, for `#[serde(with = "u64_string")]`.
 mod u64_string {
@@ -593,7 +594,7 @@ mod tests {
             other => panic!("expected Malformed, got {other:?}"),
         }
         // A whole replay file with the same config fails the same way.
-        let file = r#"{"format":"back-in-the-family/replay","version":3,"seed":"1","config":{"opening_residents":50,"workload":"Pairwise"},"ticks":"0","inputs":[],"checksums":[]}"#;
+        let file = r#"{"format":"back-in-the-family/replay","version":4,"seed":"1","config":{"opening_residents":50,"workload":"Pairwise"},"ticks":"0","inputs":[],"checksums":[]}"#;
         match ReplayFile::from_json_str(file) {
             Err(ReplayError::Malformed(message)) => assert!(
                 message.contains("unknown field `workload`"),
@@ -616,6 +617,15 @@ mod tests {
         assert_eq!(
             ReplayFile::from_json_str(v2),
             Err(ReplayError::UnsupportedVersion { found: 2 })
+        );
+    }
+
+    #[test]
+    fn a_version_3_file_is_rejected_as_unsupported() {
+        let v3 = r#"{"format":"back-in-the-family/replay","version":3,"seed":"1","config":{"opening_residents":50},"ticks":"0","inputs":[],"checksums":[]}"#;
+        assert_eq!(
+            ReplayFile::from_json_str(v3),
+            Err(ReplayError::UnsupportedVersion { found: 3 })
         );
     }
 

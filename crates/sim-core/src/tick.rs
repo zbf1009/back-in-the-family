@@ -32,7 +32,7 @@
 use crate::checksum::Checksum;
 use crate::events::CausedBy;
 use crate::ids::{InputSeq, PersonId, Tick};
-use crate::input::{InputPayload, InputStream, SubmitError, TickInput};
+use crate::input::{InputOutcome, InputPayload, InputStream, SubmitError, TickInput};
 use crate::social::apply_social;
 use crate::values::Intensity;
 use crate::world::{AppendRefused, ConfigError, Life, RejectReason, World, WorldConfig};
@@ -50,10 +50,19 @@ impl World {
     /// so the overflow is a documented panic (like `canon::write_len`) instead of an
     /// error path every caller would have to carry.
     pub fn step(&mut self, inputs: &[TickInput]) -> Checksum {
+        self.step_with_outcomes(inputs).0
+    }
+
+    /// Runs one tick like [`World::step`] and also returns the outcome of every input in
+    /// `(tick, seq)` order (R11.5).
+    ///
+    /// The vector is a return value, not World state: it is never encoded, never
+    /// checksummed and never stored in the World (LS-R16.5).
+    pub fn step_with_outcomes(&mut self, inputs: &[TickInput]) -> (Checksum, Vec<InputOutcome>) {
         // 1. Reset flows.
         self.flows = crate::economy::FlowTotals::default();
         // 2. Apply inputs.
-        self.apply_inputs(inputs);
+        let outcomes = self.apply_inputs(inputs);
         // 3. Outsider releases.
         crate::outsiders::release_outsiders(self);
         // 4. Deaths, inheritance and debts at death.
@@ -80,15 +89,22 @@ impl World {
                 .expect("tick counter overflow (u64) — unreachable in any realistic run"),
         );
         // 13. Checksum.
-        Checksum::of(self)
+        (Checksum::of(self), outcomes)
     }
 
-    fn apply_inputs(&mut self, inputs: &[TickInput]) {
+    fn apply_inputs(&mut self, inputs: &[TickInput]) -> Vec<InputOutcome> {
+        let mut outcomes = Vec::with_capacity(inputs.len());
         for input in inputs {
-            if let Err(reason) = self.apply_one(input.payload) {
+            let result = self.apply_one(input.payload);
+            if let Err(reason) = result {
                 self.rejections.record(self.tick, input.seq, reason);
             }
+            outcomes.push(InputOutcome {
+                seq: input.seq,
+                result,
+            });
         }
+        outcomes
     }
 
     /// Validates and applies one payload (design "Inputs and replay format"): actor and
@@ -166,6 +182,7 @@ pub struct Sim {
     world: World,
     inputs: InputStream,
     checksums: Vec<Checksum>,
+    last_outcomes: Vec<InputOutcome>,
 }
 
 impl Sim {
@@ -174,6 +191,7 @@ impl Sim {
             world: World::new(seed, config)?,
             inputs: InputStream::new(),
             checksums: Vec::new(),
+            last_outcomes: Vec::new(),
         })
     }
 
@@ -188,6 +206,7 @@ impl Sim {
             world: World::new_with_params(seed, config, params)?,
             inputs: InputStream::new(),
             checksums: Vec::new(),
+            last_outcomes: Vec::new(),
         })
     }
 
@@ -199,9 +218,17 @@ impl Sim {
     /// Runs the current tick with its inputs and returns (and records) the checksum.
     pub fn step(&mut self) -> Checksum {
         let tick = self.world.tick();
-        let checksum = self.world.step(self.inputs.for_tick(tick));
+        let (checksum, outcomes) = self.world.step_with_outcomes(self.inputs.for_tick(tick));
+        self.last_outcomes = outcomes;
         self.checksums.push(checksum);
         checksum
+    }
+
+    /// The outcome of every input of the last stepped tick, in `(tick, seq)` order
+    /// (R11.5). Empty before the first step and after a tick with no inputs; it is never
+    /// part of the World or the checksum.
+    pub fn last_outcomes(&self) -> &[InputOutcome] {
+        &self.last_outcomes
     }
 
     pub fn world(&self) -> &World {
@@ -222,6 +249,7 @@ impl Sim {
 mod tests {
     use super::*;
     use crate::ids::IdCounter;
+    use crate::input::InputOutcome;
     use crate::values::SocialKind;
 
     fn sim() -> Sim {
@@ -392,6 +420,54 @@ mod tests {
         assert_eq!(*s.inputs(), inputs_before);
         assert_eq!(*s.world(), world_before);
         assert!(s.submit(Tick(2), act(a, b, 40)).is_ok());
+    }
+
+    #[test]
+    fn last_outcomes_lists_every_input_of_the_last_tick_in_order() {
+        let mut s = sim();
+        assert!(
+            s.last_outcomes().is_empty(),
+            "a freshly loaded Sim has no outcomes"
+        );
+        let (a, b) = two_residents(&s);
+        s.submit(Tick(0), act(a, b, 40)).unwrap();
+        s.submit(Tick(0), act(a, u64::MAX, 40)).unwrap();
+        s.step();
+        assert_eq!(
+            s.last_outcomes(),
+            [
+                InputOutcome {
+                    seq: InputSeq(0),
+                    result: Ok(()),
+                },
+                InputOutcome {
+                    seq: InputSeq(1),
+                    result: Err(RejectReason::UnknownPerson),
+                },
+            ]
+        );
+        // A tick with no inputs empties the vector again.
+        s.step();
+        assert!(s.last_outcomes().is_empty());
+    }
+
+    #[test]
+    fn the_outcome_vector_is_not_world_state_or_checksummed() {
+        let mut with = sim();
+        let mut without = sim();
+        let (a, b) = two_residents(&with);
+        let input = TickInput {
+            tick: Tick(0),
+            seq: InputSeq(0),
+            payload: act(a, b, 40),
+        };
+        let (checksum, outcomes) = with.world.step_with_outcomes(&[input]);
+        let plain = without.world.step(&[input]);
+        assert_eq!(checksum, plain, "the outcome vector is not checksummed");
+        assert_eq!(with.world, without.world, "it is not World state");
+        assert_eq!(outcomes.len(), 1);
+        assert_eq!(outcomes[0].seq, InputSeq(0));
+        assert_eq!(outcomes[0].result, Ok(()));
     }
 
     #[test]

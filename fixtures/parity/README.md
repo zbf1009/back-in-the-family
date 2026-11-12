@@ -11,9 +11,10 @@ inputs and the checksum of every tick.
 | `seedbig-pairwise.replay.json` | 18446744073709551557 | `{"opening_residents":50}` | 2000 | 120 |
 
 One tick is one day, so the config has no tick-length field. The files use replay format
-version 3: `Act` payloads, with `tick`, `actor` and `target` as strict decimal strings
+version 4: `Act` payloads, with `tick`, `actor` and `target` as strict decimal strings
 and `kind` one of the card event names (`help`, `gift`, `quarrel`, `insult`, `theft`,
-`apology`).
+`apology`). Version 4 is the life-sim shape with the underworld payload kinds added by
+later tasks; a version 3 file is rejected as unsupported.
 
 `seedbig` is above 2^53 on purpose: it exercises the `u64`-as-decimal-string path that
 JavaScript numbers cannot hold. The 120 inputs per file are generated from the seed

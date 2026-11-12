@@ -365,10 +365,10 @@ fn replay_malformed_inputs_exit_two() {
     // A directory is not a replay file.
     assert_eq!(code(&sim_cli(&["replay", s(&dir.path(""))])), 2);
 
-    // Unsupported versions: 2 (the skeleton format) and 4 (a future one).
-    for (n, version) in [(2, 2), (4, 4)] {
+    // Unsupported versions: 3 (the life-sim format) and 5 (a future one).
+    for (n, version) in [(3, 3), (5, 5)] {
         let bad = dir.path(&format!("v{n}.json"));
-        let changed = text.replacen("\"version\":3", &format!("\"version\":{version}"), 1);
+        let changed = text.replacen("\"version\":4", &format!("\"version\":{version}"), 1);
         assert_ne!(changed, text);
         fs::write(&bad, changed).unwrap();
         let o = sim_cli(&["replay", s(&bad)]);
@@ -574,6 +574,14 @@ fn batch_small_healthy_run_exits_zero_with_one_line_per_seed() {
             " outsiders_le_births_third=pass",
         ] {
             assert!(line.contains(field), "{field} missing from {line}");
+        }
+        // The rejection field lists every reason of the design, in report order.
+        let mut previous = line.find(' ').expect("a field");
+        for reason in sim_core::world::RejectReason::ALL {
+            let needle = format!("{}:", reason.label());
+            let at = line.find(&needle).expect("every reason is listed");
+            assert!(at > previous, "{} is out of report order", reason.label());
+            previous = at;
         }
     }
     assert_eq!(lines[3], "batch: 3/3 seeds ok");

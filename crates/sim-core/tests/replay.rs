@@ -1,9 +1,10 @@
 //! Replay file: record and verify in-process, JSON round trip, tamper detection and
 //! strict parsing (R16.6, R1.3).
 //!
-//! The replay format is version 3: config `{ "opening_residents": 50 }` and `Act`
-//! payloads. The Parity_Fixtures are regenerated in task 4.4; their native/WASM parity
-//! tests live in `crates/sim-wasm/tests/parity.rs`.
+//! The replay format is version 4: config `{ "opening_residents": 50 }` and `Act`
+//! payloads (the underworld payloads arrive with their handlers). The Parity_Fixtures
+//! are recorded with `scripts/regen-fixtures.sh`; their native/WASM parity tests live in
+//! `crates/sim-wasm/tests/parity.rs`.
 
 use proptest::prelude::*;
 use sim_core::checksum::Checksum;
@@ -139,7 +140,7 @@ fn json_has_the_documented_shape() {
     .unwrap();
     let json = file.to_json_string().unwrap();
     assert!(json.starts_with(
-        r#"{"format":"back-in-the-family/replay","version":3,"seed":"1","config":{"opening_residents":50},"ticks":"2","inputs":[{"tick":"5","seq":"0","payload":{"Act":{"kind":"help","actor":"3","target":"17","intensity":40}}}],"checksums":[""#
+        r#"{"format":"back-in-the-family/replay","version":4,"seed":"1","config":{"opening_residents":50},"ticks":"2","inputs":[{"tick":"5","seq":"0","payload":{"Act":{"kind":"help","actor":"3","target":"17","intensity":40}}}],"checksums":["#
     ));
     for c in &file.checksums {
         assert!(json.contains(&format!("\"{c}\"")));
@@ -187,7 +188,7 @@ fn a_config_with_a_workload_field_is_rejected_and_no_world_is_created() {
         other => panic!("expected Malformed, got {other:?}"),
     }
     // A whole replay file with the legacy config fails the same way.
-    let file = r#"{"format":"back-in-the-family/replay","version":3,"seed":"1","config":{"opening_residents":50,"workload":"Pairwise"},"ticks":"0","inputs":[],"checksums":[]}"#;
+    let file = r#"{"format":"back-in-the-family/replay","version":4,"seed":"1","config":{"opening_residents":50,"workload":"Pairwise"},"ticks":"0","inputs":[],"checksums":[]}"#;
     match ReplayFile::from_json_str(file) {
         Err(ReplayError::Malformed(message)) => {
             assert!(message.contains("unknown field `workload`"), "{message}");
@@ -208,6 +209,21 @@ fn a_version_2_file_is_rejected_as_unsupported() {
     assert_eq!(
         verify(&file),
         Err(ReplayError::UnsupportedVersion { found: 2 })
+    );
+}
+
+#[test]
+fn a_version_3_file_is_rejected_as_unsupported() {
+    let v3 = r#"{"format":"back-in-the-family/replay","version":3,"seed":"1","config":{"opening_residents":50},"ticks":"0","inputs":[],"checksums":[]}"#;
+    assert_eq!(
+        ReplayFile::from_json_str(v3),
+        Err(ReplayError::UnsupportedVersion { found: 3 })
+    );
+    let mut file = sample();
+    file.version = 3;
+    assert_eq!(
+        verify(&file),
+        Err(ReplayError::UnsupportedVersion { found: 3 })
     );
 }
 
@@ -254,10 +270,11 @@ fn unknown_format_and_version_are_rejected() {
         ReplayFile::from_json_str(&bad_format),
         Err(ReplayError::UnknownFormat { .. })
     ));
-    let bad_version = json.replacen("\"version\":3", "\"version\":4", 1);
+    let bad_version = json.replacen("\"version\":4", "\"version\":3", 1);
+    assert_ne!(bad_version, json);
     assert_eq!(
         ReplayFile::from_json_str(&bad_version),
-        Err(ReplayError::UnsupportedVersion { found: 4 })
+        Err(ReplayError::UnsupportedVersion { found: 3 })
     );
     let future = r#"{"format":"back-in-the-family/replay","version":9,"brand_new":true}"#;
     assert_eq!(
