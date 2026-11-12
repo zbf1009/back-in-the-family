@@ -90,6 +90,33 @@ fn release(world: &mut World, soul: SoulId) {
     } else {
         Origin::Possessed
     };
+    create_outsider(world, soul, origin, 0);
+}
+
+/// Creates the outsider body that holds `soul`, with the caller's kind and price, and
+/// appends its `possession` or `rebuild` Event (design "Outsiders", R11.2).
+///
+/// The kind is the caller's (R10.3): a seeded roll for an NPC release, the claimed
+/// Standing_Slot kind for the Player_Soul. `price` is the joss paper the caller spent
+/// (0 for NPC releases and for the automatic placement of R8.1). Returns the new Person.
+///
+/// It reads no joss balance, so R10.3 holds by construction.
+pub(crate) fn create_outsider(
+    world: &mut World,
+    soul: SoulId,
+    origin: Origin,
+    price: u64,
+) -> Option<PersonId> {
+    if origin == Origin::Native {
+        return None;
+    }
+    if !matches!(
+        world.souls.places.get(&soul),
+        Some(SoulPlace::Waiting { .. })
+    ) {
+        return None;
+    }
+    let key = soul.rng_key();
     let age = u16::try_from(in_range(
         draw(
             world.seed,
@@ -156,11 +183,11 @@ fn release(world: &mut World, soul: SoulId) {
     .unwrap_or(0);
 
     let Ok(raw_person) = world.person_ids.next() else {
-        return;
+        return None;
     };
     let id = PersonId(raw_person);
     let Ok(raw_household) = world.household_ids.next() else {
-        return;
+        return None;
     };
     let household = HouseholdId(raw_household);
     let traits = draw_traits(world, id);
@@ -222,21 +249,16 @@ fn release(world: &mut World, soul: SoulId) {
     world.souls.places.insert(soul, SoulPlace::Body(id));
     // The endowment is the `ArrivalEndowment` source (design "Money_Flow list").
     flow(world, Flow::ArrivalEndowment { to: id }, endowment);
-    let kind = if rebuilt {
-        EventKind::Rebuild {
-            person: id,
-            price: 0,
-        }
-    } else {
-        EventKind::Possession {
-            person: id,
-            price: 0,
-        }
+    let kind = match origin {
+        Origin::Rebuilt => EventKind::Rebuild { person: id, price },
+        Origin::Possessed => EventKind::Possession { person: id, price },
+        Origin::Native => return None,
     };
     if let Err(refused) = world.append(kind, CausedBy::default(), EventTags::empty()) {
         // Unreachable: the new Person is known and alive and the counter has room.
         debug_assert!(false, "the arrival Event was refused: {refused:?}");
     }
+    Some(id)
 }
 
 /// Picks the surname of an arriving outsider (design "Outsiders", Author decision

@@ -1,9 +1,10 @@
-//! Birth_Slots (R7.1, R7.5, OP-U7 A).
+//! Birth_Slots and the Standing_Slot kinds (R7.1, R7.5, R7.6, OP-U7 A, OP-U8).
 //!
 //! A Birth_Slot is one announced future local birth. It opens in the tick of the
 //! announcement with `birth = announced + birth_lead_days`, stays open until its birth
-//! tick or until its mother dies. `World::slots` holds open slots only, in slot ID
-//! order; a closed slot is removed, so no stale slot can be observed.
+//! tick or until its mother dies, and holds at most one claim (the claim itself is the
+//! Player_Soul's `PlayerWait::claim`, added in task 3.3). `World::slots` holds open slots
+//! only, in slot ID order; a closed slot is removed, so no stale slot can be observed.
 
 use crate::canon::{Canon, CanonWriter};
 use crate::ids::{BirthSlotId, IdCounter, PersonId, Tick};

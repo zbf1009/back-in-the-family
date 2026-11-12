@@ -100,6 +100,10 @@ fn settle_death(world: &mut World, deceased: PersonId) {
         .souls
         .places
         .insert(soul, SoulPlace::Waiting { since: death_tick });
+    // The Player_Soul's wait starts with this body as its Ghost (design "Player wait").
+    if soul == world.souls.player {
+        crate::underworld::player::start_wait(world, soul, death_tick);
+    }
 }
 
 fn is_resident(world: &World, person: PersonId) -> bool {

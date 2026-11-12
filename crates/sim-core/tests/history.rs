@@ -170,14 +170,41 @@ proptest! {
                 }
             }
 
-            // A waiting Player_Soul keeps waiting with the same `since` (R20.1).
+            // U7.10 / Property 19: a waiting Player_Soul either keeps waiting with the same
+            // `since`, or leaves only through a birth, possession or rebuild Event for
+            // its new body (a claimed birth, a Standing_Slot claim or the R8.1
+            // placement).
             if let Some(SoulPlace::Waiting { since }) =
                 before.souls().places.get(&before.souls().player)
             {
-                prop_assert_eq!(
-                    after.souls().places.get(&after.souls().player),
-                    Some(&SoulPlace::Waiting { since: *since })
-                );
+                match after.souls().places.get(&after.souls().player) {
+                    Some(SoulPlace::Waiting { since: after_since }) => {
+                        prop_assert_eq!(after_since, since);
+                    }
+                    Some(SoulPlace::Body(body)) => {
+                        let exited = events_since(after, prefix_end).iter().any(|event| {
+                            matches!(
+                                &event.kind,
+                                EventKind::Birth { person }
+                                    | EventKind::Possession { person, .. }
+                                    | EventKind::Rebuild { person, .. } if person == body
+                            )
+                        });
+                        prop_assert!(
+                            exited,
+                            "{}",
+                            tick_error(format!(
+                                "the Player_Soul left the queue for body {} without an Event",
+                                body.0
+                            ))
+                        );
+                    }
+                    None => {
+                        return Err(TestCaseError::fail(tick_error(
+                            "the Player_Soul has no place".to_owned(),
+                        )));
+                    }
+                }
             }
         }
     }

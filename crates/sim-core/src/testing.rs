@@ -136,6 +136,8 @@ pub enum Mutation {
     AddSlot,
     /// `BirthSlot::birth` of one slot: plus one.
     SlotBirth { slot: u64 },
+    /// `World::player_wait`: bump `access_from`, or install a wait when there is none.
+    PlayerWait,
     /// `Derived::living_names`: add a free full name. **Not checksummed** (R16.5).
     DerivedName,
     /// `Derived::last_grievance`: add or bump one pair. **Not checksummed** (R16.5).
@@ -177,6 +179,7 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
         joss,
         slot_ids,
         slots,
+        player_wait,
         derived,
     } = world;
 
@@ -825,6 +828,30 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
             entry.birth = Tick(entry.birth.0.wrapping_add(1));
             true
         }
+        Mutation::PlayerWait => {
+            // Exhaustive: a new `PlayerWait` field is a compile error here.
+            if let Some(wait) = player_wait.as_mut() {
+                let crate::underworld::player::PlayerWait {
+                    ghost: _,
+                    access_from,
+                    claim: _,
+                    carry_over: _,
+                } = wait;
+                *access_from = Tick(access_from.0.wrapping_add(1));
+                true
+            } else {
+                let Some(ghost) = persons.keys().next().copied() else {
+                    return false;
+                };
+                *player_wait = Some(crate::underworld::player::PlayerWait {
+                    ghost,
+                    access_from: *tick,
+                    claim: None,
+                    carry_over: None,
+                });
+                true
+            }
+        }
         Mutation::DerivedName => {
             // Exhaustive: a new `Derived` field is a compile error here.
             let Derived {
@@ -975,6 +1002,7 @@ mod tests {
         v.push(Mutation::SlotIdCounter);
         v.push(Mutation::AddSlot);
         v.push(Mutation::SlotBirth { slot: 0 });
+        v.push(Mutation::PlayerWait);
         for part in 0..3u8 {
             v.push(Mutation::JossCapCounter { soul: 0, part });
         }

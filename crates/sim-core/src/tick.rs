@@ -7,8 +7,10 @@
 //! 2. **Apply inputs** in `(tick, seq)` order. Each `Act` is validated (R1.5, R6.5) and,
 //!    if valid, appended as a social Event through `social::apply_social`. Invalid
 //!    inputs are recorded in `rejections` with `(T, seq, reason)`.
-//! 3. **Outsider releases** (R11): every waiting Soul other than the Player_Soul whose
-//!    wait exceeds Max_Wait gets an outsider body, in Soul ID order.
+//! 3. **Outsider releases and the Player_Soul placement** (R11, R8.1): every waiting
+//!    Soul other than the Player_Soul whose wait exceeds Max_Wait gets an outsider body,
+//!    in Soul ID order; then the Player_Soul is placed in a new Imported_Vessel when its
+//!    wait exceeds Player_Max_Wait, releasing any claim (R8.2).
 //! 4. **Deaths** (R6, R7): mortality rolls against the state at the start of the step,
 //!    then each death is settled in Person ID order.
 //! 5. **Births from slots** (R7.5): every open Birth_Slot whose birth tick is today, in
@@ -67,8 +69,9 @@ impl World {
         self.flows = crate::economy::FlowTotals::default();
         // 2. Apply inputs.
         let outcomes = self.apply_inputs(inputs);
-        // 3. Outsider releases.
+        // 3. Outsider releases, then the Player_Soul's forced placement (R8.1).
         crate::outsiders::release_outsiders(self);
+        crate::underworld::place_player_if_overdue(self);
         // 4. Deaths, inheritance and debts at death.
         crate::death::process_deaths(self);
         // 5. Births from open Birth_Slots.

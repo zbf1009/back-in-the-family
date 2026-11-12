@@ -76,17 +76,10 @@ impl InvariantChecker {
         check_log_tail(world, self.previous_log_len, &self.previous_digest)?;
         check_event_tail(world, self.previous_log_len)?;
 
-        // R20.1: a waiting Player_Soul stays waiting.
+        // U7.10: the Player_Soul leaves the Waiting_Queue only with a birth, possession or
+        // rebuild Event for its new body in this tick (replaces life-sim check 20.1).
         let player_place = player_place(world)?;
-        if matches!(self.previous_player_place, SoulPlace::Waiting { .. })
-            && !matches!(player_place, SoulPlace::Waiting { .. })
-        {
-            return Err(violation(
-                "20.1",
-                world,
-                "the Player_Soul left the Waiting_Queue without an input".to_owned(),
-            ));
-        }
+        check_player_exit(world, self.previous_player_place, self.previous_log_len)?;
 
         // R3.5: total money after = before + sources - sinks.
         let current_total = total_money(world);
@@ -165,6 +158,7 @@ fn check_world(world: &World) -> Result<(), Violation> {
     check_souls(world)?;
     check_debts(world)?;
     check_waiting(world)?;
+    check_player_wait(world)?;
     check_names(world)?;
     Ok(())
 }
@@ -728,6 +722,97 @@ fn check_debts(world: &World) -> Result<(), Violation> {
     Ok(())
 }
 
+/// U7.10: a transition of the Player_Soul out of the Waiting_Queue needs a `birth`,
+/// `possession` or `rebuild` Event for the new body among the Events appended in the
+/// tick (`log_start` is the log length before the tick).
+fn check_player_exit(
+    world: &World,
+    previous_place: SoulPlace,
+    log_start: usize,
+) -> Result<(), Violation> {
+    let SoulPlace::Body(body) = player_place(world)? else {
+        return Ok(());
+    };
+    if !matches!(previous_place, SoulPlace::Waiting { .. }) {
+        return Ok(());
+    }
+    let tail = world.log().events().get(log_start..).unwrap_or(&[]);
+    let exited = tail.iter().any(|event| {
+        matches!(
+            &event.kind,
+            EventKind::Birth { person }
+                | EventKind::Possession { person, .. }
+                | EventKind::Rebuild { person, .. } if *person == body
+        )
+    });
+    if exited {
+        return Ok(());
+    }
+    Err(violation(
+        "U7.10",
+        world,
+        "the Player_Soul left the Waiting_Queue without a birth, possession or rebuild Event"
+            .to_owned(),
+    ))
+}
+
+/// U7.10 and U8.3: `player_wait` matches the Player_Soul's place, its claim names an
+/// open slot, and the wait stays within Player_Max_Wait (R8.3).
+fn check_player_wait(world: &World) -> Result<(), Violation> {
+    let player = world.souls().player;
+    let place = player_place(world)?;
+    match (place, world.player_wait()) {
+        (SoulPlace::Waiting { since }, Some(wait)) => {
+            let ghost_ok = world.persons().get(&wait.ghost).is_some_and(|person| {
+                person.soul == player && matches!(person.life, Life::Dead { .. })
+            });
+            if !ghost_ok {
+                return Err(violation(
+                    "U7.10",
+                    world,
+                    format!(
+                        "the acting Ghost {} is not a dead body of the Player_Soul",
+                        wait.ghost.0
+                    ),
+                ));
+            }
+            if let Some(claim) = wait.claim
+                && !world.slots().contains_key(&claim)
+            {
+                return Err(violation(
+                    "U7.10",
+                    world,
+                    format!("the Player_Soul's claim names closed slot {}", claim.0),
+                ));
+            }
+            let waited = completed_tick(world).saturating_sub(since.0);
+            if waited > world.params().player_max_wait {
+                return Err(violation(
+                    "U8.3",
+                    world,
+                    format!("the Player_Soul has waited {waited} days"),
+                ));
+            }
+        }
+        (SoulPlace::Body(_), None) => {}
+        (SoulPlace::Waiting { .. }, None) => {
+            return Err(violation(
+                "U7.10",
+                world,
+                "the Player_Soul waits without a `player_wait`".to_owned(),
+            ));
+        }
+        (SoulPlace::Body(_), Some(_)) => {
+            return Err(violation(
+                "U7.10",
+                world,
+                "`player_wait` is set while the Player_Soul is in a body".to_owned(),
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// R11.3 and R20.2.
 fn check_waiting(world: &World) -> Result<(), Violation> {
     let max_wait = world.params().max_wait;
@@ -818,6 +903,93 @@ mod tests {
             .unwrap();
         assert!(flow(&mut w, Flow::Wage { to: resident }, 10));
         checker.after_tick(&w).expect("a counted source conserves");
+    }
+
+    #[test]
+    fn a_player_wait_while_the_player_is_in_a_body_is_caught_as_u7_10() {
+        let mut w = world();
+        let ghost = *w.persons.keys().next().expect("the town has Persons");
+        w.player_wait = Some(crate::underworld::player::PlayerWait {
+            ghost,
+            access_from: crate::ids::Tick(0),
+            claim: None,
+            carry_over: None,
+        });
+        let violation = check_player_wait(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U7.10");
+    }
+
+    #[test]
+    fn a_player_wait_past_player_max_wait_is_caught_as_u8_3() {
+        let mut w = world();
+        let player = w.souls.player;
+        let SoulPlace::Body(body) = w.souls.places[&player] else {
+            panic!("the Player_Soul starts in a body");
+        };
+        if let Some(person) = w.persons.get_mut(&body) {
+            person.life = Life::Dead {
+                death: crate::ids::Tick(0),
+            };
+        }
+        w.souls.places.insert(
+            player,
+            SoulPlace::Waiting {
+                since: crate::ids::Tick(0),
+            },
+        );
+        w.params.player_max_wait = 5;
+        w.tick = crate::ids::Tick(10);
+        w.player_wait = Some(crate::underworld::player::PlayerWait {
+            ghost: body,
+            access_from: crate::ids::Tick(0),
+            claim: None,
+            carry_over: None,
+        });
+        let violation = check_player_wait(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U8.3");
+    }
+
+    #[test]
+    fn a_claim_on_a_closed_slot_is_caught_as_u7_10() {
+        let mut w = world();
+        let player = w.souls.player;
+        let SoulPlace::Body(body) = w.souls.places[&player] else {
+            panic!("the Player_Soul starts in a body");
+        };
+        if let Some(person) = w.persons.get_mut(&body) {
+            person.life = Life::Dead {
+                death: crate::ids::Tick(0),
+            };
+        }
+        w.souls.places.insert(
+            player,
+            SoulPlace::Waiting {
+                since: crate::ids::Tick(0),
+            },
+        );
+        w.tick = crate::ids::Tick(1);
+        w.player_wait = Some(crate::underworld::player::PlayerWait {
+            ghost: body,
+            access_from: crate::ids::Tick(0),
+            claim: Some(crate::ids::BirthSlotId(9)),
+            carry_over: None,
+        });
+        let violation = check_player_wait(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U7.10");
+    }
+
+    #[test]
+    fn a_departure_without_an_event_is_caught_as_u7_10() {
+        let w = world();
+        let violation = check_player_exit(
+            &w,
+            SoulPlace::Waiting {
+                since: crate::ids::Tick(0),
+            },
+            0,
+        )
+        .unwrap_err();
+        assert_eq!(violation.criterion, "U7.10");
     }
 
     #[test]
