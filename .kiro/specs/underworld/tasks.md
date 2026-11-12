@@ -55,7 +55,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Unit tests: card types and tags are in the card lists of `eval/cards/README.md`; actor order per the table; `offering` magnitude equals the amount; `is_afterlife` covers the five kinds; the haunting Mood row.
     - _Requirements: 1.2, 2.2, 2.7, 5.2, 6.1, 14.3, LS-R5.3, LS-R5.4, LS-R5.8, LS-R5.9_
     - Acceptance: fixture acceptance. Commit as `feat(sim-core): add underworld event kinds` with the regeneration line.
-  - [ ] 1.3 Add joss accounts
+  - [x] 1.3 Add joss accounts
     - Files: `crates/sim-core/src/underworld/mod.rs` (new), `crates/sim-core/src/underworld/joss.rs` (new), `crates/sim-core/src/lib.rs`, `crates/sim-core/src/world.rs`, `crates/sim-core/src/opening.rs`, `crates/sim-core/src/testing.rs`, `fixtures/parity/*` (regenerated).
     - Follow design OP-D1 A (directory module), OP-U2 and "Data Models" (`JossAccount`). `cap_year(T) = T / 365`; `credit(account, amount, T) -> u64` returns `min(amount, yearly_cap - credited)` after the lazy reset; `spend(account, price)` uses checked subtraction; `capped_spend_allowed(account, price, T)` for hauntings and Rebuilt_Body claims. `World.joss: BTreeMap<SoulId, JossAccount>` with one account per Soul created at opening, in the canonical encoding after the life-sim fields, and a public read accessor. Extend `testing::Mutation` with a Joss_Balance and a cap-counter mutation.
     - Unit tests: credit at the cap boundary and above it (credit 0, magnitude unchanged); lazy reset in a later Cap_Year; spend cap at `yearly_cap`; one account per Soul after opening.

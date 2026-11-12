@@ -17,6 +17,7 @@ use crate::events::{CausedBy, EventKind, EventLog, EventTags, mood_delta};
 use crate::ids::{EventId, HouseholdId, IdCounter, InputSeq, PersonId, PropertyId, SoulId, Tick};
 use crate::names::FullName;
 use crate::params::Params;
+use crate::underworld::joss::JossAccount;
 use crate::values::{Mood, Origin, RelTags, Score, Sex, SocialKind, Traits};
 
 pub use crate::input::RejectReason;
@@ -320,6 +321,7 @@ pub struct World {
     pub(crate) log: EventLog,
     pub(crate) flows: FlowTotals,
     pub(crate) rejections: Rejections,
+    pub(crate) joss: BTreeMap<SoulId, JossAccount>,
     pub(crate) derived: Derived,
 }
 
@@ -396,6 +398,11 @@ impl World {
     /// Skipped inputs so far.
     pub fn rejections(&self) -> &Rejections {
         &self.rejections
+    }
+
+    /// Every Soul's joss paper account, in Soul ID order (R1.1).
+    pub fn joss(&self) -> &BTreeMap<SoulId, JossAccount> {
+        &self.joss
     }
 
     /// Sources and sinks of the last tick run.
@@ -754,6 +761,7 @@ impl Canon for World {
             log,
             flows,
             rejections,
+            joss,
             derived: _,
         } = self;
         CANON_VERSION.encode(w);
@@ -773,6 +781,7 @@ impl Canon for World {
         log.encode(w);
         flows.encode(w);
         rejections.encode(w);
+        joss.encode(w);
     }
 }
 

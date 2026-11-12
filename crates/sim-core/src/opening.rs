@@ -161,6 +161,7 @@ pub(crate) fn generate(
         log: EventLog::new(),
         flows: crate::economy::FlowTotals::default(),
         rejections: Rejections::default(),
+        joss: std::collections::BTreeMap::new(),
         derived: Derived::default(),
     };
 
@@ -171,6 +172,7 @@ pub(crate) fn generate(
     add_opening_loans(&mut world)?;
     assign_souls(&mut world)?;
     choose_player_soul(&mut world)?;
+    assign_joss(&mut world);
     world.rebuild_derived();
     Ok(world)
 }
@@ -1103,6 +1105,19 @@ fn assign_souls(world: &mut World) -> Result<(), ConfigError> {
     Ok(())
 }
 
+/// Opens one joss paper account per Soul, in Soul ID order, after step 8 has assigned
+/// every Soul (R1.1, design "Data Models"). No joss paper exists at the opening;
+/// offerings create it later.
+fn assign_joss(world: &mut World) {
+    let souls: Vec<SoulId> = world.souls.places.keys().copied().collect();
+    for soul in souls {
+        world.joss.insert(
+            soul,
+            crate::underworld::joss::JossAccount::new(OPENING_TICK),
+        );
+    }
+}
+
 /// Step 9: the Player_Soul is the Soul of a Resident aged 20..=50 (R12.5).
 fn choose_player_soul(world: &mut World) -> Result<(), ConfigError> {
     let candidates: Vec<PersonId> = world
@@ -1312,5 +1327,18 @@ mod tests {
             waiting,
             usize::try_from(w.params().initial_waiting).unwrap_or(0)
         );
+    }
+
+    #[test]
+    fn every_soul_has_one_empty_joss_account_after_opening() {
+        let w = world(5, 45);
+        assert_eq!(w.joss().len(), w.souls().places.len());
+        for soul in w.souls().places.keys() {
+            let account = w
+                .joss()
+                .get(soul)
+                .unwrap_or_else(|| panic!("soul {} has no joss account", soul.0));
+            assert_eq!(*account, crate::underworld::joss::JossAccount::new(Tick(0)));
+        }
     }
 }

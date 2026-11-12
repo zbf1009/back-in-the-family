@@ -1805,3 +1805,12 @@ batch: 5/5 seeds ok
 - Fixtures: `scripts/regen-fixtures.sh` ran twice with no `git status` change. No fixture checksum changed: seeds 1, 2 and `seedbig` have no outsider arrival within 2,000 ticks, so the new `price` field of `possession`/`rebuild` never enters their encodings and the new kinds are not yet appended by any code.
 - Acceptance (fixture acceptance): fmt, clippy, `cargo test --workspace`, the wasm32 test and the R14.4 check exit 0; `batch --seeds 1..=20 --ticks 2000` prints `batch: 20/20 seeds ok`; `batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0 with `batch: 5/5 seeds ok` and the same five final checksums as task 1.1 (`ab4ac02c6dcce278`, `edf590ea35fed2d4`, `af4bde5d074f0e48`, `540c1db8674eb2a4`, `ea32bb9a27e8bd18`).
 - Nothing pushed or deployed.
+
+### Spec: underworld — task 1.3 joss paper accounts (2026-11-12)
+
+- New directory module `crates/sim-core/src/underworld/` with `joss.rs`: `JossAccount { balance, cap_year, credited, capped_spent }`, `cap_year(T) = T / 365` (floor), `credit` (lazy Cap_Year reset, returns `min(amount, yearly_cap - credited)`, an overflowing credit skipped whole), `spend` (checked subtraction), `capped_spend_allowed` and `spend_capped` (hauntings and Rebuilt_Body claims, R2.6).
+- `World.joss: BTreeMap<SoulId, JossAccount>` with one empty account per Soul created at the end of Opening_World generation, encoded after the life-sim fields and exposed through `World::joss()`. `testing::Mutation` gained `JossBalance` and `JossCapCounter` (credited, capped_spent or cap_year).
+- Unit tests: the credit cap boundary and above it (0 credited, account unchanged), a zero amount, the lazy reset in a later Cap_Year, checked spend, the spend cap at `yearly_cap` and its reset, a capped spend that still needs the balance, the four-field encoding, and exactly one empty account per Soul after opening.
+- Fixtures regenerated twice with `scripts/regen-fixtures.sh` (second run left `git status` unchanged). The new map changes every checksum: seeds 1 to 5 now print `36bb796aef463d3e`, `c06a195810eb71f2`, `bc63a10a70f8765e`, `f1cd3be7f8802042`, `309772c027c023c7`; every non-checksum figure is unchanged.
+- Acceptance (fixture acceptance): fmt, clippy, `cargo test --workspace`, the wasm32 test and the R14.4 check exit 0; `batch --seeds 1..=20 --ticks 2000` prints `batch: 20/20 seeds ok`; `batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0 with `batch: 5/5 seeds ok`.
+- Nothing pushed or deployed.

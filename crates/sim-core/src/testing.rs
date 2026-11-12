@@ -16,16 +16,17 @@
 //!
 //! [`apply`] destructures [`World`], [`WorldConfig`], [`Souls`], [`FlowTotals`],
 //! [`Rejections`], [`Derived`], [`Person`], [`Life`], [`Household`], [`Property`],
-//! [`Relation`] and [`Debt`] with every field named and no `..`. Adding a field to any
-//! of those structs therefore fails to compile here until the new field gets a
-//! [`Mutation`] variant (the same discipline as the `Canon` impls). Selectors are raw
-//! integers resolved by modulo over the live collection, so a caller can never produce
-//! an out-of-range index.
+//! [`Relation`], [`Debt`] and [`JossAccount`] with every field named and no `..`. Adding
+//! a field to any of those structs therefore fails to compile here until the new field
+//! gets a [`Mutation`] variant (the same discipline as the `Canon` impls). Selectors are
+//! raw integers resolved by modulo over the live collection, so a caller can never
+//! produce an out-of-range index.
 
 use crate::economy::FlowTotals;
 use crate::events::{CausedBy, EventKind, EventTags};
 use crate::ids::{EventId, HouseholdId, IdCounter, InputSeq, PersonId, PropertyId, SoulId, Tick};
 use crate::names::{FEMALE_FIRST_COUNT, SURNAME_COUNT};
+use crate::underworld::joss::JossAccount;
 use crate::values::{Mood, Origin, RelTags, RelationTag, Score, Sex, Trait};
 use crate::world::{
     Debt, Derived, Household, Life, Person, Property, PropertyKind, RejectReason, Rejections,
@@ -118,6 +119,11 @@ pub enum Mutation {
     /// `Rejections::last`: `part % 4` picks `None -> Some`, or for `Some`: 0 = tick + 1,
     /// 1 = seq + 1, 2 = next reason, 3 = back to `None`.
     RejectionLast { part: u8 },
+    /// `JossAccount::balance` of one Soul: plus one.
+    JossBalance { soul: u64 },
+    /// One Yearly_Cap counter of one Soul: `part % 3` picks `credited` (+1),
+    /// `capped_spent` (+1) or `cap_year` (+1).
+    JossCapCounter { soul: u64, part: u8 },
     /// `Derived::living_names`: add a free full name. **Not checksummed** (R16.5).
     DerivedName,
     /// `Derived::last_grievance`: add or bump one pair. **Not checksummed** (R16.5).
@@ -155,6 +161,7 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
         log,
         flows,
         rejections,
+        joss,
         derived,
     } = world;
 
@@ -721,6 +728,42 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
             };
             true
         }
+        Mutation::JossBalance { soul } => {
+            let keys: Vec<SoulId> = joss.keys().copied().collect();
+            let Some(&key) = pick(&keys, soul) else {
+                return false;
+            };
+            let Some(account) = joss.get_mut(&key) else {
+                return false;
+            };
+            let Some(next) = account.balance.checked_add(1) else {
+                return false;
+            };
+            account.balance = next;
+            true
+        }
+        Mutation::JossCapCounter { soul, part } => {
+            let keys: Vec<SoulId> = joss.keys().copied().collect();
+            let Some(&key) = pick(&keys, soul) else {
+                return false;
+            };
+            // Exhaustive: a new `JossAccount` field is a compile error here.
+            let Some(JossAccount {
+                balance: _,
+                cap_year,
+                credited,
+                capped_spent,
+            }) = joss.get_mut(&key)
+            else {
+                return false;
+            };
+            match part % 3 {
+                0 => *credited = credited.saturating_add(1),
+                1 => *capped_spent = capped_spent.saturating_add(1),
+                _ => *cap_year = cap_year.wrapping_add(1),
+            }
+            true
+        }
         Mutation::DerivedName => {
             // Exhaustive: a new `Derived` field is a compile error here.
             let Derived {
@@ -869,6 +912,10 @@ mod tests {
         }
         for part in 0..4u8 {
             v.push(Mutation::RejectionLast { part });
+        }
+        v.push(Mutation::JossBalance { soul: 0 });
+        for part in 0..3u8 {
+            v.push(Mutation::JossCapCounter { soul: 0, part });
         }
         v
     }
