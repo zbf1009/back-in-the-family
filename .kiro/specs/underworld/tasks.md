@@ -49,7 +49,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Unit tests: every new `DEFAULT` value pinned; `stress_underworld()` values pinned; the mortality floor raises a low band and leaves a higher band unchanged.
     - _Requirements: 2.5, 2.6, 3.1, 7.1, 8.1, 14.1, LS-R16.1_
     - Acceptance: fixture acceptance (see Rules). Commit as `feat(sim-core): add underworld ids, stream tags and params` with the regeneration line.
-  - [ ] 1.2 Add the new Event kinds and the ledger fields
+  - [x] 1.2 Add the new Event kinds and the ledger fields
     - Files: `crates/sim-core/src/events.rs`, `crates/sim-core/src/outsiders.rs`, `crates/sim-core/src/invariants.rs` (only if a match needs the new kinds), `fixtures/parity/*` (regenerated).
     - Follow design "Data Models" (the new Event kinds table) and OP-D3 A. Add `Offering { offerer, ghost, amount, credited }`, `BribeOffering { ghost, magistrate, amount }`, `Dream { ghost, dreamer, price }`, `Haunting { ghost, target, intensity, price }`, `Appeal { ghost, magistrate }`, and a `price: u64` on `Possession` and `Rebuild` (0 for NPC releases). Extend `actors()`, `card_type()`, `magnitude()` (the `offering` change of R2.7), the tags (`joss_paper`, `private` for the Bribe offering), `is_afterlife()` (adds the five kinds) and the `mood_delta` `haunting` row (target -15). Canonical encoding with new explicit tags.
     - Unit tests: card types and tags are in the card lists of `eval/cards/README.md`; actor order per the table; `offering` magnitude equals the amount; `is_afterlife` covers the five kinds; the haunting Mood row.

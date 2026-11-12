@@ -461,7 +461,7 @@ proptest! {
             let arrivals: Vec<(EventId, PersonId)> = tail
                 .iter()
                 .filter_map(|event| match &event.kind {
-                    EventKind::Possession { person } | EventKind::Rebuild { person } => {
+                    EventKind::Possession { person, .. } | EventKind::Rebuild { person, .. } => {
                         Some((event.id, *person))
                     }
                     _ => None,

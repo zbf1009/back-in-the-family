@@ -223,9 +223,15 @@ fn release(world: &mut World, soul: SoulId) {
     // The endowment is the `ArrivalEndowment` source (design "Money_Flow list").
     flow(world, Flow::ArrivalEndowment { to: id }, endowment);
     let kind = if rebuilt {
-        EventKind::Rebuild { person: id }
+        EventKind::Rebuild {
+            person: id,
+            price: 0,
+        }
     } else {
-        EventKind::Possession { person: id }
+        EventKind::Possession {
+            person: id,
+            price: 0,
+        }
     };
     if let Err(refused) = world.append(kind, CausedBy::default(), EventTags::empty()) {
         // Unreachable: the new Person is known and alive and the counter has room.
@@ -434,7 +440,7 @@ mod tests {
         assert!(
             world.log.events().iter().any(|event| matches!(
                 event.kind,
-                EventKind::Possession { person } | EventKind::Rebuild { person }
+                EventKind::Possession { person, .. } | EventKind::Rebuild { person, .. }
                     if person == newcomer
             )),
             "one possession or rebuild Event"

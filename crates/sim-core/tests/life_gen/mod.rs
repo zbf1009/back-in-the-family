@@ -629,7 +629,7 @@ pub fn check_structure(world: &World) {
             EventKind::Death { person } => {
                 death_event.insert(*person, event.id);
             }
-            EventKind::Possession { person } | EventKind::Rebuild { person } => {
+            EventKind::Possession { person, .. } | EventKind::Rebuild { person, .. } => {
                 outsider_event.entry(*person).or_insert(event.id);
             }
             _ => {}

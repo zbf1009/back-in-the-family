@@ -237,15 +237,68 @@ pub enum EventKind {
         /// Dollars plus property value received.
         amount: u64,
     },
-    /// An Imported_Vessel arrived.
+    /// An Imported_Vessel arrival; `price` is the joss paper spent from the Soul
+    /// (`0` for an NPC release).
     Possession {
         /// The outsider entering town.
         person: PersonId,
+        /// Joss paper spent on the slot (`0` for an NPC release).
+        price: u64,
     },
-    /// A Rebuilt_Body arrived.
+    /// A Rebuilt_Body arrival; `price` is the joss paper spent from the Soul (`0` for
+    /// an NPC release).
     Rebuild {
         /// The outsider entering town.
         person: PersonId,
+        /// Joss paper spent on the slot (`0` for an NPC release).
+        price: u64,
+    },
+    /// Joss paper burned for a Ghost by a living offerer (R2.2).
+    Offering {
+        /// The living Person who burns the joss paper.
+        offerer: PersonId,
+        /// The Ghost who receives it.
+        ghost: PersonId,
+        /// Joss paper burned (the Event's magnitude, R2.7).
+        amount: u64,
+        /// Joss paper actually credited after the Yearly_Cap (R2.4).
+        credited: u64,
+    },
+    /// A Bribe's Offering: joss paper burned for the Magistrate by a Ghost (R6.1).
+    BribeOffering {
+        /// The Ghost who burns the joss paper.
+        ghost: PersonId,
+        /// The Magistrate who receives it.
+        magistrate: PersonId,
+        /// Joss paper spent.
+        amount: u64,
+    },
+    /// A dream sent by a Ghost to a living dreamer (R4.1).
+    Dream {
+        /// The acting Ghost.
+        ghost: PersonId,
+        /// The living dreamer.
+        dreamer: PersonId,
+        /// Joss paper spent.
+        price: u64,
+    },
+    /// A haunting by a Ghost of a living target (R5.2).
+    Haunting {
+        /// The acting Ghost.
+        ghost: PersonId,
+        /// The living target.
+        target: PersonId,
+        /// Card intensity of the haunting (OP-U5 A).
+        intensity: u64,
+        /// Joss paper spent.
+        price: u64,
+    },
+    /// An appeal of a Ghost to the Magistrate (R6.1).
+    Appeal {
+        /// The appealing Ghost.
+        ghost: PersonId,
+        /// The Magistrate addressed.
+        magistrate: PersonId,
     },
     /// A social act.
     Social {
@@ -311,8 +364,8 @@ impl EventKind {
         match self {
             Self::Birth { person }
             | Self::Death { person }
-            | Self::Possession { person }
-            | Self::Rebuild { person } => Actors::one(*person),
+            | Self::Possession { person, .. }
+            | Self::Rebuild { person, .. } => Actors::one(*person),
             Self::Marriage { a, b } => Actors::two(*a, *b),
             Self::Loan {
                 lender, borrower, ..
@@ -323,6 +376,13 @@ impl EventKind {
                 creditor, debtor, ..
             } => Actors::two(*creditor, *debtor),
             Self::Inheritance { deceased, heir, .. } => Actors::two(*deceased, *heir),
+            Self::Offering { offerer, ghost, .. } => Actors::two(*offerer, *ghost),
+            Self::BribeOffering {
+                ghost, magistrate, ..
+            }
+            | Self::Appeal { ghost, magistrate } => Actors::two(*ghost, *magistrate),
+            Self::Dream { ghost, dreamer, .. } => Actors::two(*ghost, *dreamer),
+            Self::Haunting { ghost, target, .. } => Actors::two(*ghost, *target),
             Self::Social { doer, target, .. } => Actors::two(*doer, *target),
         }
     }
@@ -340,6 +400,10 @@ impl EventKind {
             Self::Inheritance { .. } => "inheritance",
             Self::Possession { .. } => "possession",
             Self::Rebuild { .. } => "rebuild",
+            Self::Offering { .. } | Self::BribeOffering { .. } => "offering",
+            Self::Dream { .. } => "dream",
+            Self::Haunting { .. } => "haunting",
+            Self::Appeal { .. } => "appeal",
             Self::Social { kind, .. } => kind.name(),
         }
     }
@@ -354,11 +418,15 @@ impl EventKind {
             | Self::DebtForgiven { amount, .. }
             | Self::Inheritance { amount, .. } => *amount,
             Self::Social { intensity, .. } => u64::from(intensity.get()),
+            Self::Offering { amount, .. } | Self::BribeOffering { amount, .. } => *amount,
+            Self::Haunting { intensity, .. } => *intensity,
             Self::Birth { .. }
             | Self::Death { .. }
             | Self::Marriage { .. }
             | Self::Possession { .. }
-            | Self::Rebuild { .. } => 0,
+            | Self::Rebuild { .. }
+            | Self::Dream { .. }
+            | Self::Appeal { .. } => 0,
         }
     }
 
@@ -375,6 +443,11 @@ impl EventKind {
             | Self::Inheritance { .. }
             | Self::Possession { .. }
             | Self::Rebuild { .. }
+            | Self::Offering { .. }
+            | Self::BribeOffering { .. }
+            | Self::Dream { .. }
+            | Self::Haunting { .. }
+            | Self::Appeal { .. }
             | Self::Social { .. } => None,
         }
     }
@@ -387,6 +460,11 @@ impl EventKind {
                 | Self::DebtTransfer { .. }
                 | Self::DebtForgiven { .. }
                 | Self::Inheritance { .. }
+                | Self::Offering { .. }
+                | Self::BribeOffering { .. }
+                | Self::Dream { .. }
+                | Self::Haunting { .. }
+                | Self::Appeal { .. }
         )
     }
 }
@@ -613,6 +691,11 @@ pub fn mood_delta(kind: &EventKind, actor_position: usize) -> i64 {
             1 => 5,
             _ => 0,
         },
+        // The `haunting` row of the Mood table (OP-U5 A): the target loses 15.
+        EventKind::Haunting { .. } => match actor_position {
+            1 => -15,
+            _ => 0,
+        },
         EventKind::Social { kind, .. } => match kind {
             SocialKind::Help | SocialKind::Gift => match actor_position {
                 0 => 2,
@@ -642,7 +725,11 @@ pub fn mood_delta(kind: &EventKind, actor_position: usize) -> i64 {
         EventKind::Birth { .. }
         | EventKind::Death { .. }
         | EventKind::Possession { .. }
-        | EventKind::Rebuild { .. } => 0,
+        | EventKind::Rebuild { .. }
+        | EventKind::Offering { .. }
+        | EventKind::BribeOffering { .. }
+        | EventKind::Dream { .. }
+        | EventKind::Appeal { .. } => 0,
     }
 }
 
@@ -672,13 +759,19 @@ impl Canon for EventKind {
             Self::Possession { .. } => 8,
             Self::Rebuild { .. } => 9,
             Self::Social { .. } => 10,
+            Self::Offering { .. } => 11,
+            Self::BribeOffering { .. } => 12,
+            Self::Dream { .. } => 13,
+            Self::Haunting { .. } => 14,
+            Self::Appeal { .. } => 15,
         };
         tag.encode(w);
         match self {
-            Self::Birth { person }
-            | Self::Death { person }
-            | Self::Possession { person }
-            | Self::Rebuild { person } => person.encode(w),
+            Self::Birth { person } | Self::Death { person } => person.encode(w),
+            Self::Possession { person, price } | Self::Rebuild { person, price } => {
+                person.encode(w);
+                price.encode(w);
+            }
             Self::Marriage { a, b } => {
                 a.encode(w);
                 b.encode(w);
@@ -736,6 +829,50 @@ impl Canon for EventKind {
                 doer.encode(w);
                 target.encode(w);
                 intensity.encode(w);
+            }
+            Self::Offering {
+                offerer,
+                ghost,
+                amount,
+                credited,
+            } => {
+                offerer.encode(w);
+                ghost.encode(w);
+                amount.encode(w);
+                credited.encode(w);
+            }
+            Self::BribeOffering {
+                ghost,
+                magistrate,
+                amount,
+            } => {
+                ghost.encode(w);
+                magistrate.encode(w);
+                amount.encode(w);
+            }
+            Self::Dream {
+                ghost,
+                dreamer,
+                price,
+            } => {
+                ghost.encode(w);
+                dreamer.encode(w);
+                price.encode(w);
+            }
+            Self::Haunting {
+                ghost,
+                target,
+                intensity,
+                price,
+            } => {
+                ghost.encode(w);
+                target.encode(w);
+                intensity.encode(w);
+                price.encode(w);
+            }
+            Self::Appeal { ghost, magistrate } => {
+                ghost.encode(w);
+                magistrate.encode(w);
             }
         }
     }
@@ -839,8 +976,40 @@ mod tests {
                 heir: person(2),
                 amount: 400,
             },
-            EventKind::Possession { person: person(2) },
-            EventKind::Rebuild { person: person(2) },
+            EventKind::Possession {
+                person: person(2),
+                price: 0,
+            },
+            EventKind::Rebuild {
+                person: person(2),
+                price: 0,
+            },
+            EventKind::Offering {
+                offerer: person(1),
+                ghost: person(2),
+                amount: 3,
+                credited: 2,
+            },
+            EventKind::BribeOffering {
+                ghost: person(1),
+                magistrate: person(3),
+                amount: 100,
+            },
+            EventKind::Dream {
+                ghost: person(1),
+                dreamer: person(2),
+                price: 20,
+            },
+            EventKind::Haunting {
+                ghost: person(1),
+                target: person(2),
+                intensity: 50,
+                price: 40,
+            },
+            EventKind::Appeal {
+                ghost: person(1),
+                magistrate: person(3),
+            },
             social(SocialKind::Help),
             social(SocialKind::Gift),
             social(SocialKind::Quarrel),
@@ -880,7 +1049,7 @@ mod tests {
             assert_eq!(event.id, EventId(expected));
             assert_eq!(log.event(event.id), Some(event));
         }
-        assert_eq!(log.next_id(), EventId(17));
+        assert_eq!(log.next_id(), EventId(22));
         assert_eq!(log.event(EventId(0)), None);
         assert_eq!(log.event(EventId(99)), None);
     }
@@ -984,8 +1153,29 @@ mod tests {
                     amount: 1,
                 },
             ),
-            ("possession", EventKind::Possession { person: person(1) }),
-            ("rebuild", EventKind::Rebuild { person: person(1) }),
+            (
+                "possession",
+                EventKind::Possession {
+                    person: person(1),
+                    price: 0,
+                },
+            ),
+            (
+                "rebuild",
+                EventKind::Rebuild {
+                    person: person(1),
+                    price: 0,
+                },
+            ),
+            (
+                "offering",
+                EventKind::Offering {
+                    offerer: person(1),
+                    ghost: person(2),
+                    amount: 1,
+                    credited: 1,
+                },
+            ),
             ("help", social(SocialKind::Help)),
             ("gift", social(SocialKind::Gift)),
             ("quarrel", social(SocialKind::Quarrel)),
@@ -1000,7 +1190,7 @@ mod tests {
 
     #[test]
     fn actor_counts_and_order_match_the_card_table() {
-        let cases: [(&str, EventKind, &[u64]); 16] = [
+        let cases: [(&str, EventKind, &[u64]); 21] = [
             ("birth", EventKind::Birth { person: person(1) }, &[1]),
             ("death", EventKind::Death { person: person(1) }, &[1]),
             (
@@ -1059,10 +1249,66 @@ mod tests {
             ),
             (
                 "possession",
-                EventKind::Possession { person: person(15) },
+                EventKind::Possession {
+                    person: person(15),
+                    price: 0,
+                },
                 &[15],
             ),
-            ("rebuild", EventKind::Rebuild { person: person(16) }, &[16]),
+            (
+                "rebuild",
+                EventKind::Rebuild {
+                    person: person(16),
+                    price: 0,
+                },
+                &[16],
+            ),
+            (
+                "offering",
+                EventKind::Offering {
+                    offerer: person(17),
+                    ghost: person(18),
+                    amount: 1,
+                    credited: 1,
+                },
+                &[17, 18],
+            ),
+            (
+                "bribe offering",
+                EventKind::BribeOffering {
+                    ghost: person(19),
+                    magistrate: person(20),
+                    amount: 1,
+                },
+                &[19, 20],
+            ),
+            (
+                "dream",
+                EventKind::Dream {
+                    ghost: person(21),
+                    dreamer: person(22),
+                    price: 1,
+                },
+                &[21, 22],
+            ),
+            (
+                "haunting",
+                EventKind::Haunting {
+                    ghost: person(23),
+                    target: person(24),
+                    intensity: 50,
+                    price: 1,
+                },
+                &[23, 24],
+            ),
+            (
+                "appeal",
+                EventKind::Appeal {
+                    ghost: person(25),
+                    magistrate: person(26),
+                },
+                &[25, 26],
+            ),
             ("help", social(SocialKind::Help), &[1, 2]),
             ("gift", social(SocialKind::Gift), &[1, 2]),
             ("quarrel", social(SocialKind::Quarrel), &[1, 2]),
@@ -1145,8 +1391,69 @@ mod tests {
             .magnitude(),
             0
         );
-        assert_eq!(EventKind::Possession { person: person(1) }.magnitude(), 0);
-        assert_eq!(EventKind::Rebuild { person: person(1) }.magnitude(), 0);
+        assert_eq!(
+            EventKind::Possession {
+                person: person(1),
+                price: 0
+            }
+            .magnitude(),
+            0
+        );
+        assert_eq!(
+            EventKind::Rebuild {
+                person: person(1),
+                price: 0
+            }
+            .magnitude(),
+            0
+        );
+        // R2.7: an `offering` Event's magnitude is the joss paper burned.
+        assert_eq!(
+            EventKind::Offering {
+                offerer: person(1),
+                ghost: person(2),
+                amount: 137,
+                credited: 0,
+            }
+            .magnitude(),
+            137
+        );
+        assert_eq!(
+            EventKind::BribeOffering {
+                ghost: person(1),
+                magistrate: person(3),
+                amount: 64,
+            }
+            .magnitude(),
+            64
+        );
+        assert_eq!(
+            EventKind::Dream {
+                ghost: person(1),
+                dreamer: person(2),
+                price: 20,
+            }
+            .magnitude(),
+            0
+        );
+        assert_eq!(
+            EventKind::Haunting {
+                ghost: person(1),
+                target: person(2),
+                intensity: 50,
+                price: 40,
+            }
+            .magnitude(),
+            50
+        );
+        assert_eq!(
+            EventKind::Appeal {
+                ghost: person(1),
+                magistrate: person(3),
+            }
+            .magnitude(),
+            0
+        );
     }
 
     #[test]
@@ -1170,6 +1477,11 @@ mod tests {
                     | EventKind::DebtTransfer { .. }
                     | EventKind::DebtForgiven { .. }
                     | EventKind::Inheritance { .. }
+                    | EventKind::Offering { .. }
+                    | EventKind::BribeOffering { .. }
+                    | EventKind::Dream { .. }
+                    | EventKind::Haunting { .. }
+                    | EventKind::Appeal { .. }
             );
             assert_eq!(kind.is_afterlife(), expected, "{}", kind.card_type());
         }
@@ -1253,13 +1565,81 @@ mod tests {
         for kind in [
             EventKind::Birth { person: person(1) },
             EventKind::Death { person: person(1) },
-            EventKind::Possession { person: person(1) },
-            EventKind::Rebuild { person: person(1) },
+            EventKind::Possession {
+                person: person(1),
+                price: 0,
+            },
+            EventKind::Rebuild {
+                person: person(1),
+                price: 0,
+            },
+            EventKind::Offering {
+                offerer: person(1),
+                ghost: person(2),
+                amount: 1,
+                credited: 1,
+            },
+            EventKind::BribeOffering {
+                ghost: person(1),
+                magistrate: person(3),
+                amount: 1,
+            },
+            EventKind::Dream {
+                ghost: person(1),
+                dreamer: person(2),
+                price: 1,
+            },
+            EventKind::Appeal {
+                ghost: person(1),
+                magistrate: person(3),
+            },
         ] {
             assert_eq!(mood_delta(&kind, 0), 0);
             assert_eq!(mood_delta(&kind, 1), 0);
         }
         assert_eq!(mood_delta(&loan, 2), 0);
+    }
+
+    #[test]
+    fn the_haunting_row_moves_only_the_target_by_minus_fifteen() {
+        let haunting = EventKind::Haunting {
+            ghost: person(1),
+            target: person(2),
+            intensity: 50,
+            price: 40,
+        };
+        assert_eq!(mood_delta(&haunting, 0), 0);
+        assert_eq!(mood_delta(&haunting, 1), -15);
+        assert_eq!(mood_delta(&haunting, 2), 0);
+    }
+
+    #[test]
+    fn new_kinds_use_card_list_types_and_tags() {
+        // The card lists of `eval/cards/README.md`: event types and event tags.
+        let readme = include_str!("../../../eval/cards/README.md");
+        for kind in kinds() {
+            assert!(
+                readme.contains(&format!("`{}`", kind.card_type())),
+                "card type {} is not in the card event-type list",
+                kind.card_type()
+            );
+        }
+        for tag in EventTag::ALL {
+            assert!(
+                readme.contains(&format!("`{}`", tag.name())),
+                "tag {} is not in the card event-tag list",
+                tag.name()
+            );
+        }
+        // The Bribe's offering carries both of these.
+        for tag in [EventTag::JossPaper, EventTag::Private] {
+            assert_eq!(
+                EventTag::from_name(tag.name()),
+                Some(tag),
+                "{} must be a card tag",
+                tag.name()
+            );
+        }
     }
 
     #[test]
@@ -1315,9 +1695,11 @@ mod tests {
         let kinds = kinds();
         let tags: Vec<u8> = kinds.iter().map(first_byte).collect();
         let unique: BTreeSet<u8> = tags.iter().copied().collect();
-        assert_eq!(unique.len(), 11, "one tag per EventKind variant");
+        assert_eq!(unique.len(), 16, "one tag per EventKind variant");
         assert_eq!(tags[0], 0, "birth");
         assert_eq!(tags[1], 1, "death");
-        assert_eq!(tags[10], 10, "social");
+        assert_eq!(tags[10], 11, "offering");
+        assert_eq!(tags[14], 15, "appeal");
+        assert_eq!(tags[15], 10, "social");
     }
 }
