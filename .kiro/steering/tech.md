@@ -47,7 +47,7 @@ Tick granularity: **1 day per tick**. Decided by the author on 2026-11-04, after
 ## Quality gates
 
 - Rust: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`.
-- Web (`web/`) and probe (`eval/probe/`), run by `scripts/gates.sh` after the Rust gates and the `sim-cli batch` step (and `scripts/wasm-build.sh`), in this order:
+- Web (`web/`) and probe (`eval/probe/`), run by `scripts/gates.sh` after the Rust gates, the two `sim-cli batch` steps (the short batch `--seeds 1..=20 --ticks 2000` and the 80-year acceptance batch `--seeds 1..=5 --ticks 29200 --require-targets`, a hard gate) and `scripts/wasm-build.sh`, in this order:
   - pnpm version check (`scripts/check-pnpm-version.sh`): `mise.toml` and `web/package.json` `packageManager` present and equal (the probe's `packageManager` is checked too).
   - frozen-lockfile install: `pnpm --dir web install --frozen-lockfile`.
   - Probe frozen-lockfile install: `pnpm --dir eval/probe install --frozen-lockfile`.

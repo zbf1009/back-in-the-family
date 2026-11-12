@@ -1740,3 +1740,13 @@ batch: 5/5 seeds ok
 - CI run `43134392006` (`deploy`), 457 s, conclusion success: gates, deploy configuration check and the `web/dist` deploy all passed.
 - Live check of https://back-in-the-family.2290698778.workers.dev in a headless browser: the page loads with the default World_Config `{"opening_residents":50}`; seed 1, Create, Run: the tick advanced from 239 to 415 in about 3 s with changing checksums, Run_State `running`, 60 ticks per second.
 - This entry stays local; it goes out with the next spec's first code push, to avoid a deploy for a log-only commit.
+
+### Steering: life-sim close-out check and spec order (2026-11-12)
+
+- Kiro checked the life-sim close-out against the spec, the audit and the steering. Code, tasks and audit agree; four steering gaps had not been caught by the audit follow-up, which synced only `design.md`:
+  1. `structure.md` still said the arrival ratio `outsiders <= births / 3` was a calibrated target, against the Author's audit decision (report-only; R17.8 stays hard), and still listed "push pending" although the push and deploy happened (CI run `43134392006`).
+  2. `structure.md`'s "Next steps" heading was dated 2026-11-10 and its docs list lacked `docs/life-sim-audit.md`.
+  3. `structure.md`'s `sim-core/tests` list lacked the llm-probe test files (`llm_gen/`, `llm_examples.rs`, `llm_properties.rs`).
+  4. `tech.md`'s Quality gates named one `sim-cli batch` step; `scripts/gates.sh` runs two, the second being the 80-year acceptance batch.
+- With the Author's approval Kiro fixed all four. In the same edit, at the Author's request, the planned spec order now reads: spec 5 `underworld` (thin, target 2026-11-15, with the decision-node convention and the `dream_interpretation` and `magistrate_ruling` nodes on the rules path), spec 6 the first playable version (`narrator`, `scenes`, player interface), then the rest of `slow-think` and the clef Worker spec. Placing the rest of `slow-think` after spec 6 is Kiro's reading of the Author's brief, reported to the Author.
+- The commit stays local with `f8939ad`; both go out with the first code push of the underworld spec. The omp agent did not touch the repository while Kiro committed.
