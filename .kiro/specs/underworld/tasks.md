@@ -38,7 +38,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
 
 ## Tasks
 
-- [ ] 1. Foundations: IDs, Params, Event kinds, joss accounts, inputs, the Magistrate
+- [x] 1. Foundations: IDs, Params, Event kinds, joss accounts, inputs, the Magistrate
   - [x] 1.1 Add the new IDs, stream tags and Params, and bump `CANON_VERSION` to 3
     - Files: `crates/sim-core/src/ids.rs`, `crates/sim-core/src/rng.rs`, `crates/sim-core/src/params.rs`, `crates/sim-core/src/canon.rs`, `crates/sim-core/src/death.rs`, `fixtures/parity/*` (regenerated).
     - Follow design "Data Models" (`ids.rs additions`), "Module layout" (`rng.rs` row) and "Parameters and calibration".
@@ -74,7 +74,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - _Requirements: 15.1, 15.2, 15.3, 15.4, 15.5, 15.6, 15.7, 15.8, 15.9, 15.10, 15.14_
     - Acceptance: fixture acceptance; existing life-sim opening tests still pass. Commit as `feat(sim-core): add the magistrate` with the regeneration line.
 
-- [ ] 2. Checkpoint: foundations green
+- [x] 2. Checkpoint: foundations green
   - Run the full gates: `scripts/gates.sh` must exit 0. Run the R14.4 check. Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 3. Birth_Slots, the Player_Soul wait, claims and carry-over

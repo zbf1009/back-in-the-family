@@ -1833,3 +1833,8 @@ batch: 5/5 seeds ok
 - Fixtures regenerated twice with `scripts/regen-fixtures.sh` (the second run left `git status` unchanged). All checksums changed: seeds 1 to 5 end at `8de69a8630389f6e`, `ff60782c68a77273`, `074f5d1d303f8532`, `457e0cdddb989fdb`, `94a7723a85683857`. Side effect, expected from the fixed Magistrate ID: the first birth of `seed1-pairwise` now gets Person ID 52 instead of 51, so the tick-500 Snapshot's newborn names and traits differ (draws are keyed by Person ID). Every life-sim figure (births, deaths, arrivals, waits) is unchanged.
 - Acceptance (fixture acceptance): fmt, clippy, `cargo test --workspace`, the wasm32 test and the R14.4 check exit 0; `batch --seeds 1..=20 --ticks 2000` prints `batch: 20/20 seeds ok`; `batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0 with `batch: 5/5 seeds ok` and every target `=pass`.
 - Nothing pushed or deployed.
+
+### Spec: underworld — checkpoint 2 foundations green (2026-11-12)
+
+- `scripts/gates.sh` exited 0 on the task-1.5 tree in 280 s (log `/tmp/gates-u2.log`), including the Rust gates, the two `batch` runs, the wasm32 parity tests, the web and probe gates and the Smoke_Test. The R14.4 check (`git diff --exit-code afaf87c -- crates/sim-core/src/llm eval/probe/templates/decision.system_one.v1.txt`) exited 0.
+- Nothing pushed or deployed.
