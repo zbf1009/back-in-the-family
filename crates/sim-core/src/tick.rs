@@ -137,6 +137,10 @@ fn validate_act(
     target: PersonId,
     intensity: u8,
 ) -> Result<Intensity, RejectReason> {
+    // R15.9: any Person field naming the Magistrate is rejected before any other check.
+    if actor == world.magistrate().id || target == world.magistrate().id {
+        return Err(RejectReason::OfficialPerson);
+    }
     let (Some(actor_person), Some(target_person)) =
         (world.persons.get(&actor), world.persons.get(&target))
     else {
@@ -303,6 +307,27 @@ mod tests {
             s.world().rejections().last,
             Some((Tick(0), InputSeq(0), RejectReason::UnknownPerson))
         );
+    }
+
+    #[test]
+    fn an_act_naming_the_magistrate_is_rejected_official_person() {
+        for as_actor in [true, false] {
+            let mut s = sim();
+            let (a, _) = two_residents(&s);
+            let magistrate = s.world().magistrate().id.0;
+            let payload = if as_actor {
+                act(magistrate, a, 40)
+            } else {
+                act(a, magistrate, 40)
+            };
+            s.submit(Tick(0), payload).unwrap();
+            s.step();
+            assert_eq!(
+                s.world().rejections().last,
+                Some((Tick(0), InputSeq(0), RejectReason::OfficialPerson)),
+                "as_actor {as_actor}"
+            );
+        }
     }
 
     #[test]
@@ -491,6 +516,6 @@ mod tests {
             ),
             before
         );
-        assert_eq!(s.world.person_ids, IdCounter::starting_at(1 + 40));
+        assert_eq!(s.world.person_ids, IdCounter::starting_at(2 + 40));
     }
 }

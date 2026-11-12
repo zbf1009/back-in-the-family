@@ -16,8 +16,9 @@
 //!
 //! [`apply`] destructures [`World`], [`WorldConfig`], [`Souls`], [`FlowTotals`],
 //! [`Rejections`], [`Derived`], [`Person`], [`Life`], [`Household`], [`Property`],
-//! [`Relation`], [`Debt`] and [`JossAccount`] with every field named and no `..`. Adding
-//! a field to any of those structs therefore fails to compile here until the new field
+//! [`Relation`], [`Debt`], [`JossAccount`] and
+//! [`crate::underworld::magistrate::Magistrate`] with every field named and no `..`.
+//! Adding a field to any of those structs therefore fails to compile here until the new field
 //! gets a [`Mutation`] variant (the same discipline as the `Canon` impls). Selectors are
 //! raw integers resolved by modulo over the live collection, so a caller can never
 //! produce an out-of-range index.
@@ -121,6 +122,8 @@ pub enum Mutation {
     RejectionLast { part: u8 },
     /// `JossAccount::balance` of one Soul: plus one.
     JossBalance { soul: u64 },
+    /// `Magistrate::traits`: move `greed` one step within -3..=3.
+    MagistrateTraits,
     /// One Yearly_Cap counter of one Soul: `part % 3` picks `credited` (+1),
     /// `capped_spent` (+1) or `cap_year` (+1).
     JossCapCounter { soul: u64, part: u8 },
@@ -161,6 +164,7 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
         log,
         flows,
         rejections,
+        magistrate,
         joss,
         derived,
     } = world;
@@ -728,6 +732,17 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
             };
             true
         }
+        Mutation::MagistrateTraits => {
+            // Exhaustive: a new `Magistrate` field is a compile error here.
+            let crate::underworld::magistrate::Magistrate { id: _, traits } = magistrate;
+            let value = traits.greed.get();
+            traits.greed = Trait::clamped(if value >= 3 {
+                i64::from(value).saturating_sub(1)
+            } else {
+                i64::from(value).saturating_add(1)
+            });
+            true
+        }
         Mutation::JossBalance { soul } => {
             let keys: Vec<SoulId> = joss.keys().copied().collect();
             let Some(&key) = pick(&keys, soul) else {
@@ -910,6 +925,7 @@ mod tests {
             v.push(Mutation::RejectionLast { part });
         }
         v.push(Mutation::JossBalance { soul: 0 });
+        v.push(Mutation::MagistrateTraits);
         for part in 0..3u8 {
             v.push(Mutation::JossCapCounter { soul: 0, part });
         }

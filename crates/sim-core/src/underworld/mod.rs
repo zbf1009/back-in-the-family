@@ -5,3 +5,4 @@
 //! the tick keeps its written order and every mechanic stays testable on its own.
 
 pub mod joss;
+pub mod magistrate;

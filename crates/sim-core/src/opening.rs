@@ -161,6 +161,7 @@ pub(crate) fn generate(
         log: EventLog::new(),
         flows: crate::economy::FlowTotals::default(),
         rejections: Rejections::default(),
+        magistrate: crate::underworld::magistrate::Magistrate::vacant(),
         joss: std::collections::BTreeMap::new(),
         derived: Derived::default(),
     };
@@ -173,6 +174,7 @@ pub(crate) fn generate(
     assign_souls(&mut world)?;
     choose_player_soul(&mut world)?;
     assign_joss(&mut world);
+    crate::underworld::magistrate::create(&mut world)?;
     world.rebuild_derived();
     Ok(world)
 }

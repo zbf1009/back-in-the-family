@@ -321,6 +321,7 @@ pub struct World {
     pub(crate) log: EventLog,
     pub(crate) flows: FlowTotals,
     pub(crate) rejections: Rejections,
+    pub(crate) magistrate: crate::underworld::magistrate::Magistrate,
     pub(crate) joss: BTreeMap<SoulId, JossAccount>,
     pub(crate) derived: Derived,
 }
@@ -405,6 +406,11 @@ impl World {
         &self.joss
     }
 
+    /// The one fixed official Person, created with the Opening_World (R15.1).
+    pub fn magistrate(&self) -> &crate::underworld::magistrate::Magistrate {
+        &self.magistrate
+    }
+
     /// Sources and sinks of the last tick run.
     pub fn last_flows(&self) -> FlowTotals {
         self.flows
@@ -485,8 +491,9 @@ impl World {
 
     /// The only way an Event enters the log (design "Event append").
     ///
-    /// Checks, in order: every actor exists (R5.7); no actor is dead unless the kind is
-    /// an Afterlife_Event_Type (R5.8, R6.4); every `caused_by` entry is an earlier
+    /// Checks, in order: every actor exists (R5.7), except the Magistrate as the
+    /// recipient of an appeal or its offering (R15.8); no actor is dead unless the kind
+    /// is an Afterlife_Event_Type (R5.8, R6.4); every `caused_by` entry is an earlier
     /// Event with a tick no later than `T` (R5.6); the Event counter has a value left.
     /// On refusal nothing changes. On success the Mood deltas (R14.2) are applied to
     /// living actors and the derived indexes are kept current.
@@ -497,8 +504,19 @@ impl World {
         tags: EventTags,
     ) -> Result<EventId, AppendRefused> {
         let actors: Vec<PersonId> = kind.actors().iter().collect();
-        for &actor in &actors {
-            if !self.persons.contains_key(&actor) {
+        // R5.7: every actor is a Person; R15.8 adds the Magistrate, and only as the
+        // recipient (second actor) of an appeal or its offering.
+        let magistrate = self.magistrate.id;
+        for (position, &actor) in actors.iter().enumerate() {
+            if self.persons.contains_key(&actor) {
+                continue;
+            }
+            let recipient = position == 1
+                && matches!(
+                    kind,
+                    EventKind::BribeOffering { .. } | EventKind::Appeal { .. }
+                );
+            if actor != magistrate || !recipient {
                 return Err(AppendRefused::UnknownActor);
             }
         }
@@ -761,6 +779,7 @@ impl Canon for World {
             log,
             flows,
             rejections,
+            magistrate,
             joss,
             derived: _,
         } = self;
@@ -781,6 +800,7 @@ impl Canon for World {
         log.encode(w);
         flows.encode(w);
         rejections.encode(w);
+        magistrate.encode(w);
         joss.encode(w);
     }
 }
@@ -891,7 +911,8 @@ mod tests {
     fn new_world_starts_at_tick_zero_with_all_counters_at_one() {
         let w = world();
         assert_eq!(w.tick(), Tick(0));
-        assert_eq!(w.person_ids.peek(), w.persons.len() as u64 + 1);
+        // The Residents hold 1..=N; the Magistrate took N + 1.
+        assert_eq!(w.person_ids.peek(), w.persons.len() as u64 + 2);
         assert!(w.household_ids.peek() >= 2);
         assert!(w.property_ids.peek() >= 2);
         // Opening history events exist (a grudge and at least one loan), all at tick 0.
