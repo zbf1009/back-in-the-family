@@ -1866,3 +1866,10 @@ batch: 5/5 seeds ok
 - No encoded state was added, and `scripts/regen-fixtures.sh` left `git status` unchanged: the fixture checksums stay at the task-3.2 values (`c77daf8cea0fbc83`, `a990e46e8150907f`, `e3240d257255b508`).
 - Acceptance: fmt, clippy, `cargo test --workspace`, `cargo test -p sim-wasm --target wasm32-unknown-unknown` and the R14.4 check exit 0.
 - Nothing pushed or deployed.
+
+### Spec: underworld — protected card files shown by a repo-wide search (2026-11-12)
+
+- During task 1.5 the terminal agent ran a repo-wide text search for `Orrin|Vell` (the Magistrate's name). The search matched and printed snippets of `eval/cards/cards/locked.jsonl` and `eval/cards/review/locked.md`, which the plan's rules forbid opening. The agent reported it at the end of the run; it did not use the content and stopped broad searches.
+- Impact: none on any measurement. All Locked_Runs of the llm-probe spec were finished before this (ledger complete); the Kiro side, which writes prompts and must stay blind to the locked set, saw nothing. The terminal agent is not an evaluated model.
+- Follow-up check by the reviewing agent, counts only, nothing printed: the exact name "Orrin Vell" occurs in neither locked file; the first name "Orrin" occurs in the locked set as an unrelated character. No change to the Magistrate's name is needed.
+- Prevention: from here on, every search by the terminal agent is scoped to `crates/`, `scripts/`, `fixtures/`, `web/`, `docs/` and `.kiro/`, and never to `eval/cards/`.
