@@ -19,12 +19,13 @@
 use std::collections::BTreeMap;
 
 use crate::ids::{
-    EntityId, EventId, HouseholdId, IdCounter, InputSeq, PersonId, PropertyId, SoulId, Tick,
+    BirthSlotId, EntityId, EventId, HouseholdId, IdCounter, InputSeq, NodeId, PersonId, PropertyId,
+    SoulId, Tick,
 };
 
 /// Version of the canonical layout. Bump it whenever any encoding rule or any encoded
 /// field changes, so old and new checksums can never be confused for each other.
-pub const CANON_VERSION: u16 = 2;
+pub const CANON_VERSION: u16 = 3;
 
 /// Sink for canonical bytes.
 pub trait CanonWriter {
@@ -154,7 +155,15 @@ macro_rules! impl_canon_id_newtype {
     )*};
 }
 
-impl_canon_id_newtype!(PersonId, HouseholdId, SoulId, EventId, PropertyId);
+impl_canon_id_newtype!(
+    PersonId,
+    HouseholdId,
+    SoulId,
+    EventId,
+    PropertyId,
+    BirthSlotId,
+    NodeId
+);
 
 impl Canon for Tick {
     fn encode<W: CanonWriter>(&self, w: &mut W) {
@@ -247,6 +256,6 @@ mod tests {
 
     #[test]
     fn canon_version_is_encoded_as_u16() {
-        assert_eq!(encode_to_vec(&CANON_VERSION), [2, 0]);
+        assert_eq!(encode_to_vec(&CANON_VERSION), [3, 0]);
     }
 }

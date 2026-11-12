@@ -39,7 +39,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
 ## Tasks
 
 - [ ] 1. Foundations: IDs, Params, Event kinds, joss accounts, inputs, the Magistrate
-  - [ ] 1.1 Add the new IDs, stream tags and Params, and bump `CANON_VERSION` to 3
+  - [x] 1.1 Add the new IDs, stream tags and Params, and bump `CANON_VERSION` to 3
     - Files: `crates/sim-core/src/ids.rs`, `crates/sim-core/src/rng.rs`, `crates/sim-core/src/params.rs`, `crates/sim-core/src/canon.rs`, `crates/sim-core/src/death.rs`, `fixtures/parity/*` (regenerated).
     - Follow design "Data Models" (`ids.rs additions`), "Module layout" (`rng.rs` row) and "Parameters and calibration".
     - `BirthSlotId(u64)` and `NodeId(u64)` with the same derives and `Canon` as the life-sim IDs (no `Hash`); counters start at 1.

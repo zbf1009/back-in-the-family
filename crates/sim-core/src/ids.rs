@@ -33,6 +33,14 @@ pub struct EventId(pub u64);
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub struct PropertyId(pub u64);
 
+/// Stable identifier of an announced Birth_Slot (R7.1). The counter starts at 1.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+pub struct BirthSlotId(pub u64);
+
+/// Stable identifier of a Decision_Node (R3.1). The counter starts at 1.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
+pub struct NodeId(pub u64);
+
 /// Sequence number given to an input when the input stream accepts it.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
 pub struct InputSeq(pub u64);

@@ -30,7 +30,7 @@ pub(crate) fn process_deaths(world: &mut World) {
             continue;
         }
         let age = world.age_years(person);
-        let ppm = world.params.mortality_ppm(age);
+        let ppm = world.params.effective_mortality_ppm(age);
         let roll = draw(
             world.seed,
             person.id.rng_key(),

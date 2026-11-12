@@ -709,7 +709,25 @@ proptest! {
                     // itself is covered by the economy unit tests; money conservation
                     // is Property 1).
                     prop_assert!(is_resident(&before, *lender));
-                    prop_assert!(balance(&before, *lender) >= *amount);
+                    // The lender had the money before the tick, or received it in this
+                    // tick from an estate: deaths run before the loans step, and an heir
+                    // can lend what it just inherited. The `inheritance` magnitude counts
+                    // property as well as cash, so it is an upper bound on the money
+                    // gained. A same-tick arrival cannot be the lender on its endowment
+                    // alone, because the endowment (500..=3000) is below
+                    // `loan_lender_min` (5,000).
+                    let inherited_this_tick: u64 = tail
+                        .iter()
+                        .filter_map(|event| match event.kind {
+                            EventKind::Inheritance { heir, amount, .. } if heir == *lender => {
+                                Some(amount)
+                            }
+                            _ => None,
+                        })
+                        .fold(0u64, u64::saturating_add);
+                    prop_assert!(
+                        balance(&before, *lender).saturating_add(inherited_this_tick) >= *amount
+                    );
                 }
             }
 

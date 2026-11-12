@@ -98,6 +98,69 @@ pub struct Params {
     pub outsider_age_min: u16,
     /// Maximum age of an arriving outsider body.
     pub outsider_age_max: u16,
+    /// Yearly_Cap: the most joss paper one Soul may receive in one Cap_Year, and the
+    /// most it may spend there on hauntings and Rebuilt_Body claims (R2.5, R2.6).
+    pub yearly_cap: u64,
+    /// Smallest affinity toward a Ghost that makes a Resident an eligible offerer
+    /// (OP-U3 A).
+    pub offer_min_affinity: i8,
+    /// Dollars per offering money step (the formula's `money / offer_money_step`).
+    pub offer_money_step: u64,
+    /// Largest number of money steps an offering counts.
+    pub offer_money_max_steps: u64,
+    /// Funeral occasion factor.
+    pub funeral_factor: u64,
+    /// Death-anniversary occasion factor.
+    pub anniversary_factor: u64,
+    /// Halloween occasion factor.
+    pub halloween_factor: u64,
+    /// Halloween's day inside a Cap_Year, as `T % 365` (OP-U3 A).
+    pub halloween_day: u64,
+    /// Joss paper spent on one dream.
+    pub dream_price: u64,
+    /// Joss paper spent on one haunting.
+    pub haunt_price: u64,
+    /// Card intensity of a `haunting` Event (OP-U5 A).
+    pub haunt_intensity: u64,
+    /// Joss paper spent on the Imported_Vessel Standing_Slot.
+    pub imported_price: u64,
+    /// Joss paper spent on the Rebuilt_Body Standing_Slot.
+    pub rebuilt_price: u64,
+    /// Days between a birth announcement and the birth (OP-U7 A).
+    pub birth_lead_days: u64,
+    /// Longest the Player_Soul may wait (OP-U10 A).
+    pub player_max_wait: u64,
+    /// Days after its death before the Player_Soul may claim a Birth_Slot (OP-U6 A).
+    pub register_wait: u64,
+    /// Days `grant_later_slot` opens the register, counted from the ruling tick.
+    pub grant_later_delay: u64,
+    /// `magistrate_ruling`: base of the `grant_next_slot` threshold.
+    pub next_base: u64,
+    /// `magistrate_ruling`: threshold raise per point of the Magistrate's loyalty.
+    pub next_per_loyalty: u64,
+    /// `magistrate_ruling`: largest noise, either sign, on the `grant_next_slot`
+    /// threshold.
+    pub next_noise: u64,
+    /// `magistrate_ruling`: base of the `grant_later_slot` threshold.
+    pub later_base: u64,
+    /// `magistrate_ruling`: threshold raise per point of the Magistrate's loyalty.
+    pub later_per_loyalty: u64,
+    /// `magistrate_ruling`: largest noise, either sign, on the `grant_later_slot`
+    /// threshold.
+    pub later_noise: u64,
+    /// Largest noise, either sign, on a `dream_interpretation` Rules_Default score
+    /// (OP-U11 A).
+    pub dream_noise: u64,
+    /// Affinity a dream's as-intent option adds (OP-U11 table).
+    pub dream_affinity_gain: i8,
+    /// Trust a dream's as-intent option adds.
+    pub dream_trust_gain: i8,
+    /// Affinity `burn_offering` adds.
+    pub burn_offering_affinity_gain: i8,
+    /// Affinity `burn_small` adds.
+    pub burn_small_affinity_gain: i8,
+    /// Lower bound of the daily mortality rate, in ppm (OP-D7 A). `0` disables it.
+    pub mortality_floor_ppm: u32,
 }
 
 /// The default mortality table: `15` at birth, `1` for ages 1..=17, then rising bands
@@ -192,6 +255,35 @@ impl Params {
         rebuilt_share_ppm: 200_000,
         outsider_age_min: 18,
         outsider_age_max: 40,
+        yearly_cap: 500,
+        offer_min_affinity: 1,
+        offer_money_step: 10_000,
+        offer_money_max_steps: 3,
+        funeral_factor: 2,
+        anniversary_factor: 1,
+        halloween_factor: 1,
+        halloween_day: 0,
+        dream_price: 20,
+        haunt_price: 40,
+        haunt_intensity: 50,
+        imported_price: 100,
+        rebuilt_price: 400,
+        birth_lead_days: 180,
+        player_max_wait: 1_095,
+        register_wait: 365,
+        grant_later_delay: 120,
+        next_base: 800,
+        next_per_loyalty: 100,
+        next_noise: 100,
+        later_base: 200,
+        later_per_loyalty: 40,
+        later_noise: 40,
+        dream_noise: 10,
+        dream_affinity_gain: 6,
+        dream_trust_gain: 4,
+        burn_offering_affinity_gain: 3,
+        burn_small_affinity_gain: 1,
+        mortality_floor_ppm: 0,
     };
 
     /// Raised rates for short property-test runs: deaths, births, releases, debts at
@@ -213,6 +305,29 @@ impl Params {
         params
     }
 
+    /// Raised underworld rates for short property-test runs (OP-D7 A): the mortality
+    /// floor makes most Player_Souls die within about 250 ticks, and the short lead
+    /// times and low prices make caps, automatic placements, slot births and every
+    /// rejection occur within 400 ticks.
+    ///
+    /// It is [`Params::stress`] plus the underworld overrides only, so the same code
+    /// paths run with the same thresholds as the default world.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn stress_underworld() -> Self {
+        let mut params = Self::stress();
+        params.mortality_floor_ppm = 4_000;
+        params.birth_lead_days = 10;
+        params.register_wait = 5;
+        params.grant_later_delay = 3;
+        params.player_max_wait = 40;
+        params.yearly_cap = 120;
+        params.dream_price = 5;
+        params.haunt_price = 10;
+        params.imported_price = 20;
+        params.rebuilt_price = 60;
+        params
+    }
+
     /// Mortality of a Resident aged `age` years, in ppm per day. Age 120 and above is
     /// certain (R6.2).
     pub fn mortality_ppm(&self, age: u16) -> u32 {
@@ -230,6 +345,13 @@ impl Params {
         } else {
             self.birth_ppm_unmarried
         }
+    }
+
+    /// The mortality rate the death step rolls against: [`Params::mortality_ppm`]
+    /// raised to the floor (OP-D7 A), `max(mortality_ppm(age), mortality_floor_ppm)`.
+    /// With the default floor of 0 it equals [`Params::mortality_ppm`].
+    pub fn effective_mortality_ppm(&self, age: u16) -> u32 {
+        self.mortality_ppm(age).max(self.mortality_floor_ppm)
     }
 }
 
@@ -269,6 +391,35 @@ impl Canon for Params {
             rebuilt_share_ppm,
             outsider_age_min,
             outsider_age_max,
+            yearly_cap,
+            offer_min_affinity,
+            offer_money_step,
+            offer_money_max_steps,
+            funeral_factor,
+            anniversary_factor,
+            halloween_factor,
+            halloween_day,
+            dream_price,
+            haunt_price,
+            haunt_intensity,
+            imported_price,
+            rebuilt_price,
+            birth_lead_days,
+            player_max_wait,
+            register_wait,
+            grant_later_delay,
+            next_base,
+            next_per_loyalty,
+            next_noise,
+            later_base,
+            later_per_loyalty,
+            later_noise,
+            dream_noise,
+            dream_affinity_gain,
+            dream_trust_gain,
+            burn_offering_affinity_gain,
+            burn_small_affinity_gain,
+            mortality_floor_ppm,
         } = self;
         // Fixed-length table, so no length prefix is needed.
         for ppm in mortality_ppm_by_age {
@@ -300,6 +451,35 @@ impl Canon for Params {
         rebuilt_share_ppm.encode(w);
         outsider_age_min.encode(w);
         outsider_age_max.encode(w);
+        yearly_cap.encode(w);
+        offer_min_affinity.encode(w);
+        offer_money_step.encode(w);
+        offer_money_max_steps.encode(w);
+        funeral_factor.encode(w);
+        anniversary_factor.encode(w);
+        halloween_factor.encode(w);
+        halloween_day.encode(w);
+        dream_price.encode(w);
+        haunt_price.encode(w);
+        haunt_intensity.encode(w);
+        imported_price.encode(w);
+        rebuilt_price.encode(w);
+        birth_lead_days.encode(w);
+        player_max_wait.encode(w);
+        register_wait.encode(w);
+        grant_later_delay.encode(w);
+        next_base.encode(w);
+        next_per_loyalty.encode(w);
+        next_noise.encode(w);
+        later_base.encode(w);
+        later_per_loyalty.encode(w);
+        later_noise.encode(w);
+        dream_noise.encode(w);
+        dream_affinity_gain.encode(w);
+        dream_trust_gain.encode(w);
+        burn_offering_affinity_gain.encode(w);
+        burn_small_affinity_gain.encode(w);
+        mortality_floor_ppm.encode(w);
     }
 }
 
@@ -387,6 +567,35 @@ mod tests {
         assert_eq!(p.rebuilt_share_ppm, 200_000);
         assert_eq!(p.outsider_age_min, 18);
         assert_eq!(p.outsider_age_max, 40);
+        assert_eq!(p.yearly_cap, 500);
+        assert_eq!(p.offer_min_affinity, 1);
+        assert_eq!(p.offer_money_step, 10_000);
+        assert_eq!(p.offer_money_max_steps, 3);
+        assert_eq!(p.funeral_factor, 2);
+        assert_eq!(p.anniversary_factor, 1);
+        assert_eq!(p.halloween_factor, 1);
+        assert_eq!(p.halloween_day, 0);
+        assert_eq!(p.dream_price, 20);
+        assert_eq!(p.haunt_price, 40);
+        assert_eq!(p.haunt_intensity, 50);
+        assert_eq!(p.imported_price, 100);
+        assert_eq!(p.rebuilt_price, 400);
+        assert_eq!(p.birth_lead_days, 180);
+        assert_eq!(p.player_max_wait, 1_095);
+        assert_eq!(p.register_wait, 365);
+        assert_eq!(p.grant_later_delay, 120);
+        assert_eq!(p.next_base, 800);
+        assert_eq!(p.next_per_loyalty, 100);
+        assert_eq!(p.next_noise, 100);
+        assert_eq!(p.later_base, 200);
+        assert_eq!(p.later_per_loyalty, 40);
+        assert_eq!(p.later_noise, 40);
+        assert_eq!(p.dream_noise, 10);
+        assert_eq!(p.dream_affinity_gain, 6);
+        assert_eq!(p.dream_trust_gain, 4);
+        assert_eq!(p.burn_offering_affinity_gain, 3);
+        assert_eq!(p.burn_small_affinity_gain, 1);
+        assert_eq!(p.mortality_floor_ppm, 0);
     }
 
     #[cfg(any(test, feature = "test-support"))]
@@ -415,18 +624,98 @@ mod tests {
         assert_eq!(stressed.wage_max, default.wage_max);
     }
 
+    #[cfg(any(test, feature = "test-support"))]
+    #[test]
+    fn stress_underworld_values_are_pinned() {
+        let p = Params::stress_underworld();
+        let base = Params::stress();
+        // The life-sim stress overrides are inherited unchanged.
+        assert_eq!(p.birth_ppm(true), base.birth_ppm(true));
+        assert_eq!(p.max_wait, base.max_wait);
+        assert_eq!(p.mortality_ppm_by_age, base.mortality_ppm_by_age);
+        // The underworld overrides of OP-D7 A.
+        assert_eq!(p.mortality_floor_ppm, 4_000);
+        assert_eq!(p.birth_lead_days, 10);
+        assert_eq!(p.register_wait, 5);
+        assert_eq!(p.grant_later_delay, 3);
+        assert_eq!(p.player_max_wait, 40);
+        assert_eq!(p.yearly_cap, 120);
+        assert_eq!(p.dream_price, 5);
+        assert_eq!(p.haunt_price, 10);
+        assert_eq!(p.imported_price, 20);
+        assert_eq!(p.rebuilt_price, 60);
+        // Every other underworld parameter keeps its default.
+        let default = Params::DEFAULT;
+        assert_eq!(p.offer_min_affinity, default.offer_min_affinity);
+        assert_eq!(p.offer_money_step, default.offer_money_step);
+        assert_eq!(p.offer_money_max_steps, default.offer_money_max_steps);
+        assert_eq!(p.funeral_factor, default.funeral_factor);
+        assert_eq!(p.anniversary_factor, default.anniversary_factor);
+        assert_eq!(p.halloween_factor, default.halloween_factor);
+        assert_eq!(p.halloween_day, default.halloween_day);
+        assert_eq!(p.haunt_intensity, default.haunt_intensity);
+        assert_eq!(p.next_base, default.next_base);
+        assert_eq!(p.next_per_loyalty, default.next_per_loyalty);
+        assert_eq!(p.next_noise, default.next_noise);
+        assert_eq!(p.later_base, default.later_base);
+        assert_eq!(p.later_per_loyalty, default.later_per_loyalty);
+        assert_eq!(p.later_noise, default.later_noise);
+        assert_eq!(p.dream_noise, default.dream_noise);
+        assert_eq!(p.dream_affinity_gain, default.dream_affinity_gain);
+        assert_eq!(p.dream_trust_gain, default.dream_trust_gain);
+        assert_eq!(
+            p.burn_offering_affinity_gain,
+            default.burn_offering_affinity_gain
+        );
+        assert_eq!(p.burn_small_affinity_gain, default.burn_small_affinity_gain);
+        // A stress world can buy the Rebuilt_Body slot inside the spend cap.
+        assert!(p.imported_price < p.rebuilt_price);
+        assert!(
+            p.rebuilt_price <= p.yearly_cap.saturating_sub(p.haunt_price),
+            "rebuilt price must fit under the spend cap"
+        );
+    }
+
+    #[test]
+    fn the_mortality_floor_raises_a_low_band_and_leaves_a_higher_band_unchanged() {
+        let mut p = Params::DEFAULT;
+        // The default floor of 0 leaves the table untouched.
+        for age in 0..=120u16 {
+            assert_eq!(
+                p.effective_mortality_ppm(age),
+                p.mortality_ppm(age),
+                "{age}"
+            );
+        }
+        // A floor of 50 raises the low bands (3, 10 and 40) ...
+        p.mortality_floor_ppm = 50;
+        assert_eq!(p.effective_mortality_ppm(30), 50);
+        assert_eq!(p.effective_mortality_ppm(0), 50);
+        assert_eq!(p.effective_mortality_ppm(45), 50);
+        assert_eq!(p.effective_mortality_ppm(65), 50);
+        // ... and leaves the bands above it unchanged.
+        assert_eq!(p.effective_mortality_ppm(70), 110);
+        assert_eq!(p.effective_mortality_ppm(80), 300);
+        assert_eq!(p.effective_mortality_ppm(90), 800);
+        assert_eq!(p.effective_mortality_ppm(100), 2_000);
+        // Certain death stays certain.
+        assert_eq!(p.effective_mortality_ppm(120), CERTAIN_MORTALITY_PPM);
+        assert_eq!(p.effective_mortality_ppm(500), CERTAIN_MORTALITY_PPM);
+    }
+
     #[test]
     fn canonical_encoding_is_fixed_width_and_deterministic() {
         use crate::canon::{CanonBytes, encode_to_vec};
 
         let bytes = encode_to_vec(&Params::DEFAULT);
-        // 120 u32 rates + 86 bytes of scalars (pinned here on purpose: a field added
+        // 120 u32 rates + 279 bytes of scalars (pinned here on purpose: a field added
         // to Params without encoding it fails the exhaustive destructuring instead).
-        assert_eq!(bytes.len(), 566);
+        assert_eq!(bytes.len(), 759);
         assert_eq!(&bytes[..4], &15u32.to_le_bytes());
         assert_eq!(
             &bytes[bytes.len() - 8..],
-            &[0x40, 0x0D, 0x03, 0x00, 18, 0, 40, 0]
+            &[6, 4, 3, 1, 0, 0, 0, 0],
+            "the four dream gains, then mortality_floor_ppm"
         );
         let mut w = CanonBytes::new();
         Params::DEFAULT.encode(&mut w);

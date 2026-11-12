@@ -52,6 +52,17 @@ pub enum StreamTag {
     Social = 13,
     /// Economy rolls, including the daily wage of a Resident.
     Economy = 14,
+    /// Decision_Node noise: `dream` noise and the two `magistrate_ruling` noise terms,
+    /// keyed by the Node ID (`EntityId(node_id)`).
+    Nodes = 15,
+    /// **Reserved and unused.** Offerings are a fixed formula with no draws; the tag is
+    /// kept for later `Offering_Occasion` variants and must never be reused.
+    Offerings = 16,
+    /// **Tooling only; the simulation never draws from this stream.** `sim-cli`'s
+    /// Auto_Player plans its Player_Soul inputs from `StreamTag::AutoPlayer` streams
+    /// keyed by the world seed and the Player_Soul's ID (R11.1), so tooling can never
+    /// alias a simulation stream. Value 17 is permanent like the others.
+    AutoPlayer = 17,
 }
 
 // Distinct odd multipliers, one per input position (seed, entity, tag, tick, index).
@@ -145,6 +156,20 @@ mod tests {
         assert_eq!(StreamTag::RetiredDrift as u8, 1);
         assert_eq!(StreamTag::RetiredAffinity as u8, 2);
         assert_eq!(StreamTag::ToolingInputs as u8, 3);
+        assert_eq!(StreamTag::OpeningWorld as u8, 4);
+        assert_eq!(StreamTag::Traits as u8, 5);
+        assert_eq!(StreamTag::Names as u8, 6);
+        assert_eq!(StreamTag::Mortality as u8, 7);
+        assert_eq!(StreamTag::Births as u8, 8);
+        assert_eq!(StreamTag::Outsiders as u8, 9);
+        assert_eq!(StreamTag::Marriage as u8, 10);
+        assert_eq!(StreamTag::Loans as u8, 11);
+        assert_eq!(StreamTag::Repayments as u8, 12);
+        assert_eq!(StreamTag::Social as u8, 13);
+        assert_eq!(StreamTag::Economy as u8, 14);
+        assert_eq!(StreamTag::Nodes as u8, 15);
+        assert_eq!(StreamTag::Offerings as u8, 16);
+        assert_eq!(StreamTag::AutoPlayer as u8, 17);
     }
 
     #[test]
