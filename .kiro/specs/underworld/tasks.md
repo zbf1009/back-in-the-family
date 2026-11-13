@@ -148,7 +148,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Unit tests: each new check fires on a hand-built violating World or Event (through `testing::Mutation` or test-support setters) with its label and tick.
     - _Requirements: 12.1, 12.2, 1.1, 1.2, 1.3, 2.5, 2.6, 4.3, 5.3, 15.1, 15.4, 15.5, 15.6, 15.7, 15.8_
     - Acceptance: Rust gates; `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0. Commit as `feat(sim-core): check underworld invariants every tick`.
-  - [ ] 6.2 Add the underworld run generator
+  - [x] 6.2 Add the underworld run generator
     - Files: `crates/sim-core/tests/underworld_gen/mod.rs` (new), `crates/sim-core/tests/life_gen/mod.rs` (only to share helpers).
     - Follow design "Correctness Properties" ("Generated underworld run"): a seed, `opening_residents` in 40..=60, `Params::stress_underworld()` in 3 cases of 4 and `Params::DEFAULT` otherwise, 400 ticks, and per tick a state-aware mix of valid underworld inputs built from the World and invalid ones (wrong dreamer, the Magistrate's ID, zero or excessive Bribe, closed slot, `Choose` with a wrong trigger or option), plus life-sim `Act` inputs. Valid `Choose` inputs use `preview_node`. A stepping helper yields `(before, after, outcomes)` per tick and runs the extended `InvariantChecker`. Add a smoke test that, over 20 generated runs, at least one dream, haunting, Bribe, Birth claim, Standing claim and forced placement occurs (so the properties are not vacuous).
     - _Requirements: 12.1, 12.3_
