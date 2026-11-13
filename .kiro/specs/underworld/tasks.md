@@ -101,7 +101,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Acceptance: Rust gates; `cargo test -p sim-wasm --target wasm32-unknown-unknown`; the R14.4 check. The random-input fixtures contain only `Act` inputs, so Checksums should not change; if `scripts/regen-fixtures.sh` changes them, follow the fixture rule and explain why in the commit body. Commit as `feat(sim-core): add slot claims and carry-over`.
 
 - [ ] 4. Offerings, Decision_Nodes, dreams, hauntings and Bribes
-  - [ ] 4.1 Add offerings (step 5)
+  - [x] 4.1 Add offerings (step 5)
     - Files: `crates/sim-core/src/underworld/offerings.rs` (new), `crates/sim-core/src/underworld/mod.rs`, `crates/sim-core/src/tick.rs`, `fixtures/parity/*` (regenerated).
     - Follow design "Offerings" and OP-U3 A. `underworld::process_offerings` in step 5: Ghosts in Person ID order; occasion factor (funeral 2, anniversary 1, Halloween on `T % 365 == halloween_day` 1, the largest on a shared tick); eligible offerers aged 12+ with affinity at least `offer_min_affinity`, in Person ID order; `offering_amount` exactly as the design formula (floor, 0..=500); an amount of at least 1 appends `Offering` with `credited` from `joss::credit`. No money moves (R2.8). A reborn Soul's dead body gets nothing.
     - Unit tests: the formula at 0, 1 and 500; funeral and Halloween on the same tick count once with factor 2; a reborn Soul's dead body gets no offering; no money balance changes; the credit stops at the cap while `magnitude` stays the full amount.

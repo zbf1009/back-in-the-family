@@ -11,8 +11,11 @@ pub mod carry_over;
 pub mod ghosts;
 pub mod joss;
 pub mod magistrate;
+pub mod offerings;
 pub mod player;
 pub mod slots;
+
+pub(crate) use offerings::process_offerings;
 
 /// Step 3, after the NPC releases: places the Player_Soul in a new Imported_Vessel when
 /// its wait exceeds `player_max_wait` (R8.1). Any claim is released and the slot stays
