@@ -142,7 +142,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
   - `scripts/gates.sh` must exit 0, and the R14.4 check exits 0. Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 6. Invariants, generator and property tests
-  - [ ] 6.1 Extend the invariant checker
+  - [x] 6.1 Extend the invariant checker
     - Files: `crates/sim-core/src/invariants.rs`.
     - Follow design "Invariant checker additions". Add `U1.2`, `U1.3`, `U2.5`, `U2.6`, `U4.3`, `U5.3`, `U15.1` and `U15.4` to `U15.8` (`U7.10` and `U8.3` exist from 3.2), with the stateful parts (previous balances, per-Soul cap counters folded from the log, the opening Magistrate). Life-sim check `5.8` keeps its code and uses the extended Afterlife set.
     - Unit tests: each new check fires on a hand-built violating World or Event (through `testing::Mutation` or test-support setters) with its label and tick.

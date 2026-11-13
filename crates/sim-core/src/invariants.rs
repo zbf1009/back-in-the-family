@@ -11,12 +11,20 @@
 //! `sim-cli batch` and the property tests use this one implementation, so R17.6 and
 //! Property 1 exercise the same code. Every check returns the first
 //! [`Violation`] with the requirement number as `criterion` text (for example `"9.3"`).
+//!
+//! This spec adds the underworld checks of design "Invariant checker additions": the
+//! log is the joss ledger (`U1.2`, `U1.3`), the Yearly_Cap holds (`U2.5`, `U2.6`),
+//! dreams and hauntings name a living Connected_Person (`U4.3`, `U5.3`), the
+//! Player_Soul's wait is bounded and its claim open (`U7.10`, `U8.3`), and the
+//! Magistrate stays fixed and outside the town (`U15.1`, `U15.4` to `U15.8`). Their
+//! labels start with `U`, so they never collide with a life-sim label.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use crate::events::{EventKind, fold_digest};
-use crate::ids::{EventId, HouseholdId, PersonId};
+use crate::ids::{EventId, HouseholdId, PersonId, SoulId};
+use crate::underworld::magistrate::Magistrate;
 use crate::world::{Life, SoulPlace, World};
 
 /// The first broken invariant, as reported by `sim-cli batch` (R17.7).
@@ -50,6 +58,15 @@ pub struct InvariantChecker {
     previous_log_len: usize,
     previous_digest: [u8; 32],
     previous_player_place: SoulPlace,
+    /// Joss_Balances at the end of the previous tick (R1.3).
+    previous_joss: BTreeMap<SoulId, u64>,
+    /// `credited` of every Soul in every Cap_Year, folded from the log (R2.5).
+    credited_by_year: BTreeMap<(SoulId, u64), u64>,
+    /// Haunting and Rebuilt_Body spends of every Soul in every Cap_Year, folded from
+    /// the log (R2.6).
+    capped_spent_by_year: BTreeMap<(SoulId, u64), u64>,
+    /// The Magistrate as Opening_World generation created it (R15.1).
+    magistrate: Magistrate,
 }
 
 impl InvariantChecker {
@@ -59,11 +76,27 @@ impl InvariantChecker {
         check_log_tail(world, 0, &[0u8; 32])?;
         check_event_tail(world, 0)?;
         let previous_player_place = player_place(world)?;
+        check_magistrate_log(world, 0)?;
+        let mut credited_by_year = BTreeMap::new();
+        let mut capped_spent_by_year = BTreeMap::new();
+        // Opening_World generation leaves every Joss_Balance at 0, so the opening log
+        // is folded against an empty baseline.
+        check_ledger(
+            world,
+            0,
+            &BTreeMap::new(),
+            &mut credited_by_year,
+            &mut capped_spent_by_year,
+        )?;
         Ok(Self {
             previous_total_money: total_money(world),
             previous_log_len: world.log().len(),
             previous_digest: world.log().digest(),
             previous_player_place,
+            previous_joss: previous_joss(world),
+            credited_by_year,
+            capped_spent_by_year,
+            magistrate: world.magistrate().clone(),
         })
     }
 
@@ -80,6 +113,23 @@ impl InvariantChecker {
         // rebuild Event for its new body in this tick (replaces life-sim check 20.1).
         let player_place = player_place(world)?;
         check_player_exit(world, self.previous_player_place, self.previous_log_len)?;
+
+        // U1.2, U1.3, U2.5, U2.6: the log is the ledger and the cap counters agree with it.
+        check_ledger(
+            world,
+            self.previous_log_len,
+            &self.previous_joss,
+            &mut self.credited_by_year,
+            &mut self.capped_spent_by_year,
+        )?;
+
+        // U4.3, U5.3: a dream's dreamer and a haunting's target were a living
+        // Connected_Person of the acting Ghost at the append.
+        check_afterlife_targets(world, self.previous_log_len)?;
+
+        // U15.1, U15.5, U15.8: the Magistrate never changes and stays outside the town.
+        check_magistrate(world, &self.magistrate)?;
+        check_magistrate_log(world, self.previous_log_len)?;
 
         // R3.5: total money after = before + sources - sinks.
         let current_total = total_money(world);
@@ -102,8 +152,18 @@ impl InvariantChecker {
         self.previous_log_len = world.log().len();
         self.previous_digest = world.log().digest();
         self.previous_player_place = player_place;
+        self.previous_joss = previous_joss(world);
         Ok(())
     }
+}
+
+/// Every Soul's Joss_Balance, in Soul ID order (R1.1).
+fn previous_joss(world: &World) -> BTreeMap<SoulId, u64> {
+    world
+        .joss()
+        .iter()
+        .map(|(&soul, account)| (soul, account.balance))
+        .collect()
 }
 
 /// The tick the checked state belongs to: the tick just run, which is the World's tick
@@ -159,6 +219,7 @@ fn check_world(world: &World) -> Result<(), Violation> {
     check_debts(world)?;
     check_waiting(world)?;
     check_player_wait(world)?;
+    check_magistrate_state(world)?;
     check_names(world)?;
     Ok(())
 }
@@ -484,7 +545,9 @@ fn check_event_tail(world: &World, start: usize) -> Result<(), Violation> {
             }
         }
         for actor in event.kind.actors().iter() {
-            if !world.persons().contains_key(&actor) {
+            // R5.7: the actor exists. The one official Person exists outside
+            // `World::persons`; its recipient-only rule is U15.8.
+            if !world.persons().contains_key(&actor) && actor != world.magistrate().id {
                 return Err(violation(
                     "5.7",
                     world,
@@ -813,6 +876,475 @@ fn check_player_wait(world: &World) -> Result<(), Violation> {
     Ok(())
 }
 
+/// The Soul-owning actor of one ledger Event, the parts that move that Soul's balance
+/// and whether the spend counts against the Yearly_Cap (OP-D3 A, R2.6).
+struct LedgerFields {
+    holder: PersonId,
+    credit: u64,
+    spend: u64,
+    capped: bool,
+}
+
+/// The ledger line of one Event, or `None` for every Event that moves no joss paper
+/// (R1.2: each Event carries at most one credit or spend, which this `match` states).
+fn ledger_fields(kind: &EventKind) -> Option<LedgerFields> {
+    match kind {
+        EventKind::Offering {
+            ghost, credited, ..
+        } => Some(LedgerFields {
+            holder: *ghost,
+            credit: *credited,
+            spend: 0,
+            capped: false,
+        }),
+        EventKind::BribeOffering { ghost, amount, .. } => Some(LedgerFields {
+            holder: *ghost,
+            credit: 0,
+            spend: *amount,
+            capped: false,
+        }),
+        EventKind::Dream { ghost, price, .. } => Some(LedgerFields {
+            holder: *ghost,
+            credit: 0,
+            spend: *price,
+            capped: false,
+        }),
+        EventKind::Haunting { ghost, price, .. } => Some(LedgerFields {
+            holder: *ghost,
+            credit: 0,
+            spend: *price,
+            capped: true,
+        }),
+        EventKind::Possession { person, price } => Some(LedgerFields {
+            holder: *person,
+            credit: 0,
+            spend: *price,
+            capped: false,
+        }),
+        EventKind::Rebuild { person, price } => Some(LedgerFields {
+            holder: *person,
+            credit: 0,
+            spend: *price,
+            capped: true,
+        }),
+        _ => None,
+    }
+}
+
+/// U1.2, U1.3, U2.5, U2.6: one account per Soul, every ledger field attributable to one
+/// Soul, the per-tick balance identity of R1.3, and the Yearly_Cap of R2.5/R2.6 with
+/// the counters the account keeps.
+///
+/// `previous` holds the balances at the end of the previous tick; `credited_by_year`
+/// and `capped_spent_by_year` fold the ledger over the whole run and are advanced by the
+/// Events from `start` on.
+fn check_ledger(
+    world: &World,
+    start: usize,
+    previous: &BTreeMap<SoulId, u64>,
+    credited_by_year: &mut BTreeMap<(SoulId, u64), u64>,
+    capped_spent_by_year: &mut BTreeMap<(SoulId, u64), u64>,
+) -> Result<(), Violation> {
+    let yearly_cap = world.params().yearly_cap;
+    // R1.1: exactly one Joss_Balance per Soul, and no balance without a Soul.
+    for &soul in world.souls().places.keys() {
+        if !world.joss().contains_key(&soul) {
+            return Err(violation(
+                "U1.2",
+                world,
+                format!("soul {} has no Joss_Balance", soul.0),
+            ));
+        }
+    }
+    for &soul in world.joss().keys() {
+        if !world.souls().places.contains_key(&soul) {
+            return Err(violation(
+                "U1.2",
+                world,
+                format!("Joss_Balance of unknown soul {}", soul.0),
+            ));
+        }
+    }
+
+    let events = world.log().events();
+    let tail = events.get(start..).unwrap_or(&[]);
+    // The bodies created in this tick: an Offering to a Ghost whose Soul a birth took
+    // over in this same tick still names a waiting Soul at the append (R1.4).
+    let reborn_this_tick: BTreeSet<PersonId> = tail
+        .iter()
+        .filter_map(|event| match &event.kind {
+            EventKind::Birth { person }
+            | EventKind::Possession { person, .. }
+            | EventKind::Rebuild { person, .. } => Some(*person),
+            _ => None,
+        })
+        .collect();
+
+    let mut movement: BTreeMap<SoulId, i128> = BTreeMap::new();
+    for event in tail {
+        let Some(fields) = ledger_fields(&event.kind) else {
+            continue;
+        };
+        // U1.2: the credited or charged Person exists and carries a Soul.
+        let Some(person) = world.persons().get(&fields.holder) else {
+            return Err(violation(
+                "U1.2",
+                world,
+                format!(
+                    "event {} ({}) moves joss paper of unknown person {}",
+                    event.id.0,
+                    event.kind.card_type(),
+                    fields.holder.0
+                ),
+            ));
+        };
+        let soul = person.soul;
+        if !world.joss().contains_key(&soul) {
+            return Err(violation(
+                "U1.2",
+                world,
+                format!(
+                    "event {} moves joss paper of soul {} with no account",
+                    event.id.0, soul.0
+                ),
+            ));
+        }
+        if let EventKind::Offering {
+            amount, credited, ..
+        } = &event.kind
+        {
+            if *credited > *amount {
+                return Err(violation(
+                    "U1.2",
+                    world,
+                    format!(
+                        "offering {} credits {credited} of a magnitude {amount}",
+                        event.id.0
+                    ),
+                ));
+            }
+            // R1.4: an Offering with a credit names a Ghost, never a Soul in a body.
+            if *credited > 0 && !matches!(person.life, Life::Dead { .. }) {
+                return Err(violation(
+                    "U1.2",
+                    world,
+                    format!(
+                        "offering {} credits the living person {}",
+                        event.id.0, fields.holder.0
+                    ),
+                ));
+            }
+            if *credited > 0
+                && let Some(SoulPlace::Body(body)) = world.souls().places.get(&soul)
+                && !reborn_this_tick.contains(body)
+            {
+                return Err(violation(
+                    "U1.2",
+                    world,
+                    format!(
+                        "offering {} credits soul {} in body {}",
+                        event.id.0, soul.0, body.0
+                    ),
+                ));
+            }
+        }
+
+        let year = event
+            .tick
+            .0
+            .checked_div(crate::underworld::joss::DAYS_PER_CAP_YEAR)
+            .unwrap_or(0);
+        if fields.credit > 0 {
+            let credited = credited_by_year.entry((soul, year)).or_insert(0);
+            *credited = credited.saturating_add(fields.credit);
+            if *credited > yearly_cap {
+                return Err(violation(
+                    "U2.5",
+                    world,
+                    format!(
+                        "soul {} is credited {} in Cap_Year {year}, cap {yearly_cap}",
+                        soul.0, *credited
+                    ),
+                ));
+            }
+        }
+        if fields.capped && fields.spend > 0 {
+            let spent = capped_spent_by_year.entry((soul, year)).or_insert(0);
+            *spent = spent.saturating_add(fields.spend);
+            if *spent > yearly_cap {
+                return Err(violation(
+                    "U2.6",
+                    world,
+                    format!(
+                        "soul {} spends {spent} on hauntings and Rebuilt_Bodies in Cap_Year \
+{year}, cap {yearly_cap}",
+                        soul.0
+                    ),
+                ));
+            }
+        }
+        let delta = i128::from(fields.credit).saturating_sub(i128::from(fields.spend));
+        let entry = movement.entry(soul).or_insert(0);
+        *entry = entry.saturating_add(delta);
+    }
+
+    // U1.3: the balance at the end of the tick is the balance at the start plus this
+    // tick's credits minus this tick's spends, for every Soul.
+    for (&soul, account) in world.joss() {
+        let before = previous.get(&soul).copied().unwrap_or(0);
+        let delta = movement.get(&soul).copied().unwrap_or(0);
+        let expected = i128::from(before).saturating_add(delta);
+        if expected < 0 || u128::try_from(expected).ok() != Some(u128::from(account.balance)) {
+            return Err(violation(
+                "U1.3",
+                world,
+                format!(
+                    "soul {} holds {} after starting at {before} with a movement of {delta}",
+                    soul.0, account.balance
+                ),
+            ));
+        }
+    }
+
+    // U2.5, U2.6: the counters the account keeps are exactly the log's fold for the
+    // Cap_Year it belongs to, and neither exceeds the Yearly_Cap.
+    for (&soul, account) in world.joss() {
+        if account.credited > yearly_cap {
+            return Err(violation(
+                "U2.5",
+                world,
+                format!(
+                    "soul {} has a credit counter of {} in Cap_Year {}",
+                    soul.0, account.credited, account.cap_year
+                ),
+            ));
+        }
+        if account.capped_spent > yearly_cap {
+            return Err(violation(
+                "U2.6",
+                world,
+                format!(
+                    "soul {} has a spend counter of {} in Cap_Year {}",
+                    soul.0, account.capped_spent, account.cap_year
+                ),
+            ));
+        }
+        let credited = credited_by_year
+            .get(&(soul, account.cap_year))
+            .copied()
+            .unwrap_or(0);
+        if account.credited != credited {
+            return Err(violation(
+                "U2.5",
+                world,
+                format!(
+                    "soul {} credits {} but the log folded {credited} in Cap_Year {}",
+                    soul.0, account.credited, account.cap_year
+                ),
+            ));
+        }
+        let spent = capped_spent_by_year
+            .get(&(soul, account.cap_year))
+            .copied()
+            .unwrap_or(0);
+        if account.capped_spent != spent {
+            return Err(violation(
+                "U2.6",
+                world,
+                format!(
+                    "soul {} spent {} but the log folded {spent} in Cap_Year {}",
+                    soul.0, account.capped_spent, account.cap_year
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// U4.3, U5.3: every `dream` and `haunting` Event appended since `start` names a
+/// Person who was a living Resident at the append and is connected to the acting Ghost,
+/// unless the Person's own death came later in the same tick and removed the Relation.
+fn check_afterlife_targets(world: &World, start: usize) -> Result<(), Violation> {
+    let events = world.log().events();
+    let tail = events.get(start..).unwrap_or(&[]);
+    if !tail.iter().any(|event| {
+        matches!(
+            event.kind,
+            EventKind::Dream { .. } | EventKind::Haunting { .. }
+        )
+    }) {
+        return Ok(());
+    }
+    let mut first_death: BTreeMap<PersonId, EventId> = BTreeMap::new();
+    for event in events {
+        if let EventKind::Death { person } = event.kind {
+            first_death.entry(person).or_insert(event.id);
+        }
+    }
+    for event in tail {
+        let (criterion, target, ghost) = match &event.kind {
+            EventKind::Dream { ghost, dreamer, .. } => ("U4.3", *dreamer, *ghost),
+            EventKind::Haunting { ghost, target, .. } => ("U5.3", *target, *ghost),
+            _ => continue,
+        };
+        if let Some(&death) = first_death.get(&target) {
+            if death.0 < event.id.0 {
+                return Err(violation(
+                    criterion,
+                    world,
+                    format!(
+                        "event {} ({}) names person {} whose death event {} is earlier",
+                        event.id.0,
+                        event.kind.card_type(),
+                        target.0,
+                        death.0
+                    ),
+                ));
+            }
+            // The Person died after the append, so a non-kin Relation removed by that
+            // death is not evidence of a bad append.
+            continue;
+        }
+        if !world.relations().contains_key(&(target, ghost)) {
+            return Err(violation(
+                criterion,
+                world,
+                format!(
+                    "event {} ({}) names person {} with no Relation to the acting Ghost {}",
+                    event.id.0,
+                    event.kind.card_type(),
+                    target.0,
+                    ghost.0
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// U15.1, U15.4 to U15.7: the Magistrate is the Opening_World Magistrate and stays out
+/// of every Household, Relation, Debt, property and Soul_Place (R15.1, R15.4 to R15.7).
+fn check_magistrate(world: &World, opening: &Magistrate) -> Result<(), Violation> {
+    if world.magistrate() != opening {
+        return Err(violation(
+            "U15.1",
+            world,
+            format!(
+                "the Magistrate changed from {:?} to {:?}",
+                opening,
+                world.magistrate()
+            ),
+        ));
+    }
+    check_magistrate_state(world)
+}
+
+/// The world-only half of [`check_magistrate`] (R15.4 to R15.7).
+fn check_magistrate_state(world: &World) -> Result<(), Violation> {
+    let id = world.magistrate().id;
+    // R15.4: no Resident entry (so no money balance), no Household, no property, no Debt.
+    if world.persons().contains_key(&id) {
+        return Err(violation(
+            "U15.4",
+            world,
+            format!("the Magistrate {} is stored as a Person", id.0),
+        ));
+    }
+    if world
+        .properties()
+        .values()
+        .any(|property| property.owner == id)
+    {
+        return Err(violation(
+            "U15.4",
+            world,
+            format!("the Magistrate {} owns a property item", id.0),
+        ));
+    }
+    if world
+        .debts()
+        .values()
+        .any(|debt| debt.creditor == id || debt.debtor == id)
+    {
+        return Err(violation(
+            "U15.4",
+            world,
+            format!("the Magistrate {} is part of a Debt", id.0),
+        ));
+    }
+    // R15.6: no Soul and no Soul_Place.
+    for (&soul, place) in &world.souls().places {
+        if matches!(place, SoulPlace::Body(body) if *body == id) {
+            return Err(violation(
+                "U15.6",
+                world,
+                format!("soul {} is placed in the Magistrate's body", soul.0),
+            ));
+        }
+    }
+    // R15.7: no Relation from or to the Magistrate.
+    for &(from, to) in world.relations().keys() {
+        if from == id || to == id {
+            return Err(violation(
+                "U15.7",
+                world,
+                format!("the Magistrate {} has a Relation", id.0),
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// U15.5, U15.8: no Event runs a rule with the Magistrate in a role (R15.5) and the
+/// Magistrate appears only as the recipient of an `appeal` or of its `offering`
+/// (R15.8).
+fn check_magistrate_log(world: &World, start: usize) -> Result<(), Violation> {
+    let id = world.magistrate().id;
+    let events = world.log().events();
+    for event in events.iter().skip(start) {
+        let names_official = event.kind.actors().iter().any(|actor| actor == id)
+            || matches!(
+                &event.kind,
+                EventKind::Possession { person, .. } | EventKind::Rebuild { person, .. }
+                    if *person == id
+            );
+        if !names_official {
+            continue;
+        }
+        // R15.5: no rule role. The two afterlife kinds of R15.8 are the only exceptions.
+        if !matches!(
+            event.kind,
+            EventKind::Appeal { .. } | EventKind::BribeOffering { .. }
+        ) {
+            return Err(violation(
+                "U15.5",
+                world,
+                format!(
+                    "event {} ({}) runs a rule with the Magistrate {}",
+                    event.id.0,
+                    event.kind.card_type(),
+                    id.0
+                ),
+            ));
+        }
+        // R15.8: second actor only.
+        let actors: Vec<PersonId> = event.kind.actors().iter().collect();
+        if actors.len() != 2 || actors[1] != id {
+            return Err(violation(
+                "U15.8",
+                world,
+                format!(
+                    "event {} ({}) names the Magistrate {} outside the recipient position",
+                    event.id.0,
+                    event.kind.card_type(),
+                    id.0
+                ),
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// R11.3 and R20.2.
 fn check_waiting(world: &World) -> Result<(), Violation> {
     let max_wait = world.params().max_wait;
@@ -1027,5 +1559,262 @@ mod tests {
             .unwrap();
         let violation = checker.after_tick(&w).unwrap_err();
         assert_eq!(violation.criterion, "5.8");
+    }
+
+    /// A World with one tick run, the checker that saw the Opening_World and the first
+    /// Resident (every case moves that Resident's joss paper).
+    fn stepped_world() -> (World, InvariantChecker, PersonId) {
+        let mut w = world();
+        let person = w
+            .persons
+            .values()
+            .find(|p| matches!(p.life, Life::Alive { .. }))
+            .map(|p| p.id)
+            .expect("the town has Residents");
+        let checker = InvariantChecker::new(&w).unwrap();
+        w.step(&[]);
+        (w, checker, person)
+    }
+
+    #[test]
+    fn a_balance_that_the_log_does_not_explain_is_caught_as_u1_3() {
+        let (mut w, mut checker, person) = stepped_world();
+        let soul = w.persons[&person].soul;
+        if let Some(account) = w.joss.get_mut(&soul) {
+            account.balance = account.balance.saturating_add(7);
+        }
+        let violation = checker.after_tick(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U1.3");
+    }
+
+    #[test]
+    fn a_missing_account_is_caught_as_u1_2() {
+        let (mut w, mut checker, person) = stepped_world();
+        let soul = w.persons[&person].soul;
+        w.joss.remove(&soul);
+        let violation = checker.after_tick(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U1.2");
+    }
+
+    #[test]
+    fn an_offering_credited_to_a_living_person_is_caught_as_u1_2() {
+        let (mut w, mut checker, _soul) = stepped_world();
+        let actors: Vec<PersonId> = w
+            .persons
+            .values()
+            .filter(|p| matches!(p.life, Life::Alive { .. }))
+            .map(|p| p.id)
+            .take(2)
+            .collect();
+        w.append(
+            EventKind::Offering {
+                offerer: actors[0],
+                ghost: actors[1],
+                amount: 5,
+                credited: 5,
+            },
+            crate::events::CausedBy::default(),
+            crate::events::EventTags::empty(),
+        )
+        .expect("a living Ghost is still an appendable Offering");
+        let violation = checker.after_tick(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U1.2");
+    }
+
+    #[test]
+    fn a_credit_counter_above_the_cap_is_caught_as_u2_5() {
+        let (mut w, mut checker, person) = stepped_world();
+        let soul = w.persons[&person].soul;
+        let cap = w.params.yearly_cap;
+        if let Some(account) = w.joss.get_mut(&soul) {
+            account.credited = cap.saturating_add(1);
+        }
+        let violation = checker.after_tick(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U2.5");
+    }
+
+    #[test]
+    fn a_capped_spend_counter_that_the_log_does_not_hold_is_caught_as_u2_6() {
+        let (mut w, mut checker, person) = stepped_world();
+        let soul = w.persons[&person].soul;
+        if let Some(account) = w.joss.get_mut(&soul) {
+            account.capped_spent = 40;
+        }
+        let violation = checker.after_tick(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U2.6");
+    }
+
+    #[test]
+    fn a_dream_of_a_dead_person_is_caught_as_u4_3() {
+        let (mut w, mut checker, _soul) = stepped_world();
+        let actors: Vec<PersonId> = w
+            .persons
+            .values()
+            .filter(|p| matches!(p.life, Life::Alive { .. }))
+            .map(|p| p.id)
+            .take(2)
+            .collect();
+        let (ghost, dreamer) = (actors[0], actors[1]);
+        w.append(
+            EventKind::Death { person: dreamer },
+            crate::events::CausedBy::default(),
+            crate::events::EventTags::empty(),
+        )
+        .expect("a Death Event is valid");
+        if let Some(person) = w.persons.get_mut(&dreamer) {
+            person.life = Life::Dead { death: w.tick };
+        }
+        // A dead Resident keeps only its kin Relations (R6.4).
+        w.relations
+            .retain(|&(from, _), relation| from != dreamer || relation.tags.has_kinship());
+        let soul = w.persons[&dreamer].soul;
+        w.souls
+            .places
+            .insert(soul, SoulPlace::Waiting { since: w.tick });
+        w.append(
+            EventKind::Dream {
+                ghost,
+                dreamer,
+                price: 0,
+            },
+            crate::events::CausedBy::default(),
+            crate::events::EventTags::empty(),
+        )
+        .expect("the afterlife kinds accept a dead actor");
+        let violation = checker.after_tick(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U4.3");
+    }
+
+    #[test]
+    fn a_haunting_of_an_unconnected_person_is_caught_as_u5_3() {
+        let (mut w, mut checker, _soul) = stepped_world();
+        let residents: Vec<PersonId> = w
+            .persons
+            .values()
+            .filter(|p| matches!(p.life, Life::Alive { .. }))
+            .map(|p| p.id)
+            .collect();
+        let (ghost, target) = residents
+            .iter()
+            .flat_map(|&a| residents.iter().map(move |&b| (a, b)))
+            .find(|&(a, b)| a != b && !w.relations.contains_key(&(b, a)))
+            .expect("two Residents without a Relation");
+        w.append(
+            EventKind::Haunting {
+                ghost,
+                target,
+                intensity: 50,
+                price: 0,
+            },
+            crate::events::CausedBy::default(),
+            crate::events::EventTags::empty(),
+        )
+        .expect("an unconnected haunting is still appendable");
+        let violation = checker.after_tick(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U5.3");
+    }
+
+    #[test]
+    fn a_changed_magistrate_is_caught_as_u15_1() {
+        let (mut w, mut checker, _soul) = stepped_world();
+        w.magistrate.traits.greed = crate::values::Trait::clamped(3);
+        let violation = checker.after_tick(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U15.1");
+    }
+
+    #[test]
+    fn a_magistrate_relation_is_caught_as_u15_7() {
+        let mut w = world();
+        let id = w.magistrate.id;
+        let other = *w.persons.keys().next().expect("the town has Persons");
+        w.relations.insert(
+            (other, id),
+            crate::world::Relation {
+                affinity: crate::values::Score::clamped(0),
+                trust: crate::values::Score::clamped(0),
+                tags: crate::values::RelTags::empty(),
+            },
+        );
+        let violation = check_magistrate_state(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U15.7");
+    }
+
+    #[test]
+    fn a_magistrate_household_or_property_is_caught_as_u15_4() {
+        let mut w = world();
+        let id = w.magistrate.id;
+        w.properties.insert(
+            crate::ids::PropertyId(1),
+            crate::world::Property {
+                id: crate::ids::PropertyId(1),
+                kind: crate::world::PropertyKind::Heirloom,
+                owner: id,
+            },
+        );
+        let violation = check_magistrate_state(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U15.4");
+    }
+
+    #[test]
+    fn a_soul_placed_in_the_magistrate_is_caught_as_u15_6() {
+        let mut w = world();
+        let id = w.magistrate.id;
+        let soul = *w.souls.places.keys().next().expect("the town has Souls");
+        w.souls.places.insert(soul, SoulPlace::Body(id));
+        let violation = check_magistrate_state(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U15.6");
+    }
+
+    #[test]
+    fn a_rule_event_naming_the_magistrate_is_caught_as_u15_5() {
+        let (mut w, mut checker, _soul) = stepped_world();
+        let id = w.magistrate.id;
+        w.log
+            .push(
+                w.tick,
+                EventKind::Birth { person: id },
+                crate::events::CausedBy::default(),
+                crate::events::EventTags::empty(),
+            )
+            .unwrap();
+        let violation = checker.after_tick(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U15.5");
+    }
+
+    #[test]
+    fn an_appeal_naming_the_magistrate_first_is_caught_as_u15_8() {
+        let (mut w, mut checker, _soul) = stepped_world();
+        let id = w.magistrate.id;
+        let resident = *w.persons.keys().next().expect("the town has Persons");
+        w.log
+            .push(
+                w.tick,
+                EventKind::Appeal {
+                    ghost: id,
+                    magistrate: resident,
+                },
+                crate::events::CausedBy::default(),
+                crate::events::EventTags::empty(),
+            )
+            .unwrap();
+        let violation = checker.after_tick(&w).unwrap_err();
+        assert_eq!(violation.criterion, "U15.8");
+    }
+
+    #[test]
+    fn a_correct_appeal_to_the_magistrate_passes() {
+        let (mut w, mut checker, _soul) = stepped_world();
+        let id = w.magistrate.id;
+        let resident = *w.persons.keys().next().expect("the town has Persons");
+        w.append(
+            EventKind::Appeal {
+                ghost: resident,
+                magistrate: id,
+            },
+            crate::events::CausedBy::default(),
+            crate::events::EventTags::empty(),
+        )
+        .expect("an appeal may address the Magistrate");
+        checker.after_tick(&w).expect("the appeal is valid");
     }
 }
