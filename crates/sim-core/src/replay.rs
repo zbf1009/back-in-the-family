@@ -28,6 +28,8 @@
 //! {"ClaimSlot":{"slot":"ImportedVessel"}}
 //! {"ClaimSlot":{"slot":"RebuiltBody"}}
 //! {"CarryOver":{"trait_name":"piety"}}
+//! {"Dream":{"dreamer":"17","intent":"warn"}}
+//! {"Choose":{"node":{"Trigger":{"seq":"64"}},"option":"heed_warning"}}
 //! ```
 //!
 //! - Every `u64` (`seed`, `ticks`, input `tick` and `seq`, person ids, slot ids) is a JSON string
@@ -49,6 +51,7 @@
 //!
 //! The serde derives live only on the DTO types in this module ([`ReplayFile`],
 //! [`ReplayInput`], [`ReplayPayload`], [`ReplaySlotRef`], [`ReplayTraitName`],
+//! [`ReplayDreamIntent`], [`ReplayNodeRef`], [`ReplayNodeOption`],
 //! [`ReplaySocialKind`], [`ReplayConfig`]). Core
 //! types (`WorldConfig`, `InputPayload`, ...) convert to and from them, so a change to a
 //! core type cannot change the on-disk format by accident.
@@ -69,6 +72,8 @@ use crate::ids::{BirthSlotId, PersonId, Tick};
 use crate::input::{InputPayload, SubmitError};
 use crate::tick::{Sim, SimError};
 use crate::underworld::carry_over::TraitName;
+use crate::underworld::dreams::DreamIntent;
+use crate::underworld::nodes::{NodeOption, NodeRef};
 use crate::underworld::slots::SlotRef;
 use crate::values::SocialKind;
 use crate::world::{ConfigError, WorldConfig};
@@ -312,6 +317,116 @@ impl From<ReplayTraitName> for TraitName {
     }
 }
 
+/// File-format twin of [`DreamIntent`], written as its card name.
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReplayDreamIntent {
+    Warn,
+    Reassure,
+    Urge,
+    Reveal,
+    RequestOffering,
+    Forbid,
+}
+
+impl From<DreamIntent> for ReplayDreamIntent {
+    fn from(intent: DreamIntent) -> Self {
+        match intent {
+            DreamIntent::Warn => Self::Warn,
+            DreamIntent::Reassure => Self::Reassure,
+            DreamIntent::Urge => Self::Urge,
+            DreamIntent::Reveal => Self::Reveal,
+            DreamIntent::RequestOffering => Self::RequestOffering,
+            DreamIntent::Forbid => Self::Forbid,
+        }
+    }
+}
+
+impl From<ReplayDreamIntent> for DreamIntent {
+    fn from(intent: ReplayDreamIntent) -> Self {
+        match intent {
+            ReplayDreamIntent::Warn => Self::Warn,
+            ReplayDreamIntent::Reassure => Self::Reassure,
+            ReplayDreamIntent::Urge => Self::Urge,
+            ReplayDreamIntent::Reveal => Self::Reveal,
+            ReplayDreamIntent::RequestOffering => Self::RequestOffering,
+            ReplayDreamIntent::Forbid => Self::Forbid,
+        }
+    }
+}
+
+/// File-format twin of [`NodeRef`]: `{"Trigger":{"seq":"64"}}` (OP-U12 A).
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum ReplayNodeRef {
+    Trigger {
+        #[serde(with = "u64_string")]
+        seq: u64,
+    },
+}
+
+impl From<NodeRef> for ReplayNodeRef {
+    fn from(node: NodeRef) -> Self {
+        match node {
+            NodeRef::Trigger { seq } => Self::Trigger { seq: seq.0 },
+        }
+    }
+}
+
+impl From<ReplayNodeRef> for NodeRef {
+    fn from(node: ReplayNodeRef) -> Self {
+        match node {
+            ReplayNodeRef::Trigger { seq } => Self::Trigger {
+                seq: crate::ids::InputSeq(seq),
+            },
+        }
+    }
+}
+
+/// File-format twin of [`NodeOption`], written as its snake_case ID (OP-U12 A).
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReplayNodeOption {
+    HeedWarning,
+    TakeComfort,
+    FollowUrging,
+    BelieveRevelation,
+    ObeyBan,
+    BurnOffering,
+    BurnSmall,
+    DismissDream,
+}
+
+impl From<NodeOption> for ReplayNodeOption {
+    fn from(option: NodeOption) -> Self {
+        match option {
+            NodeOption::HeedWarning => Self::HeedWarning,
+            NodeOption::TakeComfort => Self::TakeComfort,
+            NodeOption::FollowUrging => Self::FollowUrging,
+            NodeOption::BelieveRevelation => Self::BelieveRevelation,
+            NodeOption::ObeyBan => Self::ObeyBan,
+            NodeOption::BurnOffering => Self::BurnOffering,
+            NodeOption::BurnSmall => Self::BurnSmall,
+            NodeOption::DismissDream => Self::DismissDream,
+        }
+    }
+}
+
+impl From<ReplayNodeOption> for NodeOption {
+    fn from(option: ReplayNodeOption) -> Self {
+        match option {
+            ReplayNodeOption::HeedWarning => Self::HeedWarning,
+            ReplayNodeOption::TakeComfort => Self::TakeComfort,
+            ReplayNodeOption::FollowUrging => Self::FollowUrging,
+            ReplayNodeOption::BelieveRevelation => Self::BelieveRevelation,
+            ReplayNodeOption::ObeyBan => Self::ObeyBan,
+            ReplayNodeOption::BurnOffering => Self::BurnOffering,
+            ReplayNodeOption::BurnSmall => Self::BurnSmall,
+            ReplayNodeOption::DismissDream => Self::DismissDream,
+        }
+    }
+}
+
 /// File-format twin of [`InputPayload`].
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -329,6 +444,15 @@ pub enum ReplayPayload {
     },
     CarryOver {
         trait_name: ReplayTraitName,
+    },
+    Dream {
+        #[serde(with = "u64_string")]
+        dreamer: u64,
+        intent: ReplayDreamIntent,
+    },
+    Choose {
+        node: ReplayNodeRef,
+        option: ReplayNodeOption,
     },
 }
 
@@ -349,6 +473,14 @@ impl From<InputPayload> for ReplayPayload {
             InputPayload::ClaimSlot { slot } => Self::ClaimSlot { slot: slot.into() },
             InputPayload::CarryOver { trait_name } => Self::CarryOver {
                 trait_name: trait_name.into(),
+            },
+            InputPayload::Dream { dreamer, intent } => Self::Dream {
+                dreamer: dreamer.0,
+                intent: intent.into(),
+            },
+            InputPayload::Choose { node, option } => Self::Choose {
+                node: node.into(),
+                option: option.into(),
             },
         }
     }
@@ -371,6 +503,14 @@ impl From<ReplayPayload> for InputPayload {
             ReplayPayload::ClaimSlot { slot } => Self::ClaimSlot { slot: slot.into() },
             ReplayPayload::CarryOver { trait_name } => Self::CarryOver {
                 trait_name: trait_name.into(),
+            },
+            ReplayPayload::Dream { dreamer, intent } => Self::Dream {
+                dreamer: PersonId(dreamer),
+                intent: intent.into(),
+            },
+            ReplayPayload::Choose { node, option } => Self::Choose {
+                node: node.into(),
+                option: option.into(),
             },
         }
     }
@@ -787,11 +927,47 @@ mod tests {
                 },
                 r#"{"CarryOver":{"trait_name":"piety"}}"#,
             ),
+            (
+                InputPayload::Dream {
+                    dreamer: PersonId(17),
+                    intent: DreamIntent::Warn,
+                },
+                r#"{"Dream":{"dreamer":"17","intent":"warn"}}"#,
+            ),
+            (
+                InputPayload::Choose {
+                    node: NodeRef::Trigger {
+                        seq: crate::ids::InputSeq(64),
+                    },
+                    option: NodeOption::HeedWarning,
+                },
+                r#"{"Choose":{"node":{"Trigger":{"seq":"64"}},"option":"heed_warning"}}"#,
+            ),
         ];
         for (payload, json) in cases {
             let dto: ReplayPayload = payload.into();
             assert_eq!(serde_json::to_string(&dto).unwrap(), json);
             let back: ReplayPayload = serde_json::from_str(json).unwrap();
+            assert_eq!(InputPayload::from(back), payload);
+        }
+        for intent in DreamIntent::ALL {
+            let payload = InputPayload::Dream {
+                dreamer: PersonId(3),
+                intent,
+            };
+            let text = serde_json::to_string(&ReplayPayload::from(payload)).unwrap();
+            let back: ReplayPayload = serde_json::from_str(&text).unwrap();
+            assert_eq!(InputPayload::from(back), payload);
+        }
+        for option in NodeOption::ALL {
+            let payload = InputPayload::Choose {
+                node: NodeRef::Trigger {
+                    seq: crate::ids::InputSeq(7),
+                },
+                option,
+            };
+            let text = serde_json::to_string(&ReplayPayload::from(payload)).unwrap();
+            let back: ReplayPayload = serde_json::from_str(&text).unwrap();
             assert_eq!(InputPayload::from(back), payload);
         }
         for name in TraitName::ALL {

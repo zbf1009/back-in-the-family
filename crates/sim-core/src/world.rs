@@ -328,6 +328,7 @@ pub struct World {
     pub(crate) slot_ids: IdCounter,
     pub(crate) slots: BTreeMap<BirthSlotId, crate::underworld::slots::BirthSlot>,
     pub(crate) player_wait: Option<crate::underworld::player::PlayerWait>,
+    pub(crate) nodes: crate::underworld::nodes::Nodes,
     pub(crate) derived: Derived,
 }
 
@@ -429,6 +430,12 @@ impl World {
     /// The Player_Soul's current wait, `Some` exactly while it waits with a Ghost (R8).
     pub fn player_wait(&self) -> Option<&crate::underworld::player::PlayerWait> {
         self.player_wait.as_ref()
+    }
+
+    /// The Decision_Node state: the ID counter, this tick's pending nodes and every
+    /// resolved record (R3.1, R3.6).
+    pub fn nodes(&self) -> &crate::underworld::nodes::Nodes {
+        &self.nodes
     }
 
     /// Sources and sinks of the last tick run.
@@ -804,6 +811,7 @@ impl Canon for World {
             slot_ids,
             slots,
             player_wait,
+            nodes,
             derived: _,
         } = self;
         CANON_VERSION.encode(w);
@@ -828,6 +836,7 @@ impl Canon for World {
         slot_ids.encode(w);
         slots.encode(w);
         player_wait.encode(w);
+        nodes.encode(w);
     }
 }
 

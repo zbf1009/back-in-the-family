@@ -138,6 +138,9 @@ pub enum Mutation {
     SlotBirth { slot: u64 },
     /// `World::player_wait`: bump `access_from`, or install a wait when there is none.
     PlayerWait,
+    /// `Nodes::resolved`: change one record's `applied` to the next option, or install
+    /// one record when the run has none.
+    NodeRecordApplied { record: u64 },
     /// `Derived::living_names`: add a free full name. **Not checksummed** (R16.5).
     DerivedName,
     /// `Derived::last_grievance`: add or bump one pair. **Not checksummed** (R16.5).
@@ -180,6 +183,7 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
         slot_ids,
         slots,
         player_wait,
+        nodes,
         derived,
     } = world;
 
@@ -852,6 +856,47 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
                 true
             }
         }
+        Mutation::NodeRecordApplied { record } => {
+            // Exhaustive: a new `NodeRecord` field is a compile error here.
+            let keys: Vec<usize> = (0..nodes.resolved.len()).collect();
+            if let Some(&index) = pick(&keys, record) {
+                let Some(entry) = nodes.resolved.get_mut(index) else {
+                    return false;
+                };
+                let crate::underworld::nodes::NodeRecord {
+                    id: _,
+                    tick: _,
+                    family: _,
+                    subject: _,
+                    applied,
+                    source: _,
+                    rules_default: _,
+                } = entry;
+                let position = crate::underworld::nodes::NodeOption::ALL
+                    .iter()
+                    .position(|option| option == applied)
+                    .unwrap_or(0);
+                let next = position
+                    .saturating_add(1)
+                    .checked_rem(crate::underworld::nodes::NodeOption::ALL.len())
+                    .unwrap_or(0);
+                *applied = crate::underworld::nodes::NodeOption::ALL[next];
+                return true;
+            }
+            let Some(subject) = persons.keys().next().copied() else {
+                return false;
+            };
+            nodes.resolved.push(crate::underworld::nodes::NodeRecord {
+                id: crate::ids::NodeId(nodes.ids.peek()),
+                tick: *tick,
+                family: crate::underworld::nodes::NodeFamily::DreamInterpretation,
+                subject,
+                applied: crate::underworld::nodes::NodeOption::HeedWarning,
+                source: crate::underworld::nodes::ChoiceSource::RulesDefault,
+                rules_default: crate::underworld::nodes::NodeOption::DismissDream,
+            });
+            true
+        }
         Mutation::DerivedName => {
             // Exhaustive: a new `Derived` field is a compile error here.
             let Derived {
@@ -1003,6 +1048,7 @@ mod tests {
         v.push(Mutation::AddSlot);
         v.push(Mutation::SlotBirth { slot: 0 });
         v.push(Mutation::PlayerWait);
+        v.push(Mutation::NodeRecordApplied { record: 0 });
         for part in 0..3u8 {
             v.push(Mutation::JossCapCounter { soul: 0, part });
         }

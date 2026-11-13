@@ -130,7 +130,7 @@ pub fn offering_amount(world: &World, offerer: PersonId, ghost: PersonId, factor
 /// The credit is computed before the append and applied after it, so an Event the log
 /// refuses (an exhausted counter) credits nothing. The Event keeps the full `amount`
 /// even when the cap allows less.
-fn append_offering(
+pub(crate) fn append_offering(
     world: &mut World,
     offerer: PersonId,
     ghost: PersonId,

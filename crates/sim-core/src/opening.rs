@@ -166,6 +166,7 @@ pub(crate) fn generate(
         slot_ids: crate::underworld::slots::slot_ids(),
         slots: std::collections::BTreeMap::new(),
         player_wait: None,
+        nodes: crate::underworld::nodes::Nodes::new(),
         derived: Derived::default(),
     };
 

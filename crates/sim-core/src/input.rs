@@ -14,17 +14,20 @@ use std::fmt;
 use crate::canon::{Canon, CanonWriter};
 use crate::ids::{IdCounter, InputSeq, PersonId, Tick};
 use crate::underworld::carry_over::TraitName;
+use crate::underworld::dreams::DreamIntent;
+use crate::underworld::nodes::{NodeOption, NodeRef};
 use crate::underworld::slots::SlotRef;
 use crate::values::SocialKind;
 
-/// The one input kind of the life-sim (OP-6 A): one social act between two Residents.
+/// One external input of the simulation.
 ///
 /// `intensity` is the raw `u8` so that out-of-range values can be *rejected* at apply
 /// time instead of being refused by the type. A valid payload turns into an
 /// [`Intensity`] and appends the matching social Event through the normal path.
 ///
-/// The underworld kinds are the slot claim (Birth_Slot or Standing_Slot) and the
-/// Carry_Over choice; each is applied in step 2a of its tick (design "Inputs").
+/// The underworld kinds are the slot claim (Birth_Slot or Standing_Slot), the
+/// Carry_Over choice, a dream, a haunting, a Bribe and an External_Choice; each is
+/// applied in step 2a of its tick (design "Inputs").
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum InputPayload {
     /// Perform a social act: `actor` acts on `target` with `intensity` (1..=100).
@@ -43,6 +46,20 @@ pub enum InputPayload {
     CarryOver {
         /// One of the seven Traits.
         trait_name: TraitName,
+    },
+    /// The Player_Soul's Ghost sends a dream to one living Connected_Person (R4.1).
+    Dream {
+        /// The living dreamer.
+        dreamer: PersonId,
+        /// What the dream says.
+        intent: DreamIntent,
+    },
+    /// Attach an External_Choice to the node an earlier input of this tick fired (R3.4).
+    Choose {
+        /// The node, named by its trigger input's `seq` (OP-U12 A).
+        node: NodeRef,
+        /// The option to apply; an option outside the node's set is rejected.
+        option: NodeOption,
     },
 }
 

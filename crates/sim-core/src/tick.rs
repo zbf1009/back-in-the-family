@@ -4,9 +4,12 @@
 //! is the world's tick `T` throughout the step.
 //!
 //! 1. **Reset flows.** `flows = FlowTotals { sources: 0, sinks: 0 }`.
-//! 2. **Apply inputs** in `(tick, seq)` order. Each `Act` is validated (R1.5, R6.5) and,
-//!    if valid, appended as a social Event through `social::apply_social`. Invalid
-//!    inputs are recorded in `rejections` with `(T, seq, reason)`.
+//! 2. **Apply inputs** in `(tick, seq)` order (2a), then **resolve nodes** (2b). Each
+//!    `Act` is validated (R1.5, R6.5) and, if valid, appended as a social Event through
+//!    `social::apply_social`; the underworld payloads run their own check tables
+//!    (`Dream`, `Haunt`, `Bribe`, `ClaimSlot`, `CarryOver`, `Choose`). Invalid inputs
+//!    are recorded in `rejections` with `(T, seq, reason)`. Every node the tick fired
+//!    then resolves in Node ID order and is recorded; after 2b none is pending (R3.3).
 //! 3. **Outsider releases and the Player_Soul placement** (R11, R8.1): every waiting
 //!    Soul other than the Player_Soul whose wait exceeds Max_Wait gets an outsider body,
 //!    in Soul ID order; then the Player_Soul is placed in a new Imported_Vessel when its
@@ -71,8 +74,10 @@ impl World {
     pub fn step_with_outcomes(&mut self, inputs: &[TickInput]) -> (Checksum, Vec<InputOutcome>) {
         // 1. Reset flows.
         self.flows = crate::economy::FlowTotals::default();
-        // 2. Apply inputs.
+        // 2a. Apply inputs.
         let outcomes = self.apply_inputs(inputs);
+        // 2b. Resolve the nodes the inputs fired.
+        crate::underworld::resolve_pending(self);
         // 3. Outsider releases, then the Player_Soul's forced placement (R8.1).
         crate::outsiders::release_outsiders(self);
         crate::underworld::place_player_if_overdue(self);
@@ -110,7 +115,7 @@ impl World {
     fn apply_inputs(&mut self, inputs: &[TickInput]) -> Vec<InputOutcome> {
         let mut outcomes = Vec::with_capacity(inputs.len());
         for input in inputs {
-            let result = self.apply_one(input.payload);
+            let result = self.apply_one(input.seq, input.payload);
             if let Err(reason) = result {
                 self.rejections.record(self.tick, input.seq, reason);
             }
@@ -122,10 +127,11 @@ impl World {
         outcomes
     }
 
-    /// Validates and applies one payload (design "Inputs and replay format"): the `Act`
-    /// checks are actor and target exist, both are alive, they differ, the intensity is
-    /// 1..=100; the underworld kinds run the check tables of design "Inputs".
-    fn apply_one(&mut self, payload: InputPayload) -> Result<(), RejectReason> {
+    /// Validates and applies one payload (design "Inputs"): the `Act` checks are actor
+    /// and target exist, both are alive, they differ, the intensity is 1..=100; the
+    /// underworld kinds run the check tables of design "Inputs". `seq` is the input's
+    /// submission number, which a fired node records as its trigger (OP-U12 A).
+    fn apply_one(&mut self, seq: InputSeq, payload: InputPayload) -> Result<(), RejectReason> {
         match payload {
             InputPayload::Act {
                 kind,
@@ -148,6 +154,12 @@ impl World {
             InputPayload::ClaimSlot { slot } => crate::underworld::slots::claim(self, slot),
             InputPayload::CarryOver { trait_name } => {
                 crate::underworld::player::store_carry_over(self, trait_name)
+            }
+            InputPayload::Dream { dreamer, intent } => {
+                crate::underworld::dreams::apply(self, seq, dreamer, intent)
+            }
+            InputPayload::Choose { node, option } => {
+                crate::underworld::nodes::attach_choice(self, node, option)
             }
         }
     }
