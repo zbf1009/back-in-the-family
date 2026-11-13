@@ -153,7 +153,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Follow design "Correctness Properties" ("Generated underworld run"): a seed, `opening_residents` in 40..=60, `Params::stress_underworld()` in 3 cases of 4 and `Params::DEFAULT` otherwise, 400 ticks, and per tick a state-aware mix of valid underworld inputs built from the World and invalid ones (wrong dreamer, the Magistrate's ID, zero or excessive Bribe, closed slot, `Choose` with a wrong trigger or option), plus life-sim `Act` inputs. Valid `Choose` inputs use `preview_node`. A stepping helper yields `(before, after, outcomes)` per tick and runs the extended `InvariantChecker`. Add a smoke test that, over 20 generated runs, at least one dream, haunting, Bribe, Birth claim, Standing claim and forced placement occurs (so the properties are not vacuous).
     - _Requirements: 12.1, 12.3_
     - Acceptance: `cargo test -p sim-core --test underworld` passes (the smoke test lives in `tests/underworld.rs`, new). Commit as `test(sim-core): add the underworld run generator`.
-  - [ ] 6.3 Property tests: Property 1 (the log is the joss ledger) and Property 2 (the Yearly_Cap holds)
+  - [x] 6.3 Property tests: Property 1 (the log is the joss ledger) and Property 2 (the Yearly_Cap holds)
     - File: `crates/sim-core/tests/underworld.rs`. One `proptest!` per property.
     - **Property 1: The log is the joss ledger.** **Validates: Requirements 1.1, 1.2, 1.3, 1.4, 10.2**
     - **Property 2: The Yearly_Cap holds.** **Validates: Requirements 2.4, 2.5, 2.6, 10.1**
