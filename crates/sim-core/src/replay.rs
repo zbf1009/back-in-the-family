@@ -29,6 +29,7 @@
 //! {"ClaimSlot":{"slot":"RebuiltBody"}}
 //! {"CarryOver":{"trait_name":"piety"}}
 //! {"Dream":{"dreamer":"17","intent":"warn"}}
+//! {"Haunt":{"target":"9"}}
 //! {"Choose":{"node":{"Trigger":{"seq":"64"}},"option":"heed_warning"}}
 //! ```
 //!
@@ -450,6 +451,10 @@ pub enum ReplayPayload {
         dreamer: u64,
         intent: ReplayDreamIntent,
     },
+    Haunt {
+        #[serde(with = "u64_string")]
+        target: u64,
+    },
     Choose {
         node: ReplayNodeRef,
         option: ReplayNodeOption,
@@ -478,6 +483,7 @@ impl From<InputPayload> for ReplayPayload {
                 dreamer: dreamer.0,
                 intent: intent.into(),
             },
+            InputPayload::Haunt { target } => Self::Haunt { target: target.0 },
             InputPayload::Choose { node, option } => Self::Choose {
                 node: node.into(),
                 option: option.into(),
@@ -507,6 +513,9 @@ impl From<ReplayPayload> for InputPayload {
             ReplayPayload::Dream { dreamer, intent } => Self::Dream {
                 dreamer: PersonId(dreamer),
                 intent: intent.into(),
+            },
+            ReplayPayload::Haunt { target } => Self::Haunt {
+                target: PersonId(target),
             },
             ReplayPayload::Choose { node, option } => Self::Choose {
                 node: node.into(),
@@ -933,6 +942,12 @@ mod tests {
                     intent: DreamIntent::Warn,
                 },
                 r#"{"Dream":{"dreamer":"17","intent":"warn"}}"#,
+            ),
+            (
+                InputPayload::Haunt {
+                    target: PersonId(9),
+                },
+                r#"{"Haunt":{"target":"9"}}"#,
             ),
             (
                 InputPayload::Choose {

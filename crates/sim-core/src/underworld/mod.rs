@@ -10,6 +10,7 @@ use crate::world::{SoulPlace, World};
 pub mod carry_over;
 pub mod dreams;
 pub mod ghosts;
+pub mod hauntings;
 pub mod joss;
 pub mod magistrate;
 pub mod nodes;

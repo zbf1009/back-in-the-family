@@ -42,6 +42,11 @@ pub enum InputPayload {
         /// The slot the Player_Soul claims.
         slot: SlotRef,
     },
+    /// The Player_Soul's Ghost haunts one living Connected_Person (R5.1).
+    Haunt {
+        /// The living target.
+        target: PersonId,
+    },
     /// Choose the trait the next body inherits (R9.1).
     CarryOver {
         /// One of the seven Traits.

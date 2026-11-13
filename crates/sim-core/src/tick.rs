@@ -158,6 +158,7 @@ impl World {
             InputPayload::Dream { dreamer, intent } => {
                 crate::underworld::dreams::apply(self, seq, dreamer, intent)
             }
+            InputPayload::Haunt { target } => crate::underworld::hauntings::apply(self, target),
             InputPayload::Choose { node, option } => {
                 crate::underworld::nodes::attach_choice(self, node, option)
             }
