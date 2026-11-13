@@ -287,6 +287,12 @@ impl InputStream {
     pub fn all(&self) -> &[TickInput] {
         &self.inputs
     }
+
+    /// The `seq` the next submitted input would get. Reading it consumes nothing, so a
+    /// preview can name the input it would add without changing the stream.
+    pub fn next_seq(&self) -> InputSeq {
+        InputSeq(self.next_seq.peek())
+    }
 }
 
 impl Canon for RejectReason {

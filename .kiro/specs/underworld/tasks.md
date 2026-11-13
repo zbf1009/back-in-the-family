@@ -131,7 +131,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Unit tests: `magistrate_default_agrees_with_dev_pair_p006`; each grant moves `access_from` as documented and never later; a Bribe followed in the same tick by a Standing_Slot claim resolves with the effect part skipped and the record written (R3.11 example); a Bribe with amount 0 or above the balance appends no Event; replay round trip.
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 3.10, 3.11, 15.11_
     - Acceptance: Rust gates; `cargo test -p sim-wasm --target wasm32-unknown-unknown`; the R14.4 check. Commit as `feat(sim-core): add bribes and the magistrate ruling`.
-  - [ ] 4.6 Add `Sim::preview_node`
+  - [x] 4.6 Add `Sim::preview_node`
     - Files: `crates/sim-core/src/underworld/nodes.rs`, `crates/sim-core/src/replay.rs` or the file that defines `Sim`.
     - Follow design "Decision_Node convention" (`NodeSpec`, `preview_node`, "Seam for the decision model"). Clone the World, run step 1 and step 2a for the inputs already submitted for the current tick, then the given payload with the next `seq`; return `NodeSpec` or `PreviewError::Rejected(reason)` / `PreviewError::NoNode`. The run is unchanged.
     - Unit tests: the preview equals the node fired by submitting the same payload (context, options, Rules_Default, trigger `seq`); the Checksum and the input queue are unchanged by a preview; a payload that would be rejected gives `Rejected` with the reason; a `Haunt` gives `NoNode`.

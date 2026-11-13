@@ -267,6 +267,42 @@ impl Sim {
         checksum
     }
 
+    /// Previews the Decision_Node `payload` would fire on the current tick (design
+    /// "Decision_Node convention", "Seam for the decision model").
+    ///
+    /// Clones the World, runs step 1 and step 2a for the inputs already submitted for
+    /// the current tick, then applies `payload` with the next `seq`. The run is
+    /// unchanged: no Checksum, no input, no rejection and no World state change.
+    pub fn preview_node(
+        &self,
+        payload: InputPayload,
+    ) -> Result<crate::underworld::nodes::NodeSpec, crate::underworld::nodes::PreviewError> {
+        use crate::underworld::nodes::{NodeSpec, PreviewError};
+
+        let mut world = self.world.clone();
+        world.flows = crate::economy::FlowTotals::default();
+        for input in self.inputs.for_tick(world.tick) {
+            let _ = world.apply_one(input.seq, input.payload);
+        }
+        let seq = self.inputs.next_seq();
+        world
+            .apply_one(seq, payload)
+            .map_err(PreviewError::Rejected)?;
+        let node = world
+            .nodes
+            .pending
+            .values()
+            .find(|node| node.trigger == seq)
+            .ok_or(PreviewError::NoNode)?;
+        Ok(NodeSpec {
+            family: node.family,
+            trigger: node.trigger,
+            context: node.context.clone(),
+            options: node.options.clone(),
+            rules_default: node.rules_default,
+        })
+    }
+
     /// The outcome of every input of the last stepped tick, in `(tick, seq)` order
     /// (R11.5). Empty before the first step and after a tick with no inputs; it is never
     /// part of the World or the checksum.
@@ -293,10 +329,47 @@ mod tests {
     use super::*;
     use crate::ids::IdCounter;
     use crate::input::InputOutcome;
+    use crate::underworld::dreams::DreamIntent;
+    use crate::underworld::nodes::{ChoiceSource, PreviewError};
     use crate::values::SocialKind;
 
     fn sim() -> Sim {
         Sim::new(42, WorldConfig::try_new(40).unwrap()).unwrap()
+    }
+
+    /// A Sim whose Player_Soul died at tick 0 and waits with joss paper. Returns the
+    /// Sim, the Ghost's body and a living Connected_Person of it.
+    fn waiting_sim() -> (Sim, PersonId, PersonId) {
+        use crate::underworld::ghosts::connected;
+        use crate::underworld::player::start_wait;
+
+        let mut s = Sim::new_with_params(
+            22,
+            WorldConfig::try_new(40).unwrap(),
+            crate::params::Params::DEFAULT,
+        )
+        .unwrap();
+        let player = s.world.souls.player;
+        let crate::world::SoulPlace::Body(body) = s.world.souls.places[&player] else {
+            panic!("the Player_Soul starts in a body");
+        };
+        let tick = s.world.tick;
+        if let Some(person) = s.world.persons.get_mut(&body) {
+            person.life = Life::Dead { death: tick };
+        }
+        s.world
+            .souls
+            .places
+            .insert(player, crate::world::SoulPlace::Waiting { since: tick });
+        start_wait(&mut s.world, player, tick);
+        if let Some(account) = s.world.joss.get_mut(&player) {
+            account.balance = 100;
+        }
+        let dreamer = connected(&s.world, body)
+            .into_iter()
+            .next()
+            .expect("the Opening_World leaves a kin Relation");
+        (s, body, dreamer)
     }
 
     fn act(actor: u64, target: u64, intensity: u8) -> InputPayload {
@@ -556,5 +629,112 @@ mod tests {
             before
         );
         assert_eq!(s.world.person_ids, IdCounter::starting_at(2 + 40));
+    }
+    #[test]
+    fn preview_node_equals_the_fired_node_and_leaves_the_run_unchanged() {
+        use crate::underworld::nodes::NodeSpec;
+
+        let (mut s, real_ghost, dreamer) = waiting_sim();
+        let payload = InputPayload::Dream {
+            dreamer,
+            intent: DreamIntent::Warn,
+        };
+        let world_before = s.world.clone();
+        let inputs_before = s.inputs().all().to_vec();
+        let checksums_before = s.checksums().to_vec();
+
+        let spec = s.preview_node(payload).expect("a dream fires a node");
+        assert_eq!(spec.trigger, s.inputs().next_seq());
+        assert_eq!(
+            spec.family,
+            crate::underworld::nodes::NodeFamily::DreamInterpretation
+        );
+        assert_eq!(
+            spec.context.subject,
+            Some(crate::llm::PersonId(i64::try_from(dreamer.0).unwrap()))
+        );
+        assert_eq!(spec.options.len(), 3);
+        let crate::llm::TaskSpec::Decision { options } = &spec.context.spec else {
+            panic!("a dream node is a decision context");
+        };
+        assert_eq!(
+            spec.options
+                .iter()
+                .map(|option| option.id())
+                .collect::<Vec<_>>(),
+            options
+                .iter()
+                .map(|def| def.id.as_str())
+                .collect::<Vec<_>>()
+        );
+        assert!(spec.options.contains(&spec.rules_default));
+        // The preview changed nothing.
+        assert_eq!(s.world, world_before, "a preview changes no state");
+        assert_eq!(s.inputs().all(), inputs_before.as_slice());
+        assert_eq!(s.checksums(), checksums_before.as_slice());
+
+        // The node the same payload fires when it is submitted for real.
+        let seq = s.submit(s.world().tick(), payload).unwrap();
+        assert_eq!(seq, spec.trigger);
+        s.step();
+        assert_eq!(s.world().nodes().resolved.len(), 1);
+        let record = s.world().nodes().resolved[0];
+        assert_eq!(
+            record.family,
+            crate::underworld::nodes::NodeFamily::DreamInterpretation
+        );
+        assert_eq!(record.subject, dreamer);
+        assert_eq!(record.rules_default, spec.rules_default);
+        assert_eq!(record.applied, spec.rules_default);
+        assert_eq!(record.source, ChoiceSource::RulesDefault);
+        assert!(real_ghost != dreamer);
+
+        // A second preview of the same payload is identical: the context is frozen from
+        // the same World state.
+        let (s2, _, _) = waiting_sim();
+        let again: NodeSpec = s2.preview_node(payload).unwrap();
+        assert_eq!(again, spec);
+    }
+
+    #[test]
+    fn preview_node_applies_the_inputs_already_submitted_for_the_tick() {
+        let (mut s, _ghost, dreamer) = waiting_sim();
+        s.submit(
+            s.world().tick(),
+            InputPayload::Dream {
+                dreamer,
+                intent: DreamIntent::Warn,
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            s.preview_node(InputPayload::Dream {
+                dreamer,
+                intent: DreamIntent::Urge,
+            }),
+            Err(PreviewError::Rejected(RejectReason::RateLimited))
+        );
+    }
+
+    #[test]
+    fn preview_node_reports_a_rejected_payload_with_its_reason() {
+        let (s, _ghost, _dreamer) = waiting_sim();
+        let magistrate = s.world().magistrate().id;
+        assert_eq!(
+            s.preview_node(InputPayload::Dream {
+                dreamer: magistrate,
+                intent: DreamIntent::Warn,
+            }),
+            Err(PreviewError::Rejected(RejectReason::OfficialPerson))
+        );
+    }
+
+    #[test]
+    fn preview_node_of_a_payload_that_fires_no_node_is_no_node() {
+        let (s, _ghost, dreamer) = waiting_sim();
+        assert_eq!(
+            s.preview_node(InputPayload::Haunt { target: dreamer }),
+            Err(PreviewError::NoNode)
+        );
     }
 }

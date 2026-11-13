@@ -275,6 +275,44 @@ impl Default for Nodes {
     }
 }
 
+/// What a caller sees before it submits an input that fires a node (design "Seam for
+/// the decision model", R3.1, R3.2, R3.7).
+#[derive(Clone, Eq, PartialEq, Debug)]
+pub struct NodeSpec {
+    /// The family of the node.
+    pub family: NodeFamily,
+    /// The `seq` the trigger input would get.
+    pub trigger: InputSeq,
+    /// The Frozen_Context built from the World at firing.
+    pub context: FrozenContext,
+    /// 2..=5 distinct options, in context order.
+    pub options: Vec<NodeOption>,
+    /// The Rules_Default computed from the context and the node's draw.
+    pub rules_default: NodeOption,
+}
+
+/// Why a preview produced no [`NodeSpec`] (design "Seam for the decision model").
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum PreviewError {
+    /// The payload would be rejected at apply time (LS-R1.5).
+    Rejected(RejectReason),
+    /// The payload applies but fires no node.
+    NoNode,
+}
+
+impl std::fmt::Display for PreviewError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Rejected(reason) => {
+                write!(f, "the payload would be rejected: {}", reason.label())
+            }
+            Self::NoNode => f.write_str("the payload fires no decision node"),
+        }
+    }
+}
+
+impl std::error::Error for PreviewError {}
+
 /// Everything `fire` needs to build a node, prepared by its family module.
 pub(crate) struct NodePlan {
     /// The family.
