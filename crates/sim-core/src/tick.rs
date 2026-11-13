@@ -159,6 +159,9 @@ impl World {
                 crate::underworld::dreams::apply(self, seq, dreamer, intent)
             }
             InputPayload::Haunt { target } => crate::underworld::hauntings::apply(self, target),
+            InputPayload::Bribe { amount } => {
+                crate::underworld::magistrate::apply(self, seq, amount)
+            }
             InputPayload::Choose { node, option } => {
                 crate::underworld::nodes::attach_choice(self, node, option)
             }

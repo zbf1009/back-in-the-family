@@ -19,7 +19,7 @@ use crate::context_builder::build_node_context;
 use crate::ids::{EntityId, IdCounter, InputSeq, NodeId, PersonId, Tick};
 use crate::llm::{Family, FrozenContext, OptionDef, PlayerInput};
 use crate::rng::{self, StreamTag};
-use crate::underworld::dreams;
+use crate::underworld::{dreams, magistrate};
 use crate::world::{RejectReason, World};
 
 /// The value the Node ID counter of a fresh World is at (R3.1).
@@ -31,6 +31,8 @@ pub(crate) const NODE_IDS_START: u64 = 1;
 pub enum NodeFamily {
     /// A dream the Player_Soul's Ghost sends to a living dreamer (R4).
     DreamInterpretation,
+    /// A Bribe's appeal, ruled on by the Magistrate (R6).
+    MagistrateRuling,
 }
 
 impl NodeFamily {
@@ -38,6 +40,7 @@ impl NodeFamily {
     pub const fn family(self) -> Family {
         match self {
             Self::DreamInterpretation => Family::DreamInterpretation,
+            Self::MagistrateRuling => Family::MagistrateRuling,
         }
     }
 
@@ -45,6 +48,7 @@ impl NodeFamily {
     const fn canon_tag(self) -> u8 {
         match self {
             Self::DreamInterpretation => 0,
+            Self::MagistrateRuling => 1,
         }
     }
 }
@@ -70,11 +74,17 @@ pub enum NodeOption {
     BurnSmall,
     /// `dismiss_dream`: nothing changes.
     DismissDream,
+    /// `grant_next_slot`: the register opens now (R6.6).
+    GrantNextSlot,
+    /// `grant_later_slot`: the register opens after `grant_later_delay`.
+    GrantLaterSlot,
+    /// `deny`: the queue stands; nothing changes (R6.7).
+    Deny,
 }
 
 impl NodeOption {
     /// Every option, in the order of the design's option tables.
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 11] = [
         Self::HeedWarning,
         Self::TakeComfort,
         Self::FollowUrging,
@@ -83,6 +93,9 @@ impl NodeOption {
         Self::BurnOffering,
         Self::BurnSmall,
         Self::DismissDream,
+        Self::GrantNextSlot,
+        Self::GrantLaterSlot,
+        Self::Deny,
     ];
 
     /// The snake_case option ID (OP-U12 A).
@@ -96,6 +109,9 @@ impl NodeOption {
             Self::BurnOffering => "burn_offering",
             Self::BurnSmall => "burn_small",
             Self::DismissDream => "dismiss_dream",
+            Self::GrantNextSlot => "grant_next_slot",
+            Self::GrantLaterSlot => "grant_later_slot",
+            Self::Deny => "deny",
         }
     }
 
@@ -115,6 +131,9 @@ impl NodeOption {
             Self::BurnOffering => 5,
             Self::BurnSmall => 6,
             Self::DismissDream => 7,
+            Self::GrantNextSlot => 8,
+            Self::GrantLaterSlot => 9,
+            Self::Deny => 10,
         }
     }
 }
@@ -166,6 +185,11 @@ pub enum NodeParams {
         /// The intent the dream was sent with.
         intent: dreams::DreamIntent,
     },
+    /// `magistrate_ruling`: the joss paper the Ghost burned (R6.4).
+    Ruling {
+        /// The `magnitude` of the Bribe's `offering` Event.
+        amount: u64,
+    },
 }
 
 impl NodeParams {
@@ -173,6 +197,7 @@ impl NodeParams {
     const fn canon_tag(self) -> u8 {
         match self {
             Self::Dream { .. } => 0,
+            Self::Ruling { .. } => 1,
         }
     }
 }
@@ -348,6 +373,25 @@ fn default_option(
             );
             dreams::dream_default(context, noise)
         }
+        NodeFamily::MagistrateRuling => {
+            let noise = |site: u64, cap: u64| {
+                let cap = i64::try_from(cap).unwrap_or(0);
+                rng::in_range(
+                    rng::draw(
+                        world.seed,
+                        EntityId(id.0),
+                        StreamTag::Nodes,
+                        world.tick,
+                        site,
+                    ),
+                    cap.saturating_neg(),
+                    cap,
+                )
+            };
+            let next_noise = noise(1, world.params.next_noise);
+            let later_noise = noise(2, world.params.later_noise);
+            magistrate::ruling_default(context, next_noise, later_noise, &world.params)
+        }
     }
 }
 
@@ -433,6 +477,7 @@ impl Canon for NodeParams {
         self.canon_tag().encode(w);
         match self {
             Self::Dream { intent } => intent.encode(w),
+            Self::Ruling { amount } => amount.encode(w),
         }
     }
 }

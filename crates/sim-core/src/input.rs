@@ -47,6 +47,11 @@ pub enum InputPayload {
         /// The living target.
         target: PersonId,
     },
+    /// The Player_Soul's Ghost bribes the Magistrate for an earlier slot (R6.1).
+    Bribe {
+        /// Joss paper burned for the Magistrate, 1..=the balance.
+        amount: u64,
+    },
     /// Choose the trait the next body inherits (R9.1).
     CarryOver {
         /// One of the seven Traits.

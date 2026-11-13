@@ -41,6 +41,7 @@ pub(crate) fn resolve_pending(world: &mut World) {
         };
         match node.family {
             nodes::NodeFamily::DreamInterpretation => dreams::apply_effect(world, &node, applied),
+            nodes::NodeFamily::MagistrateRuling => magistrate::apply_effect(world, &node, applied),
         }
         world.nodes.resolved.push(nodes::NodeRecord {
             id,

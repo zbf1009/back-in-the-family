@@ -30,6 +30,7 @@
 //! {"CarryOver":{"trait_name":"piety"}}
 //! {"Dream":{"dreamer":"17","intent":"warn"}}
 //! {"Haunt":{"target":"9"}}
+//! {"Bribe":{"amount":"120"}}
 //! {"Choose":{"node":{"Trigger":{"seq":"64"}},"option":"heed_warning"}}
 //! ```
 //!
@@ -396,6 +397,9 @@ pub enum ReplayNodeOption {
     BurnOffering,
     BurnSmall,
     DismissDream,
+    GrantNextSlot,
+    GrantLaterSlot,
+    Deny,
 }
 
 impl From<NodeOption> for ReplayNodeOption {
@@ -409,6 +413,9 @@ impl From<NodeOption> for ReplayNodeOption {
             NodeOption::BurnOffering => Self::BurnOffering,
             NodeOption::BurnSmall => Self::BurnSmall,
             NodeOption::DismissDream => Self::DismissDream,
+            NodeOption::GrantNextSlot => Self::GrantNextSlot,
+            NodeOption::GrantLaterSlot => Self::GrantLaterSlot,
+            NodeOption::Deny => Self::Deny,
         }
     }
 }
@@ -424,6 +431,9 @@ impl From<ReplayNodeOption> for NodeOption {
             ReplayNodeOption::BurnOffering => Self::BurnOffering,
             ReplayNodeOption::BurnSmall => Self::BurnSmall,
             ReplayNodeOption::DismissDream => Self::DismissDream,
+            ReplayNodeOption::GrantNextSlot => Self::GrantNextSlot,
+            ReplayNodeOption::GrantLaterSlot => Self::GrantLaterSlot,
+            ReplayNodeOption::Deny => Self::Deny,
         }
     }
 }
@@ -455,6 +465,10 @@ pub enum ReplayPayload {
         #[serde(with = "u64_string")]
         target: u64,
     },
+    Bribe {
+        #[serde(with = "u64_string")]
+        amount: u64,
+    },
     Choose {
         node: ReplayNodeRef,
         option: ReplayNodeOption,
@@ -484,6 +498,7 @@ impl From<InputPayload> for ReplayPayload {
                 intent: intent.into(),
             },
             InputPayload::Haunt { target } => Self::Haunt { target: target.0 },
+            InputPayload::Bribe { amount } => Self::Bribe { amount },
             InputPayload::Choose { node, option } => Self::Choose {
                 node: node.into(),
                 option: option.into(),
@@ -517,6 +532,7 @@ impl From<ReplayPayload> for InputPayload {
             ReplayPayload::Haunt { target } => Self::Haunt {
                 target: PersonId(target),
             },
+            ReplayPayload::Bribe { amount } => Self::Bribe { amount },
             ReplayPayload::Choose { node, option } => Self::Choose {
                 node: node.into(),
                 option: option.into(),
@@ -948,6 +964,10 @@ mod tests {
                     target: PersonId(9),
                 },
                 r#"{"Haunt":{"target":"9"}}"#,
+            ),
+            (
+                InputPayload::Bribe { amount: 120 },
+                r#"{"Bribe":{"amount":"120"}}"#,
             ),
             (
                 InputPayload::Choose {

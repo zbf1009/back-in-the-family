@@ -280,6 +280,10 @@ fn label(option: NodeOption) -> &'static str {
         NodeOption::BurnOffering => "Burn joss paper for the ghost",
         NodeOption::BurnSmall => "Burn a small bundle of joss paper",
         NodeOption::DismissDream => "Dismiss the dream and go on with the day",
+        NodeOption::GrantNextSlot | NodeOption::GrantLaterSlot | NodeOption::Deny => {
+            debug_assert!(false, "a ruling option is not a dream option");
+            ""
+        }
     }
 }
 
@@ -388,6 +392,7 @@ fn score(
                 .saturating_sub(5),
         ),
         NodeOption::DismissDream => Some(0),
+        NodeOption::GrantNextSlot | NodeOption::GrantLaterSlot | NodeOption::Deny => None,
     }
 }
 
@@ -416,7 +421,10 @@ pub(crate) fn apply_effect(world: &mut World, node: &PendingNode, applied: NodeO
             burn(world, dreamer, ghost, 1, params.burn_offering_affinity_gain)
         }
         NodeOption::BurnSmall => burn(world, dreamer, ghost, 3, params.burn_small_affinity_gain),
-        NodeOption::DismissDream => {}
+        NodeOption::DismissDream
+        | NodeOption::GrantNextSlot
+        | NodeOption::GrantLaterSlot
+        | NodeOption::Deny => {}
     }
 }
 
