@@ -1,10 +1,11 @@
-//! The Context_Builder (design "Context_Builder", R15).
+//! The Context_Builder (design "Contexts and LS-R15", R15).
 //!
 //! Builds a decision [`FrozenContext`] for a node family from the live [`World`]:
-//! the last 12 Events that list the subject as an actor, the subject, those Events'
-//! actors and the subject's strongest Relations, every Relation between the selected
-//! people, and the id mapping of OP-10. Every value is read from the World at the
-//! current tick and stays inside the card ranges, so the existing
+//! the last 12 Events that list any Person of the node's focus set, the subject, those
+//! Events' actors and the subject's strongest Relations, every Relation between the
+//! selected people, and the id mapping of OP-10. The subject may be a Resident or the
+//! Magistrate, which renders with its fixed card values (R15.12). Every value is read
+//! from the World at the current tick and stays inside the card ranges, so the existing
 //! System_One_Mapping_v1, the card JSON reader and the output validator work unchanged.
 //!
 //! The builder only reads the World and only constructs `llm` values through their
@@ -20,8 +21,8 @@ use crate::world::World;
 
 use crate::llm::{
     Event as CardEvent, EventId as CardEventId, Family, FrozenContext, OptionDef, OptionId,
-    Person as CardPerson, PersonId as CardPersonId, Relation as CardRelation, Task, TaskSpec,
-    Traits as CardTraits,
+    Person as CardPerson, PersonId as CardPersonId, PlayerInput, Relation as CardRelation, Task,
+    TaskSpec, Traits as CardTraits,
 };
 
 /// The most Events a context carries, the last ones by live Event ID.
@@ -38,7 +39,7 @@ pub const OPTION_MAX: usize = 5;
 pub enum BuildError {
     /// The subject is not a Person of this World.
     UnknownSubject(PersonId),
-    /// The subject is dead; a decision node needs a Resident.
+    /// The subject is dead; a decision node needs a living Resident or the Magistrate.
     DeadSubject(PersonId),
     /// No open Debt is keyed by this `loan` Event.
     UnknownLoan(EventId),
@@ -65,23 +66,31 @@ impl fmt::Display for BuildError {
 
 impl std::error::Error for BuildError {}
 
-/// Builds a decision context for `subject` (design "Context_Builder" steps 1 to 7).
+/// Builds a decision context for `subject` (design "Contexts and LS-R15").
 ///
+/// `subject` may be a living Resident or the Magistrate (R15.12); a dead Resident is
+/// refused with [`BuildError::DeadSubject`]. `focus` is the set of Persons whose Events
+/// the context shows: the last [`MAX_EVENTS`] Events that list any of them (OP-D5 A).
 /// `options` must hold 2..=5 options with distinct IDs. `situation` is the node's fixed
 /// template text; the caller keeps it at most 80 words (R15.3).
-pub fn build_decision_context(
+pub fn build_node_context(
     world: &World,
     subject: PersonId,
+    focus: &[PersonId],
     family: Family,
     options: Vec<OptionDef>,
     situation: String,
+    player_input: Option<PlayerInput>,
 ) -> Result<FrozenContext, BuildError> {
-    // 1. The subject must be a Resident; the options must be 2..=5 and distinct.
-    let Some(person) = world.persons().get(&subject) else {
-        return Err(BuildError::UnknownSubject(subject));
-    };
-    if matches!(person.life, Life::Dead { .. }) {
-        return Err(BuildError::DeadSubject(subject));
+    // 1. The subject must be a living Resident or the Magistrate; the options must be
+    //    2..=5 and distinct.
+    match world.persons().get(&subject) {
+        Some(person) if matches!(person.life, Life::Dead { .. }) => {
+            return Err(BuildError::DeadSubject(subject));
+        }
+        Some(_) => {}
+        None if subject == world.magistrate().id => {}
+        None => return Err(BuildError::UnknownSubject(subject)),
     }
     if !(OPTION_MIN..=OPTION_MAX).contains(&options.len()) {
         return Err(BuildError::OptionCount(options.len()));
@@ -93,12 +102,18 @@ pub fn build_decision_context(
         }
     }
 
-    // 2. The last 12 Events that list the subject as an actor, in ascending live ID.
+    // 2. The last 12 Events that list any Person of `focus`, in ascending live ID.
     let mut chosen: Vec<&WorldEvent> = world
         .log()
         .events()
         .iter()
-        .filter(|event| event.kind.actors().iter().any(|actor| actor == subject))
+        .filter(|event| {
+            event
+                .kind
+                .actors()
+                .iter()
+                .any(|actor| focus.contains(&actor))
+        })
         .collect();
     let first = chosen.len().saturating_sub(MAX_EVENTS);
     chosen.drain(..first);
@@ -149,8 +164,7 @@ pub fn build_decision_context(
     // 6 and 7. Values from the World and the fixed header fields.
     let card_people: Vec<CardPerson> = people
         .into_iter()
-        .filter_map(|id| world.persons().get(&id))
-        .map(|p| card_person(world, p))
+        .filter_map(|id| card_person_any(world, id))
         .collect();
 
     Ok(FrozenContext {
@@ -162,9 +176,21 @@ pub fn build_decision_context(
         relations,
         events: card_events,
         situation,
-        player_input: None,
+        player_input,
         spec: TaskSpec::Decision { options },
     })
+}
+
+/// The life-sim entry point: [`build_node_context`] with the subject as the only Person
+/// whose Events the context shows, so its output is unchanged.
+pub fn build_decision_context(
+    world: &World,
+    subject: PersonId,
+    family: Family,
+    options: Vec<OptionDef>,
+    situation: String,
+) -> Result<FrozenContext, BuildError> {
+    build_node_context(world, subject, &[subject], family, options, situation, None)
 }
 
 /// The test node of OP-10: the debtor of the open Debt keyed by `loan`, options
@@ -254,6 +280,38 @@ fn card_person(world: &World, person: &crate::world::Person) -> CardPerson {
     }
 }
 
+/// Renders any Person a context may name: a Resident or dead Person from the World, or
+/// the Magistrate with its fixed card values (R15.12): origin `official`, alive, the
+/// nominal age, wealth 0 and the Soul ID text `S-0000`.
+fn card_person_any(world: &World, id: PersonId) -> Option<CardPerson> {
+    if let Some(person) = world.persons().get(&id) {
+        return Some(card_person(world, person));
+    }
+    let magistrate = world.magistrate();
+    if id != magistrate.id {
+        return None;
+    }
+    Some(CardPerson {
+        id: card_person_id(id),
+        name: crate::underworld::magistrate::FULL_NAME.to_owned(),
+        age: i64::from(crate::underworld::magistrate::NOMINAL_AGE),
+        sex: crate::underworld::magistrate::SEX.as_str().to_owned(),
+        alive: true,
+        origin: "official".to_owned(),
+        traits: CardTraits {
+            greed: i64::from(magistrate.traits.greed.get()),
+            loyalty: i64::from(magistrate.traits.loyalty.get()),
+            pride: i64::from(magistrate.traits.pride.get()),
+            warmth: i64::from(magistrate.traits.warmth.get()),
+            temper: i64::from(magistrate.traits.temper.get()),
+            vindictiveness: i64::from(magistrate.traits.vindictiveness.get()),
+            piety: i64::from(magistrate.traits.piety.get()),
+        },
+        wealth: 0,
+        soul_id: crate::underworld::magistrate::SOUL_ID_TEXT.to_owned(),
+    })
+}
+
 fn card_event(event: &WorldEvent, index: &BTreeMap<EventId, usize>) -> CardEvent {
     CardEvent {
         id: card_event_id(index.get(&event.id).copied().unwrap_or(0)),
@@ -304,8 +362,10 @@ fn person_name(world: &World, id: PersonId) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::events::{CausedBy, EventKind, EventTags};
     use crate::params::Params;
     use crate::testing::{Mutation, apply};
+    use crate::values::{Intensity, SocialKind};
     use crate::world::WorldConfig;
 
     fn world() -> World {
@@ -318,8 +378,10 @@ mod tests {
     }
 
     fn options(count: usize) -> Vec<OptionDef> {
+        // Option IDs match `^[a-z][a-z_]*$`, so no digits.
+        const NAMES: [&str; 6] = ["one", "two", "three", "four", "five", "six"];
         (0..count)
-            .map(|i| option(&format!("opt_{i}"), "label"))
+            .map(|i| option(NAMES.get(i).copied().unwrap_or("seven"), "label"))
             .collect()
     }
 
@@ -353,6 +415,165 @@ mod tests {
                 "situation".to_owned()
             ),
             Err(BuildError::DeadSubject(subject))
+        );
+        assert_eq!(
+            build_node_context(
+                &world,
+                subject,
+                &[subject],
+                Family::DebtRepayment,
+                options(3),
+                "situation".to_owned(),
+                None
+            ),
+            Err(BuildError::DeadSubject(subject))
+        );
+    }
+
+    /// Pinned JSON of the life-sim `debt_repayment_node` context (seed 1, `Params::stress`,
+    /// the first open Debt). `build_decision_context` must stay byte-identical to the
+    /// life-sim output (design "Contexts and LS-R15", task 4.2).
+    const PINNED_DEBT_CONTEXT_JSON: &str = r#"{"events":[{"actors":[22,2],"caused_by":[],"id":"e1","magnitude":68,"tags":[],"tick":0,"type":"theft"},{"actors":[10,22],"caused_by":[],"due_tick":407,"id":"e2","magnitude":1584,"tags":["cash"],"tick":0,"type":"loan"}],"family":"debt_repayment","options":[{"id":"repay","label":"Pay the next instalment"},{"id":"stall","label":"Ask for more time"},{"id":"refuse","label":"Refuse to pay"}],"people":[{"age":36,"alive":true,"id":2,"name":"Irene Carlson","origin":"native","sex":"female","soul_id":"S-0002","traits":{"greed":0,"loyalty":1,"piety":0,"pride":-3,"temper":2,"vindictiveness":-1,"warmth":2},"wealth":28260},{"age":28,"alive":true,"id":10,"name":"Edgar Rowe","origin":"native","sex":"male","soul_id":"S-0010","traits":{"greed":3,"loyalty":-1,"piety":1,"pride":3,"temper":2,"vindictiveness":-2,"warmth":-3},"wealth":74670},{"age":29,"alive":true,"id":19,"name":"Meredith Hale","origin":"native","sex":"female","soul_id":"S-0019","traits":{"greed":2,"loyalty":3,"piety":-2,"pride":-3,"temper":1,"vindictiveness":-2,"warmth":-2},"wealth":65531},{"age":5,"alive":true,"id":21,"name":"Bernard Hale","origin":"native","sex":"male","soul_id":"S-0021","traits":{"greed":1,"loyalty":0,"piety":0,"pride":3,"temper":2,"vindictiveness":-2,"warmth":2},"wealth":0},{"age":90,"alive":true,"id":22,"name":"Amelia Hale","origin":"native","sex":"female","soul_id":"S-0022","traits":{"greed":-3,"loyalty":-2,"piety":-2,"pride":2,"temper":2,"vindictiveness":1,"warmth":-2},"wealth":5573}],"player_input":null,"relations":[{"affinity":-60,"from":2,"tags":["rival"],"to":22,"trust":-50},{"affinity":50,"from":19,"tags":["child"],"to":21,"trust":50},{"affinity":50,"from":19,"tags":["parent"],"to":22,"trust":50},{"affinity":50,"from":21,"tags":["parent"],"to":19,"trust":50},{"affinity":40,"from":21,"tags":["grandparent"],"to":22,"trust":40},{"affinity":50,"from":22,"tags":["child"],"to":19,"trust":50},{"affinity":40,"from":22,"tags":["grandchild"],"to":21,"trust":40}],"situation":"Amelia Hale owes Edgar Rowe 1584 dollars from a loan of 1584 dollars, due on day 407. Today is day 0.","subject":22,"task":"decision","tick":0}"#;
+
+    #[test]
+    fn the_debt_context_json_is_byte_identical_to_the_life_sim_output() {
+        let world = world();
+        let loan = first_open_debt(&world);
+        let context = debt_repayment_node(&world, loan).expect("the context builds");
+        let json = crate::llm::json::write(&crate::llm::api::frozen_context_to_json(&context));
+        assert_eq!(json, PINNED_DEBT_CONTEXT_JSON);
+    }
+
+    #[test]
+    fn a_magistrate_subject_context_round_trips_and_renders_as_official() {
+        let world = world();
+        let magistrate = world.magistrate().id;
+        let context = build_node_context(
+            &world,
+            magistrate,
+            &[magistrate],
+            Family::MagistrateRuling,
+            options(3),
+            "situation".to_owned(),
+            None,
+        )
+        .expect("the context builds");
+        assert_eq!(
+            context.subject.map(|s| s.0),
+            Some(i64::try_from(magistrate.0).unwrap_or(i64::MAX))
+        );
+        let official = context
+            .people
+            .iter()
+            .find(|p| p.id.0 == i64::try_from(magistrate.0).unwrap_or(i64::MAX))
+            .expect("R15.12: the Magistrate is in people");
+        assert_eq!(official.name, "Orrin Vell");
+        assert_eq!(official.origin, "official");
+        assert!(official.alive);
+        assert_eq!(official.age, 600);
+        assert_eq!(official.wealth, 0);
+        assert_eq!(official.soul_id, "S-0000");
+        assert_eq!(official.sex, "male");
+        let json = crate::llm::api::frozen_context_to_json(&context);
+        assert_eq!(
+            crate::llm::card::frozen_context_from_json(json),
+            Ok(context),
+            "the context must survive the JSON round trip"
+        );
+    }
+
+    #[test]
+    fn the_magistrate_renders_only_where_the_focus_names_it() {
+        let world = world();
+        let magistrate = world.magistrate().id;
+        let subject = live_subject(&world);
+        let context = build_node_context(
+            &world,
+            subject,
+            &[subject],
+            Family::DebtRepayment,
+            options(3),
+            "situation".to_owned(),
+            None,
+        )
+        .expect("the context builds");
+        assert!(
+            context
+                .people
+                .iter()
+                .all(|p| p.id.0 != i64::try_from(magistrate.0).unwrap_or(i64::MAX)),
+            "the Magistrate is in no context its focus does not name"
+        );
+    }
+
+    #[test]
+    fn the_focus_set_selects_the_events_the_context_shows() {
+        // Three Residents that no opening Event names, so the window holds exactly the
+        // Events the test appends.
+        let mut world = world();
+        let quiet: Vec<PersonId> = world
+            .persons()
+            .values()
+            .filter(|person| matches!(person.life, Life::Alive { .. }))
+            .filter(|person| {
+                !world
+                    .log()
+                    .events()
+                    .iter()
+                    .any(|event| event.kind.actors().iter().any(|actor| actor == person.id))
+            })
+            .map(|person| person.id)
+            .take(3)
+            .collect();
+        let [subject, other, third] = quiet[..] else {
+            panic!("the Opening_World leaves at least three Residents event-free");
+        };
+        world
+            .append(
+                EventKind::Social {
+                    kind: SocialKind::Help,
+                    doer: other,
+                    target: third,
+                    intensity: Intensity::new(40).expect("40 is in range"),
+                },
+                CausedBy::default(),
+                EventTags::empty(),
+            )
+            .expect("the Event appends");
+
+        let alone = build_node_context(
+            &world,
+            subject,
+            &[subject],
+            Family::DebtRepayment,
+            options(3),
+            "situation".to_owned(),
+            None,
+        )
+        .expect("the context builds");
+        assert!(
+            alone.events.is_empty(),
+            "a focus that does not name the actor shows none of its Events"
+        );
+
+        let with_other = build_node_context(
+            &world,
+            subject,
+            &[subject, other],
+            Family::DebtRepayment,
+            options(3),
+            "situation".to_owned(),
+            None,
+        )
+        .expect("the context builds");
+        assert_eq!(with_other.events.len(), 1, "OP-D5 A: the focus set adds it");
+        assert_eq!(with_other.events[0].kind, "help");
+        assert!(
+            with_other
+                .people
+                .iter()
+                .any(|p| p.id == card_person_id(third)),
+            "the Event's actors join the people"
         );
     }
 

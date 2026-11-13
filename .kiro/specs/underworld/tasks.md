@@ -107,7 +107,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Unit tests: the formula at 0, 1 and 500; funeral and Halloween on the same tick count once with factor 2; a reborn Soul's dead body gets no offering; no money balance changes; the credit stops at the cap while `magnitude` stays the full amount.
     - _Requirements: 1.4, 2.1, 2.2, 2.3, 2.4, 2.5, 2.7, 2.8, 10.1_
     - Acceptance: fixture acceptance. Commit as `feat(sim-core): add offerings by the living` with the regeneration line.
-  - [ ] 4.2 Add `build_node_context`
+  - [x] 4.2 Add `build_node_context`
     - Files: `crates/sim-core/src/context_builder.rs`.
     - Follow design "Contexts and LS-R15". `build_node_context(world, subject, focus, family, options, situation, player_input)`: the subject may be a Resident or the Magistrate (`BuildError::DeadSubject` for a dead subject); events are the last 12 listing any `focus` Person (OP-D5 A); `card_person_any` renders the Magistrate as `official`, alive, age 600, wealth 0, `S-0000`. `build_decision_context` becomes `build_node_context(.., &[subject], .., None)` with unchanged output. **Do not edit anything under `src/llm/`.**
     - Unit tests: the life-sim `debt_repayment_node` context is byte-identical to before (compare against the JSON from the existing test or a pinned string); a Magistrate-subject context passes `frozen_context_from_json(frozen_context_to_json(ctx)) == ctx`; a dead subject is refused.

@@ -33,7 +33,7 @@ const SYSTEM_ONE_V1: &str =
     include_str!("../../../eval/probe/templates/decision.system_one.v1.txt");
 
 /// Every event type this spec produces, from the card event-type list.
-const EVENT_TYPES: [&str; 16] = [
+const EVENT_TYPES: [&str; 20] = [
     "birth",
     "death",
     "marriage",
@@ -50,6 +50,10 @@ const EVENT_TYPES: [&str; 16] = [
     "insult",
     "theft",
     "apology",
+    "offering",
+    "dream",
+    "haunting",
+    "appeal",
 ];
 
 /// Every card event tag name.
