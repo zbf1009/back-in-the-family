@@ -1775,7 +1775,7 @@ mod tests {
 
     #[test]
     fn a_rule_event_naming_the_magistrate_is_caught_as_u15_5() {
-        let (mut w, mut checker, _soul) = stepped_world();
+        let (mut w, _checker, _soul) = stepped_world();
         let id = w.magistrate.id;
         w.log
             .push(
@@ -1785,13 +1785,13 @@ mod tests {
                 crate::events::EventTags::empty(),
             )
             .unwrap();
-        let violation = checker.after_tick(&w).unwrap_err();
+        let violation = check_magistrate_log(&w, 0).unwrap_err();
         assert_eq!(violation.criterion, "U15.5");
     }
 
     #[test]
     fn an_appeal_naming_the_magistrate_first_is_caught_as_u15_8() {
-        let (mut w, mut checker, _soul) = stepped_world();
+        let (mut w, _checker, _soul) = stepped_world();
         let id = w.magistrate.id;
         let resident = *w.persons.keys().next().expect("the town has Persons");
         w.log
@@ -1805,7 +1805,7 @@ mod tests {
                 crate::events::EventTags::empty(),
             )
             .unwrap();
-        let violation = checker.after_tick(&w).unwrap_err();
+        let violation = check_magistrate_log(&w, 0).unwrap_err();
         assert_eq!(violation.criterion, "U15.8");
     }
 

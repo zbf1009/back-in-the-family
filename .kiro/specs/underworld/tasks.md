@@ -158,79 +158,79 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - **Property 1: The log is the joss ledger.** **Validates: Requirements 1.1, 1.2, 1.3, 1.4, 10.2**
     - **Property 2: The Yearly_Cap holds.** **Validates: Requirements 2.4, 2.5, 2.6, 10.1**
     - Acceptance: `cargo test -p sim-core --test underworld` passes. Commit as `test(sim-core): ...`.
-  - [ ] 6.4 Property test: Property 3 (offerings follow the occasions and the formula)
+  - [x] 6.4 Property test: Property 3 (offerings follow the occasions and the formula)
     - File: `crates/sim-core/tests/underworld.rs`.
     - **Property 3: Offerings follow the occasions and the formula.** **Validates: Requirements 2.1, 2.2, 2.3, 2.7, 2.8**
     - Acceptance: `cargo test -p sim-core --test underworld` passes. Commit.
-  - [ ] 6.5 Property tests: Property 4 (every Decision_Node fires, resolves once and is recorded) and Property 5 (Rules_Defaults depend only on the context and the node's draws)
+  - [x] 6.5 Property tests: Property 4 (every Decision_Node fires, resolves once and is recorded) and Property 5 (Rules_Defaults depend only on the context and the node's draws)
     - File: `crates/sim-core/tests/underworld.rs`.
     - **Property 4: Every Decision_Node fires, resolves once and is recorded.** **Validates: Requirements 3.1, 3.2, 3.3, 3.5, 3.6, 3.8**
     - **Property 5: Rules_Defaults depend only on the context and the node's draws.** **Validates: Requirements 3.7, 6.4**
     - Acceptance: `cargo test -p sim-core --test underworld` passes. Commit.
-  - [ ] 6.6 Property test: Property 6 (the magistrate ruling is monotone in the amount)
+  - [x] 6.6 Property test: Property 6 (the magistrate ruling is monotone in the amount)
     - File: `crates/sim-core/tests/underworld.rs`. Pure-function test over traits, noise values and amounts `a <= b`, 1,000 cases.
     - **Property 6: The magistrate ruling is monotone in the amount.** **Validates: Requirements 6.5**
     - Acceptance: `cargo test -p sim-core --test underworld` passes. Commit.
-  - [ ] 6.7 Property test: Property 7 (node contexts are valid cards)
+  - [x] 6.7 Property test: Property 7 (node contexts are valid cards)
     - File: `crates/sim-core/tests/underworld.rs`. Read the committed `eval/probe/templates/decision.system_one.v1.txt` relative to `CARGO_MANIFEST_DIR`, as `tests/context_builder.rs` does; use `render::permutations` and `validate_raw_choice`.
     - **Property 7: Node contexts are valid cards.** **Validates: Requirements 3.9, 4.4, 15.11, 15.12**
     - Acceptance: `cargo test -p sim-core --test underworld` passes; the R14.4 check. Commit.
-  - [ ] 6.8 Property tests: Property 8 (dreams), Property 9 (hauntings) and Property 10 (Bribes and rulings)
+  - [x] 6.8 Property tests: Property 8 (dreams), Property 9 (hauntings) and Property 10 (Bribes and rulings)
     - File: `crates/sim-core/tests/underworld.rs`. The "World differs only in ..." parts compare the tick with and without the input on cloned `Sim`s.
     - **Property 8: Dreams spend, fire and change only what the option names.** **Validates: Requirements 4.1, 4.5, 4.6, 4.7, 3.10**
     - **Property 9: Hauntings change only the target's Mood.** **Validates: Requirements 5.1, 5.2, 5.4**
     - **Property 10: Bribes and rulings change only access.** **Validates: Requirements 6.1, 6.6, 6.7, 3.10**
     - Acceptance: `cargo test -p sim-core --test underworld` passes. Commit.
-  - [ ] 6.9 Property tests: Property 11 (slots), Property 12 (the wait bound) and Property 13 (the carry-over)
+  - [x] 6.9 Property tests: Property 11 (slots), Property 12 (the wait bound) and Property 13 (the carry-over)
     - File: `crates/sim-core/tests/underworld.rs`.
     - **Property 11: Slots open, are claimed and are born correctly.** **Validates: Requirements 7.1, 7.2, 7.4, 7.5, 7.6, 7.7, 7.10, 8.4**
     - **Property 12: The Player_Soul's wait is bounded.** **Validates: Requirements 8.1, 8.2, 8.3**
     - **Property 13: The carry-over changes at most one Trait.** **Validates: Requirements 9.1, 9.3, 9.4, 9.5**
     - Acceptance: `cargo test -p sim-core --test underworld` passes. Commit.
-  - [ ] 6.10 Property test: Property 14 (invalid underworld inputs are skipped and recorded)
+  - [x] 6.10 Property test: Property 14 (invalid underworld inputs are skipped and recorded)
     - File: `crates/sim-core/tests/underworld.rs`.
     - **Property 14: Invalid underworld inputs are skipped and recorded.** **Validates: Requirements 3.4, 4.3, 5.3, 6.2, 7.8, 9.2, 15.9**
     - Acceptance: `cargo test -p sim-core --test underworld` passes. Commit.
-  - [ ] 6.11 Property test: Property 15 (the Magistrate stays fixed and outside the town)
+  - [x] 6.11 Property test: Property 15 (the Magistrate stays fixed and outside the town)
     - File: `crates/sim-core/tests/underworld.rs`.
     - **Property 15: The Magistrate stays fixed and outside the town.** **Validates: Requirements 15.1, 15.2, 15.3, 15.5, 15.6, 15.7, 15.8, 15.10, 15.14**
     - Acceptance: `cargo test -p sim-core --test underworld` passes. Commit.
-  - [ ] 6.12 Property test: Property 16 (replays with External_Choices reproduce every Checksum)
+  - [x] 6.12 Property test: Property 16 (replays with External_Choices reproduce every Checksum)
     - File: `crates/sim-core/tests/underworld.rs`. Filter to runs with at least one applied External_Choice; use `record` and `verify`, and tamper one recorded Checksum.
     - **Property 16: Replays with External_Choices reproduce every Checksum.** **Validates: Requirements 14.1, 14.2**
     - Acceptance: `cargo test -p sim-core --test underworld` passes. Commit.
-  - [ ] 6.13 Property test: Property 18 (every new state field reaches the Checksum)
+  - [x] 6.13 Property test: Property 18 (every new state field reaches the Checksum)
     - File: `crates/sim-core/tests/underworld.rs`. Use the extended `testing::Mutation` (Joss_Balance, cap counter, slot, `player_wait`, node record, Magistrate traits).
     - **Property 18: Every new state field reaches the Checksum.** **Validates: Requirements 1.1, 3.6, 14.1**
     - Acceptance: `cargo test -p sim-core --test underworld` passes. Commit.
-  - [ ] 6.14 Property test: Property 19 (life-sim properties keep holding)
+  - [x] 6.14 Property test: Property 19 (life-sim properties keep holding)
     - Files: `crates/sim-core/tests/underworld.rs`, `crates/sim-core/tests/life_gen/mod.rs` (move the per-tick check bodies of life-sim Properties 1 to 7 out of `invariants.rs` and `history.rs` into shared helpers if needed, with no behaviour change), `crates/sim-core/tests/invariants.rs`, `crates/sim-core/tests/history.rs`.
     - Run the life-sim checks on generated underworld runs, with the Property 3 and Property 5 changes made in 3.1 and 3.2.
     - **Property 19: Life-sim properties keep holding.** **Validates: Requirements 7.10, 14.3, 10.3**
     - Acceptance: `cargo test -p sim-core` passes. Commit.
-  - [ ] 6.15 Inject, observe and revert each underworld invariant fault, and log it
+  - [ ] 6.15 Inject, observe and revert each underworld invariant fault, and log it (partial; plan 1 approved)
     - Files: temporary edits only (reverted); `docs/kiro-log.md` (appended).
     - For each of the first nine rows of design "Fault injections" (`U1.3`, `U2.5`, `U2.6`, `U4.3`, `U5.3`, `U7.10`, `U8.3`, `U15.8`, extended `5.8`): make the edit, then run both `cargo test -p sim-core --test underworld` and `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 2000`.
-    - **Property tests (required for all nine faults):** `cargo test -p sim-core --test underworld` MUST fail. Copy the failing criterion, its tick and the proptest case (or seed) into the log entry.
-    - **Batch (required only where it can trigger):** before task 9.2, `batch` runs without the Auto_Player, and under `Params::DEFAULT` the Player_Soul almost never dies within 2,000 days. So `batch` is required to fail only for the faults that can trigger without the Auto_Player: `U1.3`, `U2.5`, extended `5.8`, and any other fault for which the agent shows that `batch` does fail. For those, copy the criterion, tick and seed from the `batch` output. For the remaining faults (`U2.6`, `U4.3`, `U5.3`, `U7.10`, `U8.3`, `U15.8`, unless `batch` does catch them), the log entry records the `batch` command's actual result as printed and states: "batch cannot reach this before task 9.2; the property-test failure is the R12.4 evidence".
-    - After each fault: revert with `git checkout -- <file>`; confirm `git status` shows only the log; confirm both commands pass; append one log entry per fault. The three Auto_Player rows are task 10.2.
-    - If `cargo test -p sim-core --test underworld` does **not** catch a fault, stop: log it, strengthen the check or the property in a separate `test(sim-core): ...` commit, and repeat the injection. A `batch` pass is not a reason to stop for the six faults listed above as unreachable by `batch`; it is a reason to stop for `U1.3`, `U2.5` and extended `5.8`.
+    - **Property tests (required for all nine prescribed faults):** `cargo test -p sim-core --test underworld` MUST fail with the expected criterion. Copy the criterion, tick and proptest case (or seed) into the log entry; an unrelated debug assertion is not evidence for the criterion.
+    - **Batch (approved plan 1):** require a failing batch only when the prescribed fault actually reaches the pre-9.2 batch. Record the actual result for every injection. If it cannot reach the batch before task 9.2, state: "batch cannot reach this before task 9.2; the property-test failure is the R12.4 evidence". Do not substitute a diagnostic alternate fault for the prescribed one.
+    - After each fault, restore only the temporary edit and preserve unrelated WIP; confirm the working tree contains only intended changes, confirm both commands pass, and append one factual log entry per fault. The three Auto_Player rows are task 10.2.
+    - If the prescribed fault does not produce the expected property-test criterion, stop: log the observed failure, strengthen the relevant check or property in a separate `test(sim-core): ...` commit, and repeat that injection.
     - _Requirements: 12.1, 12.2, 12.3, 12.4_
-    - Acceptance: nine log entries, each with a failing `cargo test -p sim-core --test underworld` result; a failing `batch` result in the entries for `U1.3`, `U2.5` and extended `5.8`; in every other entry, either a failing `batch` result or the actual `batch` result plus the "batch cannot reach this before task 9.2" statement; both commands pass after the last revert; `git status` shows only `docs/kiro-log.md`. Commit as `docs: log underworld invariant fault injections`.
+    - Acceptance: nine log entries, each with the prescribed fault's failing underworld property-test criterion, tick and case; each also records the actual batch result, with a failing criterion/tick/seed where reached or the plan-1 unreachable statement where not reached; both commands pass after the final restore. The U1.3 row has partial evidence; U2.5's prescribed injection reached an unrelated debug assertion, and U2.6–extended `5.8` are not yet demonstrated. Leave 6.15 unchecked until all nine qualify.
 
-- [ ] 7. Snapshot
-  - [ ] 7.1 Extend the Snapshot
+- [x] 7. Snapshot
+  - [x] 7.1 Extend the Snapshot
     - Files: `crates/sim-core/src/snapshot.rs`, `crates/sim-wasm/tests/parity.rs` (only if a test needs a change), `fixtures/parity/seed1-pairwise.snapshot-500.json` (regenerated), `fixtures/parity/README.md`.
     - Follow design "Snapshot": after `souls`, the fields `magistrate`, `joss` (Soul ID order), `birth_slots` (slot ID order; `household`, `birth`, `price` `"0"`, `claimant`), `standing_slots` (Imported first, present exactly while the Player_Soul waits), `player_wait` and `pending_nodes` (always empty under OP-U11), with the field order and string encodings of the JSON example. The Magistrate is in no Resident, Household or Soul list.
     - Unit tests: `standing_slots` is empty and `player_wait` null while the Player_Soul lives; both present with prices 100 and 400 while it waits; the Magistrate field matches the fixed details.
     - _Requirements: 13.1, 13.2, 13.3, 13.4, 13.5, 7.9, 15.13, LS-R18.1, LS-R18.2, LS-R18.3_
     - Acceptance: Rust gates; `cargo test -p sim-wasm --target wasm32-unknown-unknown`; `scripts/regen-fixtures.sh` run twice changes only the snapshot file on the first run and nothing on the second; the R14.4 check. Commit as `feat(sim-core): show the underworld in the snapshot` with the regeneration line.
-  - [ ] 7.2 Property test: Property 17 (the extended Snapshot is faithful and read-only)
+  - [x] 7.2 Property test: Property 17 (the extended Snapshot is faithful and read-only)
     - File: `crates/sim-core/tests/underworld.rs`.
     - **Property 17: The extended Snapshot is faithful and read-only.** **Validates: Requirements 13.1, 13.2, 13.3, 13.4, 13.5, 15.13, 7.9**
     - Acceptance: `cargo test -p sim-core --test underworld` passes. Commit.
 
-- [ ] 8. Checkpoint: invariants, properties and Snapshot green
+- [x] 8. Checkpoint: invariants, properties and Snapshot green
   - `scripts/gates.sh` must exit 0, and the R14.4 check exits 0. Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 9. Auto_Player and batch report
