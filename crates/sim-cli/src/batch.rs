@@ -654,6 +654,104 @@ pub(crate) fn replay_of(
     }
 }
 
+type TickObserver<'a> = Option<&'a mut dyn FnMut(&Sim, bool)>;
+
+#[derive(Debug)]
+enum DriveError {
+    Invariant { tick: u64, violation: Violation },
+    Divergence(String),
+    Setup(String),
+}
+
+impl From<DriveError> for SeedOutcome {
+    fn from(error: DriveError) -> Self {
+        match error {
+            DriveError::Invariant { tick, violation } => Self::Invariant { tick, violation },
+            DriveError::Divergence(message) => Self::Divergence(message),
+            DriveError::Setup(message) => Self::Setup(message),
+        }
+    }
+}
+
+/// Steps an already constructed run through the same Auto_Player, invariant and
+/// reporting path used by `batch`; the caller owns the run's input stream.
+/// The optional observer is called before planning and after the completed tick;
+/// production passes `None` and never clones or retains a World snapshot.
+fn drive_sim(
+    sim: &mut Sim,
+    ticks: u64,
+    check: &dyn Fn(&World) -> Result<(), Violation>,
+    mut observe: TickObserver<'_>,
+) -> Result<Tally, DriveError> {
+    let mut checker = InvariantChecker::new(sim.world())
+        .map_err(|violation| DriveError::Invariant { tick: 0, violation })?;
+    let mut tally = Tally::new(sim.world());
+    let mut auto_player = crate::auto_player::AutoPlayer::default();
+    for _ in 0..ticks {
+        let tick = sim.world().tick();
+        let player_wait_before = match sim.world().souls().places[&sim.world().souls().player] {
+            SoulPlace::Waiting { since } => Some(since),
+            SoulPlace::Body(_) => None,
+        };
+        if let Some(callback) = &mut observe {
+            callback(sim, false);
+        }
+        for payload in auto_player.plan(sim) {
+            sim.submit(tick, payload)
+                .map_err(|e| DriveError::Setup(format!("auto-player input refused: {e}")))?;
+        }
+        sim.step();
+        checker
+            .after_tick(sim.world())
+            .map_err(|violation| DriveError::Invariant {
+                tick: violation.tick,
+                violation,
+            })?;
+        check(sim.world()).map_err(|violation| DriveError::Invariant {
+            tick: violation.tick,
+            violation,
+        })?;
+        if let Some(callback) = &mut observe {
+            callback(sim, true);
+        }
+        tally.after_tick(sim.world(), player_wait_before);
+        tally
+            .count_underworld(sim)
+            .map_err(DriveError::Divergence)?;
+    }
+    Ok(tally)
+}
+
+fn checked_stats(sim: &Sim, ticks: u64, tally: &Tally) -> Result<SeedStats, String> {
+    let log = sim.world().log();
+    if log.digest() != log.recompute_digest() {
+        return Err("Event_Log digest differs from a recompute".to_owned());
+    }
+    let checksum = sim.checksums().last().ok_or("no ticks were run")?;
+    Ok(stats_of(
+        sim.world(),
+        ticks,
+        tally,
+        checksum.to_hex_string(),
+    ))
+}
+
+/// Report an explicitly configured simulation through the production batch path.
+/// The test observer receives the state before planning and after settlement;
+/// the normal CLI passes no observer and retains its DEFAULT Params.
+/// Tests inspect real inputs and outcomes at each completed tick.
+#[doc(hidden)]
+pub fn report_sim(
+    mut sim: Sim,
+    ticks: u64,
+    mut observe: impl FnMut(&Sim, bool),
+) -> Result<String, String> {
+    let tally = drive_sim(&mut sim, ticks, &|_| Ok(()), Some(&mut observe))
+        .map_err(|failure| format!("{failure:?}"))?;
+    let stats = checked_stats(&sim, ticks, &tally)?;
+    Ok(ok_line(sim.world().seed(), ticks, &stats))
+}
+
 /// Runs one seed. `check` runs after every tick on top of the built-in
 /// [`InvariantChecker`]; `batch` passes a closure that never fails, tests pass one that
 /// can fail on demand.
@@ -676,46 +774,15 @@ fn run_seed(
         Ok(sim) => sim,
         Err(e) => return SeedOutcome::Setup(e.to_string()),
     };
-    let mut checker = match InvariantChecker::new(sim.world()) {
-        Ok(checker) => checker,
-        Err(violation) => return SeedOutcome::Invariant { tick: 0, violation },
-    };
     for &(tick, payload) in &inputs {
         if let Err(e) = sim.submit(tick, payload) {
             return SeedOutcome::Setup(format!("input refused: {e}"));
         }
     }
-    let mut tally = Tally::new(sim.world());
-    let mut auto_player = crate::auto_player::AutoPlayer::default();
-    for _ in 0..ticks {
-        let tick = sim.world().tick();
-        let player_wait_before = match sim.world().souls().places[&sim.world().souls().player] {
-            SoulPlace::Waiting { since } => Some(since),
-            SoulPlace::Body(_) => None,
-        };
-        for payload in auto_player.plan(&sim) {
-            if let Err(e) = sim.submit(tick, payload) {
-                return SeedOutcome::Setup(format!("auto-player input refused: {e}"));
-            }
-        }
-        sim.step();
-        if let Err(violation) = checker.after_tick(sim.world()) {
-            return SeedOutcome::Invariant {
-                tick: violation.tick,
-                violation,
-            };
-        }
-        if let Err(violation) = check(sim.world()) {
-            return SeedOutcome::Invariant {
-                tick: violation.tick,
-                violation,
-            };
-        }
-        tally.after_tick(sim.world(), player_wait_before);
-        if let Err(detail) = tally.count_underworld(&sim) {
-            return SeedOutcome::Divergence(detail);
-        }
-    }
+    let tally = match drive_sim(&mut sim, ticks, check, None) {
+        Ok(tally) => tally,
+        Err(outcome) => return outcome.into(),
+    };
 
     // The digest must equal a from-scratch recompute at the end of the run (OP-8 A).
     let log = sim.world().log();

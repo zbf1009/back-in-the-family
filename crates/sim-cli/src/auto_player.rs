@@ -11,8 +11,8 @@ use sim_core::underworld::slots::SlotRef;
 use sim_core::values::Traits;
 use sim_core::world::SoulPlace;
 
-#[derive(Clone, Copy)]
-enum Strategy {
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub enum Strategy {
     ImportedVessel,
     Birth,
     RebuiltBody,
@@ -23,6 +23,11 @@ const STRATEGIES: [Strategy; 3] = [
     Strategy::Birth,
     Strategy::RebuiltBody,
 ];
+
+/// The slot strategy chosen for wait `k`, in documented rotation order.
+pub fn strategy_for_wait(seed: u64, k: u64) -> Strategy {
+    STRATEGIES[((seed % 3 + k % 3) % 3) as usize]
+}
 
 struct WaitPlan {
     since: Tick,
@@ -78,11 +83,11 @@ impl AutoPlayer {
             .as_ref()
             .is_none_or(|plan| plan.since != since);
         if first {
-            let index = (seed % 3 + self.waits_seen % 3) % 3;
+            let strategy = strategy_for_wait(seed, self.waits_seen);
             self.waits_seen = self.waits_seen.saturating_add(1);
             self.per_wait = Some(WaitPlan {
                 since,
-                strategy: STRATEGIES[index as usize],
+                strategy,
                 dreamed: false,
                 bribed: false,
                 haunted: false,

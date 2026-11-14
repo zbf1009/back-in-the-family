@@ -247,7 +247,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Calibration: if the acceptance batch now fails a life-sim target (R11.7), apply design "Re-calibration" steps 1 to 3 in this task and log each run.
     - _Requirements: 11.3, 11.4, 11.5, 11.6, 11.7, 11.11_
     - Acceptance: Rust gates; `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0 and prints the totals line; paste the totals line into a `docs/kiro-log.md` entry. Commit as `feat(sim-cli): play the underworld in batch runs`.
-  - [ ] 9.3 Property tests: Property 20, Property 21 and Property 22
+  - [x] 9.3 Property tests: Property 20, Property 21 and Property 22
     - Files: `crates/sim-cli/tests/auto_player.rs` (new), `crates/sim-cli/Cargo.toml` (dev-dependency `sim-core` with `test-support` already exists; add `proptest` as a dev-dependency only if missing, and list it nowhere new since it is already a workspace dependency).
     - Runs on `stress_underworld` worlds of 400 ticks, 100 cases each; the rotation half of Property 21 is a pure-function proptest over `(world_seed, k)`. Add the example tests `rotation_covers_every_kind_on_acceptance_seeds` and the 3 fixed seeds on `Params::DEFAULT` over 29,200 ticks (Property 20 example).
     - **Property 20: The Auto_Player is reproducible and meets R11.10 exactly.** **Validates: Requirements 11.1, 11.2, 11.10**
