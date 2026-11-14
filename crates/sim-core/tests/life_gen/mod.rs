@@ -645,9 +645,16 @@ pub fn check_structure(world: &World) {
                 ),
             }
         }
-        for actor in event.kind.actors().iter() {
+        for (position, actor) in event.kind.actors().iter().enumerate() {
+            let known_resident = world.persons().contains_key(&actor);
+            let official_recipient = actor == world.magistrate().id
+                && position == 1
+                && matches!(
+                    &event.kind,
+                    EventKind::Appeal { .. } | EventKind::BribeOffering { .. }
+                );
             assert!(
-                world.persons().contains_key(&actor),
+                known_resident || official_recipient,
                 "{context}: event {} names unknown actor {} (5.7)",
                 event.id.0,
                 actor.0

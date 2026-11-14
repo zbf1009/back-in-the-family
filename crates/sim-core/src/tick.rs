@@ -112,6 +112,48 @@ impl World {
         (Checksum::of(self), outcomes)
     }
 
+    /// Test-only view of the state at the boundary before step 5. The inputs and
+    /// deaths have already applied; offerings and later changes have not.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn before_offerings(&self, inputs: &[TickInput]) -> Self {
+        let mut world = self.clone();
+        world.flows = crate::economy::FlowTotals::default();
+        world.apply_inputs(inputs);
+        crate::underworld::resolve_pending(&mut world);
+        crate::outsiders::release_outsiders(&mut world);
+        crate::underworld::place_player_if_overdue(&mut world);
+        crate::death::process_deaths(&mut world);
+        world
+    }
+
+    /// Test-only view after step 5, for checking that offerings move no money.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn after_offerings(&self) -> Self {
+        let mut world = self.clone();
+        crate::underworld::process_offerings(&mut world);
+        world
+    }
+
+    /// Test-only baseline for the body's own trait draws without a stored carry-over.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn without_carry_over(&self) -> Self {
+        let mut world = self.clone();
+        if let Some(wait) = world.player_wait.as_mut() {
+            wait.carry_over = None;
+        }
+        world
+    }
+
+    /// Test-only state after the last input and all its same-tick node rulings.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn after_inputs_and_nodes(&self, inputs: &[TickInput]) -> (Self, Vec<InputOutcome>) {
+        let mut world = self.clone();
+        world.flows = crate::economy::FlowTotals::default();
+        let outcomes = world.apply_inputs(inputs);
+        crate::underworld::resolve_pending(&mut world);
+        (world, outcomes)
+    }
+
     fn apply_inputs(&mut self, inputs: &[TickInput]) -> Vec<InputOutcome> {
         let mut outcomes = Vec::with_capacity(inputs.len());
         for input in inputs {

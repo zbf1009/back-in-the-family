@@ -24,6 +24,72 @@ struct SnapshotDto {
     residents: Vec<ResidentDto>,
     households: Vec<HouseholdDto>,
     souls: Vec<SoulDto>,
+    magistrate: MagistrateDto,
+    joss: Vec<JossDto>,
+    birth_slots: Vec<BirthSlotDto>,
+    standing_slots: Vec<StandingSlotDto>,
+    player_wait: Option<PlayerWaitDto>,
+    pending_nodes: Vec<PendingNodeDto>,
+}
+
+/// The one fixed official Person (R15.13): its Card_Person fields and its own Soul ID
+/// text. It appears in no other list.
+#[derive(Serialize)]
+struct MagistrateDto {
+    id: u64,
+    name: String,
+    age: u16,
+    sex: &'static str,
+    alive: bool,
+    origin: &'static str,
+    traits: TraitsDto,
+    wealth: u64,
+    soul_id: String,
+}
+
+/// One Soul's Joss_Balance (R13.1), in Soul ID order.
+#[derive(Serialize)]
+struct JossDto {
+    soul_id: String,
+    balance: String,
+}
+
+/// One open Birth_Slot (R13.2), in slot ID order.
+#[derive(Serialize)]
+struct BirthSlotDto {
+    id: String,
+    household: String,
+    birth: String,
+    price: String,
+    claimant: Option<String>,
+}
+
+/// One of the two Standing_Slots (R13.3), Imported_Vessel first.
+#[derive(Serialize)]
+struct StandingSlotDto {
+    kind: &'static str,
+    price: String,
+}
+
+/// The Player_Soul's wait, `null` while it is in a body (R13.3).
+#[derive(Serialize)]
+struct PlayerWaitDto {
+    ghost: u64,
+    access_from: String,
+    claim: Option<String>,
+    carry_over: Option<&'static str>,
+}
+
+/// One pending Decision_Node (R13.4), in Node ID order. Always empty between ticks
+/// under OP-U11; kept for a later multi-tick family.
+#[derive(Serialize)]
+struct PendingNodeDto {
+    id: String,
+    family: &'static str,
+    subject: u64,
+    options: Vec<&'static str>,
+    rules_default: &'static str,
+    resolves: String,
 }
 
 #[derive(Serialize)]
@@ -93,15 +159,7 @@ pub fn snapshot_json(world: &World) -> String {
                 sex: person.sex.as_str(),
                 alive: true,
                 origin: person.origin.as_str(),
-                traits: TraitsDto {
-                    greed: person.traits.greed.get(),
-                    loyalty: person.traits.loyalty.get(),
-                    pride: person.traits.pride.get(),
-                    warmth: person.traits.warmth.get(),
-                    temper: person.traits.temper.get(),
-                    vindictiveness: person.traits.vindictiveness.get(),
-                    piety: person.traits.piety.get(),
-                },
+                traits: traits_dto(&person.traits),
                 wealth: world.wealth(person.id),
                 soul_id: soul_id(person.soul),
                 household: household.0.to_string(),
@@ -143,14 +201,133 @@ pub fn snapshot_json(world: &World) -> String {
         })
         .collect();
 
+    let magistrate = MagistrateDto {
+        id: world.magistrate().id.0,
+        name: crate::underworld::magistrate::FULL_NAME.to_owned(),
+        age: crate::underworld::magistrate::NOMINAL_AGE,
+        sex: crate::underworld::magistrate::SEX.as_str(),
+        alive: true,
+        origin: "official",
+        traits: traits_dto(&world.magistrate().traits),
+        wealth: 0,
+        soul_id: crate::underworld::magistrate::SOUL_ID_TEXT.to_owned(),
+    };
+
+    let joss: Vec<JossDto> = world
+        .joss()
+        .iter()
+        .map(|(&soul, account)| JossDto {
+            soul_id: soul_id(soul),
+            balance: account.balance.to_string(),
+        })
+        .collect();
+
+    let player_soul = world.souls().player;
+    let claim = world.player_wait().and_then(|wait| wait.claim);
+    let birth_slots: Vec<BirthSlotDto> = world
+        .slots()
+        .values()
+        .map(|slot| BirthSlotDto {
+            id: slot.id.0.to_string(),
+            household: world
+                .persons()
+                .get(&slot.mother)
+                .map(|mother| match mother.life {
+                    Life::Alive { household, .. } => household.0.to_string(),
+                    Life::Dead { .. } => String::from("0"),
+                })
+                .unwrap_or_else(|| String::from("0")),
+            // A Birth_Slot claim costs no joss paper (R1.2, design "Snapshot").
+            price: String::from("0"),
+            birth: slot.birth.0.to_string(),
+            claimant: (claim == Some(slot.id)).then(|| soul_id(player_soul)),
+        })
+        .collect();
+
+    let params = *world.params();
+    let standing_slots: Vec<StandingSlotDto> = if world.player_wait().is_some() {
+        vec![
+            StandingSlotDto {
+                kind: "imported_vessel",
+                price: params.imported_price.to_string(),
+            },
+            StandingSlotDto {
+                kind: "rebuilt_body",
+                price: params.rebuilt_price.to_string(),
+            },
+        ]
+    } else {
+        Vec::new()
+    };
+
+    let player_wait = world.player_wait().map(|wait| PlayerWaitDto {
+        ghost: wait.ghost.0,
+        access_from: wait.access_from.0.to_string(),
+        claim: wait.claim.map(|slot| slot.0.to_string()),
+        carry_over: wait.carry_over.map(trait_name),
+    });
+
+    let pending_nodes: Vec<PendingNodeDto> = world
+        .nodes()
+        .pending
+        .values()
+        .map(|node| PendingNodeDto {
+            id: node.id.0.to_string(),
+            family: match node.family {
+                crate::underworld::nodes::NodeFamily::DreamInterpretation => {
+                    "dream_interpretation"
+                }
+                crate::underworld::nodes::NodeFamily::MagistrateRuling => "magistrate_ruling",
+            },
+            subject: node.subject.0,
+            options: node.options.iter().map(|option| option.id()).collect(),
+            rules_default: node.rules_default.id(),
+            // Both families resolve in their firing tick (OP-U11 A).
+            resolves: world.tick().0.to_string(),
+        })
+        .collect();
+
     let dto = SnapshotDto {
         tick: world.tick().0.to_string(),
         player_soul: soul_id(world.souls().player),
         residents,
         households,
         souls,
+        magistrate,
+        joss,
+        birth_slots,
+        standing_slots,
+        player_wait,
+        pending_nodes,
     };
     serde_json::to_string(&dto).expect("the snapshot DTO is always serializable")
+}
+
+/// The card names of one set of Traits.
+fn traits_dto(traits: &crate::values::Traits) -> TraitsDto {
+    TraitsDto {
+        greed: traits.greed.get(),
+        loyalty: traits.loyalty.get(),
+        pride: traits.pride.get(),
+        warmth: traits.warmth.get(),
+        temper: traits.temper.get(),
+        vindictiveness: traits.vindictiveness.get(),
+        piety: traits.piety.get(),
+    }
+}
+
+/// The card name of one Trait, as the Carry_Over names it.
+fn trait_name(name: crate::underworld::carry_over::TraitName) -> &'static str {
+    use crate::underworld::carry_over::TraitName;
+    match name {
+        TraitName::Greed => "greed",
+        TraitName::Loyalty => "loyalty",
+        TraitName::Pride => "pride",
+        TraitName::Warmth => "warmth",
+        TraitName::Temper => "temper",
+        TraitName::Vindictiveness => "vindictiveness",
+        TraitName::Piety => "piety",
+    }
 }
 
 fn soul_id(soul: crate::ids::SoulId) -> String {
@@ -270,6 +447,110 @@ mod tests {
         sim.step();
         let second = snapshot_json(sim.world());
         assert_ne!(first, second, "the tick changed the snapshot's tick field");
+    }
+
+    /// A world whose Player_Soul died at tick 0 and waits with its body as the Ghost.
+    fn waiting_player() -> World {
+        let mut world = world();
+        let player = world.souls.player;
+        let SoulPlace::Body(body) = world.souls.places[&player] else {
+            panic!("the Player_Soul starts in a body");
+        };
+        if let Some(person) = world.persons.get_mut(&body) {
+            person.life = Life::Dead {
+                death: crate::ids::Tick(0),
+            };
+        }
+        world
+            .souls
+            .places
+            .insert(player, SoulPlace::Waiting { since: crate::ids::Tick(0) });
+        crate::underworld::player::start_wait(&mut world, player, crate::ids::Tick(0));
+        world
+    }
+
+    #[test]
+    fn the_magistrate_field_holds_the_fixed_details() {
+        let world = world();
+        let value: Value = serde_json::from_str(&snapshot_json(&world)).expect("JSON");
+        let magistrate = &value["magistrate"];
+        let expected_id = world.magistrate().id.0;
+        assert_eq!(magistrate["id"], Value::from(expected_id));
+        assert_eq!(magistrate["name"], Value::String(String::from("Orrin Vell")));
+        assert_eq!(magistrate["age"], Value::from(600));
+        assert_eq!(magistrate["sex"], Value::String(String::from("male")));
+        assert_eq!(magistrate["alive"], Value::Bool(true));
+        assert_eq!(magistrate["origin"], Value::String(String::from("official")));
+        assert_eq!(magistrate["wealth"], Value::from(0));
+        assert_eq!(magistrate["soul_id"], Value::String(String::from("S-0000")));
+        // R15.13: in none of the Resident, Household and Soul lists.
+        for resident in value["residents"].as_array().expect("residents") {
+            assert_ne!(resident["id"], Value::from(expected_id));
+        }
+        for household in value["households"].as_array().expect("households") {
+            assert!(
+                !household["members"]
+                    .as_array()
+                    .expect("members")
+                    .contains(&Value::from(expected_id))
+            );
+        }
+        for soul in value["souls"].as_array().expect("souls") {
+            assert_ne!(soul["soul_id"], Value::String(String::from("S-0000")));
+        }
+    }
+
+    #[test]
+    fn the_underworld_lists_are_empty_while_the_player_lives() {
+        let world = world();
+        let value: Value = serde_json::from_str(&snapshot_json(&world)).expect("JSON");
+        let joss = value["joss"].as_array().expect("joss array");
+        assert_eq!(joss.len(), world.souls.places.len());
+        let soul_ids: Vec<&str> = joss
+            .iter()
+            .map(|entry| entry["soul_id"].as_str().expect("soul id"))
+            .collect();
+        assert!(soul_ids.windows(2).all(|pair| pair[0] < pair[1]));
+        for entry in joss {
+            assert!(entry["balance"].is_string(), "a balance is a string");
+        }
+        assert_eq!(
+            value["standing_slots"].as_array().expect("array").len(),
+            0
+        );
+        assert!(value["player_wait"].is_null());
+        assert_eq!(
+            value["pending_nodes"].as_array().expect("array").len(),
+            0
+        );
+    }
+
+    #[test]
+    fn both_standing_slots_and_the_wait_appear_while_the_player_waits() {
+        let world = waiting_player();
+        let value: Value = serde_json::from_str(&snapshot_json(&world)).expect("JSON");
+        let standing = value["standing_slots"].as_array().expect("array");
+        assert_eq!(standing.len(), 2);
+        assert_eq!(
+            standing[0]["kind"],
+            Value::String(String::from("imported_vessel"))
+        );
+        assert_eq!(standing[0]["price"], Value::String(String::from("100")));
+        assert_eq!(
+            standing[1]["kind"],
+            Value::String(String::from("rebuilt_body"))
+        );
+        assert_eq!(standing[1]["price"], Value::String(String::from("400")));
+        let wait = &value["player_wait"];
+        assert_eq!(wait["ghost"], Value::from(world.player_wait().unwrap().ghost.0));
+        assert_eq!(wait["access_from"], Value::String(String::from("365")));
+        assert!(wait["claim"].is_null());
+        assert!(wait["carry_over"].is_null());
+        for slot in value["birth_slots"].as_array().expect("birth slots") {
+            assert_eq!(slot["price"], Value::String(String::from("0")));
+            assert!(slot["birth"].is_string() && slot["household"].is_string());
+            assert!(slot["claimant"].is_null() || slot["claimant"].is_string());
+        }
     }
 
     #[test]

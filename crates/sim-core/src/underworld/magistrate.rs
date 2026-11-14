@@ -787,6 +787,12 @@ mod tests {
     }
 
     #[test]
+    fn grant_does_not_reclose_a_register_already_open() {
+        assert_eq!(nodes::clamp_access(Tick(400), Tick(520), Tick(365)), Tick(365));
+        assert_eq!(nodes::clamp_access(Tick(400), Tick(400), Tick(365)), Tick(365));
+    }
+
+    #[test]
     fn a_standing_claim_after_a_bribe_skips_the_effect_and_keeps_the_record() {
         let mut params = Params::DEFAULT;
         params.offer_min_affinity = 101;

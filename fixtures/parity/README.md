@@ -44,6 +44,14 @@ way, and writes one line of compact Snapshot JSON. The file has no trailing newl
 `WasmSim::snapshot()` can be compared with it byte for byte in
 `crates/sim-wasm/tests/parity.rs` (R18.3).
 
+After `souls` the Snapshot carries the underworld state (design "Snapshot"): the
+`magistrate` object (the one official Person, in no other list), `joss` (every Soul's
+balance as a decimal string, in Soul ID order), `birth_slots` (the open slots with their
+household, birth tick, `"0"` price and claimant Soul ID or `null`), `standing_slots`
+(both slots, `imported_vessel` first, present exactly while the Player_Soul waits),
+`player_wait` (`null` while it is in a body) and `pending_nodes` (empty between ticks,
+because both node families resolve in their firing tick).
+
 ## Who checks them
 
 - Native and WASM: `crates/sim-wasm/tests/parity.rs`. Under

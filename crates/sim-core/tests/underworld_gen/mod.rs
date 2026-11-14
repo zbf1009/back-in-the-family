@@ -113,7 +113,7 @@ pub fn arb_scenario() -> impl Strategy<Value = Scenario> {
 }
 
 /// One planned input and what the tick made of it.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Clone, Eq, PartialEq, Debug)]
 pub struct Submitted {
     /// The payload the generator planned.
     pub payload: InputPayload,
@@ -121,6 +121,9 @@ pub struct Submitted {
     pub seq: InputSeq,
     /// `Ok(())` when it applied, `Err(reason)` when the tick skipped it.
     pub result: Result<(), RejectReason>,
+    /// The node the payload would fire, from [`Sim::preview_node`] (design "Seam for
+    /// the decision model"), when the generator previewed it.
+    pub preview: Option<sim_core::underworld::nodes::NodeSpec>,
 }
 
 /// One generated run in progress.
@@ -134,6 +137,8 @@ pub struct Run {
     /// Whether the generator plans slot claims (a claim-less run reaches the R8.1
     /// placement).
     pub claims: bool,
+    /// The inputs the last stepped tick applied, in `(tick, seq)` order.
+    pub last_inputs: Vec<sim_core::input::TickInput>,
     checker: InvariantChecker,
 }
 
@@ -153,6 +158,7 @@ impl Run {
             sim,
             plan: Vec::new(),
             claims: true,
+            last_inputs: Vec::new(),
             checker,
         }
     }
@@ -168,6 +174,7 @@ impl Run {
         let before = self.sim.world().clone();
         let mut planned: Vec<Submitted> = Vec::new();
         plan_tick(&mut self.sim, &mut planned, self.claims);
+        self.last_inputs = self.sim.inputs().for_tick(before.tick()).to_vec();
         self.sim.step();
         for entry in &mut planned {
             entry.result = self
@@ -294,7 +301,7 @@ fn plan_dream(
     // A preview states whether the dream fires a node; a valid Choose takes its option
     // from the same option set (design "Seam for the decision model").
     let spec = sim.preview_node(payload).ok();
-    let seq = match submit(sim, planned, payload) {
+    let seq = match submit_previewed(sim, planned, payload, spec.clone()) {
         Some(seq) => seq,
         None => return,
     };
@@ -352,7 +359,7 @@ fn plan_bribe(sim: &mut Sim, planned: &mut Vec<Submitted>, d: &dyn Fn(u64) -> u6
     };
     let payload = InputPayload::Bribe { amount };
     let spec = sim.preview_node(payload).ok();
-    let Some(seq) = submit(sim, planned, payload) else {
+    let Some(seq) = submit_previewed(sim, planned, payload, spec.clone()) else {
         return;
     };
     let Some(spec) = spec else {
@@ -413,12 +420,23 @@ fn plan_claim(sim: &mut Sim, planned: &mut Vec<Submitted>, d: &dyn Fn(u64) -> u6
 }
 
 fn submit(sim: &mut Sim, planned: &mut Vec<Submitted>, payload: InputPayload) -> Option<InputSeq> {
+    submit_previewed(sim, planned, payload, None)
+}
+
+/// Submits `payload` and records the preview of the node it would fire.
+fn submit_previewed(
+    sim: &mut Sim,
+    planned: &mut Vec<Submitted>,
+    payload: InputPayload,
+    preview: Option<sim_core::underworld::nodes::NodeSpec>,
+) -> Option<InputSeq> {
     let tick = sim.world().tick();
     let seq = sim.submit(tick, payload).ok()?;
     planned.push(Submitted {
         payload,
         seq,
         result: Ok(()),
+        preview,
     });
     Some(seq)
 }
@@ -498,6 +516,17 @@ impl AppliedCounts {
             }
         }
     }
+
+}
+
+/// The node previews of the inputs that applied, in submission order.
+pub fn previews(
+    planned: &[Submitted],
+) -> impl Iterator<Item = &sim_core::underworld::nodes::NodeSpec> {
+    planned
+        .iter()
+        .filter(|entry| entry.result.is_ok())
+        .filter_map(|entry| entry.preview.as_ref())
 }
 
 /// Whether the Player_Soul was placed by R8.1 in this tick: it left the queue without an

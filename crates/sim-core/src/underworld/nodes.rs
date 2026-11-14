@@ -479,9 +479,13 @@ pub fn clamp_offer(amount: u64) -> u64 {
 
 /// Bounds a written `access_from` to `T..=current` (R3.10, OP-U6 A).
 pub fn clamp_access(now: Tick, proposed: Tick, current: Tick) -> Tick {
-    let low = now.0;
-    let high = current.0.max(low);
-    Tick(proposed.0.clamp(low, high))
+    // A grant never moves `access_from` later than it was (design "Bribes"): when the
+    // register already opened in the past, the clamp's range is empty and the value
+    // stays as it is.
+    if current < now {
+        return current;
+    }
+    Tick(proposed.0.clamp(now.0, current.0))
 }
 
 /// Writes a text with a `u32` byte length: the canonical encoding of the stored

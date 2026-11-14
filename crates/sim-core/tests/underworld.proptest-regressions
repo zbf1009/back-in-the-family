@@ -1,0 +1,14 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 744667692af391f732ddecbb43b7ea834727b34d413531ec38f103184e9ee916 # shrinks to scenario = Scenario { seed: 3173079122966698349, residents: 45, params: StressUnderworld }
+cc f83d1af1820cd3214535b16da42d9123a43225970ea568e5b2e4d4e5b4b1173c # shrinks to scenario = Scenario { seed: 3057414217275805770, residents: 50, params: StressUnderworld }
+cc a740b396b8b265462bb825cfd373add980b2ca0a757cfa23a19617ab87b71025 # shrinks to scenario = Scenario { seed: 8177517776239597243, residents: 48, params: StressUnderworld }
+cc 54f45718fecd4d4869b9204a6069252ab30bb55e6a6fbae3525123b647a15e39 # shrinks to scenario = Scenario { seed: 17192937007845641573, residents: 48, params: StressUnderworld }
+cc b05d30834fff3348a3b76894dd6a492ef29d5104c1e855ea19dfcb3b4e806f29 # shrinks to scenario = Scenario { seed: 15151829742033534166, residents: 41, params: StressUnderworld }
+cc 9c531d2841b48a26b255083beb5db25a842a56c63ce75f48629ff4681a0e280e # shrinks to scenario = Scenario { seed: 13089901877335154423, residents: 50, params: StressUnderworld }
+cc bee0219501d6cd3176e627ebae14aaf4ff1c2167457c363411ca8559a2c48be3 # shrinks to scenario = Scenario { seed: 8104325828036704862, residents: 51, params: StressUnderworld }
+cc 69336a073c4d3a838dff470645e8cc17556d498f9c645dea03afbf029f4ab6c1 # shrinks to scenario = Scenario { seed: 13185656272125382541, residents: 59, params: StressUnderworld }

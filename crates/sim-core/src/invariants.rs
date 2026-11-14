@@ -544,15 +544,23 @@ fn check_event_tail(world: &World, start: usize) -> Result<(), Violation> {
                 }
             }
         }
-        for actor in event.kind.actors().iter() {
-            // R5.7: the actor exists. The one official Person exists outside
-            // `World::persons`; its recipient-only rule is U15.8.
-            if !world.persons().contains_key(&actor) && actor != world.magistrate().id {
-                return Err(violation(
-                    "5.7",
-                    world,
-                    format!("event {} names unknown actor {}", event.id.0, actor.0),
-                ));
+        for (position, actor) in event.kind.actors().iter().enumerate() {
+            // R5.7: the Magistrate is the sole actor outside `World::persons`,
+            // and R15.8 permits it only as recipient of these two Events.
+            if !world.persons().contains_key(&actor) {
+                let official_recipient = actor == world.magistrate().id
+                    && position == 1
+                    && matches!(
+                        &event.kind,
+                        EventKind::Appeal { .. } | EventKind::BribeOffering { .. }
+                    );
+                if !official_recipient {
+                    return Err(violation(
+                        "5.7",
+                        world,
+                        format!("event {} names unknown actor {}", event.id.0, actor.0),
+                    ));
+                }
             }
             if !event.kind.is_afterlife()
                 && death_event
