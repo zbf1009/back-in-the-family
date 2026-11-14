@@ -1,28 +1,31 @@
-//! `sim-cli batch`: run many seeds with generated random inputs, check the world
-//! invariants after every tick, and round-trip each run through `record` + `verify`.
+//! `sim-cli batch`: run many seeds with generated random inputs and the Auto_Player,
+//! check the world invariants after every tick, and replay-verify each run.
 //!
 //! The output is a pure function of the arguments (no timestamps, no timing), so two runs
 //! of the same command line print identical bytes.
 //!
 //! # Output
 //!
-//! One stdout line per seed, in ascending seed order:
+//! One stdout line per seed, in ascending seed order, then the nine underworld totals
+//! and the seed summary:
 //!
 //! ```text
-//! seed 3 ok ticks=29200 final=<hex> residents_min=46 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=1095 max_wait_player=0 births=51 deaths=52 imported=3 rebuilt=1 origin_final=native:46,possessed:3,rebuilt:1 arrivals=native:51,possessed:3,rebuilt:1 events=14212 relations_max=4410 rejections=unknown_person:9,dead_person:4,self_target:3,intensity_out_of_range:7,id_exhausted:0,official_person:0,...,already_chosen:0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+//! seed 3 ok ticks=29200 final=<hex> residents_min=46 ... rejections=... offerings=412 dreams=2 hauntings=1 bribes=2 claims=birth:1,imported:0,rebuilt:1 auto_placed=0 carry_overs=2 nodes=dream_interpretation:external:1,rules:1;magistrate_ruling:external:0,rules:2 max_wait_player=730 player_lives=1:death=21450,age_days=27012,joss=388;2:alive invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
 //! seed 4 FAIL tick=812 criterion=9.1 detail: soul S-0012 is in body 31 and waiting
 //! seed 5 FAIL targets: band_95=fail
+//! batch: totals dreams=2 hauntings=1 bribes=2 birth_claims=1 imported_claims=0 rebuilt_claims=1 carry_overs=2 nodes_dream_interpretation=2 nodes_magistrate_ruling=2
+//! batch: 1/3 seeds ok
 //! ```
 //!
-//! then `batch: <ok>/<total> seeds ok`.
-//!
+//! * `offerings` counts both ordinary and Bribe offerings (both card type `offering`); applied
+//!   claims and Carry_Over inputs come from `Sim::last_outcomes()` and Standing_Slot
+//!   claims are cross-checked against the corresponding Player arrival Events.
 //! * `final` is the checksum of the last tick; `invariants=pass` means the
 //!   [`InvariantChecker`] accepted the Opening_World and every tick (a failure is a
 //!   `FAIL` line instead, R17.7).
-//! * `max_wait_*` is the longest wait observed at the completed tick (`world.tick() - 1`,
-//!   the tick the [`InvariantChecker`] measures for R11.3); `queue_final` is
-//!   the number of waiting Souls at the end. `relations_max` is the largest Relation
-//!   count at the end of any tick (a measurement, not a target).
+//! * `max_wait_*` is the longest wait observed at the completed tick (`world.tick() - 1`),
+//!   including the tick a wait ends; `queue_final` is the waiting Souls at the end.
+//!   `relations_max` is the largest Relation count at the end of any tick.
 //! * `band_40_60_ticks` counts ticks whose Resident count is in `40..=60`; `band_95` is
 //!   `band_40_60_ticks * 100 >= ticks * 95` (R17.9).
 //! * `pop_35_65` is R17.1, `band_95` is R17.9 and `outsiders_le_births` is R17.8: the
@@ -41,24 +44,26 @@
 
 use std::io::Write;
 
-use sim_core::checksum::Checksum;
-use sim_core::events::EventKind;
-use sim_core::ids::Tick;
-use sim_core::invariants::{InvariantChecker, Violation};
-use sim_core::replay::{
-    REPLAY_FORMAT, REPLAY_VERSION, ReplayConfig, ReplayError, ReplayFile, ReplayInput,
-    ReplayPayload, verify,
-};
-use sim_core::tick::Sim;
-use sim_core::values::Origin;
-use sim_core::world::{Life, RejectReason, SoulPlace, World, WorldConfig};
-
 use crate::args::{self, Parsed};
 use crate::commands::{
     EXIT_FAILED, EXIT_OK, EXIT_USAGE_OR_MALFORMED, MAX_RANDOM_INPUTS, MAX_TICKS, default_config,
     load_config,
 };
 use crate::inputs::generate_inputs;
+use sim_core::checksum::Checksum;
+use sim_core::events::EventKind;
+use sim_core::ids::Tick;
+use sim_core::input::{InputPayload, TickInput};
+use sim_core::invariants::{InvariantChecker, Violation};
+use sim_core::replay::{
+    REPLAY_FORMAT, REPLAY_VERSION, ReplayConfig, ReplayError, ReplayFile, ReplayInput,
+    ReplayPayload, verify,
+};
+use sim_core::tick::Sim;
+use sim_core::underworld::nodes::{ChoiceSource, NodeFamily};
+use sim_core::underworld::slots::SlotRef;
+use sim_core::values::Origin;
+use sim_core::world::{Life, RejectReason, SoulPlace, World, WorldConfig};
 
 /// Largest number of seeds one `batch` run accepts.
 pub const MAX_SEEDS: u64 = 10_000;
@@ -165,14 +170,80 @@ struct SeedStats {
     events: u64,
     relations_max: u64,
     rejections: Vec<u64>,
+    offerings: u64,
+    dreams: u64,
+    hauntings: u64,
+    bribes: u64,
+    claims: [u64; 3],
+    auto_placed: u64,
+    carry_overs: u64,
+    nodes: [[u64; 2]; 2],
+    player_lives: String,
     targets: Targets,
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct Totals {
+    pub dreams: u64,
+    pub hauntings: u64,
+    pub bribes: u64,
+    pub birth_claims: u64,
+    pub imported_claims: u64,
+    pub rebuilt_claims: u64,
+    pub carry_overs: u64,
+    pub nodes_dream_interpretation: u64,
+    pub nodes_magistrate_ruling: u64,
+}
+
+impl Totals {
+    fn add(&mut self, stats: &SeedStats) {
+        self.dreams = self.dreams.saturating_add(stats.dreams);
+        self.hauntings = self.hauntings.saturating_add(stats.hauntings);
+        self.bribes = self.bribes.saturating_add(stats.bribes);
+        self.birth_claims = self.birth_claims.saturating_add(stats.claims[0]);
+        self.imported_claims = self.imported_claims.saturating_add(stats.claims[1]);
+        self.rebuilt_claims = self.rebuilt_claims.saturating_add(stats.claims[2]);
+        self.carry_overs = self.carry_overs.saturating_add(stats.carry_overs);
+        self.nodes_dream_interpretation = self
+            .nodes_dream_interpretation
+            .saturating_add(stats.nodes[0][0].saturating_add(stats.nodes[0][1]));
+        self.nodes_magistrate_ruling = self
+            .nodes_magistrate_ruling
+            .saturating_add(stats.nodes[1][0].saturating_add(stats.nodes[1][1]));
+    }
+}
+
+pub fn zero_count_failures(t: &Totals) -> Vec<&'static str> {
+    let mut failures = Vec::new();
+    for (name, value) in [
+        ("dreams", t.dreams),
+        ("hauntings", t.hauntings),
+        ("bribes", t.bribes),
+        ("birth_claims", t.birth_claims),
+        ("imported_claims", t.imported_claims),
+        ("rebuilt_claims", t.rebuilt_claims),
+        ("carry_overs", t.carry_overs),
+        ("nodes_dream_interpretation", t.nodes_dream_interpretation),
+        ("nodes_magistrate_ruling", t.nodes_magistrate_ruling),
+    ] {
+        if value == 0 {
+            failures.push(name);
+        }
+    }
+    failures
 }
 
 #[derive(Debug, Eq, PartialEq)]
 enum SeedOutcome {
     Ok(SeedStats),
-    Targets { failing: Vec<&'static str> },
-    Invariant { tick: u64, violation: Violation },
+    Targets {
+        failing: Vec<&'static str>,
+        stats: SeedStats,
+    },
+    Invariant {
+        tick: u64,
+        violation: Violation,
+    },
     Divergence(String),
     Setup(String),
 }
@@ -186,6 +257,11 @@ struct Tally {
     max_wait_player: u64,
     relations_max: u64,
     pop_ok: bool,
+    claims: [u64; 3],
+    carry_overs: u64,
+    nodes: [[u64; 2]; 2],
+    node_count: usize,
+    event_count: usize,
 }
 
 impl Tally {
@@ -199,10 +275,15 @@ impl Tally {
             max_wait_player: 0,
             relations_max: 0,
             pop_ok: (POP_MIN..=POP_MAX).contains(&residents),
+            claims: [0, 0, 0],
+            carry_overs: 0,
+            nodes: [[0, 0], [0, 0]],
+            node_count: 0,
+            event_count: world.log().len(),
         }
     }
 
-    fn after_tick(&mut self, world: &World) {
+    fn after_tick(&mut self, world: &World, player_wait_before: Option<Tick>) {
         let residents = resident_count(world);
         self.residents_min = self.residents_min.min(residents);
         self.residents_max = self.residents_max.max(residents);
@@ -226,6 +307,82 @@ impl Tally {
                 }
             }
         }
+        // A claim or automatic placement can end the wait this tick, before the
+        // post-tick queue is measured. Include that completed wait too.
+        if let Some(since) = player_wait_before {
+            self.max_wait_player = self.max_wait_player.max(tick.saturating_sub(since.0));
+        }
+    }
+    fn count_underworld(&mut self, sim: &Sim) -> Result<(), String> {
+        let world = sim.world();
+        let inputs = sim
+            .inputs()
+            .for_tick(Tick(world.tick().0.saturating_sub(1)));
+        if inputs.len() != sim.last_outcomes().len() {
+            return Err("input outcomes differ from submitted inputs".to_owned());
+        }
+        let mut standing_claims = [0u64; 2];
+        for (input, outcome) in inputs.iter().zip(sim.last_outcomes()) {
+            if input.seq != outcome.seq {
+                return Err("input outcomes differ from submitted inputs".to_owned());
+            }
+            if outcome.result.is_ok() {
+                match input.payload {
+                    InputPayload::ClaimSlot {
+                        slot: SlotRef::Birth(_),
+                    } => self.claims[0] += 1,
+                    InputPayload::ClaimSlot {
+                        slot: SlotRef::ImportedVessel,
+                    } => {
+                        self.claims[1] += 1;
+                        standing_claims[0] += 1;
+                    }
+                    InputPayload::ClaimSlot {
+                        slot: SlotRef::RebuiltBody,
+                    } => {
+                        self.claims[2] += 1;
+                        standing_claims[1] += 1;
+                    }
+                    InputPayload::CarryOver { .. } => self.carry_overs += 1,
+                    _ => {}
+                }
+            }
+        }
+        let mut standing_events = [0u64; 2];
+        for event in &world.log().events()[self.event_count..] {
+            let (kind, person, price) = match event.kind {
+                EventKind::Possession { person, price } => (0, person, price),
+                EventKind::Rebuild { person, price } => (1, person, price),
+                _ => continue,
+            };
+            if price > 0
+                && world
+                    .persons()
+                    .get(&person)
+                    .is_some_and(|p| p.soul == world.souls().player)
+            {
+                standing_events[kind] += 1;
+            }
+        }
+        if standing_claims != standing_events {
+            return Err(format!(
+                "applied standing claims {standing_claims:?} differ from player arrival Events {standing_events:?}"
+            ));
+        }
+        self.event_count = world.log().len();
+        for node in &world.nodes().resolved[self.node_count..] {
+            let family = match node.family {
+                NodeFamily::DreamInterpretation => 0,
+                NodeFamily::MagistrateRuling => 1,
+            };
+            let source = match node.source {
+                ChoiceSource::External => 0,
+                ChoiceSource::RulesDefault => 1,
+            };
+            self.nodes[family][source] += 1;
+        }
+        self.node_count = world.nodes().resolved.len();
+        Ok(())
     }
 }
 
@@ -286,6 +443,71 @@ fn event_count(world: &World, want: &dyn Fn(&EventKind) -> bool) -> u64 {
         .count() as u64
 }
 
+fn is_offering_event(kind: &EventKind) -> bool {
+    matches!(
+        kind,
+        EventKind::Offering { .. } | EventKind::BribeOffering { .. }
+    )
+}
+
+fn player_lives(world: &World) -> String {
+    let player = world.souls().player;
+    let bodies: Vec<_> = world
+        .persons()
+        .values()
+        .filter(|person| person.soul == player)
+        .collect();
+    let events = world.log().events();
+    bodies
+        .iter()
+        .enumerate()
+        .map(|(index, person)| match person.life {
+            Life::Alive { .. } => format!("{}:alive", index + 1),
+            Life::Dead { death } => {
+                // Event order assigns offerings only after this death and before the
+                // next arrival, even when either happens on the same tick.
+                let death_event = events.iter().find(|event| {
+                    matches!(event.kind, EventKind::Death { person: deceased } if deceased == person.id)
+                });
+                let next_arrival = bodies.get(index + 1).and_then(|next| {
+                    events.iter().find(|event| match event.kind {
+                        EventKind::Birth { person }
+                        | EventKind::Possession { person, .. }
+                        | EventKind::Rebuild { person, .. } => person == next.id,
+                        _ => false,
+                    })
+                });
+                let credited: u64 = events
+                    .iter()
+                    .filter(|event| {
+                        death_event.is_some_and(|start| event.id >= start.id)
+                            && next_arrival.is_none_or(|arrival| event.id < arrival.id)
+                    })
+                    .filter_map(|event| match event.kind {
+                        EventKind::Offering {
+                            ghost, credited, ..
+                        } if world
+                            .persons()
+                            .get(&ghost)
+                            .is_some_and(|p| p.soul == player) =>
+                        {
+                            Some(credited)
+                        }
+                        _ => None,
+                    })
+                    .sum();
+                let age = i128::from(death.0) - i128::from(person.birth_day);
+                format!(
+                    "{}:death={},age_days={age},joss={credited}",
+                    index + 1,
+                    death.0
+                )
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(";")
+}
+
 fn stats_of(world: &World, ticks: u64, tally: &Tally, final_checksum: String) -> SeedStats {
     let births = event_count(world, &|kind| matches!(kind, EventKind::Birth { .. }));
     let deaths = event_count(world, &|kind| matches!(kind, EventKind::Death { .. }));
@@ -324,6 +546,18 @@ fn stats_of(world: &World, ticks: u64, tally: &Tally, final_checksum: String) ->
         origin_final,
         arrivals,
         events: world.log().len() as u64,
+        offerings: event_count(world, &is_offering_event),
+        dreams: event_count(world, &|kind| matches!(kind, EventKind::Dream { .. })),
+        hauntings: event_count(world, &|kind| matches!(kind, EventKind::Haunting { .. })),
+        bribes: event_count(world, &|kind| matches!(kind, EventKind::Appeal { .. })),
+        claims: tally.claims,
+        auto_placed: event_count(world, &|kind| {
+            matches!(kind, EventKind::Possession { person, price: 0 }
+                if world.persons().get(person).is_some_and(|p| p.soul == world.souls().player))
+        }),
+        carry_overs: tally.carry_overs,
+        nodes: tally.nodes,
+        player_lives: player_lives(world),
         relations_max: tally.relations_max,
         rejections: RejectReason::ALL
             .iter()
@@ -342,19 +576,13 @@ fn ok_line(seed: u64, ticks: u64, s: &SeedStats) -> String {
         .collect::<Vec<_>>()
         .join(",");
     format!(
-        "seed {seed} ok ticks={ticks} final={} residents_min={} residents_max={} \
-band_40_60_ticks={} queue_final={} max_wait_npc={} max_wait_player={} births={} deaths={} \
-imported={} rebuilt={} origin_final=native:{},possessed:{},rebuilt:{} \
-arrivals=native:{},possessed:{},rebuilt:{} events={} relations_max={} \
-rejections={rejections} invariants=pass pop_35_65={} band_95={} outsiders_le_births={} \
-outsiders_le_births_third={}",
+        "seed {seed} ok ticks={ticks} final={} residents_min={} residents_max={} band_40_60_ticks={} queue_final={} max_wait_npc={} births={} deaths={} imported={} rebuilt={} origin_final=native:{},possessed:{},rebuilt:{} arrivals=native:{},possessed:{},rebuilt:{} events={} relations_max={} rejections={} offerings={} dreams={} hauntings={} bribes={} claims=birth:{},imported:{},rebuilt:{} auto_placed={} carry_overs={} nodes=dream_interpretation:external:{},rules:{};magistrate_ruling:external:{},rules:{} max_wait_player={} player_lives={} invariants=pass pop_35_65={} band_95={} outsiders_le_births={} outsiders_le_births_third={}",
         s.final_checksum,
         s.residents_min,
         s.residents_max,
         s.band_40_60_ticks,
         s.queue_final,
         s.max_wait_npc,
-        s.max_wait_player,
         s.births,
         s.deaths,
         s.imported,
@@ -367,6 +595,22 @@ outsiders_le_births_third={}",
         s.arrivals[2],
         s.events,
         s.relations_max,
+        rejections,
+        s.offerings,
+        s.dreams,
+        s.hauntings,
+        s.bribes,
+        s.claims[0],
+        s.claims[1],
+        s.claims[2],
+        s.auto_placed,
+        s.carry_overs,
+        s.nodes[0][0],
+        s.nodes[0][1],
+        s.nodes[1][0],
+        s.nodes[1][1],
+        s.max_wait_player,
+        s.player_lives,
         Targets::label(s.targets.pop_35_65),
         Targets::label(s.targets.band_95),
         Targets::label(s.targets.outsiders_le_births),
@@ -379,14 +623,13 @@ fn targets_line(seed: u64, failing: &[&'static str]) -> String {
     let entries: Vec<String> = failing.iter().map(|name| format!("{name}=fail")).collect();
     format!("seed {seed} FAIL targets: {}", entries.join(","))
 }
-
-/// Builds the replay for the stepped run: its own checksums, its inputs in submission
-/// order (so `seq` equals the index).
-fn replay_of(
+/// Builds a replay with each input's original submission sequence, including inputs
+/// submitted for future ticks before the AutoPlayer's current-tick inputs.
+pub(crate) fn replay_of(
     seed: u64,
     config: WorldConfig,
     ticks: u64,
-    inputs: &[(Tick, sim_core::input::InputPayload)],
+    inputs: &[TickInput],
     checksums: &[Checksum],
 ) -> ReplayFile {
     ReplayFile {
@@ -395,15 +638,18 @@ fn replay_of(
         seed,
         config: ReplayConfig::from(config),
         ticks,
-        inputs: inputs
-            .iter()
-            .enumerate()
-            .map(|(seq, &(tick, payload))| ReplayInput {
-                tick: tick.0,
-                seq: seq as u64,
-                payload: ReplayPayload::from(payload),
-            })
-            .collect(),
+        inputs: {
+            let mut recorded: Vec<_> = inputs
+                .iter()
+                .map(|input| ReplayInput {
+                    tick: input.tick.0,
+                    seq: input.seq.0,
+                    payload: ReplayPayload::from(input.payload),
+                })
+                .collect();
+            recorded.sort_by_key(|input| input.seq);
+            recorded
+        },
         checksums: checksums.to_vec(),
     }
 }
@@ -440,7 +686,18 @@ fn run_seed(
         }
     }
     let mut tally = Tally::new(sim.world());
+    let mut auto_player = crate::auto_player::AutoPlayer::default();
     for _ in 0..ticks {
+        let tick = sim.world().tick();
+        let player_wait_before = match sim.world().souls().places[&sim.world().souls().player] {
+            SoulPlace::Waiting { since } => Some(since),
+            SoulPlace::Body(_) => None,
+        };
+        for payload in auto_player.plan(&sim) {
+            if let Err(e) = sim.submit(tick, payload) {
+                return SeedOutcome::Setup(format!("auto-player input refused: {e}"));
+            }
+        }
         sim.step();
         if let Err(violation) = checker.after_tick(sim.world()) {
             return SeedOutcome::Invariant {
@@ -454,7 +711,10 @@ fn run_seed(
                 violation,
             };
         }
-        tally.after_tick(sim.world());
+        tally.after_tick(sim.world(), player_wait_before);
+        if let Err(detail) = tally.count_underworld(&sim) {
+            return SeedOutcome::Divergence(detail);
+        }
     }
 
     // The digest must equal a from-scratch recompute at the end of the run (OP-8 A).
@@ -464,9 +724,8 @@ fn run_seed(
     }
 
     // The replay carries the stepped run's own checksums and is verified in process.
-    // `inputs` is in submission order, which is the file's required order (`seq` equals
-    // the index); `InputStream::all()` would be `(tick, seq)` order instead.
-    let file = replay_of(seed, config, ticks, &inputs, sim.checksums());
+    // `InputStream::all()` is in tick order, but each entry retains its submission seq.
+    let file = replay_of(seed, config, ticks, sim.inputs().all(), sim.checksums());
     match verify(&file) {
         Ok(()) => {}
         Err(e @ ReplayError::Diverged(_)) => return SeedOutcome::Divergence(e.to_string()),
@@ -480,6 +739,7 @@ fn run_seed(
     if require_targets && !stats.targets.pass() {
         return SeedOutcome::Targets {
             failing: stats.targets.failing(),
+            stats,
         };
     }
     SeedOutcome::Ok(stats)
@@ -499,15 +759,20 @@ fn run_batch(
     err: &mut dyn Write,
 ) -> i32 {
     let (mut total, mut ok) = (0u64, 0u64);
+    let mut totals = Totals::default();
     for seed in first..=last {
         total += 1;
         let line = match run_seed(seed, config, ticks, random_inputs, require_targets, check) {
             SeedOutcome::Ok(stats) => {
                 ok += 1;
+                totals.add(&stats);
                 let _ = writeln!(out, "{}", ok_line(seed, ticks, &stats));
                 continue;
             }
-            SeedOutcome::Targets { failing } => targets_line(seed, &failing),
+            SeedOutcome::Targets { failing, stats } => {
+                totals.add(&stats);
+                targets_line(seed, &failing)
+            }
             SeedOutcome::Invariant { tick, violation } => format!(
                 "seed {seed} FAIL tick={tick} criterion={} detail: {}",
                 violation.criterion, violation.detail
@@ -518,6 +783,19 @@ fn run_batch(
         let _ = writeln!(out, "{line}");
         let _ = writeln!(err, "{line}");
     }
+    let _ = writeln!(
+        out,
+        "batch: totals dreams={} hauntings={} bribes={} birth_claims={} imported_claims={} rebuilt_claims={} carry_overs={} nodes_dream_interpretation={} nodes_magistrate_ruling={}",
+        totals.dreams,
+        totals.hauntings,
+        totals.bribes,
+        totals.birth_claims,
+        totals.imported_claims,
+        totals.rebuilt_claims,
+        totals.carry_overs,
+        totals.nodes_dream_interpretation,
+        totals.nodes_magistrate_ruling
+    );
     let _ = writeln!(out, "batch: {ok}/{total} seeds ok");
     if ok == total {
         EXIT_OK
@@ -663,6 +941,39 @@ mod tests {
     }
 
     #[test]
+    fn replay_retains_submission_sequences_across_future_tick_inputs() {
+        use sim_core::ids::{InputSeq, PersonId};
+
+        let payload = InputPayload::Haunt {
+            target: PersonId(1),
+        };
+        let inputs = [
+            TickInput {
+                tick: Tick(9),
+                seq: InputSeq(0),
+                payload,
+            },
+            TickInput {
+                tick: Tick(3),
+                seq: InputSeq(1),
+                payload,
+            },
+            TickInput {
+                tick: Tick(3),
+                seq: InputSeq(2),
+                payload,
+            },
+        ];
+        let replay = replay_of(7, small_config(), 10, &inputs, &[]);
+        let ordering: Vec<_> = replay
+            .inputs
+            .iter()
+            .map(|input| (input.tick, input.seq))
+            .collect();
+        assert_eq!(ordering, [(9, 0), (3, 1), (3, 2)]);
+    }
+
+    #[test]
     fn a_release_past_max_wait_reports_exactly_max_wait() {
         let mut params = sim_core::params::Params::DEFAULT;
         // Zero births: the opening Souls stay waiting until the release, so one reaches
@@ -692,7 +1003,7 @@ mod tests {
         let mut tally = Tally::new(sim.world());
         for _ in 0..1_100 {
             sim.step();
-            tally.after_tick(sim.world());
+            tally.after_tick(sim.world(), None);
         }
 
         for soul in opening_waiting {
@@ -711,7 +1022,7 @@ mod tests {
         assert_eq!(code, 0, "{err}");
         assert!(err.is_empty(), "{err}");
         let lines: Vec<&str> = out.lines().collect();
-        assert_eq!(lines.len(), 3, "{out}");
+        assert_eq!(lines.len(), 4, "{out}");
         for (line, seed) in lines.iter().zip(1..=2) {
             assert!(
                 line.starts_with(&format!("seed {seed} ok ticks=30 final=")),
@@ -752,7 +1063,7 @@ outsiders_le_births_third=pass"
                 "{line}"
             );
         }
-        assert_eq!(lines[2], "batch: 2/2 seeds ok");
+        assert_eq!(lines[3], "batch: 2/2 seeds ok");
     }
 
     #[test]
@@ -777,7 +1088,7 @@ outsiders_le_births_third=pass"
             lines[1],
             "seed 2 FAIL tick=5 criterion=9.3 detail: injected soul fault"
         );
-        assert_eq!(lines[2], "batch: 1/2 seeds ok");
+        assert_eq!(lines[3], "batch: 1/2 seeds ok");
         assert!(err.contains("seed 2 FAIL"), "{err}");
     }
 
@@ -898,7 +1209,6 @@ outsiders_le_births_third=fail"
             "band_40_60_ticks=",
             "queue_final=",
             "max_wait_npc=",
-            "max_wait_player=",
             "births=",
             "deaths=",
             "imported=",
@@ -908,6 +1218,16 @@ outsiders_le_births_third=fail"
             "events=",
             "relations_max=",
             "rejections=",
+            "offerings=",
+            "dreams=",
+            "hauntings=",
+            "bribes=",
+            "claims=",
+            "auto_placed=",
+            "carry_overs=",
+            "nodes=",
+            "max_wait_player=",
+            "player_lives=",
             "invariants=pass",
             "pop_35_65=",
             "band_95=",
@@ -921,5 +1241,73 @@ outsiders_le_births_third=fail"
                 "{field} should start with {prefix}"
             );
         }
+    }
+
+    #[test]
+    fn offerings_include_bribes_without_claiming_bribe_credit() {
+        use sim_core::ids::PersonId;
+
+        let ordinary = EventKind::Offering {
+            offerer: PersonId(1),
+            ghost: PersonId(2),
+            amount: 30,
+            credited: 12,
+        };
+        let bribe = EventKind::BribeOffering {
+            ghost: PersonId(2),
+            magistrate: PersonId(3),
+            amount: 5,
+        };
+        let appeal = EventKind::Appeal {
+            ghost: PersonId(2),
+            magistrate: PersonId(3),
+        };
+        let kinds = [ordinary, bribe, appeal];
+        assert_eq!(
+            kinds.iter().filter(|kind| is_offering_event(kind)).count(),
+            2
+        );
+        assert_eq!(
+            kinds
+                .iter()
+                .filter(|kind| matches!(kind, EventKind::Appeal { .. }))
+                .count(),
+            1
+        );
+        let credited: u64 = kinds
+            .iter()
+            .filter_map(|kind| match kind {
+                EventKind::Offering { credited, .. } => Some(*credited),
+                _ => None,
+            })
+            .sum();
+        assert_eq!(
+            credited, 12,
+            "bribe offerings do not credit the Player_Soul"
+        );
+    }
+
+    #[test]
+    fn zero_count_failures_use_design_order_and_ignore_report_only_fields() {
+        let totals = Totals {
+            dreams: 1,
+            bribes: 1,
+            imported_claims: 1,
+            carry_overs: 1,
+            nodes_dream_interpretation: 1,
+            ..Totals::default()
+        };
+        assert_eq!(
+            zero_count_failures(&totals),
+            [
+                "hauntings",
+                "birth_claims",
+                "rebuilt_claims",
+                "nodes_magistrate_ruling"
+            ]
+        );
+        let mut changed = totals;
+        changed.dreams = 99;
+        assert_eq!(zero_count_failures(&changed), zero_count_failures(&totals));
     }
 }

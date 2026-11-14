@@ -234,13 +234,13 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
   - `scripts/gates.sh` must exit 0, and the R14.4 check exits 0. Ensure all tests pass, ask the user if questions arise.
 
 - [ ] 9. Auto_Player and batch report
-  - [ ] 9.1 Add the Auto_Player and `record --auto-player`
+  - [x] 9.1 Add the Auto_Player and `record --auto-player`
     - Files: `crates/sim-cli/src/auto_player.rs` (new), `crates/sim-cli/src/lib.rs`, `crates/sim-cli/src/commands.rs`, `crates/sim-cli/src/args.rs`, `crates/sim-cli/tests/cli.rs`.
     - Follow design "Auto_Player and batch report" (reading of R11.10, strategy rotation, steps 1 to 5) and OP-U12 A. `AutoPlayer { waits_seen, per_wait }` and `fn plan(&mut self, sim: &Sim) -> Vec<InputPayload>`, called before every step; draws `d(i) = draw(seed, player_soul.rng_key(), StreamTag::AutoPlayer, T, i)`; `strategy = STRATEGIES[(world_seed % 3 + k) % 3]` with `STRATEGIES = [ImportedVessel, Birth, RebuiltBody]`; reads only public accessors and `preview_node`; the claim is the last input of the tick. `record --auto-player` (opt-in, OP-D8 A) writes the plan's inputs into the replay file.
     - Tests in `cli.rs`: `record --auto-player` writes at least one `Choose` input on a `stress_underworld` world (or a seed found to die early) and `replay`/`verify` passes on it.
     - _Requirements: 11.1, 11.2, 11.10, 11.12, 14.2_
     - Acceptance: Rust gates. Commit as `feat(sim-cli): add the auto player`.
-  - [ ] 9.2 Run the Auto_Player in `batch` and extend the report
+  - [x] 9.2 Run the Auto_Player in `batch` and extend the report
     - Files: `crates/sim-cli/src/batch.rs`, `crates/sim-cli/src/lib.rs` (help text), `crates/sim-cli/tests/cli.rs`, `docs/kiro-log.md` (if calibration runs happen).
     - Follow design "Batch report additions" and OP-D8 A. `batch` always runs the Auto_Player. Each `ok` line gets, before `invariants=`, the fields `offerings`, `dreams`, `hauntings`, `bribes`, `claims=birth:..,imported:..,rebuilt:..`, `auto_placed`, `carry_overs`, `nodes=..`, `max_wait_player`, `player_lives=..`, from the sources in the design table (claims and carry-overs from `Sim::last_outcomes()`, cross-checked against Events). After the seed lines, print the `batch: totals ...` line with the nine totals. Add the pure `zero_count_failures(&Totals) -> Vec<&'static str>` in the design order, **but do not wire it into the exit status yet**; task 10.1 wires it after calibration, so the gate stays green in between. The exit status still reads only invariants and the life-sim targets.
     - Tests in `cli.rs`: the report is byte-identical on two runs (R11.6); the new fields parse in order; `player_lives` prints `alive` for a living body.

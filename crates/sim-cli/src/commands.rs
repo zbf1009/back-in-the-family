@@ -14,6 +14,8 @@ use sim_core::tick::Sim;
 use sim_core::world::WorldConfig;
 
 use crate::args::{self, Parsed};
+use crate::auto_player::AutoPlayer;
+use crate::batch::replay_of;
 use crate::inputs::generate_inputs;
 
 /// Exit code for a usage error, a malformed input, or any other problem that is not a
@@ -47,11 +49,15 @@ pub fn default_config() -> WorldConfig {
 }
 
 pub const RECORD_USAGE: &str = "usage: sim-cli record --seed S --ticks N [--config FILE] \
-[--random-inputs K] --out FILE\n\
+[--random-inputs K] [--auto-player] --out FILE\n\
 without --config: {\"opening_residents\":50}";
 
 pub fn record(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
-    let parsed = match args::parse(args, &["seed", "ticks", "config", "random-inputs", "out"]) {
+    let parsed = match args::parse_with_switches(
+        args,
+        &["seed", "ticks", "config", "random-inputs", "out"],
+        &["auto-player"],
+    ) {
         Ok(p) => p,
         Err(e) => {
             let _ = writeln!(err, "error: {e}\n{RECORD_USAGE}");
@@ -117,7 +123,23 @@ fn run_record(parsed: &Parsed) -> Result<String, RecordError> {
         u64::from(config.opening_residents),
     );
 
-    let file = core_record(seed, config, &inputs, ticks).map_err(|e| e.to_string())?;
+    let file = if parsed.get("auto-player").is_some() {
+        let mut sim = Sim::new(seed, config).map_err(|e| e.to_string())?;
+        for &(tick, payload) in &inputs {
+            sim.submit(tick, payload).map_err(|e| e.to_string())?;
+        }
+        let mut player = AutoPlayer::default();
+        for _ in 0..ticks {
+            let tick = sim.world().tick();
+            for payload in player.plan(&sim) {
+                sim.submit(tick, payload).map_err(|e| e.to_string())?;
+            }
+            sim.step();
+        }
+        replay_of(seed, config, ticks, sim.inputs().all(), sim.checksums())
+    } else {
+        core_record(seed, config, &inputs, ticks).map_err(|e| e.to_string())?
+    };
     // Safety net: verify the freshly produced replay in-process before writing it.
     verify(&file).map_err(|e| {
         RecordError::Diverged(format!(

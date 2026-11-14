@@ -138,6 +138,41 @@ fn record_is_reproducible_byte_for_byte_and_creates_parent_directories() {
 }
 
 #[test]
+fn auto_player_record_contains_choices_and_replays() {
+    let dir = TempDir::new("auto-player");
+    let path = dir.path("auto.json");
+    let result = sim_cli(&[
+        "record",
+        "--seed",
+        "3",
+        "--ticks",
+        "29200",
+        "--auto-player",
+        "--random-inputs",
+        "60",
+        "--out",
+        s(&path),
+    ]);
+    assert_eq!(code(&result), 0, "{}", stderr(&result));
+    let file = ReplayFile::from_json_str(&fs::read_to_string(&path).unwrap()).unwrap();
+    assert!(
+        file.inputs
+            .iter()
+            .enumerate()
+            .all(|(index, input)| input.seq == index as u64)
+    );
+    assert!(
+        file.inputs.iter().any(|input| matches!(
+            input.payload,
+            sim_core::replay::ReplayPayload::Choose { .. }
+        )),
+        "an External_Choice is recorded"
+    );
+    assert_eq!(verify(&file), Ok(()));
+    assert_eq!(code(&sim_cli(&["replay", s(&path)])), 0);
+}
+
+#[test]
 fn record_reads_a_config_file() {
     let dir = TempDir::new("config");
     let cfg = dir.path("cfg.json");
@@ -545,7 +580,7 @@ fn batch_small_healthy_run_exits_zero_with_one_line_per_seed() {
     assert!(stderr(&o).is_empty(), "{}", stderr(&o));
     let out = stdout(&o);
     let lines: Vec<&str> = out.lines().collect();
-    assert_eq!(lines.len(), 4, "{out}");
+    assert_eq!(lines.len(), 5, "{out}");
     for (line, seed) in lines.iter().zip(1..=3) {
         assert!(
             line.starts_with(&format!("seed {seed} ok ticks=50 final=")),
@@ -575,6 +610,28 @@ fn batch_small_healthy_run_exits_zero_with_one_line_per_seed() {
         ] {
             assert!(line.contains(field), "{field} missing from {line}");
         }
+        let mut previous = 0;
+        for field in [
+            " residents_min=",
+            " rejections=",
+            " offerings=",
+            " dreams=",
+            " hauntings=",
+            " bribes=",
+            " claims=birth:",
+            " auto_placed=",
+            " carry_overs=",
+            " nodes=",
+            " max_wait_player=",
+            " player_lives=",
+            " invariants=pass ",
+        ] {
+            let at = line
+                .find(field)
+                .expect("every underworld field is reported");
+            assert!(at > previous, "{field} out of order in {line}");
+            previous = at;
+        }
         // The rejection field lists every reason of the design, in report order.
         let mut previous = line.find(' ').expect("a field");
         for reason in sim_core::world::RejectReason::ALL {
@@ -584,14 +641,16 @@ fn batch_small_healthy_run_exits_zero_with_one_line_per_seed() {
             previous = at;
         }
     }
-    assert_eq!(lines[3], "batch: 3/3 seeds ok");
+    assert_eq!(
+        lines[3],
+        "batch: totals dreams=0 hauntings=0 bribes=0 birth_claims=0 imported_claims=0 rebuilt_claims=0 carry_overs=0 nodes_dream_interpretation=0 nodes_magistrate_ruling=0"
+    );
+    assert_eq!(lines[4], "batch: 3/3 seeds ok");
 }
 
 #[test]
 fn batch_require_targets_is_accepted_and_passes_here() {
-    // With the tick steps still empty the targets cannot fail: the population stays in
-    // the band and there are no births or outsiders. The failing-target formatting is
-    // covered by the unit tests in batch.rs.
+    // The zero-count gate belongs to task 10.1, not this life-sim target check.
     let o = sim_cli(&[
         "batch",
         "--seeds",
@@ -618,6 +677,7 @@ fn batch_output_is_byte_identical_across_runs_and_accepts_a_single_seed() {
     assert_eq!(code(&a), 0);
     assert_eq!(a.stdout, b.stdout);
     assert!(stdout(&a).starts_with("seed 7 ok ticks=40 "));
+    assert!(stdout(&a).contains("batch: totals "));
     assert!(stdout(&a).ends_with("batch: 1/1 seeds ok\n"));
 }
 

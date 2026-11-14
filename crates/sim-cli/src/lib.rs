@@ -8,6 +8,7 @@
 #![forbid(unsafe_code)]
 
 pub mod args;
+pub mod auto_player;
 pub mod batch;
 pub mod commands;
 pub mod grading;
@@ -22,11 +23,11 @@ pub const USAGE: &str = "\
 sim-cli: native headless runner for sim-core
 
 USAGE:
-  sim-cli record --seed S --ticks N --out FILE [--config FILE] [--random-inputs K]
+  sim-cli record --seed S --ticks N --out FILE [--config FILE] [--random-inputs K] [--auto-player]
   sim-cli replay FILE...
   sim-cli snapshot --replay FILE --at TICK --out FILE
   sim-cli check-size DIR [--max-bytes N]
-  sim-cli batch --seeds A..=B --ticks N [--random-inputs K] [--config FILE]
+  sim-cli batch --seeds A..=B --ticks N [--random-inputs K] [--config FILE] [--require-targets]
   sim-cli measure [--runs N] [--residents N]
   sim-cli grading-outputs --cards FILE --out FILE
   sim-cli grading-golden --cards FILE --outputs FILE --out FILE
@@ -41,7 +42,8 @@ record       Run N ticks from seed S and write a replay file (parent directories
              {\"opening_residents\":50}; an unknown field (such as the retired
              `workload`) is an error.
              --random-inputs K adds K inputs generated from the seed (about a quarter are
-             invalid on purpose). The same command line always writes identical bytes.
+             invalid on purpose). --auto-player additionally submits seeded underworld
+             choices every tick. The same command line always writes identical bytes.
 replay       Re-run each replay file from its seed, config and inputs and compare every
              tick's checksum. Prints `ok FILE` on stdout per verified file; problems go to
              stderr.
@@ -52,18 +54,16 @@ check-size   Fail if any file under DIR (recursive) is at or above --max-bytes
              (default 26214400, 25 MiB).
 batch        For each seed in the inclusive range A..=B (or a single seed A; at most 10000
              seeds), in ascending order: generate K random inputs (default 60), run N ticks
-             checking the world invariants before the first tick and after every tick,
-             then build the replay from the stepped run's own checksums and verify it in
-             memory, and recompute the Event_Log digest from scratch. Same default world
-             as record. Prints one line per seed with resident counts and band ticks,
-             waiting-queue and max-wait figures, births/deaths/arrivals by origin, event
-             and relation counts, rejection counts and the target results (or
-             `seed 7 FAIL ...`), then `batch: OK/TOTAL seeds ok`; output has no timestamps
-             and is identical across runs. --require-targets makes a failing R17.1, R17.8
-             or R17.9 target fail the seed (without it, targets print `=fail` but the seed
-             stays ok). A failed invariant prints its tick, criterion and detail and
-             exits 1. NOTE: --seeds A..=B is a range, unlike the plain decimal numbers of
-             the other flags.
+             with the seeded Auto_Player, checking the world invariants before the first
+             tick and after every tick, then build the replay from the stepped run's own
+             checksums and verify it in memory, and recompute the Event_Log digest.
+             Prints per-seed life and underworld counts, applied claim and carry-over
+             counts, node resolutions, player lives, rejections and targets; then the
+             nine underworld totals and `batch: OK/TOTAL seeds ok`. Output is byte-identical
+             for the same arguments. --require-targets enforces the R17.1, R17.8 and
+             R17.9 life-sim targets (the zero-count gate is added after calibration).
+             Failed invariants print the tick, criterion and detail and exit 1.
+             NOTE: --seeds A..=B is a range, unlike the plain decimal numbers of the other flags.
 measure      Time one 80-year lifetime (80 x 365 = 29200 daily ticks)
              on a fresh Sim, seed 1, no inputs, --runs times (default 5, 1..=50) with
              --residents Residents at World creation (default 60, 40..=60). Prints best and
