@@ -16,8 +16,8 @@ use proptest::prelude::*;
 use sim_core::events::EventKind;
 use sim_core::ids::{InputSeq, SoulId};
 use sim_core::input::InputPayload;
-use sim_core::underworld::slots::SlotRef;
 use sim_core::underworld::joss::cap_year;
+use sim_core::underworld::slots::SlotRef;
 use sim_core::world::{Life, SoulPlace, World, WorldConfig};
 use underworld_gen::{Run, TICKS, driven, events_since};
 
@@ -303,7 +303,6 @@ fn expected_offering_amount(
         .saturating_mul(factor);
     u64::try_from(product.checked_div(12).unwrap_or(0).clamp(0, 500)).unwrap_or(0)
 }
-
 
 proptest! {
     // Feature: underworld, Property 3: Offerings follow the occasions and the formula.
@@ -648,12 +647,22 @@ fn tick_without(
     let (with, outcomes) = before.after_inputs_and_nodes(inputs);
     for outcome in outcomes {
         if !without.contains(&outcome.seq) {
-            assert!(outcome.result.is_ok(), "an isolated input was rejected: {outcome:?}");
+            assert!(
+                outcome.result.is_ok(),
+                "an isolated input was rejected: {outcome:?}"
+            );
         }
     }
-    let kept: Vec<_> = inputs.iter().filter(|input| !without.contains(&input.seq)).copied().collect();
+    let kept: Vec<_> = inputs
+        .iter()
+        .filter(|input| !without.contains(&input.seq))
+        .copied()
+        .collect();
     let (other, outcomes) = before.after_inputs_and_nodes(&kept);
-    assert!(outcomes.iter().all(|outcome| outcome.result.is_ok()), "the baseline rejected an input");
+    assert!(
+        outcomes.iter().all(|outcome| outcome.result.is_ok()),
+        "the baseline rejected an input"
+    );
     (with, other)
 }
 
@@ -701,12 +710,18 @@ fn check_node_context(world: &World, spec: &sim_core::underworld::nodes::NodeSpe
     let mut previous = i64::MIN;
     for person in &ctx.people {
         assert!(person.id.0 >= 1, "card id {} < 1", person.id.0);
-        assert!(person.id.0 > previous, "people are not in ascending ID order");
+        assert!(
+            person.id.0 > previous,
+            "people are not in ascending ID order"
+        );
         previous = person.id.0;
         assert!((0..=999).contains(&person.age), "age {}", person.age);
         assert!(person.wealth >= 0, "wealth {}", person.wealth);
         assert!(
-            matches!(person.origin.as_str(), "native" | "possessed" | "rebuilt" | "official"),
+            matches!(
+                person.origin.as_str(),
+                "native" | "possessed" | "rebuilt" | "official"
+            ),
             "origin {}",
             person.origin
         );
@@ -723,9 +738,15 @@ fn check_node_context(world: &World, spec: &sim_core::underworld::nodes::NodeSpe
         }
         if person.origin == "official" {
             // R15.12: the Magistrate's card fields.
-            assert_eq!(person.id.0, i64::try_from(world.magistrate().id.0).unwrap_or(0));
+            assert_eq!(
+                person.id.0,
+                i64::try_from(world.magistrate().id.0).unwrap_or(0)
+            );
             assert!(person.alive);
-            assert_eq!(person.age, i64::from(sim_core::underworld::magistrate::NOMINAL_AGE));
+            assert_eq!(
+                person.age,
+                i64::from(sim_core::underworld::magistrate::NOMINAL_AGE)
+            );
             assert_eq!(person.wealth, 0);
             assert_eq!(
                 person.soul_id.as_str(),
@@ -744,8 +765,13 @@ fn check_node_context(world: &World, spec: &sim_core::underworld::nodes::NodeSpe
     // R4.4: the dream's intent is in the context exactly for `dream_interpretation`.
     match spec.family {
         sim_core::underworld::nodes::NodeFamily::DreamInterpretation => {
-            let input = ctx.player_input.as_ref().expect("a dream context has its input");
-            assert!(sim_core::underworld::dreams::DreamIntent::from_card_name(&input.intent).is_some());
+            let input = ctx
+                .player_input
+                .as_ref()
+                .expect("a dream context has its input");
+            assert!(
+                sim_core::underworld::dreams::DreamIntent::from_card_name(&input.intent).is_some()
+            );
             assert!(!input.content.is_empty());
         }
         sim_core::underworld::nodes::NodeFamily::MagistrateRuling => {
@@ -806,11 +832,7 @@ proptest! {
 }
 
 /// The Mood after folding `events` onto `start`, with the clamp after each Event row.
-fn fold_mood(
-    start: i8,
-    events: &[sim_core::events::Event],
-    target: sim_core::ids::PersonId,
-) -> i8 {
+fn fold_mood(start: i8, events: &[sim_core::events::Event], target: sim_core::ids::PersonId) -> i8 {
     let mut mood = i64::from(start);
     for event in events {
         for (position, actor) in event.kind.actors().iter().enumerate() {
@@ -856,11 +878,25 @@ fn assert_only_allowed(with: &World, without: &World, allowed: &Allowed) {
     assert_eq!(with.properties(), without.properties(), "properties differ");
     // Debts are keyed by the loan Event ID, which the input's own Event shifts; compare
     // the Debts themselves.
-    let debts = |world: &World| -> Vec<(sim_core::ids::PersonId, sim_core::ids::PersonId, u64, u64, sim_core::ids::Tick)> {
+    let debts = |world: &World| -> Vec<(
+        sim_core::ids::PersonId,
+        sim_core::ids::PersonId,
+        u64,
+        u64,
+        sim_core::ids::Tick,
+    )> {
         world
             .debts()
             .values()
-            .map(|debt| (debt.creditor, debt.debtor, debt.principal, debt.open, debt.due))
+            .map(|debt| {
+                (
+                    debt.creditor,
+                    debt.debtor,
+                    debt.principal,
+                    debt.open,
+                    debt.due,
+                )
+            })
             .collect()
     };
     assert_eq!(debts(with), debts(without), "debts differ");
@@ -876,23 +912,46 @@ fn assert_only_allowed(with: &World, without: &World, allowed: &Allowed) {
     // complete kinds (participants, price, amount, due tick) of all unaffected
     // Events, not merely their card types or counts.
     let common = |world: &World| -> Vec<EventKind> {
-        world.log().events().iter().skip(allowed.start).filter_map(|event| {
-            if allowed.added.contains(&event.kind) {
-                return None;
-            }
-            if matches!(event.kind, EventKind::Offering { offerer, ghost, .. }
-                if allowed.offering_pair == Some((offerer, ghost))) {
-                return None;
-            }
-            Some(event.kind.clone())
-        }).collect()
+        world
+            .log()
+            .events()
+            .iter()
+            .skip(allowed.start)
+            .filter_map(|event| {
+                if allowed.added.contains(&event.kind) {
+                    return None;
+                }
+                if matches!(event.kind, EventKind::Offering { offerer, ghost, .. }
+                if allowed.offering_pair == Some((offerer, ghost)))
+                {
+                    return None;
+                }
+                Some(event.kind.clone())
+            })
+            .collect()
     };
     assert_eq!(common(with), common(without), "an unrelated Event changed");
     for kind in &allowed.added {
-        let actual = with.log().events().iter().skip(allowed.start).filter(|event| &event.kind == kind).count();
-        let baseline = without.log().events().iter().skip(allowed.start).filter(|event| &event.kind == kind).count();
+        let actual = with
+            .log()
+            .events()
+            .iter()
+            .skip(allowed.start)
+            .filter(|event| &event.kind == kind)
+            .count();
+        let baseline = without
+            .log()
+            .events()
+            .iter()
+            .skip(allowed.start)
+            .filter(|event| &event.kind == kind)
+            .count();
         let expected = allowed.added.iter().filter(|other| *other == kind).count();
-        assert_eq!(actual, baseline + expected, "an input Event is missing or duplicated");
+        assert_eq!(
+            actual,
+            baseline + expected,
+            "an input Event is missing or duplicated"
+        );
     }
 
     let player = with.souls().player;
@@ -1453,9 +1512,11 @@ proptest! {
                 } else {
                     prop_assert_eq!(stage_claim, None,
                         "tick {}: held claim {} was replaced", tick.0, id.0);
-                    // Step 3 can place an overdue Player_Soul, and step 4 closes a
-                    // dying mother's slot and releases its claim. A Standing claim in
-                    // step 2 also ends the wait; none of these reaches a claimed birth.
+                    // Step 2 or 3 can place the Player_Soul in an outsider body;
+                    // step 4 may kill that new body in the very same tick. In that
+                    // case a fresh PlayerWait replaces the old one, rather than
+                    // leaving player_wait as None. The old claim is still released.
+                    // The other release path is the claimed mother's death in step 4.
                     let mother_died = before.slots().get(&id)
                         .is_some_and(|slot| died.contains(&slot.mother));
                     let standing_claim = planned.iter().any(|entry| entry.result.is_ok()
@@ -1467,8 +1528,24 @@ proptest! {
                         Some(SoulPlace::Waiting { since })
                             if tick.0.saturating_sub(since.0) > params.player_max_wait
                     );
-                    prop_assert!(mother_died || (stage.player_wait().is_none() && (standing_claim || overdue)),
-                        "tick {}: held claim {} disappeared without its mother dying or the Player_Soul leaving the queue",
+                    let player_arrival = events.iter().find_map(|event| match event.kind {
+                        EventKind::Possession { person, .. } | EventKind::Rebuild { person, .. }
+                            if after.persons()[&person].soul == before.souls().player => Some(person),
+                        _ => None,
+                    });
+                    let old_wait_ended = (standing_claim || overdue) && player_arrival.is_some_and(|body| {
+                        match stage.souls().places.get(&before.souls().player) {
+                            Some(SoulPlace::Body(current)) =>
+                                *current == body && stage.player_wait().is_none(),
+                            Some(SoulPlace::Waiting { since }) =>
+                                *since == tick && died.contains(&body)
+                                    && stage.player_wait().is_some_and(|wait|
+                                        wait.ghost == body && wait.claim.is_none()),
+                            _ => false,
+                        }
+                    });
+                    prop_assert!(mother_died || old_wait_ended,
+                        "tick {}: held claim {} disappeared without its mother dying or the Player_Soul being placed",
                         tick.0, id.0);
                     if mother_died {
                         prop_assert!(!stage.slots().contains_key(&id),
@@ -1776,7 +1853,7 @@ proptest! {
         ).expect("a recorded default-Params run");
         prop_assert_eq!(&file.checksums, default_run.sim.checksums());
         sim_core::replay::verify(&file).expect("its own checksums verify");
-        let tick = usize::try_from(choices % 64).unwrap_or(0).min(file.checksums.len() - 1);
+        let tick = (choices % 64).min(file.checksums.len() - 1);
         file.checksums[tick].0 ^= 1;
         prop_assert!(matches!(sim_core::replay::verify(&file), Err(sim_core::replay::ReplayError::Diverged(_))));
     }
