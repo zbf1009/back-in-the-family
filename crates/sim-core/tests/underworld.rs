@@ -1293,11 +1293,18 @@ proptest! {
             let spec = bribe.preview.as_ref().expect("a valid Bribe fires a node");
             prop_assert_eq!(spec.family, sim_core::underworld::nodes::NodeFamily::MagistrateRuling);
             prop_assert_eq!(spec.context.subject, Some(sim_core::llm::PersonId(i64::try_from(magistrate.0).unwrap_or(0))));
-            if planned.iter().any(|entry| entry.result.is_ok()
-                && matches!(entry.payload, InputPayload::ClaimSlot {
-                    slot: SlotRef::ImportedVessel | SlotRef::RebuiltBody
-                })) {
-                prop_assert!(after.player_wait().is_none(), "tick {}: a Standing claim still waits", tick.0);
+            if let Some(slot) = planned.iter().find_map(|entry| {
+                if !entry.result.is_ok() {
+                    return None;
+                }
+                match entry.payload {
+                    InputPayload::ClaimSlot { slot: SlotRef::ImportedVessel } => Some(SlotRef::ImportedVessel),
+                    InputPayload::ClaimSlot { slot: SlotRef::RebuiltBody } => Some(SlotRef::RebuiltBody),
+                    _ => None,
+                }
+            }) {
+                prop_assert!(standing_claim_ends_old_wait(&before, &after, slot),
+                    "tick {}: a Standing claim did not end its original wait", tick.0);
                 prop_assert!(after.nodes().resolved.iter().any(|record|
                     record.tick == tick && record.family == sim_core::underworld::nodes::NodeFamily::MagistrateRuling),
                     "tick {}: a same-tick claim lost its ruling record", tick.0);
@@ -1367,6 +1374,54 @@ fn player_body(world: &World) -> Option<sim_core::ids::PersonId> {
         Some(SoulPlace::Body(body)) => Some(*body),
         _ => None,
     }
+}
+
+/// A placement ends this wait even if its new body dies in step 4 and starts another.
+/// Match the arrival Event (and its price) before inspecting the resulting Soul place.
+fn player_arrival_ends_old_wait(
+    before: &World,
+    after: &World,
+    arrival: impl Fn(&EventKind) -> Option<sim_core::ids::PersonId>,
+) -> bool {
+    let events = events_since(after, before.log().len());
+    let player = before.souls().player;
+    events
+        .iter()
+        .filter_map(|event| arrival(&event.kind))
+        .any(|body| {
+            after.persons().get(&body).is_some_and(|person| person.soul == player)
+                && match after.souls().places.get(&player) {
+                    Some(SoulPlace::Body(current)) => {
+                        *current == body && after.player_wait().is_none()
+                    }
+                    Some(SoulPlace::Waiting { since }) => {
+                        *since == before.tick()
+                            && after.player_wait().is_some_and(|wait| {
+                                wait.ghost == body && wait.claim.is_none()
+                            })
+                            && events.iter().any(|event| {
+                                matches!(event.kind, EventKind::Death { person } if person == body)
+                            })
+                    }
+                    _ => false,
+                }
+        })
+}
+
+fn standing_claim_ends_old_wait(before: &World, after: &World, slot: SlotRef) -> bool {
+    player_arrival_ends_old_wait(before, after, |kind| match (slot, kind) {
+        (SlotRef::ImportedVessel, EventKind::Possession { person, price })
+            if *price == before.params().imported_price =>
+        {
+            Some(*person)
+        }
+        (SlotRef::RebuiltBody, EventKind::Rebuild { person, price })
+            if *price == before.params().rebuilt_price =>
+        {
+            Some(*person)
+        }
+        _ => None,
+    })
 }
 
 proptest! {
@@ -1474,9 +1529,9 @@ proptest! {
             if after.player_wait().is_some() {
                 prop_assert!(params.rebuilt_price > params.imported_price);
             }
-            // Claims are resolved in input sequence order before step 3. A successful
-            // same-tick Standing claim therefore removes the wait before the slot stage,
-            // while a successful Birth claim remains held until its due tick.
+            // Claims resolve in input sequence order before step 3. A Standing
+            // claim ends this wait before deaths; its new body can die in step 4,
+            // starting a different wait before the slot stage.
             for entry in planned.iter().filter(|entry| entry.result.is_ok()) {
                 let InputPayload::ClaimSlot { slot } = entry.payload else { continue };
                 match slot {
@@ -1491,8 +1546,8 @@ proptest! {
                         }
                     }
                     SlotRef::ImportedVessel | SlotRef::RebuiltBody => {
-                        prop_assert!(after.player_wait().is_none(),
-                            "tick {}: same-tick Standing claim still waits", tick.0);
+                        prop_assert!(standing_claim_ends_old_wait(&before, &after, slot),
+                            "tick {}: same-tick Standing claim did not end its original wait", tick.0);
                     }
                 }
             }
@@ -1566,7 +1621,6 @@ proptest! {
         for _ in 0..TICKS {
             let before = run.world().clone();
             let tick = before.tick();
-            let start = before.log().len();
             let (_b, after, planned) = run.step();
             let params = *before.params();
             // R8.3: at the end of every tick the wait is at most Player_Max_Wait.
@@ -1599,18 +1653,10 @@ proptest! {
                 && !planned.iter().any(|entry| entry.result.is_ok()
                     && matches!(entry.payload, InputPayload::ClaimSlot { slot: SlotRef::ImportedVessel | SlotRef::RebuiltBody }))
             {
-                prop_assert!(after.player_wait().is_none(), "tick {}: still waiting", tick.0);
-                let placed = events_since(&after, start).iter().any(|event| {
-                    matches!(
-                        &event.kind,
-                        EventKind::Possession { person, price }
-                            if *price == 0
-                                && after.persons().get(person).is_some_and(|body| {
-                                    body.soul == before.souls().player
-                                })
-                    )
-                });
-                prop_assert!(placed, "tick {}: no free placement Event", tick.0);
+                prop_assert!(player_arrival_ends_old_wait(&before, &after, |kind| match kind {
+                    EventKind::Possession { person, price } if *price == 0 => Some(*person),
+                    _ => None,
+                }), "tick {}: no free placement ended the original wait", tick.0);
                 // R8.2: no open Birth_Slot names the Player_Soul as its claimant.
                 for slot in after.slots().values() {
                     prop_assert!(
