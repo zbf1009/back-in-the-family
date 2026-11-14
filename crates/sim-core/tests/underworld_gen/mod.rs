@@ -516,7 +516,6 @@ impl AppliedCounts {
             }
         }
     }
-
 }
 
 /// The node previews of the inputs that applied, in submission order.

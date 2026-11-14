@@ -274,9 +274,7 @@ pub fn snapshot_json(world: &World) -> String {
         .map(|node| PendingNodeDto {
             id: node.id.0.to_string(),
             family: match node.family {
-                crate::underworld::nodes::NodeFamily::DreamInterpretation => {
-                    "dream_interpretation"
-                }
+                crate::underworld::nodes::NodeFamily::DreamInterpretation => "dream_interpretation",
                 crate::underworld::nodes::NodeFamily::MagistrateRuling => "magistrate_ruling",
             },
             subject: node.subject.0,
@@ -461,10 +459,12 @@ mod tests {
                 death: crate::ids::Tick(0),
             };
         }
-        world
-            .souls
-            .places
-            .insert(player, SoulPlace::Waiting { since: crate::ids::Tick(0) });
+        world.souls.places.insert(
+            player,
+            SoulPlace::Waiting {
+                since: crate::ids::Tick(0),
+            },
+        );
         crate::underworld::player::start_wait(&mut world, player, crate::ids::Tick(0));
         world
     }
@@ -476,11 +476,17 @@ mod tests {
         let magistrate = &value["magistrate"];
         let expected_id = world.magistrate().id.0;
         assert_eq!(magistrate["id"], Value::from(expected_id));
-        assert_eq!(magistrate["name"], Value::String(String::from("Orrin Vell")));
+        assert_eq!(
+            magistrate["name"],
+            Value::String(String::from("Orrin Vell"))
+        );
         assert_eq!(magistrate["age"], Value::from(600));
         assert_eq!(magistrate["sex"], Value::String(String::from("male")));
         assert_eq!(magistrate["alive"], Value::Bool(true));
-        assert_eq!(magistrate["origin"], Value::String(String::from("official")));
+        assert_eq!(
+            magistrate["origin"],
+            Value::String(String::from("official"))
+        );
         assert_eq!(magistrate["wealth"], Value::from(0));
         assert_eq!(magistrate["soul_id"], Value::String(String::from("S-0000")));
         // R15.13: in none of the Resident, Household and Soul lists.
@@ -514,15 +520,9 @@ mod tests {
         for entry in joss {
             assert!(entry["balance"].is_string(), "a balance is a string");
         }
-        assert_eq!(
-            value["standing_slots"].as_array().expect("array").len(),
-            0
-        );
+        assert_eq!(value["standing_slots"].as_array().expect("array").len(), 0);
         assert!(value["player_wait"].is_null());
-        assert_eq!(
-            value["pending_nodes"].as_array().expect("array").len(),
-            0
-        );
+        assert_eq!(value["pending_nodes"].as_array().expect("array").len(), 0);
     }
 
     #[test]
@@ -542,7 +542,10 @@ mod tests {
         );
         assert_eq!(standing[1]["price"], Value::String(String::from("400")));
         let wait = &value["player_wait"];
-        assert_eq!(wait["ghost"], Value::from(world.player_wait().unwrap().ghost.0));
+        assert_eq!(
+            wait["ghost"],
+            Value::from(world.player_wait().unwrap().ghost.0)
+        );
         assert_eq!(wait["access_from"], Value::String(String::from("365")));
         assert!(wait["claim"].is_null());
         assert!(wait["carry_over"].is_null());
