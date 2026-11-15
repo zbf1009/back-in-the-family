@@ -14,3 +14,4 @@ cc bee0219501d6cd3176e627ebae14aaf4ff1c2167457c363411ca8559a2c48be3 # shrinks to
 cc 69336a073c4d3a838dff470645e8cc17556d498f9c645dea03afbf029f4ab6c1 # shrinks to scenario = Scenario { seed: 13185656272125382541, residents: 59, params: StressUnderworld }
 cc 3747ff56712ea40136996d1db67ae21aa87f9a0b11e407b44d0c89c4eb59fd7d # shrinks to scenario = Scenario { seed: 17639793251210987502, residents: 59, params: StressUnderworld }
 cc 92ec0874c369fe6cc35ba062f160c7055c2fa265d378decbabd9668b80841d9a # shrinks to scenario = Scenario { seed: 1625553468684982979, residents: 40, params: StressUnderworld }
+cc 05a4d8511871b536d3256eeb01fe599ea9fa5aa83131b2199461ae62ba559bc7 # shrinks to scenario = Scenario { seed: 16898960488770395273, residents: 42, params: StressUnderworld }
