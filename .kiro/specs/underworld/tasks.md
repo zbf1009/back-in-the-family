@@ -431,7 +431,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Decision (Author, 2026-11-15): 13.1 is checked by Kiro after 14.1 is reported and the final audit record is written.
 
 - [ ] 14. Audit follow-ups (Author decisions 2026-11-15, docs/underworld-audit.md)
-  - [ ] 14.1 Direct contract test for the magistrate option set (R6.3, audit finding 5)
+  - [x] 14.1 Direct contract test for the magistrate option set (R6.3, audit finding 5)
     - Executed by the terminal agent. Files: `crates/sim-core/tests/underworld.rs` (or `crates/sim-core/src/underworld/magistrate.rs` tests), `docs/kiro-log.md`.
     - Add a test, e.g. `a_fired_magistrate_ruling_offers_exactly_the_three_options_in_order`, that fires a real `magistrate_ruling` node through a valid Bribe input (and/or `Sim::preview_node` for a Bribe) and asserts that the options actually offered by that node — the node's option list and the Frozen_Context's options — are exactly `grant_next_slot`, `grant_later_slot`, `deny`, in this order. The order is part of the contract: R6.3 lists the options in this order, the `RULING_OPTIONS` doc comment says "in this order", and ties in a Rules_Default go to the earlier option. The test must read the fired node or its context, not repeat the `RULING_OPTIONS` constant as the expected value source (write the expected IDs as literals).
     - No functional change. If the test fails, stop and report to Kiro; do not change production code.

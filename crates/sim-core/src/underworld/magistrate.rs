@@ -728,6 +728,59 @@ mod tests {
         );
     }
 
+    /// R6.3: pin the options the real Bribe handler fires, not its source table.
+    #[test]
+    fn a_fired_magistrate_ruling_offers_exactly_the_three_options_in_order() {
+        let (mut world, _) = waiting_world(Params::DEFAULT, 500);
+        let trigger = InputSeq(1);
+        let mut stepped = world.clone();
+        let tick = stepped.tick();
+        let (_, outcomes) = stepped.step_with_outcomes(&[TickInput {
+            tick,
+            seq: trigger,
+            payload: InputPayload::Bribe { amount: 120 },
+        }]);
+        assert_eq!(outcomes.len(), 1);
+        assert_eq!(outcomes[0].result, Ok(()));
+
+        assert_eq!(apply(&mut world, trigger, 120), Ok(()));
+
+        let node = world
+            .nodes()
+            .pending
+            .values()
+            .find(|node| node.trigger == trigger)
+            .expect("the valid Bribe fired a magistrate ruling");
+        assert_eq!(node.family, NodeFamily::MagistrateRuling);
+        assert_eq!(node.subject, world.magistrate().id);
+        let record = stepped
+            .nodes()
+            .resolved
+            .last()
+            .expect("the submitted Bribe resolved a magistrate ruling");
+        assert_eq!(record.family, node.family);
+        assert_eq!(record.subject, node.subject);
+        assert_eq!(record.id, node.id);
+        assert_eq!(record.rules_default, node.rules_default);
+        assert_eq!(
+            node.options
+                .iter()
+                .map(|option| option.id())
+                .collect::<Vec<_>>(),
+            ["grant_next_slot", "grant_later_slot", "deny"]
+        );
+        let crate::llm::TaskSpec::Decision { options } = &node.context.spec else {
+            panic!("the fired ruling has a decision context");
+        };
+        assert_eq!(
+            options
+                .iter()
+                .map(|option| option.id.as_str())
+                .collect::<Vec<_>>(),
+            ["grant_next_slot", "grant_later_slot", "deny"]
+        );
+    }
+
     #[test]
     fn a_bribe_appends_the_offering_and_the_appeal_and_fires_the_node() {
         let mut params = Params::DEFAULT;
