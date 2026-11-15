@@ -1456,6 +1456,24 @@ outsiders_le_births_third=pass"
     }
 
     #[test]
+    fn passive_require_targets_ignores_every_zero_underworld_count() {
+        let (code, out, err) = run((1, 1), true, &|_| Ok(()));
+        assert_eq!(code, EXIT_OK, "{out}\n{err}");
+        assert!(err.is_empty(), "{err}");
+        assert!(
+            out.contains("invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass")
+        );
+        assert!(
+            out.contains(
+                "batch: totals dreams=0 hauntings=0 bribes=0 birth_claims=0 imported_claims=0 \
+rebuilt_claims=0 carry_overs=0 nodes_dream_interpretation=0 nodes_magistrate_ruling=0"
+            ),
+            "{out}"
+        );
+        assert!(out.contains("batch: 1/1 seeds ok"), "{out}");
+    }
+
+    #[test]
     fn a_failing_seed_is_reported_and_the_rest_still_run() {
         // Fail seed 2 only, once the sixth tick has run (the seed is read from the world).
         let broken = |w: &World| {
