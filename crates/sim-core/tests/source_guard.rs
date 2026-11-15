@@ -5,7 +5,8 @@
 //! out comments and string/char literals, and then fails on float literals and banned
 //! names, whatever attributes surround them.
 //!
-//! It reads nothing except `src/**/*.rs` of this crate and uses only `std`.
+//! The R14.4 check below also compares the frozen LLM sources and System One template
+//! byte-for-byte by their committed BLAKE3 hashes; it never opens evaluation cards.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -377,6 +378,100 @@ fn sim_core_src_has_no_float_literals_or_banned_names() {
         problems.is_empty(),
         "determinism guard violations:\n{}",
         problems.join("\n")
+    );
+}
+
+/// Pinned from the committed bytes of the R14.4-protected sources. Keep this list
+/// complete: an added or removed LLM file is itself a guard failure.
+const PINNED_LLM: &[(&str, &str)] = &[
+    (
+        "aggregate.rs",
+        "431412bc17ff54a9782ca81575214be81f7ef13d55486b7f49bdaca4c1a8cebc",
+    ),
+    (
+        "answer.rs",
+        "74b933677271e7d8634d0e3a4afce29e9c7479b0dc7aba183858c10b5a6a241b",
+    ),
+    (
+        "api.rs",
+        "4e3aff8156637196d098a7e7364408621ede719c59b377f0f85ca30972047632",
+    ),
+    (
+        "card.rs",
+        "57cad6dc84d06e75f5edbaec2330f2cd9129277832d171881a874e135f58e37b",
+    ),
+    (
+        "context.rs",
+        "0dd2ad1545fc72034aa82cdb1a65710120c7c1448a5f6c049c745650e4a918f4",
+    ),
+    (
+        "grade.rs",
+        "6635e41f8a6317786f397eedb5d1ef652f6e8d6c2a266b603385be7c023e5ae1",
+    ),
+    (
+        "json.rs",
+        "4b85d5b801f18b6b2e996352689cd5ebca09f46088b226d2f544b714ce6bf001",
+    ),
+    (
+        "key.rs",
+        "29cba2f7e479433159a4edc9a74857f2024a8c7b959c68a52d3d2a718b8b0bc5",
+    ),
+    (
+        "mod.rs",
+        "090a640c69328420d570405be25ae89cfa6123dcbfe80975d07d0c8b48367e96",
+    ),
+    (
+        "render.rs",
+        "f41336b167ad3ebd92c1aaff2786358ba200a9bbd0ebfaa36ff836c3d780a64a",
+    ),
+    (
+        "system_one.rs",
+        "062a75e27566523cdb3561621ef980fc715226b1d29cd7c12cd80c79ab7a97a0",
+    ),
+    (
+        "validate.rs",
+        "2af02bb21301e214f52d3b82d32f3dd5434a929a5128f805e8c7ec59ee0c50e4",
+    ),
+];
+
+#[test]
+fn r14_4_frozen_sources_match_committed_blake3_hashes() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let llm = root.join("crates/sim-core/src/llm");
+    let mut actual: Vec<String> = fs::read_dir(&llm)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", llm.display()))
+        .map(|entry| {
+            entry
+                .expect("LLM directory entry")
+                .file_name()
+                .into_string()
+                .expect("UTF-8 LLM filename")
+        })
+        .collect();
+    actual.sort();
+    let expected: Vec<&str> = PINNED_LLM.iter().map(|(name, _)| *name).collect();
+    assert_eq!(actual, expected, "R14.4: LLM source file set changed");
+
+    for &(name, expected_hash) in PINNED_LLM {
+        let path = llm.join(name);
+        let bytes =
+            fs::read(&path).unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+        assert_eq!(
+            blake3::hash(&bytes).to_hex().as_str(),
+            expected_hash,
+            "R14.4: frozen source changed: {}",
+            path.display()
+        );
+    }
+
+    let template = root.join("eval/probe/templates/decision.system_one.v1.txt");
+    let bytes =
+        fs::read(&template).unwrap_or_else(|e| panic!("cannot read {}: {e}", template.display()));
+    assert_eq!(
+        blake3::hash(&bytes).to_hex().as_str(),
+        "2a095c29c69e67edcec4a7c43eaf81ba72b6e06924e25c087f571514c570f0a1",
+        "R14.4: frozen template changed: {}",
+        template.display()
     );
 }
 

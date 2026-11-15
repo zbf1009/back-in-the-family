@@ -14,11 +14,16 @@ back-in-the-family/
     sim-core/     # deterministic simulation: model, tick steps, event log, narrator, rules, TickInput, checksum
       src/        # params, names, values, events, world, opening, tick, economy, social, death,
                   # births, outsiders, invariants, context_builder, snapshot, replay; llm/ unchanged
+        underworld/  # mod.rs, carry_over.rs, dreams.rs, ghosts.rs, hauntings.rs,
+                     # joss.rs, magistrate.rs, nodes.rs, offerings.rs, player.rs, slots.rs
       tests/      # life_gen/, invariants.rs, history.rs, inputs.rs, opening.rs, properties.rs,
-                  # replay.rs, context_builder.rs, snapshot.rs, source_guard.rs;
+                  # replay.rs, context_builder.rs, snapshot.rs, source_guard.rs,
+                  # underworld.rs, underworld_checker.rs, underworld_gen/;
                   # llm_gen/, llm_examples.rs, llm_properties.rs (llm-probe)
     sim-wasm/     # wasm-bindgen bindings: create world, step, submit input, read snapshot
     sim-cli/      # native headless runner: record/replay/snapshot, seed batches, measure
+      src/auto_player.rs  # deterministic waiting-Soul input planner
+      tests/auto_player.rs  batch_gate.rs
   web/            # Svelte 5 + Vite TypeScript front end (web-shell spec)
     index.html
     vite.config.ts
@@ -51,8 +56,8 @@ back-in-the-family/
       ledger.jsonl  exclusions.jsonl  failures.jsonl  invalid-dev-runs.json
       budget/     # Workers AI Request_Budget counter (gitignored)
   fixtures/
-    parity/       # golden replay files shared by native and WASM parity tests (seed1/seed2/seedbig-pairwise)
-                  # plus seed1-pairwise.snapshot-500.json, the native Snapshot at tick 500
+    parity/       # golden native/WASM replay files (three pairwise plus seedU-underworld.replay.json)
+                  # and seed1-pairwise.snapshot-500.json, the native Snapshot at tick 500
     configs/      # world config JSON used to record them
     grading/      # golden grading files (dev, System One, perm_avg) generated from the Dev_Cards by sim-cli; checked by Rust and probe tests (regenerate on purpose with scripts/regen-grading-golden.sh)
   scripts/        # gates.sh, wasm-build.sh, web-build.sh, measure-wasm.*, regen-fixtures.sh, regen-grading-golden.sh, check-wasm-bindgen.sh, check-pnpm-version.sh
@@ -80,7 +85,8 @@ back-in-the-family/
 | Module | Lives in | Owns | Must not |
 |---|---|---|---|
 | life-sim | sim-core | Residents, households, relationships (numeric axes + tags), debts, property and inheritance, births and deaths, long-term mood and stress | Read anything outside the model; know about the player UI |
-| underworld | sim-core | Souls of the dead, joss paper income and spending, dreams, hauntings, bribes, birth slots, imported vessels, rebuilt bodies | Give ghosts direct control of living residents |
+| underworld | `sim-core/src/underworld/` (`mod.rs`, `carry_over.rs`, `dreams.rs`, `ghosts.rs`, `hauntings.rs`, `joss.rs`, `magistrate.rs`, `nodes.rs`, `offerings.rs`, `player.rs`, `slots.rs`) | Waiting Souls, joss ledger, dreams, hauntings, Bribes, slots, rebirth and frozen decision nodes | Give ghosts direct control of living residents |
+| Auto_Player and batch | `sim-cli/src/auto_player.rs`, `sim-cli/src/batch.rs`; `sim-cli/tests/auto_player.rs`, `batch_gate.rs` | Deterministic waiting-Soul inputs, passive life-sim acceptance and Devoted underworld reachability reporting | Change simulation state outside recorded inputs |
 | soul-identity | sim-core | Soul ID vs body identity, the one-soul-one-place invariant, carry-over rules | Let a soul exist in two places |
 | event log | sim-core | Append-only events with participants, `caused_by` pointers, magnitude and tags; the single source of truth for history | Be edited after writing |
 | narrator | sim-core | Pattern library that scans new events and their one-hop neighbors, produces nodes with concrete stakes (who, how much, by when), frequency budget, soul-centred salience | Interrupt without at least two defensible options |
@@ -110,11 +116,11 @@ eval runner ──> sim-core (context rendering + validation) and the LLM adapte
 7. After spec 6: the rest of `slow-think` (validating rule priors plus a decision model with in-simulation metrics), and one spec for the Cloudflare Worker script (AI binding), the request budget (per-session rate limit, daily cap), wiring clef into the decision-node interface, and a one-click deploy button. No S (rule-computed).
 8. Pending: a presentation-text layer (dialogue, dreams, obituaries, with caching); the first slice uses template text.
 
-## Next steps (as of 2026-11-12, spec 4 `life-sim` done and deployed)
+## Next steps (as of 2026-11-15, spec 5 `underworld` implemented pending audit and push)
 
 - Spec 1 (`sim-core-skeleton`) is done: gates pass from a clean build, and the audit is in `docs/sim-core-skeleton-audit.md`. Known open item from it: the weekly half of the tick measurement can only be re-run at commit `bac46e3`.
 - Spec 2 (`web-shell`) is **fully done, including the live deploy.** The `web/` app, the Web_Build (`scripts/web-build.sh` → `web/dist`), the Type_Check / Unit_Tests / Smoke_Test gates, the `wrangler.jsonc` Static Assets config and `.github/workflows/deploy.yml` are all in place; gates pass from a clean build and in CI; and the audit is in `docs/web-shell-audit.md`. The site is live at <https://back-in-the-family.2290698778.workers.dev> (first deploy of commit `76ab0bb`, 2026-11-05). The Deploy_Workflow is **enabled**: a push to `main` runs the gates and, when they pass, deploys `web/dist` to Cloudflare Workers Static Assets automatically. The Cloudflare secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) and the repo variable `DEPLOY_ENABLED=true` are set. The "ask before any deploy" spirit still holds for manual or out-of-band deploys, but pushing green commits to `main` now deploys on its own — merge to `main` deliberately.
 - Spec 3 (`llm-probe`) is done, audited (`docs/llm-probe-audit.md`) and deployed: commit `b121253` was pushed to `main` and CI run `42751453227` deployed it on 2026-11-10. The Report is `docs/llm-probe.md`; no Combination passed the Thresholds, and its recommendation was Rules_Default for both task types. The Author decided on 2026-11-10 (see the tech.md "LLM runtime" row and `docs/kiro-log.md`): D = Rules_Default plus Workers AI clef picking inside the rule-generated closed set (not Threshold-passing; an informed choice, to be validated in the slow-think spec with in-simulation metrics), S = rules only, a generative LLM for presentation text only, no in-browser LLM.
 - Spec 4 (`life-sim`) is **done** (2026-11-11): the thin life simulation and soul-identity core replace the skeleton model in `sim-core`; the Context_Builder and the Snapshot are in; the 80-year acceptance batch runs in `scripts/gates.sh`; the Params are calibrated (births 1,000/100 ppm). The arrival ratio R17.8 (`outsiders <= births`) is the hard target; `outsiders <= births / 3` is reported only (Author, 2026-11-11, audit). Audited in `docs/life-sim-audit.md`; pushed to `main` and deployed by CI run `43134392006` on 2026-11-12.
-- Next: spec 5 `underworld` (target 2026-11-15), then spec 6, the first playable version (`narrator`, `scenes`, player interface). The rest of `slow-think`, the Cloudflare Worker script, request budget, clef wiring and one-click deploy button follow after spec 6. A presentation-text layer (with caching) is pending.
+- Spec 5 (`underworld`) is implemented locally: the underworld mechanics, Auto_Player, passive and Devoted batches, checker tests and native/WASM underworld replay fixture are in place. Kiro's audit (task 13.1) and the Author's push decision remain; do not conflate local implementation with a deploy. Next is spec 6, the first playable version (`narrator`, `scenes`, player interface). The rest of `slow-think`, the Cloudflare Worker script, request budget, clef wiring and one-click deploy button follow after spec 6. A presentation-text layer (with caching) is pending.
 - Hooks were tried and removed on 2026-11-04 (output never reached the agent; see `docs/kiro-log.md`); `sim-cli batch` runs as a step in `scripts/gates.sh`. When a later spec changes tick logic, regenerate the fixtures on purpose (`scripts/regen-fixtures.sh`) and say so in the commit.
