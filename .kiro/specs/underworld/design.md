@@ -14,6 +14,15 @@ Three ideas carry most of the design:
 
 Every open point OP-U2 to OP-U13 and every design choice the steering and requirements leave open has an option block below. Each block marks one option **(Recommended)**. In the design review of 2026-11-12 the Author accepted every recommended option of OP-U1 to OP-U13 and OP-D1 to OP-D8; each block ends with its decision line, and the options stay as written. The Author also accepted that Birth_Slot claims are free, that the Snapshot keeps the `pending_nodes` field, and that all Params are calibrated by the 80-year acceptance batch. The same review changed Requirement 11 (R11.5, R11.9, R11.10, new R11.12); the Auto_Player and batch sections below follow the new text.
 
+Update (Author, 2026-11-15). Task 10.1 stopped under step 6 of the calibration procedure: no offering or price lever produced a Rebuilt_Body claim, and the median Player_Wait credit stayed at 6.5 against the step-4 target of 160 (`docs/kiro-log.md`, "underworld — task 10.1 calibration runs"). Requirements now add R7.11, R11.13, R11.14, R12.4 to R12.6, OP-U14, OP-U15 and the Devoted_Branch, and change R11.9 and R11.12. This design keeps every earlier text and adds dated notes: "Rebuilt_Body scope" below, Kiro's corrections in "Parameters and calibration" and "Auto_Player", the new section "Offering diagnosis (H1–H5)", the gate split, the C1/C2 fault-injection contract, and a revised implementation order.
+
+### Rebuilt_Body scope (Author, 2026-11-15; R7.11, Out of scope)
+
+- In this spec a Rebuilt_Body has no unique benefit. A valid Rebuilt_Body claim creates the same body as a valid Imported_Vessel claim in the same World state would; only the Origin (`rebuilt`), the price (`rebuilt_price`) and the cap accounting (the spend counts against the Yearly_Cap, R2.6) differ (R7.11). `create_outsider(world, soul, origin, price)` already has this shape: the kind is a parameter, and no other field depends on it.
+- Carry_Over applies on every exit path (claimed birth, either Standing_Slot, the R8.1 placement) and is not customization.
+- Paid customization of part of the rebuilt body is the committed node of spec 6 (steering `structure.md`, "Specs (planned order)", item 6, acceptance targets a to d). Nothing in this spec designs its fields or bounds.
+- The Auto_Player keeps its `RebuiltBody` strategy. It exercises the path whenever the balance and the spend cap allow a claim. Coverage of the path is no hard-gate requirement any more: the gate never lists Rebuilt_Body claims (R11.9), and the targeted test of R11.13 proves the path works ("Gate split" in "Auto_Player and batch report").
+
 ## Decisions for the Author
 
 ### OP-U1: the Magistrate (requirements fixed the role; design fixes the details) [`underworld/magistrate.rs`, `world.rs`]
@@ -216,6 +225,8 @@ Auto_Player policy:
 
 Decision (Author, 2026-11-12): A for node addressing, A for option encoding, A for the Auto_Player policy. Requirement 11 now uses the Bribe condition this design suggested (R11.10), so policy A meets it with no exception; the strategy is rotated over the Player_Waits so that every slot kind is exercised (R11.12, see "Auto_Player").
 
+Note (Author, 2026-11-15): the rotation stays, but R11.12 now asks only that the counts on the OP-U14 list are non-zero, and that list never contains Rebuilt_Body claims. A `RebuiltBody` wait that ends without a Rebuilt claim is no failure. The Devoted_Branch strategy and budget of R11.14 are set in "Offering diagnosis (H1–H5)", H4.
+
 ### OP-U13: births under announced slots [`births.rs`]
 
 Which mothers roll an announcement:
@@ -226,6 +237,19 @@ Which mothers roll an announcement:
 Re-calibration: see "Parameters and calibration".
 
 Decision (Author, 2026-11-12): A.
+
+### OP-U14: the zero-count list and the Devoted_Branch thresholds (Author, 2026-11-15) [`sim-cli/src/batch.rs`]
+
+Open. The Author picks, after the offering diagnosis ("Offering diagnosis (H1–H5)"), which counts of R11.5 go on the zero-count list of R11.9 and R11.12, and the thresholds, if any, for the R11.14 Devoted_Branch figures. Fixed now: Rebuilt_Body claims are never on the list (R11.9); R8.1 placements never count as Imported_Vessel claims; the list is not assumed to require that the passive Auto_Player affords an Imported_Vessel or a haunting. Until the decision the design names no list (see "Gate split").
+
+### OP-U15: the offering mechanism (Author, 2026-11-15) [`underworld/offerings.rs`, `social.rs`, `params.rs`]
+
+Open. The offering formula and life-sim relation decay stay unchanged for now. Candidates, chosen or combined by the Author after the diagnosis:
+- **M-A. Kin decay floor.** Decay stops at a positive floor for Relations with a Kinship_Tag.
+- **M-B. Slower or asymmetric decay.** For example one point per 90 days, or decay only above a value.
+- **M-C. Kin duty base.** The offering formula adds a base amount for an offerer with a Kinship_Tag toward the Ghost, independent of affinity.
+
+No option is recommended before the diagnosis; H1 to H5 are designed to tell them apart (H1 and H2 bear on M-A and M-B, H3b and H5 on M-C).
 
 ### OP-D1: module layout [`crates/sim-core/src/underworld/`]
 
@@ -636,7 +660,7 @@ New `Params` fields (all integers, in the canonical encoding):
 | Parameter | Initial value | Rationale |
 |---|---|---|
 | `yearly_cap` | 500 | The largest single offering (100 affinity, piety +3, rich, funeral) is exactly 500 |
-| `offer_min_affinity` | 1 | Any warm Relation offers; life-sim decay pulls kin affinity toward 0 over decades, so a higher floor would starve old Ghosts |
+| `offer_min_affinity` | 1 | Any warm Relation offers; life-sim decay pulls kin affinity toward 0 over decades, so a higher floor would starve old Ghosts (corrected below, Kiro, 2026-11-15) |
 | `offer_money_step`, `offer_money_max_steps` | 10,000 dollars, 3 | Wealth raises offerings by up to 2.5x |
 | `funeral_factor`, `anniversary_factor`, `halloween_factor` | 2, 1, 1 | Funerals are the main income |
 | `halloween_day` | 0 | OP-U3 A |
@@ -650,6 +674,8 @@ New `Params` fields (all integers, in the canonical encoding):
 | dream effect sizes | +6/+4, +3, +1 | OP-U11 table |
 | `mortality_floor_ppm` | 0 | OP-D7 A; `stress_underworld()` sets 4,000 |
 
+Correction (Kiro, 2026-11-15), `offer_min_affinity` rationale. "Over decades" is wrong. Life-sim step 11 (`social::process_relation_decay`, `social.rs:622-628`) runs when `T % 30 == 29` and moves every Relation whose `from` is a Resident one point toward 0, Relations toward the dead included; only negative affinity held by a `from` with `vindictiveness >= 2` is exempt. That is 12 points a year, so a kin Relation that starts at 30 to 60 reaches 0 in about 2.5 to 5 years unless social events refresh it. A rough estimate, not measured: social events touch each directed Relation about once per decade, so most kin Relations are at 0 long before a death. The conclusion of the original note (a higher floor would starve old Ghosts) still holds; the time scale does not. H1 and H2 of the offering diagnosis measure both figures.
+
 `Params::stress_underworld()` (test-support): `Params::stress()` plus `mortality_floor_ppm 4_000`, `birth_lead_days 10`, `register_wait 5`, `grant_later_delay 3`, `player_max_wait 40`, `yearly_cap 120`, prices 5/10/20/60, so caps, auto placement, slot births and every rejection occur within 400 ticks.
 
 **Re-calibration (OP-U13).** Announcement moves the Soul choice from the decision tick to the birth tick, so each NPC Soul waits up to `birth_lead_days` longer and more of them pass Max_Wait. The hard gate is the 80-year acceptance batch with Auto_Player inputs: LS-R17.1, LS-R17.8 and LS-R17.9 must pass on seeds 1..=5 (R11.7, R11.8), and every R11.9 total must be non-zero (R11.9, R11.12). Procedure, one parameter at a time, recorded in `docs/kiro-log.md`:
@@ -662,6 +688,60 @@ New `Params` fields (all integers, in the canonical encoding):
 6. If a total is still zero after step 5, stop and report to the Author; the gate stays red and no check is weakened.
 
 Params defaults change only together with a fixture regeneration. Every calibration run, its totals line and the chosen change go into `docs/kiro-log.md`.
+
+Note (Author, 2026-11-15): task 10.1 ran steps 1 to 5 and stopped under step 6 (`docs/kiro-log.md`, "underworld — task 10.1 calibration runs"). Steps 1 to 3 hold: the paired birth-rate change (1,000/100 to 2,000/200 ppm) met R17.8 with `max_wait_npc` at Max_Wait on one seed instead of three, so step 3 was not triggered. Steps 4 to 6 are suspended until the Author decides OP-U15: with funeral factor 40, anniversary factor 40, `offer_min_affinity` 0 or `rebuilt_price` 101, the median Player_Wait credit stayed at 6.5, two waits stayed at 0 and `rebuilt_claims` stayed at 0. The experimental Params were restored. Step 5's "all nine totals" is superseded by the OP-U14 list, which never contains `rebuilt_claims`. After OP-U15, steps 4 to 6 resume against the target the Author sets with it; the 160-credit median of step 4 is not assumed to stand.
+
+## Offering diagnosis (H1–H5), Author-approved 2026-11-15
+
+Purpose: find out why Relations toward the dead are at affinity 0 at the Offering_Occasions, so that the Author can choose OP-U15 (the mechanism) and OP-U14 (the zero-count list and the Devoted_Branch thresholds) on measured facts. The diagnosis is bounded: the five hypotheses below, one run setup, one report, then a stop.
+
+**Status rules.**
+- It is no calibration. No Params value changes, no gate changes, no committed source changes.
+- Diagnostic code is isolated: a scratch program outside the committed tree, or a throwaway file that is removed after the run. It reads the simulation only through public `sim-core` and `sim-cli` APIs (the `test-support` feature is allowed) and submits inputs only as TickInputs.
+- `docs/kiro-log.md` records the sha256 of the diagnostic source, the commit it ran on, the exact commands and the output paths. The output files stay outside the repository (as the 10.1 runs used `/tmp/...`).
+- The external agent runs it; Kiro and the Author read the result.
+
+**Run setup.** `Params::DEFAULT` at the commit it runs on, Acceptance_Seeds 1..=5, 29,200 ticks each, two branches per seed:
+- **Passive branch**: the current Auto_Player inputs, exactly as `batch` submits them.
+- **Devoted_Branch** (control): the passive inputs plus the H4 social acts, nothing else changed.
+
+Sanity check: the per-tick Checksums of the passive branch equal those of the committed baseline (`batch` at the same commit with the same seeds and ticks; comparing the final digest per seed is enough when `batch` prints it). A mismatch invalidates the run; the agent stops and reports it.
+
+**H1: natural decay to zero.** At every Offering_Occasion and at every death (every Person, not only the Player_Soul):
+- count the incoming Relations of the Ghost or the dying Person by sign (negative, zero, positive) and by kin (a Kinship_Tag toward that Person) or non-kin;
+- for every zero or negative Relation, decompose its changes since its creation: initial value; sum of positive social deltas; sum of negative social deltas; sum of decay steps; other writes (marriage, kin setup, dream effects, any other); the peak value and its tick; the tick it first reached its current value;
+- classify each zero Relation as **never warm** (peak below 10), **decayed from warm** (peak at least 10 and decay is the largest negative source) or **netted to zero by events** (peak at least 10 and negative social deltas are the largest negative source);
+- for kin Relations, report the time from creation to the first zero next to the arithmetic expectation `initial / 12` years.
+
+Reading rule: a Relation reaching 0 faster than `initial / 12` is a fact to report, not a bug by itself (negative events also lower it). A bug is a change whose source the decomposition cannot attribute; any unattributed change is listed with its Relation, ticks and size.
+
+The decomposition needs every write to a Relation. The scratch program gets it by diffing each tick's Relations against the previous tick and attributing the difference to that tick's Events (social acts, marriages, births, dream effects) and to decay ticks (`T % 30 == 29`); a difference left over is "unattributed".
+
+**H2: refresh rate.** Social events per directed Relation per year, as a distribution over all directed Relations alive at least one year (median, quartiles, share with zero events), split kin / non-kin.
+
+**H3: real feuds.** For each negative Relation found by H1, the share of its negative value attributable to negative social events versus other sources (decay cannot make a value negative; initial values and other writes can). A past negative event does not by itself mean the current value is justified; the report gives the shares and leaves the judgement to the Author.
+
+**H3b: offerers lost by death.** At each Offering_Occasion, the Relations toward the Ghost whose `from` Person died before the occasion: count, split kin / non-kin. This is a separate cause from zero affinity and is reported separately.
+
+**H4: Devoted_Branch.** Strategy and budget, fixed in advance:
+- While the Player_Soul's body is a living Resident, submit at most one legal `Act` every 30 days: the first on the body's first living day with a valid target, then every 30 days after that. A scheduled day with no valid target submits nothing; the schedule keeps its 30-day step.
+- Kind alternates per submitted act, `Help` first for each body, then `Gift`; intensity 100.
+- Target: round-robin, in Person ID order, over the living Residents holding a Kinship_Tag toward the player's body; if there is none, the living Resident with the highest affinity toward the player's body (ties: lower ID).
+- Inputs go through the normal TickInput path; the underworld part of the Auto_Player is unchanged.
+- This is a diagnostic budget, not a game rule.
+- Record per seed: acts submitted, applied and rejected (by reason), and any money the applied acts moved.
+
+**H5: affordability and spending.** Per Player_Wait, in both branches:
+- the absolute joss paper credited and a zero-credit flag;
+- spends by kind (dream, haunting, Bribe, Imported_Vessel, Rebuilt_Body);
+- for each of dream, haunting, Bribe, Imported_Vessel and Rebuilt_Body, whether it was affordable at some start-of-tick state of the wait (balance at least the price, and the spend cap allows it for the haunting and the Rebuilt_Body; the Bribe is affordable at balance 1);
+- for NPC Ghosts: the distribution of credited joss paper per wait (median, share with zero, share that reached `yearly_cap` in some Cap_Year).
+
+**Output.** Per-seed lines and totals over the five seeds for H1 to H5 and both branches, plus the passive-branch Checksum sanity result. No thresholds, no pass/fail, and no "X times" improvement target: the report states what was measured.
+
+**STOP rule.** After the run the agent logs it (source hash, commit, commands, output paths, a summary of the figures) and stops for Kiro and the Author. No Params, mechanism or gate change follows from the diagnosis without the Author's decision on OP-U15 and OP-U14.
+
+**Relation to R11.14.** R11.14 asks the Sim_Cli itself to report Devoted_Branch figures. The scratch run of H4 and H5 is the first measurement; the committed Sim_Cli Devoted_Branch (see "Gate split") uses the same H4 strategy and the same H5 per-wait fields, so the two agree by construction, and is implemented only after OP-U14.
 
 ## Auto_Player and batch report (`sim-cli`, R11)
 
@@ -695,6 +775,8 @@ Why the policy meets R11.10 exactly. Dream: if at some start-of-tick state `bala
 
 **Reachability of every kind (R11.12).** Per offerer and occasion, `amount = a * p * (2 + m) * factor / 12`. A Player_Soul that dies with four Relations at affinity 40 and piety 0 (`p = 3`, `m = 0`) receives about 160 at the funeral (factor 2) and about 160 a year from anniversaries and Halloween (factor 1 each), below the 500 cap. A `RebuiltBody` wait spends 20 (dream) and 1 (Bribe), skips the haunting unless the balance covers both prices, and reaches 400 in about the second year of a 1,095-day wait. A balance left from an earlier wait is kept (OP-U8 A) and helps later waits. The capped spend of a Rebuilt claim is at most 440 (haunting plus claim), under the 500 cap. A Birth wait needs `T >= access_from` (365 days, earlier with a grant) and an announced slot that is born before `since + player_max_wait`; a waiting Player_Soul raises the announcement gate of OP-U13 A, so slots are announced while it waits. These are estimates; the acceptance batch measures them, and the calibration procedure (step 5) handles a kind that stays at zero.
 
+Correction (Kiro, 2026-11-15). The estimate above is unfounded. It assumed four Relations at affinity 40 toward the Player_Soul at its death without checking life-sim decay, which moves affinity 12 points a year toward 0 ("Parameters and calibration", correction of `offer_min_affinity`). The 10.1 trials measured the real figures: at default Params the six Player_Wait credits were 0, 0, 34, 0, 0 and 3 (the 9.2 baseline); with funeral factor 40 they were 0, 20, 500, 0, 0 and 13, a median of 6.5. The paragraph stays as written; the offering diagnosis measures the real figures, and Rebuilt_Body reachability is no gate requirement ("Rebuilt_Body scope").
+
 **Batch report additions (R11.3 to R11.6),** appended to each `ok` line before `invariants=`:
 
 ```text
@@ -725,6 +807,12 @@ batch: totals dreams=.. hauntings=.. bribes=.. birth_claims=.. imported_claims=.
 ```
 
 With `--require-targets`, `batch` checks exactly these nine totals (R11.9): `dreams`, `hauntings`, `bribes`, `birth_claims`, `imported_claims`, `rebuilt_claims`, `carry_overs`, `nodes_dream_interpretation`, `nodes_magistrate_ruling`. Any zero total prints `batch: FAIL zero counts: <names>` (all zero names, in this order) and the exit status is 1. `auto_placed` is not in the list. The check is a pure function `zero_count_failures(&Totals) -> Vec<&'static str>` so it can be tested on its own. `player_lives` and `max_wait_player` never affect the exit status (R11.11): the exit-status code reads only the invariant results, the life-sim targets of R11.7 and `zero_count_failures`.
+
+**Gate split (Author, 2026-11-15; R11.9, R11.12 to R11.14).** The zero-count gate is split into what is fixed now and what waits for OP-U14:
+- **List pending.** The nine-name list above is superseded. The R11.9 zero-count list is a design-defined constant, `ZERO_COUNT_LIST: &[&str]` in `crates/sim-cli/src/batch.rs`, set by a dated design note after the Author decides OP-U14. `zero_count_failures(&Totals) -> Vec<&'static str>` keeps its signature and returns the zero names of `ZERO_COUNT_LIST`, in list order.
+- **Fixed now.** `rebuilt_claims` is never on the list; it stays in `Totals` and in the `batch: totals` line as a report-only figure. `auto_placed` is never on the list and never counts as an Imported_Vessel claim. Until OP-U14, the constant holds the eight remaining names in the order above (`dreams`, `hauntings`, `bribes`, `birth_claims`, `imported_claims`, `carry_overs`, `nodes_dream_interpretation`, `nodes_magistrate_ruling`) only so that the code and Property 23 have a value; it is not wired into the exit status before OP-U14 (task 10.2).
+- **R11.13 targeted test (function-only).** `a_rebuilt_claim_creates_an_imported_shaped_body` in `crates/sim-core/tests/underworld.rs`. It builds a test-support world with the Player_Soul waiting and its Joss_Balance set to at least `rebuilt_price` (with cap room), clones it, applies `ClaimSlot { RebuiltBody }` to one copy and `ClaimSlot { ImportedVessel }` to the other in the same tick, and checks R7.7 (the price is spent and attributed to the `Rebuild` Event, the Player_Soul left the Waiting_Queue, the outsider body holds it) and R7.11 (the two new bodies are equal in every field except the Origin; the spends differ only by price; only the Rebuilt spend raises `capped_spent`). The test's doc comment and its `docs/kiro-log.md` record say: "proves the Rebuilt_Body path works; says nothing about whether a Rebuilt_Body is affordable through normal play".
+- **R11.14 Devoted_Branch report (report-only).** `batch --devoted` runs each seed a second time as the Devoted_Branch with the H4 strategy of "Offering diagnosis" and prints, per seed, one `devoted` line with per-Player_Wait fields `joss=<credited>`, `zero=<0|1>`, `acts=<applied social acts during the preceding Player_Life>`, `affordable=<subset of dream,haunting,bribe,imported,rebuilt>`, plus the share of zero-credit waits. The flag never changes the exit status; thresholds, if any, come with OP-U14. Whether a Rebuilt_Body is affordable is reported here; whether its customization is worth the price is spec 6.
 
 ## Correctness Properties
 
@@ -856,17 +944,23 @@ With `--require-targets`, `batch` checks exactly these nine totals (R11.9): `dre
 
 *For any* world seed and any wait index `k`, the strategies of waits `k`, `k + 1` and `k + 2` are a permutation of `ImportedVessel`, `Birth` and `RebuiltBody`; and *for any* generated underworld run driven by the Auto_Player, every Player_Wait applies exactly one `CarryOver` input, on its first waiting tick.
 
-**Validates: Requirements 11.12, 11.5, 9.1**
+Correction (Kiro, 2026-11-15). The rotation covers the three kinds as strategies, not as outcomes: a wait whose strategy is `RebuiltBody` may end in an Imported_Vessel claim or the R8.1 placement when the balance never covers `rebuilt_price`, and that is no failure. The property is unchanged; only its reference to R11.12 is narrowed to the plan half (the outcome half is the OP-U14 list, checked by the acceptance batch). The earlier Validates line read "Requirements 11.12, 11.5, 9.1".
+
+**Validates: Requirements 11.5, 11.12, 9.1**
 
 ### Property 22: The batch report counts equal the recorded facts
 
 *For any* generated underworld run driven by the Auto_Player, the report's `offerings`, `dreams`, `hauntings`, `bribes`, `claims` (per kind), `auto_placed`, `carry_overs`, `nodes` (per family and source) and `max_wait_player` equal the same counts recomputed independently from the Event_Log, the node records and the per-tick input outcomes; no R8.1 placement is counted as an Imported_Vessel claim; `player_lives` lists every body of the Player_Soul, with `alive` exactly for a living body; and the report line is byte-identical on a second run.
 
-**Validates: Requirements 11.3, 11.4, 11.5, 11.6**
+Addition (Kiro, 2026-11-15). The same holds for the R11.14 `devoted` line: *for any* generated underworld run driven by the Auto_Player with the H4 Devoted_Branch acts, each Player_Wait's `joss`, `zero`, `acts` and `affordable` fields equal the values recomputed from the Event_Log, the input outcomes and the start-of-tick balances and cap counters, and the line is byte-identical on a second run. This half applies once `batch --devoted` exists (after OP-U14). The earlier Validates line read "Requirements 11.3, 11.4, 11.5, 11.6".
+
+**Validates: Requirements 11.3, 11.4, 11.5, 11.6, 11.14**
 
 ### Property 23: The zero-count gate fails exactly on a zero total
 
 *For any* `Totals` value (nine non-negative counts plus arbitrary `player_lives`, `auto_placed` and `max_wait_player` figures), `zero_count_failures` returns exactly the names of the zero counts among the nine checked totals, in the documented order, and its result does not change when `player_lives`, `auto_placed` or `max_wait_player` change.
+
+Correction (Kiro, 2026-11-15). "The nine checked totals" becomes `ZERO_COUNT_LIST` ("Gate split"). Revised statement: *for any* `Totals` value, `zero_count_failures` returns exactly the names in `ZERO_COUNT_LIST` whose count is zero, in list order, and its result does not change when `rebuilt_claims`, `player_lives`, `auto_placed` or `max_wait_player` change. The test reads the constant, so it stays valid when OP-U14 changes the list. The existing nine-name test in `crates/sim-cli/tests/batch_gate.rs` is updated in the same step that changes the constant.
 
 **Validates: Requirements 11.9, 11.11**
 
@@ -886,6 +980,8 @@ With `--require-targets`, `batch` checks exactly these nine totals (R11.9): `dre
 
 ### Fault injections (R12.4)
 
+Superseded (Author, 2026-11-15) by "Checker and fault evidence (C1/C2, R12.4 to R12.6)" below. The original text and table stay for the record.
+
 Each is a temporary edit, run against the property suite and `sim-cli batch`, then reverted; the fault, the failure and the revert go into `docs/kiro-log.md`.
 
 | Check | Injected fault | Expected failure |
@@ -902,6 +998,51 @@ Each is a temporary edit, run against the property suite and `sim-cli batch`, th
 | R11.9 zero-count gate | Auto_Player never haunts | `batch --require-targets` prints `FAIL zero counts: hauntings` and `gates.sh` stops |
 | R11.9 per-kind claim count | Auto_Player rotation drops `RebuiltBody` (two-entry table) | `batch --require-targets` prints `FAIL zero counts: rebuilt_claims` |
 | R11.9 carry-over count | Auto_Player skips the `CarryOver` input | `batch --require-targets` prints `FAIL zero counts: carry_overs` |
+
+### Checker and fault evidence (C1/C2, R12.4 to R12.6), Author 2026-11-15
+
+Every check of R12.1 that this spec adds gets two kinds of evidence, recorded separately:
+
+- **C1, checker recognition (R12.4).** A test builds the illegal state or tick transition directly, without changing production code, runs the checker on it and asserts the exact criterion label. It lives in the new file `crates/sim-core/tests/underworld_checker.rs` (through the `test-support` feature, for example `testing::apply(world, Mutation::..)` or a hand-built Event list) or, where the check needs private state, as a unit test in `invariants.rs` next to the existing `U15.x` tests.
+- **C2, system detection (R12.5).** The listed production fault is injected as a temporary edit; the property suite runs, and so does the 80-year `sim-cli batch --seeds 1..=5 --ticks 29200` where the table marks the fault reachable. A run counts when it fails and the failure is caused by the fault. The first guard to fire may be another check, an assertion or an append refusal, as listed per row. Compile errors, timeouts, interrupted runs and failures unrelated to the fault do not count. No other production guard is disabled or weakened to reach a particular label. The edit is reverted before any commit.
+- **Records (R12.6).** Each C1 and C2 result goes into `docs/kiro-log.md` with the label or guard observed and the causal link to the fault. Batch reachability is recorded as observed, never as a claim of general unreachability from a shorter run.
+
+| Check | C1 constructed illegal input | C2 production fault | Guards allowed to fire first | Batch reachable before / after Auto_Player |
+|---|---|---|---|---|
+| `U1.3` ledger | `u1_3_flags_a_balance_that_differs_from_the_log` (a Joss_Balance changed by mutation with no Event) | `joss::spend` subtracts the price twice | `U1.3` | before: no (no spends in 2,000-tick random batches); after: expected, since the 80-year batch applies dreams and Bribes; to be observed |
+| `U1.2` ledger field | `u1_2_flags_a_credit_with_no_owning_soul` (an `Offering` whose Ghost has no waiting Soul, with `credited > 0`) | none listed; covered by the U1.3 fault | n/a | n/a |
+| `U2.5` credit cap | `u2_5_flags_credits_over_the_cap` (a log whose `credited` fields sum above `yearly_cap` in one Cap_Year, with matching balances) | `joss::credit` ignores the remaining cap | the `offerings.rs:165` `debug_assert_eq!` ("the credit changed between read and write"), `U1.3`, `U2.5` | before: no; after: only if some Soul reaches the cap at default Params; to be observed |
+| `U2.6` spend cap | `u2_6_flags_capped_spends_over_the_cap` (haunting and Rebuild spends above `yearly_cap` in one Cap_Year) | the Rebuilt claim calls `spend` instead of `spend_capped` | `U2.6`, `U1.3` | before: no; after: no at default Params (`rebuilt_claims` 0 in every 10.1 trial) |
+| `U4.3` dream target | `u4_3_flags_a_dream_naming_a_disconnected_person` | dream validation skips `is_connected` | `U4.3` | before and after: no; the Auto_Player only names Connected_Persons, so the batch never submits the faulty input |
+| `U5.3` haunting target | `u5_3_flags_a_haunting_naming_a_dead_target` (a `haunting` Event whose target has an earlier `death`) | the haunt handler skips its `dead_person` and `not_connected` checks; `World::append` and the checker stay intact | `U5.3`; an append refusal | before: no; after: no at default Params (`hauntings` 0 in the 9.2 baseline); to be observed |
+| `U7.10` wait state | `u7_10_flags_a_wait_while_the_player_is_in_a_body` (`player_wait` set by mutation while the Player_Soul has a body); the existing unit test `a_departure_without_an_event_is_caught_as_u7_10` covers another part of `U7.10` | a claimed birth leaves `player_wait` as `Some` | `U7.10` | before: no; after: expected (`birth_claims` 2 in the 80-year batch); to be observed |
+| `U8.3` wait bound | `u8_3_flags_a_wait_over_the_bound` (`player_wait` with `since` older than `player_max_wait`) | step 3 compares with twice the bound | `U8.3` | before: no; after: expected (three R8.1 placements in the 9.2 baseline); to be observed |
+| `U15.8` Magistrate position | existing unit test `an_appeal_naming_the_magistrate_first_is_caught_as_u15_8` (`invariants.rs`) | the Bribe appends the `Appeal` with actors swapped | the `World::append` refusal `UnknownActor` (`world.rs:541-547`) and the tests that fail because the Appeal is missing (Property 10, Property 14) | before: no; after: expected (`bribes` 2); to be observed |
+| `5.8` extended | `five_8_flags_a_dead_actor_in_a_non_afterlife_event` (a non-afterlife Event with a dead actor); the existing unit test `a_dead_actor_outside_afterlife_events_is_caught` (`invariants.rs`) may already serve if it asserts `5.8` on such an Event | the `is_afterlife` change drops `Dream` | the `World::append` refusal for a dead actor; tests that fail because the Dream is missing (Property 8, the mechanic smoke test) | before: no; after: expected (`dreams` 1 to 2); to be observed |
+| `U15.1`, `U15.4` to `U15.7` | existing unit tests in `invariants.rs` (`a_changed_magistrate_is_caught_as_u15_1` and the four next to it) | none listed | n/a | n/a |
+
+The test names in the C1 column are proposals; the agent may rename them and records the names used. The C1 rows marked "existing" need no new test, only a log line naming the test and its label.
+
+Auto_Player faults (the last three rows of the superseded table):
+- **Never haunts.** C2 evidence for the zero-count gate only if OP-U14 keeps `hauntings` on the list; otherwise dropped.
+- **Rotation drops `RebuiltBody`.** Moved out of the zero-count gate (R11.9 never lists Rebuilt claims). It becomes C2 evidence for strategy coverage: the rotation half of Property 21 must fail (three consecutive waits no longer form a permutation). No batch run is needed. It is no evidence for R11.13, which the targeted test covers.
+- **Skips `CarryOver`.** C2 evidence for Property 21 (every wait applies exactly one Carry_Over), and for the zero-count gate only if OP-U14 keeps `carry_overs` on the list.
+
+**Earlier 6.15 records, re-judged one by one.** The 6.15 entries in `docs/kiro-log.md` (2026-11-14 and 2026-11-15) were made under the superseded contract, which demanded the expected label. Under C2 each is judged on its own. The table below is Kiro's provisional reading for the agent to confirm against the saved logs; none is marked passed until the agent confirms it and logs the confirmation.
+
+| Row | What the existing log shows | Provisional reading under C2 |
+|---|---|---|
+| `U1.3` | Prescribed double spend: property suite exit 101, checker `U1.3` (tick 160 on 2026-11-14; tick 86 in the later evidence entry). The batch exit 0 in `/tmp/audit-u1.3-batch.log` ran after the revert | Property part meets C2. The batch record is a baseline, not fault evidence; the 80-year faulted batch is still to run |
+| `U2.5` | Prescribed cap-ignoring credit: property suite exit 101 at the `offerings.rs:165` `debug_assert_eq!` (`applied=68`, `credited=60`, stress seed 0); release build first violation `U1.3` at tick 3. Faulted 2,000-tick batch exit 0 | Acceptable C2: the assertion compares exactly the capped and the applied credit, so it is a guard caused by the fault. The `credited = yearly_cap + 1` alternate is no evidence (it is a different fault) |
+| `U2.6` | Property suite exit 101, checker `U2.6` at tick 98 | Meets C2 (property part). Batch: not reachable at default Params, record as observed |
+| `U4.3` | Property suite exit 101, checker `U4.3` at tick 9 | Meets C2 (property part). Batch: not reachable (see table) |
+| `U5.3` | First attempt did not bypass the guard (exit 0): no evidence. Rerun bypassed `dead_person` and `not_connected` with `World::append` intact: exit 101, checker `U5.3` at tick 265; faulted batch exit 0 with zero hauntings | The rerun meets C2 (property part) and already follows the new row (no append check disabled). The first attempt does not count |
+| `U7.10` | First run invalid (the U5.3 restore had removed an append; minimized case `U1.3`). Continuation run: exit 101, checker `U7.10` at tick 45; faulted 2,000-tick batch exit 0 with zero birth claims | The continuation run meets C2 (property part). The first run does not count. The 80-year faulted batch is still to run |
+| `U8.3` | Exit 101, checker `U8.3` at tick 306; faulted 2,000-tick batch exit 0 | Meets C2 (property part). The 80-year faulted batch is still to run |
+| `U15.8` | First run interrupted (exit 143): no evidence. Later runs: exit 101, `World::append` refused the swapped Appeal (`UnknownActor`), Property 14 failed with `event logs differ` | Acceptable C2 if the agent confirms the Property 14 failure comes from the refused Appeal (the only difference between the two compared runs being the missing Event). The refusal is a guard caused by the fault |
+| `5.8` extended | Exit 101 after 559 s; first failures Property 11 (lost Birth_Slot claim, tick 298) and the mechanic smoke test (`no dream applied`); no `5.8` label | The Property 11 failure is unrelated and does not count. The smoke-test failure may be causal (the append refuses a `dream` Event with a dead Ghost once `Dream` is not afterlife, so no dream applies); acceptable C2 only if the agent confirms that refusal. Otherwise rerun |
+
+The agent records each confirmation or rejection as its own log line.
 
 ## Error Handling
 
@@ -926,6 +1067,8 @@ Each is a temporary edit, run against the property suite and `sim-cli batch`, th
 - Example test `rotation_covers_every_kind_on_acceptance_seeds` (in `auto_player.rs`): the first-wait strategies of seeds 1..=5 include each of the three kinds (the plan half of R11.12). The outcome half of R11.12 (every total non-zero over the five Acceptance_Seeds at default Params) is checked by the acceptance batch in `scripts/gates.sh`, not by a unit test, because it needs the full 29,200-tick runs.
 - Property 4, 8 and 10 cover R3.10 (clamping) inside the effect checks; R3.11 (partial effects) has an example test, because with same-tick resolution only a Standing_Slot claim after a Bribe in the same tick reaches it.
 - The `InvariantChecker` extension is shared by `batch` and the properties, as in life-sim.
+- Addition (Author, 2026-11-15). C1 checker-recognition tests (R12.4) in the new file `crates/sim-core/tests/underworld_checker.rs`, or as `invariants.rs` unit tests where private state is needed; one example test per row of "Checker and fault evidence (C1/C2)", each asserting the exact label. These are example tests, not properties: the illegal state is built once per check.
+- Addition (Author, 2026-11-15). Example test `a_rebuilt_claim_creates_an_imported_shaped_body` in `crates/sim-core/tests/underworld.rs` for R7.7, R7.11 and R11.13 ("Gate split"), labelled function-only in its doc comment and log record.
 
 ### Example and unit tests
 
@@ -949,9 +1092,13 @@ Each is a temporary edit, run against the property suite and `sim-cli batch`, th
 
 Unchanged list; the acceptance batch now runs the Auto_Player and the zero-count check over the nine totals (R11.8, R11.9, R11.12). Expected cost: the Auto_Player plans in O(connected persons) per waiting tick and previews a node a few times per wait, so the acceptance step should stay near the measured 20 s; the task measures it.
 
+Note (Author, 2026-11-15): "the zero-count check over the nine totals" becomes the check over `ZERO_COUNT_LIST`, wired into the exit status only after OP-U14 ("Gate split"). Until then the acceptance batch gates the invariants and the life-sim targets of R11.7 only, as it does today. `batch --devoted` (R11.14) is not part of `scripts/gates.sh`; the H1–H5 diagnosis never is.
+
 ### Requirements without an automated test
 
 R10.3 (the outsider kind reads no joss) by review of `create_outsider`'s signature, which takes no balance; R11.11 by review of the exit-status code, in addition to Property 23 for `zero_count_failures`; R12.4 and R14.5 (process).
+
+Note (Author, 2026-11-15): R12.4 now has automated C1 tests. R12.5 and R12.6 (C2 runs and their records) and R14.5 are process. The R11.13 record wording ("function-only") is checked by review.
 
 ## Implementation notes
 
@@ -963,3 +1110,10 @@ Tasks will run in an external agent workbench, one step at a time. To keep steps
 - Test file names: `crates/sim-core/tests/underworld.rs`, `crates/sim-core/tests/underworld_gen/mod.rs`, `crates/sim-cli/tests/auto_player.rs`, `crates/sim-cli/tests/batch_gate.rs`.
 - Step (5) also adds `World::step_with_outcomes` and `Sim::last_outcomes`; step (10) adds the strategy rotation, `zero_count_failures` and the nine-total check, and its acceptance command is the 80-year acceptance batch with `--require-targets`.
 - `structure.md` gets the `underworld/` module row and the new fixture in the same commit as the code.
+
+**Next order (Author, 2026-11-15).** Status per `docs/kiro-log.md`: task 6.15 is partial, task 9.4 tests the nine-name list, the zero-count gate is not wired into the exit status, and step (11) stopped under calibration step 6. The agent continues in this order, one step at a time:
+
+1. **R11.13 test.** `a_rebuilt_claim_creates_an_imported_shaped_body` ("Gate split"), with its function-only record in `docs/kiro-log.md`. No production change is expected; if the test finds a difference between the two bodies other than Origin, price and cap accounting, stop and report.
+2. **6.15 under C1/C2.** Write the C1 tests, confirm or reject each earlier record of the re-judging table one by one, run the missing C2 injections (including the 80-year faulted batch where the table expects reach), and log each result.
+3. **Offering diagnosis H1–H5, then STOP.** Run it as specified in "Offering diagnosis (H1–H5)", log it, and stop for Kiro and the Author. The Author then decides OP-U15 and OP-U14.
+4. **After OP-U14 and OP-U15:** task 9.4 revisited (introduce `ZERO_COUNT_LIST` without `rebuilt_claims`, keep the `zero_count_failures` signature, update Property 23's test to read the constant), task 10.1 (calibration steps 4 to 6 against the target set with OP-U15, including any mechanism change OP-U15 picks, with fixture regeneration), task 10.2 (wiring the zero-count gate and the Auto_Player gate faults that OP-U14 keeps), and `batch --devoted` for R11.14.

@@ -38,6 +38,7 @@ Audience: players who like emergent story sims (life sims, colony sims, dynasty 
 - Ghost power is bounded: dreams only reach connected people and never control actions directly. Exorcism can cut a connection but must not leave the player with nothing to do.
 - Joss paper income is capped; it cannot be converted into unlimited control.
 - Birth windows are visible and have a maximum wait. At death the player should see at least two slots worth comparing.
+- Rebirth paths by role: a local newborn is the normal path; imported vessels cover a shortage of newborns; a rebuilt body is built from nothing so the soul can **customize part of the body (some attributes or traits)**. That is a strong advantage, so it is expensive and aimed at well-off souls. Carrying one trait over from the last life is available on every path and is not customization. Status (Author, 2026-11-15): the `underworld` spec delivers the rebuilt path without any unique benefit; customization is a committed delivery of spec 6 (see `structure.md`).
 - Imported vessels and rebuilt bodies skip childhood, so they must cost something (price, no local ties, no inheritance claims, or similar). Rebuilt bodies count against the joss paper cap. Imported vessels are blank shells allocated by the underworld office, not someone else's soul.
 
 ## Experience targets

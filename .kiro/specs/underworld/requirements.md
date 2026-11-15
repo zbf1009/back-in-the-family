@@ -4,7 +4,9 @@
 
 Spec 5 of Back in the Family adds a thin underworld to `sim-core`. Dead Souls receive joss paper from offerings by the living, with a yearly cap. The Player_Soul spends joss paper on dreams, hauntings and bribes. Bribes go to the Magistrate, one fixed `official` Person in the World. Pregnancies announce Birth_Slots that the Player_Soul can claim, next to two Standing_Slots (Imported_Vessel and Rebuilt_Body). At rebirth one trait carries over. The spec also adds a general Decision_Node convention, implemented for two nodes: `dream_interpretation` and `magistrate_ruling`. `sim-cli` gets a seeded Auto_Player and new report fields, and the Snapshot shows the underworld state. Life-sim requirements are cited as "LS-R<n>.<m>" and stay in force unless a criterion here changes them.
 
-Out of scope: UI and web changes (except keeping the Smoke_Test green), any model call, exorcism, NPC spending, presentation text beyond fixed templates.
+Out of scope: UI and web changes (except keeping the Smoke_Test green), any model call, exorcism, NPC spending, presentation text beyond fixed templates, Rebuilt_Body customization.
+
+Rebuilt_Body scope (Author, 2026-11-15, product decision A): this spec guarantees only that the Rebuilt_Body path is correct; it adds no customization. In this spec a Rebuilt_Body has no unique benefit over an Imported_Vessel (same body apart from Origin, price and cap accounting). Carry_Over is available on every path and is not a Rebuilt_Body benefit. Paid customization of part of the rebuilt body is a committed delivery of spec 6 (steering `structure.md`), not of this spec.
 
 ## Glossary
 
@@ -30,6 +32,7 @@ Out of scope: UI and web changes (except keeping the Smoke_Test green), any mode
 - **NPC_Soul**: a Soul other than the Player_Soul.
 - **Player_Life**: one body of the Player_Soul, from the body's creation to its death.
 - **Player_Wait**: one stay of the Player_Soul in the Waiting_Queue while it has a Ghost, from the death that began it to the tick the Player_Soul leaves the Waiting_Queue or the end of the run.
+- **Devoted_Branch**: a Sim_Cli control run of an Acceptance_Seed whose inputs differ from the passive Auto_Player run only by legal social acts of the Player_Soul's living body, generated under a fixed strategy and budget set in design; report-only in this spec (Requirement 11.14).
 
 ## Requirements
 
@@ -132,6 +135,7 @@ Out of scope: UI and web changes (except keeping the Smoke_Test green), any mode
 8. IF a slot-claim input arrives while the Player_Soul has no Ghost (including before its first death) or the Player_Soul is not in the Waiting_Queue, or names a closed or already claimed Birth_Slot, or names a Standing_Slot whose price exceeds the Joss_Balance, or names the Rebuilt_Body slot when the spend would exceed the Yearly_Cap of Requirement 2.6, THEN THE Underworld SHALL reject the input under LS-R1.5.
 9. WHILE the Player_Soul is in the Waiting_Queue, THE Sim_Wasm SHALL list in every Snapshot at least two open slots with different prices.
 10. WHILE a Soul holds a claim on a Birth_Slot, THE Life_Sim SHALL keep that Soul in the Waiting_Queue until the birth, so that LS-R9.1 and LS-R9.3 continue to hold.
+11. WHEN a valid Rebuilt_Body claim is applied, THE Underworld SHALL create the same body as a valid Imported_Vessel claim applied in the same World state would create, except that the body's Origin is `rebuilt`, the spend is the Rebuilt_Body price, and the spend counts against the Yearly_Cap of Requirement 2.6.
 
 ### Requirement 8: Player_Soul maximum wait
 
@@ -180,10 +184,12 @@ Out of scope: UI and web changes (except keeping the Smoke_Test green), any mode
 6. THE Sim_Cli SHALL include the fields of criteria 3 to 5 in the deterministic report of LS-R17.4.
 7. WHEN the Sim_Cli runs a Life_Run for an Acceptance_Seed with Auto_Player inputs, THE Life_Sim SHALL meet LS-R17.1, LS-R17.8 and LS-R17.9.
 8. WHEN the Gates_Script runs, THE Gates_Script SHALL run the Sim_Cli `batch` command with `--require-targets` over the Acceptance_Seeds with Auto_Player inputs and SHALL fail if any target of criterion 7 is missed.
-9. IF the count of applied dreams, hauntings, Bribes, Birth_Slot claims, Imported_Vessel claims, Rebuilt_Body claims or Carry_Over inputs, or the count of Decision_Node resolutions of any family, is zero summed over all Acceptance_Seeds, THEN THE Sim_Cli `batch` command with `--require-targets` SHALL report the zero count and exit with a non-zero status; automatic placements under Requirement 8.1 are not claims and do not count as Imported_Vessel claims.
+9. IF any count on the zero-count list is zero summed over all Acceptance_Seeds, THEN THE Sim_Cli `batch` command with `--require-targets` SHALL report the zero count and exit with a non-zero status; the zero-count list is the list of counts from criterion 5 named in design, chosen by the Author after the offering diagnosis (OP-U14), and SHALL NOT include Rebuilt_Body claims; automatic placements under Requirement 8.1 are not claims and do not count as Imported_Vessel claims.
 10. THE Auto_Player SHALL, during every Player_Wait, get at least one dream applied if at some tick of that Player_Wait the Joss_Balance covers the dream price and a living Connected_Person of the Player_Soul's Ghost exists, and at least one Bribe applied if at some tick of that Player_Wait the Joss_Balance exceeds the dream price, or is at least 1 while no living Connected_Person of the Ghost exists; the concrete policy is set in design (OP-U12).
 11. THE Sim_Cli `batch` command with `--require-targets` SHALL set its exit status without reading the figures of criteria 3 and 4; those figures are report-only evidence for the rule that dying early is never the best strategy.
-12. THE Auto_Player SHALL follow a policy under which every count checked in criterion 9 is non-zero when summed over the five Acceptance_Seeds; the concrete policy is set in design (OP-U12).
+12. THE Auto_Player SHALL follow a passive policy under which every count on the zero-count list of criterion 9 is non-zero when summed over the five Acceptance_Seeds; the concrete policy is set in design (OP-U12) and the list in design (OP-U14).
+13. THE developer SHALL provide a targeted test that applies a valid Rebuilt_Body claim and checks the outcomes of Requirements 7.7 and 7.11; THE record of that test SHALL state that the test proves the Rebuilt_Body path works, not that a Rebuilt_Body is affordable through normal play.
+14. WHEN the Sim_Cli runs a Devoted_Branch, THE Sim_Cli SHALL report, per Player_Wait, the absolute joss paper credited, the share of Player_Waits with zero credited joss paper, the investment made as the count of applied social acts, and which of a dream, a haunting, a Bribe, an Imported_Vessel claim and a Rebuilt_Body claim was affordable at some tick of that Player_Wait; these figures are report-only in this spec, their thresholds are set by the Author after the offering diagnosis (OP-U14), and whether a Rebuilt_Body is affordable (this spec) is judged separately from whether its customization is worth its price (spec 6).
 
 ### Requirement 12: Invariants
 
@@ -194,7 +200,9 @@ Out of scope: UI and web changes (except keeping the Smoke_Test green), any mode
 1. WHEN the Sim_Cli `batch` command runs a seed, or the proptest suite runs a generated input stream, THE Sim_Cli and the proptest suite SHALL check at the end of every tick, in addition to the checks of LS-R17.6: non-negative Joss_Balances (Requirement 1.1); joss paper conservation (Requirements 1.2, 1.3); the Yearly_Cap (Requirements 2.5, 2.6); that every `dream` and `haunting` Event appended in that tick names as dreamer or target a living Connected_Person of the acting Ghost at the append tick (Requirements 4.3, 5.3); one soul one place including slot claims (LS-R9.1, LS-R9.3, Requirement 7.10); no dead actor outside the Afterlife_Event_Types (LS-R5.8); the Player_Soul wait bound (Requirement 8.3); and the Magistrate rules (Requirements 15.1, 15.4 to 15.8).
 2. IF a check of criterion 1 fails during a Sim_Cli `batch` run, THEN THE Sim_Cli SHALL report the first violation with its seed, its tick and the number of the violated criterion, and exit with a non-zero status, as in LS-R17.7.
 3. IF a check of criterion 1 fails during the proptest suite, THEN THE proptest suite SHALL fail the test and report the tick and the number of the violated criterion.
-4. WHEN this spec adds a check of criterion 1, THE developer SHALL inject the fault that the check guards against, confirm that the check fails, revert the injection before committing, and record the injection, the failure and the revert in `docs/kiro-log.md`.
+4. WHEN this spec adds a check of criterion 1, THE developer SHALL provide, as checker-recognition evidence (C1), a test that builds the illegal state or tick transition directly, without changing production code, runs the checker on it, and asserts the exact criterion label.
+5. WHEN design's fault-injection table lists a production fault, THE developer SHALL, as system-detection evidence (C2), inject that fault, run the property suite and, where design marks the fault reachable, the Sim_Cli batch, confirm a failure caused by the fault, and revert the injection before committing; the first guard that fires MAY be a different check, an assertion or an append refusal; compile errors, timeouts, interrupted runs and failures unrelated to the fault SHALL NOT count; no other production guard SHALL be disabled or weakened to reach a specific label.
+6. THE developer SHALL record each C1 and C2 result in `docs/kiro-log.md` with the label or guard observed and the causal link to the fault, SHALL judge earlier records one by one against criteria 4 and 5 rather than accept them in bulk, and SHALL record Sim_Cli batch reachability as observed.
 
 ### Requirement 13: Snapshot
 
@@ -247,7 +255,7 @@ Out of scope: UI and web changes (except keeping the Smoke_Test green), any mode
 
 - OP-U1: decided in requirements (Requirement 15). Design fixes only the Magistrate's name, nominal age, sex, Trait derivation and context Soul ID text.
 - OP-U2: Cap_Year boundaries (calendar year from tick 0, or per Soul from death), the Yearly_Cap value, and whether Bribes and dreams count against the spend cap.
-- OP-U3: who is an eligible offerer per Offering_Occasion; the offering formula and constants; which tick is Halloween; whether "household money" is the offerer's own balance or the household total; what happens to an Offering for a Ghost whose Soul has been reborn. (Decided: offerings cost no money, Requirement 2.8.)
+- OP-U3: who is an eligible offerer per Offering_Occasion; the offering formula and constants; which tick is Halloween; whether "household money" is the offerer's own balance or the household total; what happens to an Offering for a Ghost whose Soul has been reborn. (Decided: offerings cost no money, Requirement 2.8.) The formula of Requirement 2.1 may change under OP-U15.
 - OP-U4: the connection rule for Connected_Person (kinship tags, any Relation, affinity threshold).
 - OP-U5: dream and haunting prices, haunting Mood effect, haunting `magnitude`, and any rate limits on dreams and hauntings.
 - OP-U6: what `grant_next_slot` and `grant_later_slot` give the Player_Soul (priority on Birth_Slots, a reserved slot, a price reduction) and the Rules_Default formula.
@@ -256,5 +264,7 @@ Out of scope: UI and web changes (except keeping the Smoke_Test green), any mode
 - OP-U9: the carry-over rule (copy the value or nudge toward it), the fallback with no input, and whether the Carry_Over is part of the claim input or separate.
 - OP-U10: Player_Max_Wait value (equal to Max_Wait or separate).
 - OP-U11: the `dream_interpretation` option set per intent, option effects and Rules_Default formula. Author's default for the resolution delay, which design confirms: both node families resolve in the same tick they fire, and an External_Choice is an input that applies on the firing tick (Requirement 3.3 with firing tick equal to resolution tick); Requirement 3.11 stays as the fallback.
-- OP-U12: the new `InputPayload` kinds and how an External_Choice names a node; the concrete Auto_Player policy, which must meet Requirements 11.10 and 11.12. (Decided: "dying early is never the best strategy" is report-only, Requirement 11.11.)
+- OP-U12: the new `InputPayload` kinds and how an External_Choice names a node; the concrete Auto_Player policy, which must meet Requirements 11.10 and 11.12, and the Devoted_Branch strategy and budget of Requirement 11.14. (Decided: "dying early is never the best strategy" is report-only, Requirement 11.11.)
 - OP-U13: re-calibration of LS-R17 targets under announced births and Player_Soul slot claims.
+- OP-U14 (Author, 2026-11-15): the zero-count list for Requirements 11.9 and 11.12 and the reachability thresholds for Requirement 11.14, decided after the offering diagnosis. Background: task 10.1 calibration found Player_Wait offering income near zero (median 6.5) and no Rebuilt_Body claims even with funeral factor 40 and Rebuilt_Body price 101, because most Relations toward the dead have affinity 0 at the Offering_Occasions (life-sim decay of 1 point per 30 days zeroes kin relations in years); root causes are not yet diagnosed. The list is not assumed to require that the passive Auto_Player affords an Imported_Vessel or a haunting.
+- OP-U15 (Author, 2026-11-15): the offering mechanism stays unchanged for now; the choice among M-A (kin decay floor), M-B (slower or asymmetric decay), M-C (kin duty base in the offering formula), or a combination, is decided by the Author after the H1–H5 diagnosis (design).

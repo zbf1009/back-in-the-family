@@ -17,6 +17,8 @@ There is **no red-gate window**. Every leaf task leaves `scripts/gates.sh` passi
 
 The language is Rust (edition 2024). `web/src` and `web/tests/smoke/*` are not changed (R14.7).
 
+Update (2026-11-15), following the design's "Overview" update and its "Implementation notes" ("Next order"): task 10.1 stopped under calibration step 6. The remaining order is the R11.13 test (6.16), task 6.15 under the C1/C2 contract (6.15a, 6.15b, **STOP**), the offering diagnosis (9.5, **STOP**), and then, after the Author decides OP-U14 and OP-U15, the blocked tasks 9.6, 10.1 to 10.3, 11.1, 11.2 and 12.1.
+
 ## Rules for the executing agent
 
 The tasks are run one at a time by an external terminal coding agent. Kiro does only the final audit (task 13). These rules apply to every task:
@@ -35,6 +37,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
 - **Fixture acceptance** (for every task that regenerates fixtures): Rust gates; `cargo test -p sim-wasm --target wasm32-unknown-unknown`; `cargo run -q --release -p sim-cli -- batch --seeds 1..=20 --ticks 2000` (all `ok`); `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0; the R14.4 check.
 - **Calibration**: the 80-year acceptance batch with `--require-targets` is a hard gate throughout. If a task makes it fail, follow design "Parameters and calibration" (one parameter at a time, in the design's order, each run logged). If the design's procedure cannot make it pass, stop and report to the Author. Never weaken a target or a check.
 - Property tests use `proptest` with at least 100 cases (Property 6 and Property 23: 1,000). Mark each with the comment `// Feature: underworld, Property <n>: <title>`. Generated runs run the extended `InvariantChecker` after every tick.
+- **STOP points**: at every task marked **STOP**, the agent stops and reports to Kiro, who forwards the report to the Author. The agent does not start any later task until the Author's decision is recorded in the spec (`requirements.md` or `design.md`). Tasks marked "Blocked: OP-U14/OP-U15" stay blocked until the Author's decisions on OP-U14 and OP-U15 are recorded in `design.md`.
 
 ## Tasks
 
@@ -208,15 +211,30 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Run the life-sim checks on generated underworld runs, with the Property 3 and Property 5 changes made in 3.1 and 3.2.
     - **Property 19: Life-sim properties keep holding.** **Validates: Requirements 7.10, 14.3, 10.3**
     - Acceptance: `cargo test -p sim-core` passes. Commit.
-  - [ ] 6.15 Inject, observe and revert each underworld invariant fault, and log it (partial; plan 1 approved)
-    - Files: temporary edits only (reverted); `docs/kiro-log.md` (appended).
-    - For each of the first nine rows of design "Fault injections" (`U1.3`, `U2.5`, `U2.6`, `U4.3`, `U5.3`, `U7.10`, `U8.3`, `U15.8`, extended `5.8`): make the edit, then run both `cargo test -p sim-core --test underworld` and `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 2000`.
-    - **Property tests (required for all nine prescribed faults):** `cargo test -p sim-core --test underworld` MUST fail with the expected criterion. Copy the criterion, tick and proptest case (or seed) into the log entry; an unrelated debug assertion is not evidence for the criterion.
-    - **Batch (approved plan 1):** require a failing batch only when the prescribed fault actually reaches the pre-9.2 batch. Record the actual result for every injection. If it cannot reach the batch before task 9.2, state: "batch cannot reach this before task 9.2; the property-test failure is the R12.4 evidence". Do not substitute a diagnostic alternate fault for the prescribed one.
-    - After each fault, restore only the temporary edit and preserve unrelated WIP; confirm the working tree contains only intended changes, confirm both commands pass, and append one factual log entry per fault. The three Auto_Player rows are task 10.2.
-    - If the prescribed fault does not produce the expected property-test criterion, stop: log the observed failure, strengthen the relevant check or property in a separate `test(sim-core): ...` commit, and repeat that injection.
-    - _Requirements: 12.1, 12.2, 12.3, 12.4_
-    - Acceptance: nine log entries, each with the prescribed fault's failing underworld property-test criterion, tick and case; each also records the actual batch result, with a failing criterion/tick/seed where reached or the plan-1 unreachable statement where not reached; both commands pass after the final restore. The U1.3 row has partial evidence; U2.5's prescribed injection reached an unrelated debug assertion, and U2.6–extended `5.8` are not yet demonstrated. Leave 6.15 unchecked until all nine qualify.
+  - [ ] 6.16 Targeted Rebuilt_Body functional test (R11.13; runs before 6.15)
+    - Files: `crates/sim-core/tests/underworld.rs`, `docs/kiro-log.md` (appended).
+    - Follow design "Rebuilt_Body scope" and "Gate split" (R11.13 bullet). Add the example test `a_rebuilt_claim_creates_an_imported_shaped_body`: build a test-support World with the Player_Soul waiting and its Joss_Balance at least `rebuilt_price` with cap room, clone it, apply `ClaimSlot { slot: RebuiltBody }` to one copy and `ClaimSlot { slot: ImportedVessel }` to the other in the same tick, and check R7.7 (the price is spent and attributed to the `Rebuild` Event; the Player_Soul left the Waiting_Queue; the outsider body holds it) and R7.11 (the two new bodies are equal in every field except the Origin; the spends differ only by price; only the Rebuilt spend raises `capped_spent`).
+    - The test's doc comment and its `docs/kiro-log.md` record both say, labelled function-only: "proves the Rebuilt_Body path works; says nothing about whether a Rebuilt_Body is affordable through normal play".
+    - No production change is expected. If the test finds a difference between the two bodies other than Origin, price and cap accounting, stop and report to Kiro.
+    - _Requirements: 7.7, 7.11, 11.13_
+    - Acceptance: `cargo test -p sim-core --test underworld a_rebuilt_claim_creates_an_imported_shaped_body` passes; Rust gates; the R14.4 check; the log record contains the function-only wording. Commit as `test(sim-core): prove the rebuilt body path works`.
+  - [ ] 6.15 Checker and fault evidence under the C1/C2 contract (R12.4 to R12.6)
+    - Follow design "Checker and fault evidence (C1/C2, R12.4 to R12.6)". The earlier "Fault injections" table and the earlier 6.15 contract are superseded; the earlier 6.15 log entries stay as written and are re-judged in 6.15b. Leave 6.15 unchecked until 6.15a and 6.15b are both done.
+    - [ ] 6.15a C1: checker recognition tests
+      - Files: `crates/sim-core/tests/underworld_checker.rs` (new; or, where a check needs private state, a unit test in `crates/sim-core/src/invariants.rs` next to the existing `U15.x` tests, as the design allows), `docs/kiro-log.md` (appended).
+      - One test per checker label in the design's C1 column: `U1.3`, `U1.2`, `U2.5`, `U2.6`, `U4.3`, `U5.3`, `U7.10`, `U8.3`, `U15.1` and `U15.4` to `U15.8`, extended `5.8`. Each test builds the illegal state or tick transition directly through the `test-support` feature (for example `testing::apply(world, Mutation::..)` or a hand-built Event list), runs the `InvariantChecker` on it and asserts the exact criterion label. The design's test names are proposals; record the names used. Rows the design marks "existing" (`U15.1`, `U15.4` to `U15.8`, and `5.8` if `a_dead_actor_outside_afterlife_events_is_caught` already asserts `5.8` on such an Event) need no new test, only a log line naming the test and its label.
+      - No production code change.
+      - _Requirements: 12.4, 12.6_
+      - Acceptance: `cargo test -p sim-core --test underworld_checker` passes; Rust gates; the R14.4 check. Spot-check one test: change its asserted label, confirm the test fails, revert, and record the test, the changed label and the failure in the log. The log lists every C1 test name with its label. Commit as `test(sim-core): add underworld checker recognition tests`.
+    - [ ] 6.15b C2: system detection of each production fault, and re-judging the earlier records **STOP**
+      - Files: temporary edits only (reverted before any commit); `docs/kiro-log.md` (appended).
+      - For each row of the design's C2 column (`U1.3`, `U2.5`, `U2.6`, `U4.3`, `U5.3`, `U7.10`, `U8.3`, `U15.8`, extended `5.8`): inject the listed production fault, run `cargo test -p sim-core --test underworld`, and, where the design's last column marks the fault reachable after the Auto_Player ("expected" or "to be observed": `U1.3`, `U2.5`, `U5.3`, `U7.10`, `U8.3`, `U15.8`, extended `5.8`), also run `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200`. Record the first guard that fired (one of the guards the row allows), its tick and case or seed, and the causal link to the fault. Record batch reachability as observed, never as a general claim from a shorter run.
+      - Compile errors, timeouts, interrupted runs and failures unrelated to the fault do not count. Never disable or weaken another production guard to reach a label. Revert the edit, preserve unrelated WIP, and confirm both commands pass and `git status` shows only the log.
+      - Re-judge each earlier 6.15 log record (2026-11-14 and 2026-11-15) one by one against R12.5, using the design's provisional re-judging table; confirm or reject each with evidence from the saved logs, one log line per record. Re-run where the earlier record does not establish causality, for example extended `5.8`: confirm that `World::append` refuses the `dream` Event with a dead Ghost once `Dream` is not afterlife and that this refusal causes the smoke-test failure; for `U15.8`, confirm that the Property 14 `event logs differ` failure comes from the refused Appeal. Rows where the 80-year faulted batch is still to run (`U1.3`, `U7.10`, `U8.3`) get that run.
+      - If a fault produces no failure caused by it, log what was observed and include it in the STOP report as "no evidence"; do not change checks or properties in this task.
+      - _Requirements: 12.5, 12.6_
+      - Acceptance: one verdict per row (`U1.3`, `U2.5`, `U2.6`, `U4.3`, `U5.3`, `U7.10`, `U8.3`, `U15.8`, extended `5.8`), each with the fault, the commands, the first guard fired, the causal link, the batch result or "not run (design: not reachable)", and the verdict (counts / does not count, with the earlier record confirmed or rejected). Both commands pass after the final revert. Commit the log as `docs: record underworld fault evidence under C1/C2`.
+      - **STOP.** Report the per-row verdict table to Kiro for review. Do not start a later task until the review is recorded.
 
 - [x] 7. Snapshot
   - [x] 7.1 Extend the Snapshot
@@ -258,39 +276,63 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - File: `crates/sim-cli/tests/batch_gate.rs` (new). Pure-function proptest over generated `Totals`, 1,000 cases.
     - **Property 23: The zero-count gate fails exactly on a zero total.** **Validates: Requirements 11.9, 11.11**
     - Acceptance: `cargo test -p sim-cli --test batch_gate` passes. Commit.
+  - [ ] 9.5 Offering diagnosis (H1–H5) **STOP**
+    - Executable now, after 6.16. Independent of 6.15: the agent may run it before or after 6.15a/6.15b (the dependency graph places it after 6.15b, following the design's "Next order").
+    - Files: none committed except `docs/kiro-log.md` (appended). The diagnostic program is isolated: a scratch program outside the committed tree, or a throwaway file removed after the run. It reads the simulation only through public `sim-core` and `sim-cli` APIs (`test-support` allowed) and submits inputs only as TickInputs. Output files stay outside the repository (for example under `/tmp/`).
+    - Follow design "Offering diagnosis (H1–H5)" exactly. Run setup: `Params::DEFAULT` at the current commit, Acceptance_Seeds 1..=5, 29,200 ticks each, two branches per seed: the **passive branch** (the current Auto_Player inputs exactly as `batch` submits them) and the **Devoted_Branch** (the passive inputs plus the H4 social acts, nothing else changed: at most one legal `Act` every 30 days while the Player_Soul's body lives, `Help` first per body then alternating with `Gift`, intensity 100, round-robin over living kin of the body in Person ID order, else the living Resident with the highest affinity toward the body, ties lower ID).
+    - Sanity check: the passive branch's per-tick Checksums (or the final digest per seed, if `batch` prints it) equal the committed baseline `batch` at the same commit, seeds and ticks. A mismatch invalidates the run: stop and report.
+    - Measure and report, per seed and as totals over the five seeds, for both branches: per Player_Wait the absolute joss paper credited and the zero-credit flag, and the zero-income share; the investment (Devoted_Branch acts submitted, applied, rejected by reason, and money moved by applied acts); affordability per wait of dream, haunting, Bribe, Imported_Vessel and Rebuilt_Body at some start-of-tick state, and spends by kind (H5); H1 incoming-Relation counts by sign × kin at every Offering_Occasion and every death, the change-source decomposition of every zero or negative Relation, its class (never warm / decayed from warm / netted to zero by events), kin time-to-zero next to `initial / 12` years, and every unattributed change; the H2 social-event rate per directed Relation per year (median, quartiles, zero share, kin / non-kin); the H3 attribution shares of negative values; the H3b counts of offerers lost by death (kin / non-kin); the NPC Ghost income distribution per wait (median, zero share, share reaching `yearly_cap`); and the passive-branch Checksum sanity result. No thresholds, no pass/fail.
+    - No Params, mechanism, gate or committed source change.
+    - _Requirements: 11.14 (first measurement only; the committed report is task 10.3)_
+    - Acceptance: one `docs/kiro-log.md` entry with the sha256 of the diagnostic source, the commit it ran on, the exact commands, the output paths, the per-seed and total figures listed above, and the passive checksums equal to the baseline; `git status` shows only the log before the commit; the scratch source is not in the tree. Commit as `docs: log the underworld offering diagnosis`.
+    - **STOP.** Report the figures to Kiro. The Author then decides OP-U15 (the offering mechanism) and OP-U14 (the zero-count list and the Devoted_Branch thresholds). No later task starts until both decisions are recorded in `design.md`.
+  - [ ] 9.6 Revisit 9.4: introduce `ZERO_COUNT_LIST` (Blocked: OP-U14/OP-U15)
+    - Files: `crates/sim-cli/src/batch.rs`, `crates/sim-cli/tests/batch_gate.rs`.
+    - Follow design "Gate split" and the Property 23 correction. Add `ZERO_COUNT_LIST: &[&str]` in `batch.rs` with the list the Author sets in OP-U14; it replaces the nine names and never contains `rebuilt_claims` (which stays in `Totals` and the `batch: totals` line as report-only) or `auto_placed`. `zero_count_failures(&Totals) -> Vec<&'static str>` keeps its signature and returns the zero names of `ZERO_COUNT_LIST` in list order. Update Property 23's test in `batch_gate.rs` to read the constant and to check that `rebuilt_claims`, `player_lives`, `auto_placed` and `max_wait_player` never change the result. Not wired into the exit status here (task 10.2). Task 9.4 and its text stay as recorded.
+    - **Property 23 (revised): The zero-count gate fails exactly on a zero count of `ZERO_COUNT_LIST`.** **Validates: Requirements 11.9, 11.11**
+    - Acceptance: `cargo test -p sim-cli --test batch_gate` passes (1,000 cases); Rust gates. Commit as `feat(sim-cli): set the zero-count list`.
 
-- [ ] 10. Calibration and the zero-count gate
-  - [ ] 10.1 Calibrate the underworld Params and enforce the nine totals
-    - Files: `crates/sim-core/src/params.rs` (only if values change), `crates/sim-cli/src/batch.rs`, `crates/sim-cli/src/lib.rs` (help text), `crates/sim-cli/tests/cli.rs`, `fixtures/parity/*` (regenerated if Params change), `.kiro/specs/underworld/design.md` (append a dated note `### Calibration result (<date>)` under "Parameters and calibration"; do not rewrite existing text), `docs/kiro-log.md`.
-    - Follow design "Re-calibration (OP-U13)" steps 1 to 6 exactly: run `cargo run --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200` and `--seeds 1..=20` (not gated); one parameter at a time in the design's order; step 5 adjusts only the lever of a zero total; never change the rotation formula. Log every run with its `batch: totals` line.
-    - Then wire `zero_count_failures` into `--require-targets`: any zero total prints `batch: FAIL zero counts: <names>` and exit status 1. Update `BATCH_USAGE`. Test in `cli.rs` (or `batch.rs` unit test with constructed `Totals`): a zero total gives the FAIL line and exit 1; `player_lives`, `auto_placed` and `max_wait_player` never affect the exit status.
-    - If a total is still zero after step 5, or a life-sim target cannot be met, stop and report to the Author (step 6). Do not weaken a check.
-    - The design note lists each changed parameter with the value it replaced, the five final `ok` lines and the final totals line.
-    - _Requirements: 11.7, 11.8, 11.9, 11.11, 11.12_
-    - Acceptance: `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0 with five `ok` lines, every target `=pass` and all nine totals non-zero; Rust gates; fixture acceptance if Params changed. Commit as `feat(sim-cli): require every underworld mechanic in the acceptance batch` (and a separate `feat(sim-core): calibrate underworld params` commit before it if Params changed, with the regeneration line).
-  - [ ] 10.2 Prove the gate fails on Auto_Player faults, and measure the gate time
-    - Files: temporary edits only (reverted); `docs/kiro-log.md`; `.kiro/specs/underworld/design.md` (dated note `### Measured gate time (<date>)` under "Gates").
-    - For the last three rows of design "Fault injections" (Auto_Player never haunts; the rotation drops `RebuiltBody`; the Auto_Player skips `CarryOver`): make the edit, run `scripts/gates.sh`, confirm it stops at the acceptance step with the expected `batch: FAIL zero counts: ...` line (copy it as printed), revert, confirm `git status` shows only the log and the design note. One log entry per fault.
+- [ ] 10. Calibration and the zero-count gate (Blocked: OP-U14/OP-U15)
+  - [ ] 10.1 Resume calibration under OP-U15 (Blocked: OP-U14/OP-U15)
+    - Files: `crates/sim-core/src/params.rs` (only if values change), the files of any mechanism change OP-U15 picks (for example `crates/sim-core/src/underworld/offerings.rs`, `crates/sim-core/src/social.rs`), `fixtures/parity/*` (regenerated if Checksums change), `.kiro/specs/underworld/design.md` (append a dated note `### Calibration result (<date>)` under "Parameters and calibration"; do not rewrite existing text), `docs/kiro-log.md`.
+    - Status: design "Re-calibration (OP-U13)" steps 1 to 3 hold from the earlier 10.1 runs; steps 4 to 6 are suspended until OP-U15. After OP-U15, implement the mechanism change it picks (if any) and resume steps 4 to 6 against the target the Author sets with OP-U15; the 160-credit median of step 4 is not assumed to stand. Step 5's "all nine totals" is replaced by `ZERO_COUNT_LIST`. Concrete steps, levers and targets: to be detailed after OP-U14/OP-U15.
+    - Rules that already apply: one parameter at a time in the design's order; log every run with its `batch: totals` line; never change the rotation formula; if a listed total stays zero or a life-sim target cannot be met, stop and report to the Author. The zero-count gate is not wired here (task 10.2).
+    - _Requirements: 11.7, 11.8, 11.12_
+    - Acceptance: to be detailed after OP-U14/OP-U15. At least: `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0 with five `ok` lines and every target `=pass`; Rust gates; fixture acceptance if Checksums changed (with the regeneration line).
+  - [ ] 10.2 Wire the zero-count gate, gather the Auto_Player fault evidence, and measure the gate time (Blocked: OP-U14/OP-U15)
+    - Files: `crates/sim-cli/src/batch.rs`, `crates/sim-cli/src/lib.rs` (help text), `crates/sim-cli/tests/cli.rs`; temporary edits only for the faults (reverted); `docs/kiro-log.md`; `.kiro/specs/underworld/design.md` (dated note `### Measured gate time (<date>)` under "Gates").
+    - Wire `zero_count_failures` over `ZERO_COUNT_LIST` into `--require-targets`, only after OP-U14: any zero listed count prints `batch: FAIL zero counts: <names>` and exit status 1. Update `BATCH_USAGE`. Test in `cli.rs` (or a `batch.rs` unit test with constructed `Totals`): a zero listed count gives the FAIL line and exit 1; `rebuilt_claims`, `player_lives`, `auto_placed` and `max_wait_player` never affect the exit status.
+    - Auto_Player faults, per design "Checker and fault evidence" (last three bullets), each injected, observed under the C2 rules of 6.15b, reverted and logged:
+      - Rotation drops `RebuiltBody` (two-entry table): C2 evidence for the rotation half of Property 21; `cargo test -p sim-cli --test auto_player` must fail because three consecutive waits no longer form a permutation. No batch run is needed. It is no evidence for R11.13.
+      - Skips `CarryOver`: C2 evidence for Property 21 (every wait applies exactly one Carry_Over), and for the zero-count gate only if OP-U14 keeps `carry_overs` on the list.
+      - Never haunts: C2 evidence for the zero-count gate only if OP-U14 keeps `hauntings` on the list; otherwise dropped.
+      - The exact gate runs and expected FAIL lines: to be detailed after OP-U14/OP-U15.
     - Time the acceptance step and the full `scripts/gates.sh` with `time`, and compare with the life-sim figure (about 20 s for the acceptance step). Report only; if the acceptance step exceeds 60 s, stop and ask the Author before changing the gate.
-    - _Requirements: 11.8, 11.9, 12.4_
-    - Acceptance: three log entries and the design note; `scripts/gates.sh` exits 0 after the reverts. Commit as `docs: log underworld gate fault injections and gate time`.
+    - _Requirements: 11.8, 11.9, 11.11, 12.5, 12.6_
+    - Acceptance: `scripts/gates.sh` exits 0 after the reverts; one log entry per fault with its verdict; the design note. Commits: `feat(sim-cli): require the zero-count list in the acceptance batch`, then `docs: log underworld gate fault evidence and gate time`.
+  - [ ] 10.3 Add the `batch --devoted` report (R11.14) (Blocked: OP-U14/OP-U15)
+    - Files: `crates/sim-cli/src/batch.rs`, `crates/sim-cli/src/auto_player.rs` (or a new module for the Devoted_Branch acts), `crates/sim-cli/src/args.rs`, `crates/sim-cli/src/lib.rs` (help text), `crates/sim-cli/tests/cli.rs`.
+    - Follow design "Gate split" (R11.14 bullet) and "Offering diagnosis (H1–H5)" H4/H5: `batch --devoted` runs each seed a second time as the Devoted_Branch with the H4 strategy and prints, per seed, one `devoted` line with per-Player_Wait fields `joss=<credited>`, `zero=<0|1>`, `acts=<applied social acts during the preceding Player_Life>`, `affordable=<subset of dream,haunting,bribe,imported,rebuilt>`, plus the share of zero-credit waits. The flag never changes the exit status; `--devoted` is not part of `scripts/gates.sh`. Thresholds, if any, and the tests: to be detailed after OP-U14/OP-U15.
+    - _Requirements: 11.14_
+    - Acceptance: to be detailed after OP-U14/OP-U15. At least: Rust gates; the `devoted` figures agree with the 9.5 diagnosis at the same commit and Params.
 
-- [ ] 11. Parity fixture with an External_Choice, docs and steering
-  - [ ] 11.1 Add the `seedU-underworld` Parity_Fixture
+- [ ] 11. Parity fixture with an External_Choice, docs and steering (Blocked: OP-U14/OP-U15)
+  - [ ] 11.1 Add the `seedU-underworld` Parity_Fixture (Blocked: OP-U14/OP-U15)
+    - Runs after 10.1: the seed search uses the calibrated Params and any mechanism change of OP-U15, so it is not started before 10.1 is done.
     - Files: `scripts/regen-fixtures.sh`, `fixtures/parity/seedU-underworld.replay.json` (new), `fixtures/parity/README.md`, `crates/sim-wasm/tests/parity.rs`, `docs/kiro-log.md`.
     - Follow design OP-D6 A: run the one-off `cargo run -q --release -p sim-cli -- batch --seeds 1..=200 --ticks 7300` once and pick the seed with the earliest Player_Soul death (from `player_lives`); ticks = that death tick + 400; record with `record --auto-player`. Write the seed and tick count into `regen-fixtures.sh` and log the search (command, chosen seed, death tick). Add the fixture to the native and WASM parity list in `parity.rs`, plus a native test that at least one `NodeRecord` after replaying it has `source == External` (R14.6). If no applied External_Choice occurs in the chosen run, take the next-earliest seed and log why.
     - _Requirements: 14.5, 14.6, 14.7_
     - Acceptance: fixture acceptance; `scripts/regen-fixtures.sh` run twice leaves `git status` unchanged after the commit; `cargo test -p sim-wasm --target wasm32-unknown-unknown` covers the new fixture. Commit as `test(fixtures): add a parity fixture with external choices`.
-  - [ ] 11.2 Add the source guard for R14.4, and update README and structure.md
+  - [ ] 11.2 Add the source guard for R14.4, and update README and structure.md (Blocked: OP-U14/OP-U15)
     - Files: `crates/sim-core/tests/source_guard.rs`, `README.md`, `.kiro/steering/structure.md`.
     - `source_guard.rs`: a test that the files under `crates/sim-core/src/llm/` and `eval/probe/templates/decision.system_one.v1.txt` hash-equal pinned blake3 values of their committed contents (design "Example and unit tests", last bullet).
     - `README.md`: confirm no new third-party package (`git diff ed6f94d -- Cargo.lock web/pnpm-lock.yaml eval/probe/pnpm-lock.yaml`); list any new one with its license; note that the Magistrate's name is the project's own. Update any text that describes the batch report or the replay format version.
-    - `structure.md`: edit only the layout, the module table and "Next steps": add `src/underworld/` (its files), `tests/underworld.rs`, `tests/underworld_gen/`, `sim-cli/src/auto_player.rs`, `sim-cli/tests/auto_player.rs`, `batch_gate.rs`, `fixtures/parity/seedU-underworld.replay.json`; mark spec 5 `underworld` as done pending the Kiro audit and the Author's push decision. Do not change any other steering file.
+    - `structure.md`: edit only the layout, the module table and "Next steps": add `src/underworld/` (its files), `tests/underworld.rs`, `tests/underworld_gen/`, `sim-cli/src/auto_player.rs`, `sim-cli/tests/auto_player.rs`, `batch_gate.rs`, `tests/underworld_checker.rs`, `fixtures/parity/seedU-underworld.replay.json`; mark spec 5 `underworld` as done pending the Kiro audit and the Author's push decision. Do not change any other steering file.
     - _Requirements: 14.4_
     - Acceptance: Rust gates; the R14.4 check; `structure.md` lists every file under `crates/sim-core/src/underworld/` (`ls`). Commit as `docs: update README and structure for underworld` (the source guard may be a separate `test(sim-core): ...` commit).
 
-- [ ] 12. Final checkpoint and hand-off
-  - [ ] 12.1 Run the full gates from a clean build and stop for Kiro's audit
+- [ ] 12. Final checkpoint and hand-off (Blocked: OP-U14/OP-U15)
+  - [ ] 12.1 Run the full gates from a clean build and stop for Kiro's audit (Blocked: OP-U14/OP-U15)
     - Files: `docs/kiro-log.md` (append only).
     - Run `cargo clean`, then `time scripts/gates.sh`. It must exit 0. Run the R14.4 check: it must exit 0. Run `git status`: it must be clean before the log entry. Run `git log --oneline origin/main..main` and save the list.
     - Append `### Spec: underworld — final check (task 12.1, <date>)` with the gate result, the wall time, the R14.4 result, the five acceptance-batch `ok` lines and the `batch: totals` line from this gate run exactly as printed, the unpushed commit list, and "stopped for Kiro's audit (task 13.1)". Commit it.
@@ -308,6 +350,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
 - No task is marked optional. The property tests carry R12.1 and most of the semantic guarantees, and the Kiro audit depends on them.
 - There is no red window. The version bumps (1.1, 1.4) and every encoding or tick-logic change regenerate the fixtures in their own commit. New payload kinds come with their handlers and with the `sim-cli`/`sim-wasm` match arms in the same commit.
 - The zero-count check is added as a pure function in 9.2 and wired into the exit status in 10.1, after calibration, so the acceptance gate never goes red between commits.
+- Update (2026-11-15): under the design's "Gate split", `ZERO_COUNT_LIST` (task 9.6) replaces the nine names and never contains `rebuilt_claims`; the gate is wired into the exit status in task 10.2, only after OP-U14. Until then the acceptance batch gates the invariants and the life-sim targets only. `batch --devoted` (10.3) and the H1–H5 diagnosis (9.5) are never part of `scripts/gates.sh`.
 - Life-sim tests whose expectations the design changes (Property 3, Property 5, the R10.2 births test) are updated in the task that changes the behaviour (3.1, 3.2), and the commit body names them.
 - Design sections are cited by their headings in `.kiro/specs/underworld/design.md`.
 
@@ -343,15 +386,21 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     { "id": 24, "tasks": ["6.12"] },
     { "id": 25, "tasks": ["6.13"] },
     { "id": 26, "tasks": ["6.14", "7.1"] },
-    { "id": 27, "tasks": ["6.15", "7.2", "9.1"] },
+    { "id": 27, "tasks": ["7.2", "9.1"] },
     { "id": 28, "tasks": ["9.2"] },
     { "id": 29, "tasks": ["9.3", "9.4"] },
-    { "id": 30, "tasks": ["10.1"] },
-    { "id": 31, "tasks": ["10.2"] },
-    { "id": 32, "tasks": ["11.1"] },
-    { "id": 33, "tasks": ["11.2"] },
-    { "id": 34, "tasks": ["12.1"] },
-    { "id": 35, "tasks": ["13.1"] }
+    { "id": 30, "tasks": ["6.16"] },
+    { "id": 31, "tasks": ["6.15a"] },
+    { "id": 32, "tasks": ["6.15b"] },
+    { "id": 33, "tasks": ["9.5"] },
+    { "id": 34, "tasks": ["9.6"] },
+    { "id": 35, "tasks": ["10.1"] },
+    { "id": 36, "tasks": ["10.2"] },
+    { "id": 37, "tasks": ["10.3"] },
+    { "id": 38, "tasks": ["11.1"] },
+    { "id": 39, "tasks": ["11.2"] },
+    { "id": 40, "tasks": ["12.1"] },
+    { "id": 41, "tasks": ["13.1"] }
   ]
 }
 ```
