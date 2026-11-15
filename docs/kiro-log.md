@@ -2370,3 +2370,8 @@ f8939ad docs(life-sim): log the push and live deploy
 
 - `underworld::magistrate::tests::a_fired_magistrate_ruling_offers_exactly_the_three_options_in_order` uses the existing waiting-Player_Soul fixture with 500 joss paper, applies a valid 120-joss Bribe, reads the actual pending ruling and its Frozen_Context, and asserts both option ID lists are exactly `grant_next_slot`, `grant_later_slot`, `deny` in that order using independent literals. The same Bribe submitted through the tick is accepted and resolves to a record matching the fired node's ID, family, subject and Rules_Default. No production behaviour or parameters changed.
 - `cargo test -p sim-core --lib a_fired_magistrate_ruling_offers_exactly_the_three_options_in_order -- --exact underworld::magistrate::tests::a_fired_magistrate_ruling_offers_exactly_the_three_options_in_order`: exit 0, 1 passed, 0 failed. `cargo fmt --check`: exit 0; `cargo clippy --workspace --all-targets -- -D warnings`: exit 0; `cargo test --workspace`: exit 0 (all tests passed); R14.4 diff check: exit 0. Logs: `/tmp/underworld-14-1-checks/`.
+
+### Spec: underworld — Kiro review of 14.1 and close of 13.1 (2026-11-15)
+
+- Kiro read `1abb054` (one test in the `magistrate.rs` test module, no production change; reads the fired node and its Frozen_Context, literal expected IDs, order asserted) and ran it: 1 passed; R14.4 diff check exits 0. The agent's full Rust gate run was not repeated.
+- `docs/underworld-audit.md` gained a follow-up section; R6.3 moves to `met`. Tasks 13, 13.1 and 14 checked. The underworld spec is closed locally. Nothing pushed; the push waits for the Author's explicit approval, and Kiro re-checks the unpushed range before it.

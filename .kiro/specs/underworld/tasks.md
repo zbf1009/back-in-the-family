@@ -424,13 +424,13 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Acceptance: `scripts/gates.sh` exits 0 from a clean build, the R14.4 check exits 0, and after the log commit `git status` is clean. Commit as `docs: record the underworld final gate run`.
     - Decision (Author, 2026-11-15, after the 9.5 diagnosis): runs after 11.2 **and** only after Kiro has closed the 6.15b review (the 6.15b STOP; the review is recorded in the spec and 6.15 is checked). If that review is not closed, stop and say so instead of starting. The log entry also contains, exactly as printed by this gate run, the Devoted gate's five `ok` lines, its `devoted` lines and its totals line (with `afford_candidates=`), next to the passive acceptance lines. The STOP and the push rule above are unchanged.
 
-- [ ] 13. Kiro audit (assigned to Kiro, NOT executed by the terminal agent)
-  - [ ] 13.1 Placeholder: Kiro writes `docs/underworld-audit.md`
+- [x] 13. Kiro audit (assigned to Kiro, NOT executed by the terminal agent)
+  - [x] 13.1 Placeholder: Kiro writes `docs/underworld-audit.md`
     - Kiro checks every requirement criterion against code, tests and logs, as in `docs/life-sim-audit.md`. This covers the review-only criteria R10.3 (`create_outsider` reads no joss), R11.11 (exit-status code), R12.4 and R14.5 (process), the calibration result, the fault-injection entries, and every deviation logged during this plan. The terminal agent skips this task.
     - _Requirements: 10.3, 11.11, 12.4, 14.5_
     - Decision (Author, 2026-11-15): 13.1 is checked by Kiro after 14.1 is reported and the final audit record is written.
 
-- [ ] 14. Audit follow-ups (Author decisions 2026-11-15, docs/underworld-audit.md)
+- [x] 14. Audit follow-ups (Author decisions 2026-11-15, docs/underworld-audit.md)
   - [x] 14.1 Direct contract test for the magistrate option set (R6.3, audit finding 5)
     - Executed by the terminal agent. Files: `crates/sim-core/tests/underworld.rs` (or `crates/sim-core/src/underworld/magistrate.rs` tests), `docs/kiro-log.md`.
     - Add a test, e.g. `a_fired_magistrate_ruling_offers_exactly_the_three_options_in_order`, that fires a real `magistrate_ruling` node through a valid Bribe input (and/or `Sim::preview_node` for a Bribe) and asserts that the options actually offered by that node — the node's option list and the Frozen_Context's options — are exactly `grant_next_slot`, `grant_later_slot`, `deny`, in this order. The order is part of the contract: R6.3 lists the options in this order, the `RULING_OPTIONS` doc comment says "in this order", and ties in a Rules_Default go to the earlier option. The test must read the fired node or its context, not repeat the `RULING_OPTIONS` constant as the expected value source (write the expected IDs as literals).

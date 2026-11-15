@@ -57,3 +57,18 @@ Status values: `met`, `met with note`, `not met`.
 8. **Rebuilt_Body.** No unique benefit in this spec, by the Author's decision; the spec 6 node with acceptance targets (a) to (d) is in `structure.md` and the rebirth roles are in `product.md`. Passive players never claim one; the Devoted gate shows two applied claims on normal mechanics.
 9. **Target date.** Kiro's log entry of 2026-11-15 ("The underworld target date 2026-11-15 is missed") was premature: implementation and the final gate run finished on 2026-11-15 (`06813b4`, 22:06); audit and push remain.
 10. **Open for later specs.** The 3.66-year median to first zero for positive kin Relations is to be watched in spec 6 (OP-U15). A precise append-refusal mapping (F1 residual) is a later design. Task 13.1 stays unchecked until the Author has reviewed these findings.
+
+## Follow-up review (task 14.1, 2026-11-15)
+
+Author's decisions on the findings (kiro-log "Author's audit decisions and close-out edits"): finding 1 fixed by status and indentation edits in `6532d5e`; finding 5 answered by task 14.1; finding 7 kept as separate later work (`structure.md`), build profiles unchanged; findings 2, 3, 6 and 9 stand as recorded, no log entry reordered or deleted.
+
+Checks run by Kiro on `1abb054`:
+
+- Code read: the commit adds one test to the `#[cfg(test)]` module of `crates/sim-core/src/underworld/magistrate.rs`, `a_fired_magistrate_ruling_offers_exactly_the_three_options_in_order`, plus the 14.1 checkbox and a log entry; no production line changed. The test applies a valid Bribe (amount 120) through the handler, reads the pending node it fired, and asserts with literal IDs that both `node.options` and the Frozen_Context's `TaskSpec::Decision` options are `grant_next_slot`, `grant_later_slot`, `deny` in that order; the same input submitted through `step_with_outcomes` is applied and resolves a record with the same Node ID, family, subject and Rules_Default. It does not read `RULING_OPTIONS`.
+- `cargo test -p sim-core --lib a_fired_magistrate_ruling_offers_exactly_the_three_options_in_order`: 1 passed. R14.4 diff check exits 0. The agent's fmt, workspace clippy and `cargo test --workspace` runs (logs in `/tmp/underworld-14-1-checks/`) were not repeated.
+
+| Row | Before | After |
+|---|---|---|
+| R6.3 | met with note (inspection only) | met: direct contract test on a fired node and its context |
+
+Tasks 13, 13.1 and 14 are checked. Nothing pushed.
