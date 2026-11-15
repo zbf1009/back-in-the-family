@@ -398,7 +398,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Decision (Author, 2026-11-15; Kiro's review of the 6.15b C2 verdicts): 6.18 (F1/F2) must be done before 10.3 starts, so the Devoted batch work runs on the fixed handlers; content unchanged.
 
 - [ ] 11. Parity fixture with an External_Choice, docs and steering (Blocked: OP-U14/OP-U15; Unblocked 2026-11-15)
-  - [ ] 11.1 Add the `seedU-underworld` Parity_Fixture (Blocked: OP-U14/OP-U15; Unblocked 2026-11-15)
+  - [x] 11.1 Add the `seedU-underworld` Parity_Fixture (Blocked: OP-U14/OP-U15; Unblocked 2026-11-15)
     - Runs after 10.1: the seed search uses the calibrated Params and any mechanism change of OP-U15, so it is not started before 10.1 is done.
     - Files: `scripts/regen-fixtures.sh`, `fixtures/parity/seedU-underworld.replay.json` (new), `fixtures/parity/README.md`, `crates/sim-wasm/tests/parity.rs`, `docs/kiro-log.md`.
     - Follow design OP-D6 A: run the one-off `cargo run -q --release -p sim-cli -- batch --seeds 1..=200 --ticks 7300` once and pick the seed with the earliest Player_Soul death (from `player_lives`); ticks = that death tick + 400; record with `record --auto-player`. Write the seed and tick count into `regen-fixtures.sh` and log the search (command, chosen seed, death tick). Add the fixture to the native and WASM parity list in `parity.rs`, plus a native test that at least one `NodeRecord` after replaying it has `source == External` (R14.6). If no applied External_Choice occurs in the chosen run, take the next-earliest seed and log why.
