@@ -2375,3 +2375,10 @@ f8939ad docs(life-sim): log the push and live deploy
 
 - Kiro read `1abb054` (one test in the `magistrate.rs` test module, no production change; reads the fired node and its Frozen_Context, literal expected IDs, order asserted) and ran it: 1 passed; R14.4 diff check exits 0. The agent's full Rust gate run was not repeated.
 - `docs/underworld-audit.md` gained a follow-up section; R6.3 moves to `met`. Tasks 13, 13.1 and 14 checked. The underworld spec is closed locally. Nothing pushed; the push waits for the Author's explicit approval, and Kiro re-checks the unpushed range before it.
+
+### Spec: underworld — push, CI timeout, no deploy (2026-11-15)
+
+- The Author approved the push. Kiro re-checked the range (67 commits, `f8939ad..ee59702`, nothing new on `origin/main`) and ran `git push origin main`: `cb8e88f..ee59702`.
+- CI run `43730516957` (`deploy`) was **cancelled** by the job's `timeout-minutes: 45` (15:33:15 to 16:18:31 UTC) inside "Run gates"; "Check deploy configuration" and "Deploy web/dist" were skipped, so nothing was deployed and the live site still serves the life-sim build. No test had failed: every test binary up to `tests/underworld.rs` passed, and `tests/underworld.rs` had run 33 minutes (started 15:45:45) and passed Properties 1 to 4 when the job was cut, with Properties 7 to 9 each running over 60 s. Locally the same binary takes 635 s, so the CI ratio for it is at least 3x.
+- Kiro's estimate of about 27 minutes in CI (audit finding 7, 1.3x the local time from the last life-sim run) was wrong: it scaled the whole run by one ratio, while the new time is almost all debug-build property tests, which the CI runner runs far slower.
+- Consequence: `main` now holds 67 commits that are not deployed, and every further push to `main` will hit the same timeout until the gate time or the timeout changes. Options put to the Author; nothing changed yet.
