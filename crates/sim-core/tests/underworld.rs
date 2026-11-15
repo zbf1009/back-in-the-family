@@ -2104,3 +2104,132 @@ proptest! {
         }
     }
 }
+
+/// Function-only: proves the Rebuilt_Body path works; says nothing about whether a
+/// Rebuilt_Body is affordable through normal play.
+#[test]
+fn a_rebuilt_claim_creates_an_imported_shaped_body() {
+    use sim_core::input::TickInput;
+    use sim_core::params::Params;
+    use sim_core::testing::set_invalid_joss_account;
+    use sim_core::values::Origin;
+
+    let initial = World::new(3, WorldConfig::try_new(40).unwrap()).unwrap();
+    let player = initial.souls().player;
+    let SoulPlace::Body(first_body) = initial.souls().places[&player] else {
+        panic!("the opening Player_Soul has a body");
+    };
+    let age = usize::from(initial.age_years(&initial.persons()[&first_body]));
+    let mut params = Params::DEFAULT;
+    params.mortality_ppm_by_age = [0; 120];
+    params.birth_ppm_married = 0;
+    params.birth_ppm_unmarried = 0;
+    params.marriage_ppm = 0;
+    params.loan_ppm = 0;
+    params.social_ppm = 0;
+    params.mortality_ppm_by_age[age] = 1_000_000;
+    params.offer_min_affinity = 101;
+    let mut before = World::new_with_params(3, WorldConfig::try_new(40).unwrap(), params).unwrap();
+    before.step(&[]);
+    let ghost = before
+        .player_wait()
+        .expect("the player died and waits")
+        .ghost;
+    assert_eq!(ghost, first_body);
+    assert!(matches!(before.persons()[&ghost].life, Life::Dead { .. }));
+    assert!(matches!(
+        before.souls().places[&player],
+        SoulPlace::Waiting { .. }
+    ));
+    assert!(params.rebuilt_price > params.imported_price);
+    assert!(params.yearly_cap >= params.rebuilt_price);
+    let balance = params.rebuilt_price;
+    let mut account = before.joss()[&player];
+    account.balance = balance;
+    account.capped_spent = 0;
+    set_invalid_joss_account(&mut before, player, account);
+    let tick = before.tick();
+    let start = before.log().len();
+
+    let claim = |slot| {
+        [TickInput {
+            tick,
+            seq: InputSeq(1),
+            payload: InputPayload::ClaimSlot { slot },
+        }]
+    };
+    let (rebuilt, rebuilt_outcomes) = before.after_inputs_and_nodes(&claim(SlotRef::RebuiltBody));
+    let (imported, imported_outcomes) =
+        before.after_inputs_and_nodes(&claim(SlotRef::ImportedVessel));
+    assert_eq!(rebuilt_outcomes.len(), 1);
+    assert!(
+        rebuilt_outcomes[0].result.is_ok(),
+        "the Rebuilt claim applied"
+    );
+    assert_eq!(imported_outcomes.len(), 1);
+    assert!(
+        imported_outcomes[0].result.is_ok(),
+        "the Imported claim applied"
+    );
+
+    let arrival = |world: &World| {
+        assert!(
+            world.player_wait().is_none(),
+            "the Player_Soul left the Waiting_Queue"
+        );
+        let SoulPlace::Body(body) = world.souls().places[&player] else {
+            panic!("the Player_Soul is in the new body");
+        };
+        assert_eq!(world.persons()[&body].soul, player);
+        assert!(matches!(world.persons()[&body].life, Life::Alive { .. }));
+        body
+    };
+    let rebuilt_body = arrival(&rebuilt);
+    let imported_body = arrival(&imported);
+    assert_eq!(
+        rebuilt_body, imported_body,
+        "the same state allocates the same body ID"
+    );
+    assert_eq!(rebuilt.persons()[&rebuilt_body].origin, Origin::Rebuilt);
+    assert_eq!(imported.persons()[&imported_body].origin, Origin::Possessed);
+    let mut normalized = rebuilt.persons()[&rebuilt_body].clone();
+    normalized.origin = Origin::Possessed;
+    assert_eq!(
+        normalized,
+        imported.persons()[&imported_body],
+        "only Origin differs"
+    );
+
+    let rebuilt_events = &rebuilt.log().events()[start..];
+    let imported_events = &imported.log().events()[start..];
+    assert_eq!(rebuilt_events.len(), 1);
+    assert_eq!(imported_events.len(), 1);
+    assert_eq!(rebuilt_events[0].tick, tick);
+    assert_eq!(imported_events[0].tick, tick);
+    assert!(
+        matches!(rebuilt_events[0].kind, EventKind::Rebuild { person, price }
+        if person == rebuilt_body && price == params.rebuilt_price)
+    );
+    assert!(
+        matches!(imported_events[0].kind, EventKind::Possession { person, price }
+        if person == imported_body && price == params.imported_price)
+    );
+    assert_eq!(
+        rebuilt.joss()[&player].balance,
+        balance - params.rebuilt_price
+    );
+    assert_eq!(
+        imported.joss()[&player].balance,
+        balance - params.imported_price
+    );
+    assert_eq!(rebuilt.joss()[&player].capped_spent, params.rebuilt_price);
+    assert_eq!(imported.joss()[&player].capped_spent, 0);
+    assert_eq!(
+        rebuilt.joss()[&player].credited,
+        imported.joss()[&player].credited
+    );
+    assert_eq!(
+        rebuilt.joss()[&player].cap_year,
+        imported.joss()[&player].cap_year
+    );
+}

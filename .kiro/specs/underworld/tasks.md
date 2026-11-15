@@ -211,7 +211,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - Run the life-sim checks on generated underworld runs, with the Property 3 and Property 5 changes made in 3.1 and 3.2.
     - **Property 19: Life-sim properties keep holding.** **Validates: Requirements 7.10, 14.3, 10.3**
     - Acceptance: `cargo test -p sim-core` passes. Commit.
-  - [ ] 6.16 Targeted Rebuilt_Body functional test (R11.13; runs before 6.15)
+  - [x] 6.16 Targeted Rebuilt_Body functional test (R11.13; runs before 6.15)
     - Files: `crates/sim-core/tests/underworld.rs`, `docs/kiro-log.md` (appended).
     - Follow design "Rebuilt_Body scope" and "Gate split" (R11.13 bullet). Add the example test `a_rebuilt_claim_creates_an_imported_shaped_body`: build a test-support World with the Player_Soul waiting and its Joss_Balance at least `rebuilt_price` with cap room, clone it, apply `ClaimSlot { slot: RebuiltBody }` to one copy and `ClaimSlot { slot: ImportedVessel }` to the other in the same tick, and check R7.7 (the price is spent and attributed to the `Rebuild` Event; the Player_Soul left the Waiting_Queue; the outsider body holds it) and R7.11 (the two new bodies are equal in every field except the Origin; the spends differ only by price; only the Rebuilt spend raises `capped_spent`).
     - The test's doc comment and its `docs/kiro-log.md` record both say, labelled function-only: "proves the Rebuilt_Body path works; says nothing about whether a Rebuilt_Body is affordable through normal play".
