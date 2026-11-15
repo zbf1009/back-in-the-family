@@ -18,7 +18,7 @@ use crate::rng::{StreamTag, draw};
 use crate::underworld::nodes::{self, NodeFamily, NodeOption, NodeParams, NodePlan, PendingNode};
 use crate::underworld::{joss, player};
 use crate::values::{Sex, Trait, Traits};
-use crate::world::{ConfigError, Life, RejectReason, World};
+use crate::world::{AppendRefused, ConfigError, Life, RejectReason, World};
 
 /// The Magistrate's first name (R15.10).
 pub const FIRST_NAME: &str = "Orrin";
@@ -121,10 +121,9 @@ pub const RULING_OPTIONS: [NodeOption; 3] = [
 /// Applies one `Bribe` input in step 2a (design "Inputs", rejection table order).
 ///
 /// `no_ghost`, `not_waiting`, `bad_amount`, `insufficient_joss` and `node_pending` are
-/// checked in that order (R6.2). A valid Bribe appends the `offering` Event to the
-/// Magistrate (tagged `joss_paper` and `private`), spends the amount attributed to it,
-/// appends the `appeal` Event and fires the ruling node (R6.1). No money comes back on
-/// a `deny` (R6.7).
+/// checked in that order (R6.2). A valid Bribe appends both Events atomically,
+/// spends the amount attributed to the offering, then fires the ruling node (R6.1).
+/// No money comes back on a `deny` (R6.7).
 pub(crate) fn apply(world: &mut World, trigger: InputSeq, amount: u64) -> Result<(), RejectReason> {
     player::require_waiting(world)?;
     let Some(ghost) = world.player_wait.as_ref().map(|wait| wait.ghost) else {
@@ -145,33 +144,48 @@ pub(crate) fn apply(world: &mut World, trigger: InputSeq, amount: u64) -> Result
     let mut tags = EventTags::empty();
     tags.insert(EventTag::JossPaper);
     tags.insert(EventTag::Private);
-    if world
-        .append(
-            EventKind::BribeOffering {
-                ghost,
-                magistrate,
-                amount,
-            },
-            CausedBy::default(),
-            tags,
-        )
-        .is_err()
-    {
+    commit_bribe(
+        world,
+        trigger,
+        ghost,
+        amount,
+        [
+            (
+                EventKind::BribeOffering {
+                    ghost,
+                    magistrate,
+                    amount,
+                },
+                CausedBy::default(),
+                tags,
+            ),
+            (
+                EventKind::Appeal { ghost, magistrate },
+                CausedBy::default(),
+                EventTags::empty(),
+            ),
+        ],
+    )
+}
+
+/// Commits a validated Bribe's two Events before any spend or node mutation.
+/// The explicit batch allows unit tests to inject a malformed Appeal without
+/// changing the production input path.
+fn commit_bribe(
+    world: &mut World,
+    trigger: InputSeq,
+    ghost: PersonId,
+    amount: u64,
+    events: [(EventKind, CausedBy, EventTags); 2],
+) -> Result<(), RejectReason> {
+    if let Err(refused) = world.append_all(&events) {
+        debug_assert_eq!(refused, AppendRefused::IdExhausted);
         return Err(RejectReason::IdExhausted);
     }
+    let player_soul = world.souls.player;
     if let Some(account) = world.joss.get_mut(&player_soul) {
         let spent = joss::spend(account, amount);
         debug_assert!(spent, "the balance was checked against the amount");
-    }
-    if world
-        .append(
-            EventKind::Appeal { ghost, magistrate },
-            CausedBy::default(),
-            EventTags::empty(),
-        )
-        .is_err()
-    {
-        return Err(RejectReason::IdExhausted);
     }
     let plan = plan(world, ghost, amount);
     nodes::fire(world, trigger, plan);
@@ -735,6 +749,104 @@ mod tests {
         let player = w.souls.player;
         assert_eq!(w.joss()[&player].balance, 500 - 120);
         assert_eq!(w.player_wait().map(|wait| wait.ghost), Some(ghost));
+    }
+
+    #[test]
+    fn a_bribe_on_a_near_exhausted_event_counter_is_rejected_atomically() {
+        use crate::checksum::Checksum;
+
+        for room in [0, 1] {
+            let mut params = Params::DEFAULT;
+            params.offer_min_affinity = 101;
+            let (mut w, _) = waiting_world(params, 500);
+            w.log.exhaust_ids_leaving(room);
+            let player = w.souls.player;
+            let before = (
+                w.log.len(),
+                w.log.digest(),
+                w.log.next_id(),
+                w.joss[&player],
+                w.nodes.pending.clone(),
+                w.nodes.resolved.clone(),
+                Checksum::of(&w),
+            );
+            assert_eq!(
+                apply(&mut w, InputSeq(0), 100),
+                Err(RejectReason::IdExhausted)
+            );
+            assert_eq!(w.log.len(), before.0, "room {room}");
+            assert_eq!(w.log.digest(), before.1, "room {room}");
+            assert_eq!(w.log.next_id(), before.2, "room {room}");
+            assert_eq!(w.joss[&player], before.3, "room {room}");
+            assert_eq!(w.nodes.pending, before.4, "room {room}");
+            assert_eq!(w.nodes.resolved, before.5, "room {room}");
+            assert_eq!(Checksum::of(&w), before.6, "room {room}");
+
+            step(&mut w, &[InputPayload::Bribe { amount: 100 }]);
+            assert_eq!(last_reason(&w), Some(RejectReason::IdExhausted));
+            assert_eq!(bribe_events(&w), 0, "room {room}");
+            assert_eq!(w.joss[&player], before.3, "room {room}");
+            assert!(w.nodes.pending.is_empty(), "room {room}");
+            assert!(w.nodes.resolved.is_empty(), "room {room}");
+        }
+    }
+
+    #[test]
+    fn a_bribe_with_a_swapped_appeal_spends_nothing_and_fires_no_node() {
+        use crate::checksum::Checksum;
+
+        let (mut w, ghost) = waiting_world(Params::DEFAULT, 500);
+        let magistrate = w.magistrate.id;
+        let player = w.souls.player;
+        let mut tags = EventTags::empty();
+        tags.insert(EventTag::JossPaper);
+        tags.insert(EventTag::Private);
+        let events = [
+            (
+                EventKind::BribeOffering {
+                    ghost,
+                    magistrate,
+                    amount: 100,
+                },
+                CausedBy::default(),
+                tags,
+            ),
+            (
+                EventKind::Appeal {
+                    ghost: magistrate,
+                    magistrate: ghost,
+                },
+                CausedBy::default(),
+                EventTags::empty(),
+            ),
+        ];
+        let before = (
+            w.log.len(),
+            w.log.digest(),
+            w.log.next_id(),
+            w.joss[&player],
+            w.nodes.pending.clone(),
+            w.nodes.resolved.clone(),
+            Checksum::of(&w),
+        );
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            commit_bribe(&mut w, InputSeq(0), ghost, 100, events)
+        }));
+        if cfg!(debug_assertions) {
+            assert!(
+                result.is_err(),
+                "F1 diagnoses a non-ID refusal in debug builds"
+            );
+        } else {
+            assert!(matches!(result, Ok(Err(RejectReason::IdExhausted))));
+        }
+        assert_eq!(w.log.len(), before.0);
+        assert_eq!(w.log.digest(), before.1);
+        assert_eq!(w.log.next_id(), before.2);
+        assert_eq!(w.joss[&player], before.3);
+        assert_eq!(w.nodes.pending, before.4);
+        assert_eq!(w.nodes.resolved, before.5);
+        assert_eq!(Checksum::of(&w), before.6);
     }
 
     #[test]

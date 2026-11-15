@@ -559,6 +559,11 @@ impl EventLog {
         EventId(self.ids.peek())
     }
 
+    /// Whether `n` more IDs can be issued without overflowing the counter.
+    pub(crate) fn has_room(&self, n: u64) -> bool {
+        self.ids.peek().checked_add(n).is_some()
+    }
+
     /// Looks up an Event by ID. Never indexes out of bounds.
     pub fn event(&self, id: EventId) -> Option<&Event> {
         let index = id.0.checked_sub(1)?;
@@ -619,7 +624,13 @@ impl EventLog {
     /// [`IdExhausted`] (tests and test-support only).
     #[cfg(test)]
     pub(crate) fn exhaust_ids(&mut self) {
-        self.ids = IdCounter::starting_at(u64::MAX);
+        self.exhaust_ids_leaving(0);
+    }
+
+    /// Leaves exactly `room` Event IDs issuable (tests only).
+    #[cfg(test)]
+    pub(crate) fn exhaust_ids_leaving(&mut self, room: u64) {
+        self.ids = IdCounter::starting_at(u64::MAX.checked_sub(room).unwrap());
     }
 
     /// Recomputes the digest from scratch: `digest_0 = [0; 32]`,

@@ -252,7 +252,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - No production change is expected. If a test shows that one is needed, stop and report to Kiro; do not change production code in this task.
     - _Requirements: 11.15, 5.2, 5.4, 7.2, 7.4, 7.7_
     - Acceptance: `cargo test -p sim-core --test underworld -- a_haunting_applies_and_changes_only_mood an_imported_claim_creates_the_vessel a_birth_slot_claim_places_the_player_at_birth` passes and runs exactly these three tests; Rust gates; the R14.4 check; the log record contains the function-only wording. Commit as `test(sim-core): prove the haunting, imported and birth claim paths work`.
-  - [ ] 6.18 Fix bribe atomicity (F2) and assert append-refusal mapping (F1)
+- [x] 6.18 Fix bribe atomicity (F2) and assert append-refusal mapping (F1)
     - Added (Author, 2026-11-15; Kiro's review of the 6.15b C2 verdicts). Runs after 6.15b (its `U15.8` batch records the behaviour before this fix) and 6.17, and before 9.6.
     - Files: `crates/sim-core/src/events.rs` (a crate-private query for room for `n` more Event IDs, as the design states), `crates/sim-core/src/underworld/magistrate.rs`, `crates/sim-core/src/underworld/dreams.rs`, `crates/sim-core/src/underworld/hauntings.rs`, `docs/kiro-log.md` (appended).
     - Follow design "Append refusals in the input handlers (F1, F2), Author 2026-11-15" under "Error Handling".

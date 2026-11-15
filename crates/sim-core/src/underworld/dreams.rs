@@ -12,7 +12,7 @@ use crate::llm::{FrozenContext, OptionDef, OptionId, PlayerInput, TaskSpec};
 use crate::underworld::nodes::{self, NodeFamily, NodeOption, NodeParams, NodePlan, PendingNode};
 use crate::underworld::{ghosts, joss, offerings, player};
 use crate::values::Score;
-use crate::world::{Life, RejectReason, SoulPlace, World};
+use crate::world::{AppendRefused, Life, RejectReason, SoulPlace, World};
 
 /// The intent the dream was sent with (design "Inputs").
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Debug)]
@@ -188,18 +188,16 @@ pub(crate) fn apply(
     if balance < price {
         return Err(RejectReason::InsufficientJoss);
     }
-    if world
-        .append(
-            EventKind::Dream {
-                ghost,
-                dreamer,
-                price,
-            },
-            CausedBy::default(),
-            EventTags::empty(),
-        )
-        .is_err()
-    {
+    if let Err(refused) = world.append(
+        EventKind::Dream {
+            ghost,
+            dreamer,
+            price,
+        },
+        CausedBy::default(),
+        EventTags::empty(),
+    ) {
+        debug_assert_eq!(refused, AppendRefused::IdExhausted);
         return Err(RejectReason::IdExhausted);
     }
     if let Some(account) = world.joss.get_mut(&player_soul) {

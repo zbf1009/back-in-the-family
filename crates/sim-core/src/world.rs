@@ -5,8 +5,9 @@
 //! [`Life`] is [`Life::Dead`], so R3.2 and "estates are settled" hold by construction.
 //! Souls live in [`Souls`], one [`SoulPlace`] each, so one soul cannot be in two places.
 //!
-//! `World::append` is the only way an Event enters the log. It checks R5.3 to R5.9,
-//! applies the Mood deltas of R14.2 and keeps the derived indexes current.
+//! `World::append` and `World::append_all` are the only ways Events enter the log.
+//! They share the same validation and write path, apply the Mood deltas of R14.2
+//! and keep the derived indexes current.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
@@ -530,11 +531,17 @@ impl World {
         caused_by: CausedBy,
         tags: EventTags,
     ) -> Result<EventId, AppendRefused> {
-        let actors: Vec<PersonId> = kind.actors().iter().collect();
+        self.check_append(&kind, &caused_by)?;
+        self.write_append(kind, caused_by, tags)
+    }
+
+    /// Checks an Event against the current World without changing it. `append` and
+    /// `append_all` use the same actor, dead-actor and cause checks in that order.
+    fn check_append(&self, kind: &EventKind, caused_by: &CausedBy) -> Result<(), AppendRefused> {
         // R5.7: every actor is a Person; R15.8 adds the Magistrate, and only as the
         // recipient (second actor) of an appeal or its offering.
         let magistrate = self.magistrate.id;
-        for (position, &actor) in actors.iter().enumerate() {
+        for (position, actor) in kind.actors().iter().enumerate() {
             if self.persons.contains_key(&actor) {
                 continue;
             }
@@ -548,7 +555,7 @@ impl World {
             }
         }
         if !kind.is_afterlife() {
-            for &actor in &actors {
+            for actor in kind.actors().iter() {
                 if let Some(person) = self.persons.get(&actor)
                     && matches!(person.life, Life::Dead { .. })
                 {
@@ -566,7 +573,45 @@ impl World {
                 _ => return Err(AppendRefused::BadCause),
             }
         }
+        Ok(())
+    }
 
+    /// Preflights all Events against the pre-batch World and total ID capacity before
+    /// writing any. Events in the same batch may not reference each other as causes.
+    pub(crate) fn append_all(
+        &mut self,
+        events: &[(EventKind, CausedBy, EventTags)],
+    ) -> Result<Vec<EventId>, AppendRefused> {
+        for (kind, caused_by, _) in events {
+            self.check_append(kind, caused_by)?;
+        }
+        let count = u64::try_from(events.len()).map_err(|_| AppendRefused::IdExhausted)?;
+        if !self.log.has_room(count) {
+            return Err(AppendRefused::IdExhausted);
+        }
+
+        let mut ids = Vec::with_capacity(events.len());
+        for (kind, caused_by, tags) in events {
+            let id = self.write_append(kind.clone(), caused_by.clone(), *tags);
+            match id {
+                Ok(id) => ids.push(id),
+                Err(refused) => {
+                    debug_assert!(false, "preflighted append failed: {refused:?}");
+                    return Err(refused);
+                }
+            }
+        }
+        Ok(ids)
+    }
+
+    /// Writes an Event whose complete preconditions have already been checked.
+    fn write_append(
+        &mut self,
+        kind: EventKind,
+        caused_by: CausedBy,
+        tags: EventTags,
+    ) -> Result<EventId, AppendRefused> {
+        let actors: Vec<PersonId> = kind.actors().iter().collect();
         let deltas: Vec<(PersonId, i64)> = actors
             .iter()
             .enumerate()
@@ -1083,6 +1128,66 @@ mod tests {
                 EventTags::empty()
             )
             .is_ok()
+        );
+    }
+
+    #[test]
+    fn append_all_refuses_a_swapped_appeal_and_writes_nothing() {
+        let mut w = world();
+        let ghost = residents(&w)[0];
+        w.persons.get_mut(&ghost).unwrap().life = Life::Dead { death: w.tick };
+        let magistrate = w.magistrate.id;
+        let offering = (
+            EventKind::BribeOffering {
+                ghost,
+                magistrate,
+                amount: 10,
+            },
+            CausedBy::default(),
+            EventTags::empty(),
+        );
+        let swapped = (
+            EventKind::Appeal {
+                ghost: magistrate,
+                magistrate: ghost,
+            },
+            CausedBy::default(),
+            EventTags::empty(),
+        );
+        let before = (
+            w.log.len(),
+            w.log.digest(),
+            w.log.next_id(),
+            Checksum::of(&w),
+        );
+        assert_eq!(
+            w.append_all(&[offering.clone(), swapped]),
+            Err(AppendRefused::UnknownActor)
+        );
+        assert_eq!(w.log.len(), before.0);
+        assert_eq!(w.log.digest(), before.1);
+        assert_eq!(w.log.next_id(), before.2);
+        assert_eq!(Checksum::of(&w), before.3);
+
+        let ids = w
+            .append_all(&[
+                offering,
+                (
+                    EventKind::Appeal { ghost, magistrate },
+                    CausedBy::default(),
+                    EventTags::empty(),
+                ),
+            ])
+            .unwrap();
+        assert_eq!(ids, [before.2, EventId(before.2.0 + 1)]);
+        assert_eq!(w.log.len(), before.0 + 2);
+        assert!(matches!(
+            w.log.events()[before.0].kind,
+            EventKind::BribeOffering { .. }
+        ));
+        assert_eq!(
+            w.log.events()[before.0 + 1].kind,
+            EventKind::Appeal { ghost, magistrate }
         );
     }
 

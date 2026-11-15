@@ -9,7 +9,7 @@
 use crate::events::{CausedBy, EventKind, EventTags};
 use crate::ids::PersonId;
 use crate::underworld::{ghosts, joss, player};
-use crate::world::{Life, RejectReason, World};
+use crate::world::{AppendRefused, Life, RejectReason, World};
 
 /// Applies one `Haunt` input in step 2a (design "Inputs", rejection table order).
 ///
@@ -48,19 +48,17 @@ pub(crate) fn apply(world: &mut World, target: PersonId) -> Result<(), RejectRea
     if !joss::capped_spend_allowed(&account, price, tick, yearly_cap) {
         return Err(RejectReason::YearlyCap);
     }
-    if world
-        .append(
-            EventKind::Haunting {
-                ghost,
-                target,
-                intensity: world.params.haunt_intensity,
-                price,
-            },
-            CausedBy::default(),
-            EventTags::empty(),
-        )
-        .is_err()
-    {
+    if let Err(refused) = world.append(
+        EventKind::Haunting {
+            ghost,
+            target,
+            intensity: world.params.haunt_intensity,
+            price,
+        },
+        CausedBy::default(),
+        EventTags::empty(),
+    ) {
+        debug_assert_eq!(refused, AppendRefused::IdExhausted);
         return Err(RejectReason::IdExhausted);
     }
     if let Some(account) = world.joss.get_mut(&player_soul) {
