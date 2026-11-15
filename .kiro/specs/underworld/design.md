@@ -1205,6 +1205,20 @@ Note (Author, 2026-11-15): "the zero-count check over the nine totals" becomes t
 
 Decision (Author, 2026-11-15, after the 9.5 diagnosis): `scripts/gates.sh` gets one new step, the Devoted reachability gate `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --devoted --require-reachability` (R11.16), placed directly after the passive 80-year acceptance batch (`--require-targets`) and before `scripts/wasm-build.sh`. The passive step stays as it is and gates the invariants and LS-R17 only. The sentence above that `batch --devoted` is not part of `scripts/gates.sh` no longer holds for the `--require-reachability` form; the H1–H5 diagnosis still never runs in the gates. Expected extra cost: about 20 s (one more 80-year batch over five seeds, the same work as the passive step plus one act per 30 living days); task 10.2 measures it and records the figure in `docs/kiro-log.md`. Per the tech.md rule on new gates, 10.2 also shows the new step failing once (the Auto_Player rows of "Checker and fault evidence") before the injection is reverted.
 
+Decision (Author, 2026-11-15, after CI run 43730516957 was cancelled at the 45-minute job timeout): option B. The CI job timed out inside `cargo test --workspace`: `sim-core` `tests/underworld.rs` ran 33 minutes in CI against 635 s locally. No test failed and nothing was deployed. The fix has two parts:
+
+- The workspace `Cargo.toml` gets a per-package dev-profile override:
+
+  ```toml
+  [profile.dev.package.sim-core]
+  opt-level = 2
+  ```
+
+  `[profile.dev.package.proptest] opt-level = 2` is added as well only if a measurement shows that it shortens the test run; otherwise it is left out.
+- `timeout-minutes` of the job in `.github/workflows/deploy.yml` goes from 45 to 60.
+
+Must stay unchanged: every other setting of the dev/test profile; `debug-assertions` and `overflow-checks` on for `sim-core`; every proptest case count; every Checksum; the Parity_Fixtures; R14.4. Evidence for the assertions: the `rustc` command lines from `cargo build -v` or `cargo test -v` show `-C debug-assertions=on` and `-C overflow-checks=on` for `sim-core`, or, if Cargo omits the flags, the documented Cargo default for the dev profile (both on, independent of `opt-level`) proves it; and the debug-only F1 test `a_bribe_with_a_swapped_appeal_spends_nothing_and_fires_no_node` still takes its debug-assertion branch. Integer semantics do not depend on `opt-level`, so Checksums and fixtures cannot change. Rejected: A (raise the timeout only) and C (run the tests in release mode, or cut proptest case counts).
+
 ### Measured gate time (2026-11-15)
 
 After 10.2 added the Devoted step immediately after the unchanged passive acceptance step, independently timed release `cargo run` commands over seeds 1..=5 and 29,200 ticks exited 0 in 25.518 s wall (passive `--require-targets`) and 22.575 s wall (Devoted `--devoted --require-reachability`). Both ran on already-built release artifacts, although the timed command includes Cargo invocation; each stayed below the 60 s decision threshold. Passive stdout was byte-identical to the 9.6 baseline, and Devoted stdout was byte-identical to the 10.3 reproduction. The complete restored `scripts/gates.sh` exited 0 in 1217.344 s wall (20 min 17.344 s), including Rust/WASM compilation and tests plus the web/probe gates and Chrome smoke test. Relative to the life-sim ~20 s acceptance step, the measured passive step is ~5.5 s longer; the second 80-year step adds ~22.6 s of standalone work, near the predicted ~20 s. The script's full wall time is not a sum of the standalone timings. The gate still checks only invariants and LS-R17 on the passive branch; the Devoted gate checks invariants and the eight applied-success totals, reports LS-R17, and never promotes affordability candidates or birth claims into hard counts. The five temporary C2 faults and their individual outcomes, patch fingerprints and reverts are recorded under `docs/kiro-log.md` task 10.2.

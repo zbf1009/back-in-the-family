@@ -438,6 +438,17 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - _Requirements: 6.3, 3.2_
     - Acceptance: the new test passes in `cargo test -p sim-core --test underworld <name>` (or the module path used); Rust gates pass; R14.4 diff check exits 0; append a log entry `### Spec: underworld — audit follow-up 14.1 R6.3 contract test (<date>)` with the test name, command and result; commit `test(sim-core): pin the magistrate ruling option set` (one commit; stage files by name). Then STOP and report the commit hash and results to Kiro.
 
+- [ ] 15. CI gate time (Author decision 2026-11-15, CI run 43730516957 cancelled at 45 minutes, nothing deployed)
+  - [ ] 15.1 Optimize the sim-core debug build for tests and raise the CI timeout
+    - Executed by the terminal agent. Files: `Cargo.toml` (workspace), `.github/workflows/deploy.yml`, `docs/kiro-log.md`. No source or test change.
+    - Step 1 baseline (before any edit, on the current HEAD): `cargo clean`, then time `scripts/gates.sh` (wall) and, after it, time `cargo test -p sim-core --test underworld` alone; record both, plus the per-binary `finished in` times of `cargo test --workspace` from the gate output.
+    - Step 2: add `[profile.dev.package.sim-core]` with `opt-level = 2`. Optionally add `[profile.dev.package.proptest]` `opt-level = 2` only if a measured comparison shows it lowers the time; record the measurement either way. Do not change any other profile key, any proptest case count, any test, or any `#[cfg]`.
+    - Step 3: raise `timeout-minutes` of the gates-and-deploy job in `.github/workflows/deploy.yml` from 45 to 60. No other workflow change.
+    - Step 4 checks: (a) `cargo test -p sim-core -v --no-run 2>&1` (or `cargo build -v`) shows the sim-core rustc command lines with `-C opt-level=2` and with debug assertions and overflow checks on (`-C debug-assertions=on` and `-C overflow-checks=on`, or cite the cargo rule that keeps them on for the dev profile and prove it with the next check); (b) `cargo test -p sim-core --lib a_bribe_with_a_swapped_appeal_spends_nothing_and_fires_no_node` passes taking its debug-assertion branch; (c) the number of tests per binary in `cargo test --workspace` equals the baseline; (d) `cargo clean`, then `scripts/gates.sh` exits 0, with the passive and Devoted 80-year batch lines and totals byte-identical to the baseline run, the short batch identical, `scripts/regen-fixtures.sh` leaving `git status` unchanged, and the R14.4 diff check exiting 0.
+    - Report before/after: full gates wall time, `cargo test --workspace` time, `tests/underworld.rs` time, and the two slowest other binaries.
+    - _Requirements: 14.7, 12.1, 14.4_
+    - Acceptance: all checks of step 4 pass; one log entry `### Spec: underworld — 15.1 CI gate time (<date>)` with the figures and commands; one commit `build: optimize sim-core in the dev profile and raise the CI timeout` (stage files by name). **STOP**: do not push; report the commit hash and figures to Kiro. A green push to `main` deploys and needs the Author's approval.
+
 ## Notes
 
 - No task is marked optional. The property tests carry R12.1 and most of the semantic guarantees, and the Kiro audit depends on them.
@@ -500,7 +511,8 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     { "id": 41, "tasks": ["11.2"] },
     { "id": 42, "tasks": ["12.1"] },
     { "id": 43, "tasks": ["14.1"] },
-    { "id": 44, "tasks": ["13.1"] }
+    { "id": 44, "tasks": ["13.1"] },
+    { "id": 45, "tasks": ["15.1"] }
   ]
 }
 ```
