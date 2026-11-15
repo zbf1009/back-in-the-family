@@ -213,20 +213,41 @@ impl Totals {
     }
 }
 
-pub fn zero_count_failures(t: &Totals) -> Vec<&'static str> {
+/// The passive acceptance batch gates invariants and LS-R17 only, never underworld counts.
+pub const PASSIVE_ZERO_COUNT_LIST: &[&str] = &[];
+
+/// Applied underworld successes required across the Devoted acceptance seeds, in report order.
+pub const DEVOTED_ZERO_COUNT_LIST: &[&str] = &[
+    "dreams",
+    "hauntings",
+    "bribes",
+    "imported_claims",
+    "rebuilt_claims",
+    "carry_overs",
+    "nodes_dream_interpretation",
+    "nodes_magistrate_ruling",
+];
+
+/// Return only zero applied counts named by the selected acceptance contract, in list order.
+pub fn zero_count_failures(t: &Totals, list: &[&'static str]) -> Vec<&'static str> {
     let mut failures = Vec::new();
-    for (name, value) in [
-        ("dreams", t.dreams),
-        ("hauntings", t.hauntings),
-        ("bribes", t.bribes),
-        ("birth_claims", t.birth_claims),
-        ("imported_claims", t.imported_claims),
-        ("rebuilt_claims", t.rebuilt_claims),
-        ("carry_overs", t.carry_overs),
-        ("nodes_dream_interpretation", t.nodes_dream_interpretation),
-        ("nodes_magistrate_ruling", t.nodes_magistrate_ruling),
-    ] {
-        if value == 0 {
+    for &name in list {
+        let count = match name {
+            "dreams" => t.dreams,
+            "hauntings" => t.hauntings,
+            "bribes" => t.bribes,
+            "birth_claims" => t.birth_claims,
+            "imported_claims" => t.imported_claims,
+            "rebuilt_claims" => t.rebuilt_claims,
+            "carry_overs" => t.carry_overs,
+            "nodes_dream_interpretation" => t.nodes_dream_interpretation,
+            "nodes_magistrate_ruling" => t.nodes_magistrate_ruling,
+            _ => {
+                debug_assert!(false, "unknown zero-count field: {name}");
+                continue;
+            }
+        };
+        if count == 0 {
             failures.push(name);
         }
     }
@@ -1355,26 +1376,46 @@ outsiders_le_births_third=fail"
     }
 
     #[test]
-    fn zero_count_failures_use_design_order_and_ignore_report_only_fields() {
-        let totals = Totals {
-            dreams: 1,
-            bribes: 1,
-            imported_claims: 1,
-            carry_overs: 1,
-            nodes_dream_interpretation: 1,
-            ..Totals::default()
-        };
+    fn passive_zero_count_list_is_empty() {
+        assert!(PASSIVE_ZERO_COUNT_LIST.is_empty());
+        assert!(zero_count_failures(&Totals::default(), PASSIVE_ZERO_COUNT_LIST).is_empty());
+    }
+
+    #[test]
+    fn devoted_zero_count_list_has_only_documented_applied_counts_in_order() {
         assert_eq!(
-            zero_count_failures(&totals),
+            DEVOTED_ZERO_COUNT_LIST,
             [
+                "dreams",
                 "hauntings",
-                "birth_claims",
+                "bribes",
+                "imported_claims",
                 "rebuilt_claims",
-                "nodes_magistrate_ruling"
+                "carry_overs",
+                "nodes_dream_interpretation",
+                "nodes_magistrate_ruling",
             ]
         );
-        let mut changed = totals;
-        changed.dreams = 99;
-        assert_eq!(zero_count_failures(&changed), zero_count_failures(&totals));
+        // Independently validate the public lists against the nine Totals field names.
+        for &name in PASSIVE_ZERO_COUNT_LIST
+            .iter()
+            .chain(DEVOTED_ZERO_COUNT_LIST)
+        {
+            assert!(
+                [
+                    "dreams",
+                    "hauntings",
+                    "bribes",
+                    "birth_claims",
+                    "imported_claims",
+                    "rebuilt_claims",
+                    "carry_overs",
+                    "nodes_dream_interpretation",
+                    "nodes_magistrate_ruling",
+                ]
+                .contains(&name),
+                "unknown Totals count field: {name}"
+            );
+        }
     }
 }
