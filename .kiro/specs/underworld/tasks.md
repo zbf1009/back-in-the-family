@@ -21,6 +21,8 @@ Update (2026-11-15), following the design's "Overview" update and its "Implement
 
 Update (2026-11-15, after the 9.5 diagnosis), following the design's "Next order after the 9.5 diagnosis", "Gate split (decided)", the OP-U14 and OP-U15 decisions and the calibration decision note. Tasks 6.16, 6.15a and 9.5 are done (commits `59e6092`, `3fa9b64`, `e49f8fd`). OP-U14 and OP-U15 are decided, so every "Blocked: OP-U14/OP-U15" mark below is lifted; each such mark stays visible with "Unblocked 2026-11-15" appended, and superseded leaf text stays with a dated decision line below it. The remaining order is: 6.15b (independent branch, **STOP**); the R11.15 path tests (6.17); 9.6; the 10.1 close; 10.3 (**STOP** on a reproduction mismatch or a zero Devoted total); 10.2; 11.1; 11.2; 12.1 (also after Kiro has closed the 6.15b review; **STOP**); then Kiro's audit 13.1.
 
+Decision (Author, 2026-11-15; Kiro's review of the 6.15b C2 verdicts): the review is closed (all nine C2 verdicts accepted) and a new leaf 6.18 (F1/F2 fixes) is added. The remaining order is now strictly serial: 6.15b (the `U15.8` 80-year faulted batch, then check it), 6.17, 6.18, 9.6, 10.1, 10.3, 10.2 (with the extra `U2.5`/`U2.6` Devoted re-runs), 11.1, 11.2, 12.1 (**STOP**), 13.1. This replaces the order above where they differ.
+
 ## Rules for the executing agent
 
 The tasks are run one at a time by an external terminal coding agent. Kiro does only the final audit (task 13). These rules apply to every task:
@@ -239,6 +241,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
       - Acceptance: one verdict per row (`U1.3`, `U2.5`, `U2.6`, `U4.3`, `U5.3`, `U7.10`, `U8.3`, `U15.8`, extended `5.8`), each with the fault, the commands, the first guard fired, the causal link, the batch result or "not run (design: not reachable)", and the verdict (counts / does not count, with the earlier record confirmed or rejected). Both commands pass after the final revert. Commit the log as `docs: record underworld fault evidence under C1/C2`.
       - **STOP.** Report the per-row verdict table to Kiro for review. Do not start a later task until the review is recorded.
       - Update (2026-11-15, after the 9.5 diagnosis): contract unchanged. Executable now and independent of 6.17, 9.6, 10.1 to 10.3, 11.1 and 11.2, which may run before or after it; the STOP above blocks only 12.1, which waits until Kiro has closed this review.
+      - Decision (Author, 2026-11-15): the Author accepted all nine C2 verdicts (Kiro's review, "Kiro's review of the 6.15b C2 verdicts" in `docs/kiro-log.md`), so the review is closed. One step remains before 6.15b is checked: the faulted 80-year batch for `U15.8`. Inject the prescribed fault (the swapped `Appeal` actors, as the design's `U15.8` row states), run `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200` (Bribes are applied in the passive run, so the path is reachable), and record the actual result in `docs/kiro-log.md`, whether it fails or passes (exit status, first guard, seed and tick if it fails). Revert the edit, confirm `git diff` shows no source change (only the log), then commit the log and check 6.15b. No other 6.15b row is re-run. Run this before task 6.18, because it records the behaviour before the F1/F2 fixes.
   - [ ] 6.17 Targeted path tests for haunting, Imported_Vessel claim and Birth_Slot claim (R11.15)
     - Files: `crates/sim-core/tests/underworld.rs`, `docs/kiro-log.md` (appended).
     - Follow design "Gate split (decided)" ("Functional acceptance (R11.15)") and "Testing Strategy" (the R11.15 addition). Add three example tests next to `a_rebuilt_claim_creates_an_imported_shaped_body` (6.16). Each builds a test-support World with the Player_Soul waiting, sets the state the path needs directly, applies one valid input and checks its outcomes:
@@ -249,6 +252,15 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - No production change is expected. If a test shows that one is needed, stop and report to Kiro; do not change production code in this task.
     - _Requirements: 11.15, 5.2, 5.4, 7.2, 7.4, 7.7_
     - Acceptance: `cargo test -p sim-core --test underworld -- a_haunting_applies_and_changes_only_mood an_imported_claim_creates_the_vessel a_birth_slot_claim_places_the_player_at_birth` passes and runs exactly these three tests; Rust gates; the R14.4 check; the log record contains the function-only wording. Commit as `test(sim-core): prove the haunting, imported and birth claim paths work`.
+  - [ ] 6.18 Fix bribe atomicity (F2) and assert append-refusal mapping (F1)
+    - Added (Author, 2026-11-15; Kiro's review of the 6.15b C2 verdicts). Runs after 6.15b (its `U15.8` batch records the behaviour before this fix) and 6.17, and before 9.6.
+    - Files: `crates/sim-core/src/events.rs` (a crate-private query for room for `n` more Event IDs, as the design states), `crates/sim-core/src/underworld/magistrate.rs`, `crates/sim-core/src/underworld/dreams.rs`, `crates/sim-core/src/underworld/hauntings.rs`, `docs/kiro-log.md` (appended).
+    - Follow design "Append refusals in the input handlers (F1, F2), Author 2026-11-15" under "Error Handling".
+    - F2: in `magistrate::apply`, after the existing validation and before any append or spend, check that the Event ID counter has room for both Events (`BribeOffering` and `Appeal`); if not, reject `IdExhausted` and write nothing. The query matches `IdCounter::next` (room for two Events means `peek() + 2` does not overflow).
+    - F1: at each site in these handlers that maps a `world.append(..)` refusal to `RejectReason::IdExhausted`, match on the error and add a `debug_assert!` that the refusal is `AppendRefused::IdExhausted`. The mapping stays. The `slots.rs` "no joss account" branch and the Offering append in `offerings.rs` keep their current behaviour.
+    - Unit test: with a near-exhausted Event ID counter (`IdCounter::starting_at`, as the existing exhaustion test in `events.rs` does), a Bribe is rejected `IdExhausted` with no new Event, no spend and no node fired.
+    - _Requirements: 6.1, 6.2, LS-R1.5_
+    - Acceptance: Rust gates; `cargo test -p sim-core --test underworld` passes; `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200` prints final Checksums unchanged from the committed baseline; `scripts/regen-fixtures.sh` leaves `git status` unchanged; the R14.4 check. If any Checksum or fixture changes, stop and report to Kiro. Log entry in `docs/kiro-log.md` (the change, the test name, the batch Checksums compared). Commit as `fix(sim-core): make the bribe atomic and assert append refusals`.
 
 - [x] 7. Snapshot
   - [x] 7.1 Extend the Snapshot
@@ -314,6 +326,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
       - The `afford_candidates=` labelling (R11.17) is not part of this task; it belongs to the `devoted` line and lands in 10.3.
       - Not wired into any exit status here: the passive exit status does not call `zero_count_failures` (it reads invariants and LS-R17 only, as today), and the Devoted exit status is added in 10.3. No Checksum change, no fixture change.
       - Acceptance: `cargo test -p sim-cli --test batch_gate` passes (1,000 cases); `cargo test -p sim-cli --lib batch` passes; Rust gates; `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` exits 0 with output byte-identical to the run before the change. Commit as `feat(sim-cli): set the passive and devoted zero-count lists`.
+    - Decision (Author, 2026-11-15; Kiro's review of the 6.15b C2 verdicts): runs after 6.18 (which runs after 6.17); content unchanged.
 
 - [ ] 10. Calibration and the zero-count gate (Blocked: OP-U14/OP-U15; Unblocked 2026-11-15)
   - [ ] 10.1 Resume calibration under OP-U15 (Blocked: OP-U14/OP-U15; Unblocked 2026-11-15)
@@ -357,6 +370,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
       - Time the passive acceptance step, the Devoted gate step and the full `scripts/gates.sh` with `time`; compare with the life-sim figure (about 20 s for the acceptance step) and the design's estimate (about 20 s extra). Report only; if either 80-year step exceeds 60 s, stop and ask the Author before changing the gate.
       - _Requirements: 11.7, 11.11, 11.16, 12.5, 12.6_
       - Acceptance: `scripts/gates.sh` exits 0 after the reverts, with the new step; `git diff` after the reverts shows no change in `auto_player.rs`; one log entry per fault with its verdict and one entry with the timings; the design note. Commits: `chore(gates): run the devoted reachability gate`, then `docs: log underworld gate fault evidence and gate time`.
+    - Decision (Author, 2026-11-15; Kiro's review of the 6.15b C2 verdicts): follow design "Checker and fault evidence (C1/C2)" (decision note on the `U2.5`/`U2.6` Devoted re-runs). After the Devoted gate step is wired, also re-run the `U2.5` and `U2.6` production faults of the C2 table, each injected exactly as written there, on `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --devoted --require-reachability`. This is extra evidence only: no change to Params, seeds, gates, the zero-count rules or the injections. Judge each run under the C2 rules of 6.15b and record the result in `docs/kiro-log.md` as observed (exit status, first guard, seed and tick if it fails); a pass is logged as a pass, not as unreachability. Revert each edit before any commit and confirm `git diff` shows no source change.
   - [ ] 10.3 Add the `batch --devoted` report (R11.14) (Blocked: OP-U14/OP-U15; Unblocked 2026-11-15)
     - Files: `crates/sim-cli/src/batch.rs`, `crates/sim-cli/src/auto_player.rs` (or a new module for the Devoted_Branch acts), `crates/sim-cli/src/args.rs`, `crates/sim-cli/src/lib.rs` (help text), `crates/sim-cli/tests/cli.rs`.
     - Follow design "Gate split" (R11.14 bullet) and "Offering diagnosis (H1–H5)" H4/H5: `batch --devoted` runs each seed a second time as the Devoted_Branch with the H4 strategy and prints, per seed, one `devoted` line with per-Player_Wait fields `joss=<credited>`, `zero=<0|1>`, `acts=<applied social acts during the preceding Player_Life>`, `affordable=<subset of dream,haunting,bribe,imported,rebuilt>`, plus the share of zero-credit waits. The flag never changes the exit status; `--devoted` is not part of `scripts/gates.sh`. Thresholds, if any, and the tests: to be detailed after OP-U14/OP-U15.
@@ -373,6 +387,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
       - **STOP and report** to Kiro if any reproduced figure or passive Checksum differs, or if any `DEVOTED_ZERO_COUNT_LIST` total is zero. Do not adjust `DevotedLiving` to hit the numbers, and change neither Params nor either list. Commit the code and tests before stopping only if the Rust gates pass; when stopped, leave 10.3 unchecked until Kiro records the review.
       - _Requirements: 11.14, 11.16, 11.17_
       - Acceptance: Rust gates; `cargo test -p sim-cli --test cli --test auto_player --test batch_gate` passes; the reproduction check matches every figure and every passive Checksum; the Devoted command exits 0; the R14.4 check; the log entry. Commits: `feat(sim-cli): add the devoted batch run`, then `docs: log the devoted batch reproduction check`.
+    - Decision (Author, 2026-11-15; Kiro's review of the 6.15b C2 verdicts): 6.18 (F1/F2) must be done before 10.3 starts, so the Devoted batch work runs on the fixed handlers; content unchanged.
 
 - [ ] 11. Parity fixture with an External_Choice, docs and steering (Blocked: OP-U14/OP-U15; Unblocked 2026-11-15)
   - [ ] 11.1 Add the `seedU-underworld` Parity_Fixture (Blocked: OP-U14/OP-U15; Unblocked 2026-11-15)
@@ -416,6 +431,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
 - Life-sim tests whose expectations the design changes (Property 3, Property 5, the R10.2 births test) are updated in the task that changes the behaviour (3.1, 3.2), and the commit body names them.
 - Design sections are cited by their headings in `.kiro/specs/underworld/design.md`.
 - Dependency graph (updated 2026-11-15, after the 9.5 diagnosis): 6.15b is a parallel branch in the same wave as 6.17; the main chain is 6.17 → 9.6 → 10.1 → 10.3 → 10.2 → 11.1 → 11.2 → 12.1 → 13.1, and 12.1 also waits for 6.15b and Kiro's review of it. 6.15b and 6.17 both append to `docs/kiro-log.md` (under separate headings), and 6.15b makes temporary production edits; in one working tree, run them one after the other, in either order, never interleaved with another task's test run.
+- Decision (Author, 2026-11-15; Kiro's review of the 6.15b C2 verdicts): the dependency graph is now one chain, 6.15b (`U15.8` batch) → 6.17 → 6.18 → 9.6 → 10.1 → 10.3 → 10.2 → 11.1 → 11.2 → 12.1 → 13.1. 6.15b runs first because its `U15.8` batch records the behaviour before the 6.18 fix. 6.18 must be done before 10.3. 6.17 has no design dependency on 6.18, but both run in the same working tree, so they run one after the other. This replaces the graph description above where they differ.
 
 ## Task Dependency Graph
 
@@ -455,15 +471,17 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     { "id": 30, "tasks": ["6.16"] },
     { "id": 31, "tasks": ["6.15a"] },
     { "id": 32, "tasks": ["9.5"] },
-    { "id": 33, "tasks": ["6.15b", "6.17"] },
-    { "id": 34, "tasks": ["9.6"] },
-    { "id": 35, "tasks": ["10.1"] },
-    { "id": 36, "tasks": ["10.3"] },
-    { "id": 37, "tasks": ["10.2"] },
-    { "id": 38, "tasks": ["11.1"] },
-    { "id": 39, "tasks": ["11.2"] },
-    { "id": 40, "tasks": ["12.1"] },
-    { "id": 41, "tasks": ["13.1"] }
+    { "id": 33, "tasks": ["6.15b"] },
+    { "id": 34, "tasks": ["6.17"] },
+    { "id": 35, "tasks": ["6.18"] },
+    { "id": 36, "tasks": ["9.6"] },
+    { "id": 37, "tasks": ["10.1"] },
+    { "id": 38, "tasks": ["10.3"] },
+    { "id": 39, "tasks": ["10.2"] },
+    { "id": 40, "tasks": ["11.1"] },
+    { "id": 41, "tasks": ["11.2"] },
+    { "id": 42, "tasks": ["12.1"] },
+    { "id": 43, "tasks": ["13.1"] }
   ]
 }
 ```
