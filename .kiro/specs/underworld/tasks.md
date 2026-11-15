@@ -254,7 +254,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - **Property 21: The strategy rotation covers every slot kind and every wait applies one Carry_Over.** **Validates: Requirements 11.12, 11.5, 9.1**
     - **Property 22: The batch report counts equal the recorded facts.** **Validates: Requirements 11.3, 11.4, 11.5, 11.6**
     - Acceptance: `cargo test -p sim-cli --test auto_player` passes; Rust gates. Commit as `test(sim-cli): ...`.
-  - [ ] 9.4 Property test: Property 23 (the zero-count gate fails exactly on a zero total)
+- [x] 9.4 Property test: Property 23 (the zero-count gate fails exactly on a zero total)
     - File: `crates/sim-cli/tests/batch_gate.rs` (new). Pure-function proptest over generated `Totals`, 1,000 cases.
     - **Property 23: The zero-count gate fails exactly on a zero total.** **Validates: Requirements 11.9, 11.11**
     - Acceptance: `cargo test -p sim-cli --test batch_gate` passes. Commit.
