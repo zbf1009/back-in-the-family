@@ -32,7 +32,7 @@ jobs:
     # Chrome the Smoke_Test needs and a preinstalled rustup, and ubuntu-latest moves to
     # 26.04 in Nov 2026.
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       # The Smoke_Test uses the system Chrome; never download a Playwright browser (R9.2).
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"

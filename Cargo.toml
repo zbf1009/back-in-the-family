@@ -23,3 +23,6 @@ unimplemented = "deny"
 # change (design "Testing Strategy").
 [profile.dev.package.blake3]
 opt-level = 3
+# Debug property tests spend most of their time in sim-core checksum work.
+[profile.dev.package.sim-core]
+opt-level = 2
