@@ -1424,6 +1424,69 @@ fn standing_claim_ends_old_wait(before: &World, after: &World, slot: SlotRef) ->
     })
 }
 
+/// A claimed Birth_Slot can remain open after step 3 only if this wait ended in
+/// a priced Standing placement or the free overdue placement. A death of the
+/// arriving body in step 4 starts a new, unclaimed wait, not the old one.
+fn placement_ends_old_wait(
+    before: &World,
+    stage: &World,
+    planned: &[underworld_gen::Submitted],
+) -> bool {
+    let player = before.souls().player;
+    let overdue = matches!(
+        before.souls().places.get(&player),
+        Some(SoulPlace::Waiting { since })
+            if before.tick().0.saturating_sub(since.0) > before.params().player_max_wait
+    );
+    (overdue
+        && player_arrival_ends_old_wait(before, stage, |kind| match kind {
+            EventKind::Possession { person, price } if *price == 0 => Some(*person),
+            _ => None,
+        }))
+        || planned
+            .iter()
+            .filter(|entry| entry.result.is_ok())
+            .any(|entry| match entry.payload {
+                InputPayload::ClaimSlot {
+                    slot: SlotRef::ImportedVessel,
+                } => standing_claim_ends_old_wait(before, stage, SlotRef::ImportedVessel),
+                InputPayload::ClaimSlot {
+                    slot: SlotRef::RebuiltBody,
+                } => standing_claim_ends_old_wait(before, stage, SlotRef::RebuiltBody),
+                _ => false,
+            })
+}
+
+/// A closed mother's slot releases this claim without ending the same wait.
+/// Otherwise a placement must be witnessed by its priced arrival Event.
+fn old_claim_release_is_valid(
+    before: &World,
+    stage: &World,
+    planned: &[underworld_gen::Submitted],
+    died: &[sim_core::ids::PersonId],
+    id: sim_core::ids::BirthSlotId,
+) -> bool {
+    let mother_died = before
+        .slots()
+        .get(&id)
+        .is_some_and(|slot| died.contains(&slot.mother));
+    if stage.slots().contains_key(&id) == mother_died {
+        return false;
+    }
+    placement_ends_old_wait(before, stage, planned)
+        || (mother_died
+            && stage.player_wait().is_some_and(|wait| {
+                before
+                    .player_wait()
+                    .is_some_and(|old| wait.ghost == old.ghost)
+                    && wait.claim.is_none()
+            })
+            && matches!(
+                stage.souls().places.get(&before.souls().player),
+                Some(SoulPlace::Waiting { .. })
+            ))
+}
+
 proptest! {
     // Feature: underworld, Property 11: Slots open, are claimed and are born correctly.
     #[test]
@@ -1536,13 +1599,23 @@ proptest! {
                 let InputPayload::ClaimSlot { slot } = entry.payload else { continue };
                 match slot {
                     SlotRef::Birth(id) => {
+                        let stage_claim = stage.player_wait().and_then(|wait| wait.claim);
                         let due = stage.slots().get(&id).is_some_and(|slot| slot.birth == tick);
-                        if due {
-                            prop_assert!(births.iter().any(|body| after.persons()[body].soul == before.souls().player),
-                                "tick {}: claim {} did not give the Player_Soul a body", tick.0, id.0);
-                        } else if stage.slots().contains_key(&id) {
-                            prop_assert_eq!(after.player_wait().and_then(|wait| wait.claim), Some(id),
-                                "tick {}: a claim on an open slot was lost", tick.0);
+                        if stage_claim == Some(id) {
+                            prop_assert!(stage.slots().contains_key(&id),
+                                "tick {}: applied claim {} points to a closed slot", tick.0, id.0);
+                            if due {
+                                prop_assert!(births.iter().any(|body| after.persons()[body].soul == before.souls().player),
+                                    "tick {}: claim {} did not give the Player_Soul a body", tick.0, id.0);
+                            } else {
+                                prop_assert_eq!(after.player_wait().and_then(|wait| wait.claim), Some(id),
+                                    "tick {}: a live claim on an open slot was lost", tick.0);
+                            }
+                        } else {
+                            prop_assert_eq!(stage_claim, None,
+                                "tick {}: applied claim {} was replaced", tick.0, id.0);
+                            prop_assert!(old_claim_release_is_valid(&before, &stage, &planned, &died, id),
+                                "tick {}: applied claim {} disappeared without its mother dying or a witnessed placement of the original wait", tick.0, id.0);
                         }
                     }
                     SlotRef::ImportedVessel | SlotRef::RebuiltBody => {
@@ -1567,48 +1640,9 @@ proptest! {
                 } else {
                     prop_assert_eq!(stage_claim, None,
                         "tick {}: held claim {} was replaced", tick.0, id.0);
-                    // Step 2 or 3 can place the Player_Soul in an outsider body;
-                    // step 4 may kill that new body in the very same tick. In that
-                    // case a fresh PlayerWait replaces the old one, rather than
-                    // leaving player_wait as None. The old claim is still released.
-                    // The other release path is the claimed mother's death in step 4.
-                    let mother_died = before.slots().get(&id)
-                        .is_some_and(|slot| died.contains(&slot.mother));
-                    let standing_claim = planned.iter().any(|entry| entry.result.is_ok()
-                        && matches!(entry.payload, InputPayload::ClaimSlot {
-                            slot: SlotRef::ImportedVessel | SlotRef::RebuiltBody
-                        }));
-                    let overdue = matches!(
-                        before.souls().places.get(&before.souls().player),
-                        Some(SoulPlace::Waiting { since })
-                            if tick.0.saturating_sub(since.0) > params.player_max_wait
-                    );
-                    let player_arrival = events.iter().find_map(|event| match event.kind {
-                        EventKind::Possession { person, .. } | EventKind::Rebuild { person, .. }
-                            if after.persons()[&person].soul == before.souls().player => Some(person),
-                        _ => None,
-                    });
-                    let old_wait_ended = (standing_claim || overdue) && player_arrival.is_some_and(|body| {
-                        match stage.souls().places.get(&before.souls().player) {
-                            Some(SoulPlace::Body(current)) =>
-                                *current == body && stage.player_wait().is_none(),
-                            Some(SoulPlace::Waiting { since }) =>
-                                *since == tick && died.contains(&body)
-                                    && stage.player_wait().is_some_and(|wait|
-                                        wait.ghost == body && wait.claim.is_none()),
-                            _ => false,
-                        }
-                    });
-                    prop_assert!(mother_died || old_wait_ended,
-                        "tick {}: held claim {} disappeared without its mother dying or the Player_Soul being placed",
+                    prop_assert!(old_claim_release_is_valid(&before, &stage, &planned, &died, id),
+                        "tick {}: held claim {} disappeared without its mother dying or a witnessed placement of the original wait",
                         tick.0, id.0);
-                    if mother_died {
-                        prop_assert!(!stage.slots().contains_key(&id),
-                            "tick {}: dead mother's slot {} remained open", tick.0, id.0);
-                    } else {
-                        prop_assert!(stage.slots().contains_key(&id),
-                            "tick {}: held slot {} closed before birth without its mother dying", tick.0, id.0);
-                    }
                 }
             }
         }
