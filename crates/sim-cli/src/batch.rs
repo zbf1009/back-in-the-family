@@ -42,9 +42,11 @@
 //!
 //! Every seed is processed even after failures; each failure is also written to stderr.
 
+use std::fmt::Write as _;
 use std::io::Write;
 
 use crate::args::{self, Parsed};
+use crate::auto_player::DevotedLiving;
 use crate::commands::{
     EXIT_FAILED, EXIT_OK, EXIT_USAGE_OR_MALFORMED, MAX_RANDOM_INPUTS, MAX_TICKS, default_config,
     load_config,
@@ -52,7 +54,7 @@ use crate::commands::{
 use crate::inputs::generate_inputs;
 use sim_core::checksum::Checksum;
 use sim_core::events::EventKind;
-use sim_core::ids::Tick;
+use sim_core::ids::{InputSeq, Tick};
 use sim_core::input::{InputPayload, TickInput};
 use sim_core::invariants::{InvariantChecker, Violation};
 use sim_core::replay::{
@@ -61,6 +63,7 @@ use sim_core::replay::{
 };
 use sim_core::tick::Sim;
 use sim_core::underworld::nodes::{ChoiceSource, NodeFamily};
+use sim_core::underworld::player::latest_body;
 use sim_core::underworld::slots::SlotRef;
 use sim_core::values::Origin;
 use sim_core::world::{Life, RejectReason, SoulPlace, World, WorldConfig};
@@ -77,11 +80,13 @@ const BAND_MIN: u64 = 40;
 const BAND_MAX: u64 = 60;
 
 pub const BATCH_USAGE: &str = "usage: sim-cli batch --seeds A..=B --ticks N \
-[--random-inputs K] [--config FILE] [--require-targets]\n\
+[--random-inputs K] [--config FILE] [--require-targets] [--devoted] [--require-reachability]\n\
 --seeds is an inclusive range (or a single seed A), at most 10000 seeds; \
 --random-inputs defaults to 60; without --config: {\"opening_residents\":50}; \
---require-targets fails a seed whose R17.1, R17.8 or R17.9 target does not pass; \
-outsiders_le_births_third is reported only";
+--require-targets fails a passive seed whose R17.1, R17.8 or R17.9 target does not pass; \
+--devoted adds H4 living acts and reports LS-R17 targets without gating them; \
+--require-reachability requires --devoted and gates applied Devoted counts; \
+--devoted and --require-targets cannot be combined; outsiders_le_births_third is reported only";
 
 /// Parses `--seeds`: `A..=B` (inclusive) or a single `A`. Rejects descending ranges,
 /// malformed text and ranges of more than [`MAX_SEEDS`] seeds.
@@ -180,6 +185,7 @@ struct SeedStats {
     nodes: [[u64; 2]; 2],
     player_lives: String,
     targets: Targets,
+    devoted: Option<DevotedReport>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -252,6 +258,190 @@ pub fn zero_count_failures(t: &Totals, list: &[&'static str]) -> Vec<&'static st
         }
     }
     failures
+}
+
+const CANDIDATE_NAMES: [&str; 5] = ["dream", "haunting", "bribe", "imported", "rebuilt"];
+
+#[derive(Debug, Eq, PartialEq)]
+struct DevotedWait {
+    ghost: sim_core::ids::PersonId,
+    credited: u64,
+    acts: u64,
+    candidates: [bool; 5],
+}
+
+impl Default for DevotedWait {
+    fn default() -> Self {
+        Self {
+            ghost: sim_core::ids::PersonId(0),
+            credited: 0,
+            acts: 0,
+            candidates: [false; 5],
+        }
+    }
+}
+
+#[derive(Default, Debug, Eq, PartialEq)]
+struct DevotedReport {
+    waits: Vec<DevotedWait>,
+    active: Option<DevotedWait>,
+    submitted: u64,
+    applied: u64,
+    rejected: u64,
+}
+
+impl DevotedReport {
+    fn before_tick(&mut self, sim: &Sim) {
+        let world = sim.world();
+        let soul = world.souls().player;
+        if let SoulPlace::Waiting { .. } = world.souls().places[&soul] {
+            if self.active.is_none() {
+                self.active = Some(DevotedWait {
+                    ghost: latest_body(world, soul).expect("waiting Player ghost"),
+                    ..DevotedWait::default()
+                });
+            }
+            let wait = self.active.as_mut().expect("initialized wait");
+            let account = &world.joss()[&soul];
+            let params = world.params();
+            let connected = world.relations().keys().any(|&(from, to)| {
+                to == wait.ghost
+                    && world
+                        .persons()
+                        .get(&from)
+                        .is_some_and(|person| matches!(person.life, Life::Alive { .. }))
+            });
+            let capped = account.capped_spent_in(world.tick());
+            let possible = [
+                account.balance >= params.dream_price && connected,
+                account.balance >= params.haunt_price
+                    && connected
+                    && capped.saturating_add(params.haunt_price) <= params.yearly_cap,
+                account.balance >= 1,
+                account.balance >= params.imported_price,
+                account.balance >= params.rebuilt_price
+                    && capped.saturating_add(params.rebuilt_price) <= params.yearly_cap,
+            ];
+            for (candidate, possible) in wait.candidates.iter_mut().zip(possible) {
+                *candidate |= possible;
+            }
+        }
+    }
+
+    fn after_tick(
+        &mut self,
+        sim: &Sim,
+        first_event: usize,
+        act_seq: Option<InputSeq>,
+        living: &mut DevotedLiving,
+    ) -> Result<(), String> {
+        let world = sim.world();
+        if let Some(seq) = act_seq {
+            self.submitted += 1;
+            let result = sim
+                .last_outcomes()
+                .iter()
+                .find(|outcome| outcome.seq == seq)
+                .ok_or("missing devoted act outcome")?;
+            if result.result.is_ok() {
+                self.applied += 1;
+                living.applied();
+            } else {
+                self.rejected += 1;
+            }
+        }
+        let soul = world.souls().player;
+        for event in &world.log().events()[first_event..] {
+            match event.kind {
+                EventKind::Death { person } if world.persons()[&person].soul == soul => {
+                    if let Some(previous) = self.active.take() {
+                        self.waits.push(previous);
+                    }
+                    self.active = Some(DevotedWait {
+                        ghost: person,
+                        acts: living.applied_in_life(),
+                        ..DevotedWait::default()
+                    });
+                }
+                EventKind::Offering {
+                    ghost, credited, ..
+                } => {
+                    if let Some(wait) = self.active.as_mut().filter(|wait| wait.ghost == ghost) {
+                        wait.credited = wait.credited.saturating_add(credited);
+                    }
+                }
+                EventKind::Birth { person }
+                | EventKind::Possession { person, .. }
+                | EventKind::Rebuild { person, .. }
+                    if world.persons()[&person].soul == soul =>
+                {
+                    if let Some(wait) = self.active.take() {
+                        self.waits.push(wait);
+                    }
+                }
+                _ => {}
+            }
+        }
+        if !matches!(world.souls().places[&soul], SoulPlace::Waiting { .. })
+            && let Some(wait) = self.active.take()
+        {
+            self.waits.push(wait);
+        }
+        Ok(())
+    }
+
+    fn candidate_counts(&self) -> [u64; 5] {
+        let mut counts = [0; 5];
+        for wait in self.waits.iter().chain(self.active.iter()) {
+            for (count, &candidate) in counts.iter_mut().zip(&wait.candidates) {
+                *count += u64::from(candidate);
+            }
+        }
+        counts
+    }
+
+    fn line(&self, seed: u64) -> String {
+        let mut line = format!("seed {seed} devoted waits=");
+        for (index, wait) in self.waits.iter().chain(self.active.iter()).enumerate() {
+            if index > 0 {
+                line.push(';');
+            }
+            let _ = write!(
+                line,
+                "{}:joss={},zero={},acts={},afford_candidates=",
+                index + 1,
+                wait.credited,
+                u8::from(wait.credited == 0),
+                wait.acts
+            );
+            let mut first = true;
+            for (name, &yes) in CANDIDATE_NAMES.iter().zip(&wait.candidates) {
+                if yes {
+                    if !first {
+                        line.push(',');
+                    }
+                    line.push_str(name);
+                    first = false;
+                }
+            }
+            if first {
+                line.push('-');
+            }
+        }
+        let waits = self.waits.len() + usize::from(self.active.is_some());
+        let zero = self
+            .waits
+            .iter()
+            .chain(self.active.iter())
+            .filter(|wait| wait.credited == 0)
+            .count();
+        let _ = write!(
+            line,
+            " zero_credit_waits={zero}/{waits} acts=submitted:{},applied:{},rejected:{}",
+            self.submitted, self.applied, self.rejected
+        );
+        line
+    }
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -585,6 +775,7 @@ fn stats_of(world: &World, ticks: u64, tally: &Tally, final_checksum: String) ->
             .map(|&reason| count_of(world, reason))
             .collect(),
         targets,
+        devoted: None,
     }
 }
 
@@ -703,11 +894,14 @@ fn drive_sim(
     ticks: u64,
     check: &dyn Fn(&World) -> Result<(), Violation>,
     mut observe: TickObserver<'_>,
-) -> Result<Tally, DriveError> {
+    devoted: bool,
+) -> Result<(Tally, Option<DevotedReport>), DriveError> {
     let mut checker = InvariantChecker::new(sim.world())
         .map_err(|violation| DriveError::Invariant { tick: 0, violation })?;
     let mut tally = Tally::new(sim.world());
     let mut auto_player = crate::auto_player::AutoPlayer::default();
+    let mut devoted_report = devoted.then(DevotedReport::default);
+    let mut living = DevotedLiving::default();
     for _ in 0..ticks {
         let tick = sim.world().tick();
         let player_wait_before = match sim.world().souls().places[&sim.world().souls().player] {
@@ -717,11 +911,31 @@ fn drive_sim(
         if let Some(callback) = &mut observe {
             callback(sim, false);
         }
+        if let Some(report) = devoted_report.as_mut() {
+            report.before_tick(sim);
+        }
         for payload in auto_player.plan(sim) {
             sim.submit(tick, payload)
                 .map_err(|e| DriveError::Setup(format!("auto-player input refused: {e}")))?;
         }
+        let first_event = sim.world().log().len();
+        let act_seq = if devoted {
+            living
+                .plan(sim)
+                .map(|payload| {
+                    sim.submit(tick, payload)
+                        .map_err(|e| DriveError::Setup(format!("devoted input refused: {e}")))
+                })
+                .transpose()?
+        } else {
+            None
+        };
         sim.step();
+        if let Some(report) = devoted_report.as_mut() {
+            report
+                .after_tick(sim, first_event, act_seq, &mut living)
+                .map_err(DriveError::Divergence)?;
+        }
         checker
             .after_tick(sim.world())
             .map_err(|violation| DriveError::Invariant {
@@ -740,7 +954,7 @@ fn drive_sim(
             .count_underworld(sim)
             .map_err(DriveError::Divergence)?;
     }
-    Ok(tally)
+    Ok((tally, devoted_report))
 }
 
 fn checked_stats(sim: &Sim, ticks: u64, tally: &Tally) -> Result<SeedStats, String> {
@@ -767,10 +981,23 @@ pub fn report_sim(
     ticks: u64,
     mut observe: impl FnMut(&Sim, bool),
 ) -> Result<String, String> {
-    let tally = drive_sim(&mut sim, ticks, &|_| Ok(()), Some(&mut observe))
+    let (tally, _) = drive_sim(&mut sim, ticks, &|_| Ok(()), Some(&mut observe), false)
         .map_err(|failure| format!("{failure:?}"))?;
     let stats = checked_stats(&sim, ticks, &tally)?;
     Ok(ok_line(sim.world().seed(), ticks, &stats))
+}
+
+/// Test the committed Devoted reporter with a stress World and inspect both tick phases.
+#[doc(hidden)]
+pub fn report_devoted_sim(
+    mut sim: Sim,
+    ticks: u64,
+    mut observe: impl FnMut(&Sim, bool),
+) -> Result<String, String> {
+    let (tally, devoted) = drive_sim(&mut sim, ticks, &|_| Ok(()), Some(&mut observe), true)
+        .map_err(|failure| format!("{failure:?}"))?;
+    checked_stats(&sim, ticks, &tally)?;
+    Ok(devoted.expect("devoted report").line(sim.world().seed()))
 }
 
 /// Runs one seed. `check` runs after every tick on top of the built-in
@@ -782,6 +1009,7 @@ fn run_seed(
     ticks: u64,
     random_inputs: u64,
     require_targets: bool,
+    devoted: bool,
     check: &dyn Fn(&World) -> Result<(), Violation>,
 ) -> SeedOutcome {
     let inputs = generate_inputs(
@@ -800,8 +1028,8 @@ fn run_seed(
             return SeedOutcome::Setup(format!("input refused: {e}"));
         }
     }
-    let tally = match drive_sim(&mut sim, ticks, check, None) {
-        Ok(tally) => tally,
+    let (tally, devoted_report) = match drive_sim(&mut sim, ticks, check, None, devoted) {
+        Ok(result) => result,
         Err(outcome) => return outcome.into(),
     };
 
@@ -823,7 +1051,8 @@ fn run_seed(
     let Some(last) = sim.checksums().last() else {
         return SeedOutcome::Setup("no ticks were run".to_owned());
     };
-    let stats = stats_of(sim.world(), ticks, &tally, last.to_hex_string());
+    let mut stats = stats_of(sim.world(), ticks, &tally, last.to_hex_string());
+    stats.devoted = devoted_report;
     if require_targets && !stats.targets.pass() {
         return SeedOutcome::Targets {
             failing: stats.targets.failing(),
@@ -842,19 +1071,36 @@ fn run_batch(
     ticks: u64,
     random_inputs: u64,
     require_targets: bool,
+    devoted: bool,
+    require_reachability: bool,
     check: &dyn Fn(&World) -> Result<(), Violation>,
     out: &mut dyn Write,
     err: &mut dyn Write,
 ) -> i32 {
     let (mut total, mut ok) = (0u64, 0u64);
     let mut totals = Totals::default();
+    let mut candidate_totals = [0u64; 5];
     for seed in first..=last {
         total += 1;
-        let line = match run_seed(seed, config, ticks, random_inputs, require_targets, check) {
+        let line = match run_seed(
+            seed,
+            config,
+            ticks,
+            random_inputs,
+            require_targets,
+            devoted,
+            check,
+        ) {
             SeedOutcome::Ok(stats) => {
                 ok += 1;
                 totals.add(&stats);
                 let _ = writeln!(out, "{}", ok_line(seed, ticks, &stats));
+                if let Some(report) = stats.devoted.as_ref() {
+                    let _ = writeln!(out, "{}", report.line(seed));
+                    for (sum, count) in candidate_totals.iter_mut().zip(report.candidate_counts()) {
+                        *sum += count;
+                    }
+                }
                 continue;
             }
             SeedOutcome::Targets { failing, stats } => {
@@ -871,24 +1117,56 @@ fn run_batch(
         let _ = writeln!(out, "{line}");
         let _ = writeln!(err, "{line}");
     }
-    let _ = writeln!(
-        out,
-        "batch: totals dreams={} hauntings={} bribes={} birth_claims={} imported_claims={} rebuilt_claims={} carry_overs={} nodes_dream_interpretation={} nodes_magistrate_ruling={}",
-        totals.dreams,
-        totals.hauntings,
-        totals.bribes,
-        totals.birth_claims,
-        totals.imported_claims,
-        totals.rebuilt_claims,
-        totals.carry_overs,
-        totals.nodes_dream_interpretation,
-        totals.nodes_magistrate_ruling
-    );
+    if devoted {
+        let _ = writeln!(
+            out,
+            "batch: totals dreams={} hauntings={} bribes={} birth_claims={} imported_claims={} rebuilt_claims={} carry_overs={} nodes_dream_interpretation={} nodes_magistrate_ruling={} afford_candidates=dream:{},haunting:{},bribe:{},imported:{},rebuilt:{}",
+            totals.dreams,
+            totals.hauntings,
+            totals.bribes,
+            totals.birth_claims,
+            totals.imported_claims,
+            totals.rebuilt_claims,
+            totals.carry_overs,
+            totals.nodes_dream_interpretation,
+            totals.nodes_magistrate_ruling,
+            candidate_totals[0],
+            candidate_totals[1],
+            candidate_totals[2],
+            candidate_totals[3],
+            candidate_totals[4]
+        );
+    } else {
+        let _ = writeln!(
+            out,
+            "batch: totals dreams={} hauntings={} bribes={} birth_claims={} imported_claims={} rebuilt_claims={} carry_overs={} nodes_dream_interpretation={} nodes_magistrate_ruling={}",
+            totals.dreams,
+            totals.hauntings,
+            totals.bribes,
+            totals.birth_claims,
+            totals.imported_claims,
+            totals.rebuilt_claims,
+            totals.carry_overs,
+            totals.nodes_dream_interpretation,
+            totals.nodes_magistrate_ruling
+        );
+    }
     let _ = writeln!(out, "batch: {ok}/{total} seeds ok");
-    if ok == total {
+    let failures = if devoted && require_reachability {
+        zero_count_failures(&totals, DEVOTED_ZERO_COUNT_LIST)
+    } else {
+        Vec::new()
+    };
+    if !failures.is_empty() {
+        let line = format!("batch: FAIL zero counts: {}", failures.join(", "));
+        let _ = writeln!(err, "{line}");
+    }
+    if ok == total && failures.is_empty() {
         EXIT_OK
     } else {
-        let _ = writeln!(err, "batch: {} of {total} seeds FAILED", total - ok);
+        if ok != total {
+            let _ = writeln!(err, "batch: {} of {total} seeds FAILED", total - ok);
+        }
         EXIT_FAILED
     }
 }
@@ -897,7 +1175,7 @@ pub fn batch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let parsed = match args::parse_with_switches(
         args,
         &["seeds", "ticks", "random-inputs", "config"],
-        &["require-targets"],
+        &["require-targets", "devoted", "require-reachability"],
     ) {
         Ok(p) => p,
         Err(e) => {
@@ -906,12 +1184,22 @@ pub fn batch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
         }
     };
     match setup(&parsed) {
-        Ok((range, config, ticks, random_inputs, require_targets)) => run_batch(
+        Ok((
             range,
             config,
             ticks,
             random_inputs,
             require_targets,
+            devoted,
+            require_reachability,
+        )) => run_batch(
+            range,
+            config,
+            ticks,
+            random_inputs,
+            require_targets,
+            devoted,
+            require_reachability,
             &|_| Ok(()),
             out,
             err,
@@ -923,7 +1211,7 @@ pub fn batch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     }
 }
 
-type BatchSetup = ((u64, u64), WorldConfig, u64, u64, bool);
+type BatchSetup = ((u64, u64), WorldConfig, u64, u64, bool, bool, bool);
 
 fn setup(parsed: &Parsed) -> Result<BatchSetup, String> {
     if let Some(stray) = parsed.positionals().first() {
@@ -951,12 +1239,23 @@ fn setup(parsed: &Parsed) -> Result<BatchSetup, String> {
         Some(path) => load_config(path)?,
         None => default_config(),
     };
+    let devoted = parsed.get("devoted").is_some();
+    let require_targets = parsed.get("require-targets").is_some();
+    let require_reachability = parsed.get("require-reachability").is_some();
+    if devoted && require_targets {
+        return Err("--devoted cannot be combined with --require-targets".to_owned());
+    }
+    if require_reachability && !devoted {
+        return Err("--require-reachability requires --devoted".to_owned());
+    }
     Ok((
         range,
         config,
         ticks,
         random_inputs,
-        parsed.get("require-targets").is_some(),
+        require_targets,
+        devoted,
+        require_reachability,
     ))
 }
 
@@ -1017,6 +1316,8 @@ mod tests {
             30,
             20,
             require_targets,
+            false,
+            false,
             check,
             &mut out,
             &mut err,
@@ -1233,7 +1534,8 @@ outsiders_le_births_third=pass"
 
     /// A `SeedStats` from a real 30-tick seed 1 run with the targets replaced.
     fn stats_with(targets: Targets) -> SeedStats {
-        let SeedOutcome::Ok(mut stats) = run_seed(1, small_config(), 30, 20, false, &|_| Ok(()))
+        let SeedOutcome::Ok(mut stats) =
+            run_seed(1, small_config(), 30, 20, false, false, &|_| Ok(()))
         else {
             panic!("seed 1 runs");
         };

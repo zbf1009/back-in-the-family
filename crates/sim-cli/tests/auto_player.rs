@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use proptest::prelude::*;
 use sim_cli::auto_player::{Strategy, strategy_for_wait};
-use sim_cli::batch::report_sim;
+use sim_cli::batch::{report_devoted_sim, report_sim};
 use sim_core::events::EventKind;
 use sim_core::ids::Tick;
 use sim_core::input::{InputPayload, TickInput};
@@ -299,6 +299,96 @@ proptest! {
         prop_assert_eq!(field(&line, "nodes="), format!("dream_interpretation:external:{},rules:{};magistrate_ruling:external:{},rules:{}", facts.nodes[0][0], facts.nodes[0][1], facts.nodes[1][0], facts.nodes[1][1]));
         prop_assert_eq!(number(&line, "max_wait_player="), facts.max_wait);
         prop_assert_eq!(field(&line, "player_lives="), facts.lives);
+    }
+}
+
+// Feature: underworld, Property 22: The batch report counts equal the recorded facts.
+proptest! {
+    #![proptest_config(ProptestConfig { cases: 100, ..ProptestConfig::default() })]
+
+    #[test]
+    fn property_22_devoted_wait_report_matches_recorded_facts(seed in any::<u64>()) {
+        let mut credited = 0u64;
+        let mut current_ghost = None;
+        let mut acts_in_life = 0u64;
+        let mut wait_acts = 0u64;
+        let mut candidates = [false; 5];
+        let mut waits = Vec::new();
+        let mut before_events = 0usize;
+        let mut submitted = 0u64;
+        let mut applied = 0u64;
+        let mut rejected = 0u64;
+        let mut tick_inputs = 0usize;
+        let mut previous_body = None;
+        let a = report_devoted_sim(stress(seed), TICKS, |sim, completed| {
+            let world = sim.world();
+            let soul = world.souls().player;
+            if !completed {
+                if let SoulPlace::Body(body) = world.souls().places[&soul] {
+                    if previous_body != Some(body) { acts_in_life = 0; previous_body = Some(body); }
+                } else {
+                    previous_body = None;
+                }
+                tick_inputs = sim.inputs().for_tick(world.tick()).len();
+                if let SoulPlace::Waiting { .. } = world.souls().places[&soul] {
+                    let ghost = current_ghost.expect("waiting ghost");
+                    let a = &world.joss()[&soul];
+                    let p = world.params();
+                    let connected = world.relations().keys().any(|&(from,to)| to == ghost
+                        && matches!(world.persons()[&from].life, Life::Alive { .. }));
+                    let capped = a.capped_spent_in(world.tick());
+                    for (target, possible) in candidates.iter_mut().zip([
+                        a.balance >= p.dream_price && connected,
+                        a.balance >= p.haunt_price && connected && capped.saturating_add(p.haunt_price) <= p.yearly_cap,
+                        a.balance >= 1,
+                        a.balance >= p.imported_price,
+                        a.balance >= p.rebuilt_price && capped.saturating_add(p.rebuilt_price) <= p.yearly_cap,
+                    ]) { *target |= possible; }
+                }
+                return;
+            }
+            let tick = Tick(world.tick().0 - 1);
+            let inputs = sim.inputs().for_tick(tick);
+            for (input, outcome) in inputs.iter().zip(sim.last_outcomes()).skip(tick_inputs) {
+                if let InputPayload::Act { actor, .. } = input.payload
+                    && previous_body == Some(actor)
+                {
+                    submitted += 1;
+                    if outcome.result.is_ok() { applied += 1; acts_in_life += 1; }
+                    else { rejected += 1; }
+                }
+            }
+            for event in &world.log().events()[before_events..] {
+                match event.kind {
+                    EventKind::Death { person } if world.persons()[&person].soul == soul => {
+                        if current_ghost.take().is_some() { waits.push((credited,wait_acts,candidates)); }
+                        current_ghost = Some(person);
+                        credited = 0; candidates = [false; 5]; wait_acts = acts_in_life;
+                    }
+                    EventKind::Offering { ghost, credited: amount, .. } if Some(ghost) == current_ghost => credited += amount,
+                    EventKind::Birth { person } | EventKind::Possession { person, .. } | EventKind::Rebuild { person, .. }
+                        if world.persons()[&person].soul == soul && current_ghost.take().is_some() => {
+                        waits.push((credited,wait_acts,candidates)); credited = 0; candidates = [false; 5];
+                    }
+                    _ => {}
+                }
+            }
+            before_events = world.log().len();
+        }).unwrap();
+        if current_ghost.is_some() { waits.push((credited,wait_acts,candidates)); }
+        let mut expected = format!("seed {seed} devoted waits=");
+        for (index, (credit, acts, possible)) in waits.iter().enumerate() {
+            if index > 0 { expected.push(';'); }
+            expected.push_str(&format!("{}:joss={credit},zero={},acts={acts},afford_candidates=", index + 1, u8::from(*credit == 0)));
+            let names: Vec<_> = ["dream","haunting","bribe","imported","rebuilt"].into_iter().zip(possible)
+                .filter_map(|(name,&yes)| yes.then_some(name)).collect();
+            if names.is_empty() { expected.push('-'); } else { expected.push_str(&names.join(",")); }
+        }
+        let zero = waits.iter().filter(|(credit,_,_)| *credit == 0).count();
+        expected.push_str(&format!(" zero_credit_waits={zero}/{} acts=submitted:{submitted},applied:{applied},rejected:{rejected}", waits.len()));
+        prop_assert_eq!(&a, &expected);
+        let b = report_devoted_sim(stress(seed), TICKS, |_, _| {}).unwrap();
+        prop_assert_eq!(a, b);
     }
 }
 

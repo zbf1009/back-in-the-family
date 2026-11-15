@@ -10,6 +10,8 @@ struct ReportFigures<'a> {
     player_lives: String,
     auto_placed: u64,
     max_wait_player: u64,
+    targets: [bool; 3],
+    afford_candidates: [u64; 5],
 }
 
 #[test]
@@ -82,6 +84,10 @@ proptest! {
         other_player_lives in any::<String>(),
         other_auto_placed in any::<u64>(),
         other_max_wait_player in any::<u64>(),
+        targets in proptest::array::uniform3(any::<bool>()),
+        other_targets in proptest::array::uniform3(any::<bool>()),
+        candidates in proptest::array::uniform5(any::<u64>()),
+        other_candidates in proptest::array::uniform5(any::<u64>()),
     ) {
         // Generate the expected failure set from the input mask, not from Totals or
         // the production function's name-to-field selection.
@@ -101,7 +107,7 @@ proptest! {
             .enumerate()
             .filter_map(|(index, &name)| (zero_mask & (1 << index) != 0).then_some(name))
             .collect();
-        let first = ReportFigures { totals: &totals, player_lives, auto_placed, max_wait_player };
+        let first = ReportFigures { totals: &totals, player_lives, auto_placed, max_wait_player, targets, afford_candidates: candidates };
         let mut changed = totals;
         changed.birth_claims = other_birth_claims;
         let second = ReportFigures {
@@ -109,13 +115,15 @@ proptest! {
             player_lives: other_player_lives,
             auto_placed: other_auto_placed,
             max_wait_player: other_max_wait_player,
+            targets: other_targets,
+            afford_candidates: other_candidates,
         };
         let first_failures = zero_count_failures(first.totals, DEVOTED_ZERO_COUNT_LIST);
         prop_assert_eq!(&first_failures, &expected);
         prop_assert_eq!(first_failures.is_empty(), zero_mask == 0);
         prop_assert_eq!(zero_count_failures(second.totals, DEVOTED_ZERO_COUNT_LIST), first_failures,
             "report-only figures changed from {:?} to {:?}",
-            (&first.player_lives, first.auto_placed, first.max_wait_player),
-            (&second.player_lives, second.auto_placed, second.max_wait_player));
+            (&first.player_lives, first.auto_placed, first.max_wait_player, first.targets, first.afford_candidates),
+            (&second.player_lives, second.auto_placed, second.max_wait_player, second.targets, second.afford_candidates));
     }
 }

@@ -1,6 +1,6 @@
 //! Seeded tooling policy for the Player_Soul; only submitted inputs change the World.
 
-use sim_core::ids::Tick;
+use sim_core::ids::{PersonId, Tick};
 use sim_core::input::InputPayload;
 use sim_core::rng::{StreamTag, below, draw};
 use sim_core::tick::Sim;
@@ -8,8 +8,8 @@ use sim_core::underworld::carry_over::TraitName;
 use sim_core::underworld::dreams::DreamIntent;
 use sim_core::underworld::nodes::NodeRef;
 use sim_core::underworld::slots::SlotRef;
-use sim_core::values::Traits;
-use sim_core::world::SoulPlace;
+use sim_core::values::{SocialKind, Traits};
+use sim_core::world::{Life, SoulPlace};
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Strategy {
@@ -42,6 +42,106 @@ struct WaitPlan {
 pub struct AutoPlayer {
     waits_seen: u64,
     per_wait: Option<WaitPlan>,
+}
+
+/// The 9.5 H4 living social-act budget, reset for each Player body.
+#[derive(Default)]
+pub struct DevotedLiving {
+    body: Option<PersonId>,
+    next_day: u64,
+    next_kind: usize,
+    kin_cursor: usize,
+    applied_in_life: u64,
+}
+
+impl DevotedLiving {
+    pub fn applied_in_life(&self) -> u64 {
+        self.applied_in_life
+    }
+
+    pub fn applied(&mut self) {
+        self.applied_in_life = self.applied_in_life.saturating_add(1);
+    }
+
+    /// Plans at most one act on the body's 30-day schedule, even if no target exists.
+    pub fn plan(&mut self, sim: &Sim) -> Option<InputPayload> {
+        let world = sim.world();
+        let SoulPlace::Body(body) = world.souls().places[&world.souls().player] else {
+            self.body = None;
+            return None;
+        };
+        if self.body != Some(body) {
+            self.body = Some(body);
+            self.next_day = world.tick().0;
+            self.next_kind = 0;
+            self.kin_cursor = 0;
+            self.applied_in_life = 0;
+        }
+        if world.tick().0 < self.next_day {
+            return None;
+        }
+        self.next_day = self.next_day.saturating_add(30);
+        // BTreeMap Person order is ID order. The cursor indexes the current kin set,
+        // exactly as in the 9.5 diagnostic (it does not track an absolute ID).
+        let kin_count = world
+            .persons()
+            .values()
+            .filter(|p| {
+                p.id != body
+                    && matches!(p.life, Life::Alive { .. })
+                    && world
+                        .relations()
+                        .get(&(p.id, body))
+                        .is_some_and(|r| r.tags.has_kinship())
+            })
+            .count();
+        let target = if kin_count == 0 {
+            world
+                .persons()
+                .values()
+                .filter(|p| p.id != body && matches!(p.life, Life::Alive { .. }))
+                .max_by_key(|p| {
+                    (
+                        world
+                            .relations()
+                            .get(&(p.id, body))
+                            .map_or(0, |r| r.affinity.get()),
+                        std::cmp::Reverse(p.id),
+                    )
+                })
+                .map(|p| p.id)?
+        } else {
+            let selected = self.kin_cursor % kin_count;
+            let target = world
+                .persons()
+                .values()
+                .filter(|p| {
+                    p.id != body
+                        && matches!(p.life, Life::Alive { .. })
+                        && world
+                            .relations()
+                            .get(&(p.id, body))
+                            .is_some_and(|r| r.tags.has_kinship())
+                })
+                .nth(selected)
+                .expect("counted kin")
+                .id;
+            self.kin_cursor = self.kin_cursor.saturating_add(1);
+            target
+        };
+        let kind = if self.next_kind.is_multiple_of(2) {
+            SocialKind::Help
+        } else {
+            SocialKind::Gift
+        };
+        self.next_kind = self.next_kind.saturating_add(1);
+        Some(InputPayload::Act {
+            kind,
+            actor: body,
+            target,
+            intensity: 100,
+        })
+    }
 }
 
 fn strongest_trait(traits: &Traits) -> TraitName {

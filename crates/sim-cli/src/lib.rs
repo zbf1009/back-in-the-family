@@ -27,7 +27,7 @@ USAGE:
   sim-cli replay FILE...
   sim-cli snapshot --replay FILE --at TICK --out FILE
   sim-cli check-size DIR [--max-bytes N]
-  sim-cli batch --seeds A..=B --ticks N [--random-inputs K] [--config FILE] [--require-targets]
+  sim-cli batch --seeds A..=B --ticks N [--random-inputs K] [--config FILE] [--require-targets] [--devoted] [--require-reachability]
   sim-cli measure [--runs N] [--residents N]
   sim-cli grading-outputs --cards FILE --out FILE
   sim-cli grading-golden --cards FILE --outputs FILE --out FILE
@@ -61,7 +61,12 @@ batch        For each seed in the inclusive range A..=B (or a single seed A; at 
              counts, node resolutions, player lives, rejections and targets; then the
              nine underworld totals and `batch: OK/TOTAL seeds ok`. Output is byte-identical
              for the same arguments. --require-targets enforces the R17.1, R17.8 and
-             R17.9 life-sim targets (the zero-count gate is added after calibration).
+             R17.9 life-sim targets on the passive batch. --devoted adds the H4 living
+             social-act budget and prints per-wait joss, applied acts and separate
+             afford_candidates; life-sim targets are report-only in this mode.
+             --require-reachability requires --devoted and fails if any of the eight
+             applied underworld counts is zero; --devoted alone gates only invariants.
+             --devoted cannot be combined with --require-targets.
              Failed invariants print the tick, criterion and detail and exit 1.
              NOTE: --seeds A..=B is a range, unlike the plain decimal numbers of the other flags.
 measure      Time one 80-year lifetime (80 x 365 = 29200 daily ticks)
@@ -88,7 +93,8 @@ EXIT CODES:
   0  success
   1  replay: a checksum diverged (first divergent tick is printed); record: the fresh
      replay failed its own verification; check-size: a file is at or above the limit;
-     batch: any seed broke an invariant or diverged
+     batch: an invariant or replay failed, a passive required target failed, or a
+     devoted required applied count was zero
   2  usage error, unreadable or malformed file, invalid config, I/O error
      (replay with several files: all are processed; 2 wins over 1)";
 

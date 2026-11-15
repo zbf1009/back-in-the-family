@@ -711,6 +711,68 @@ fn batch_usage_errors_exit_two() {
 }
 
 #[test]
+fn devoted_flag_rules_and_candidate_reporting() {
+    for args in [
+        &[
+            "batch",
+            "--seeds",
+            "1",
+            "--ticks",
+            "10",
+            "--require-reachability",
+        ][..],
+        &[
+            "batch",
+            "--seeds",
+            "1",
+            "--ticks",
+            "10",
+            "--devoted",
+            "--require-targets",
+        ],
+    ] {
+        let output = sim_cli(args);
+        assert_eq!(code(&output), 2, "{}", stderr(&output));
+        assert!(stdout(&output).is_empty());
+    }
+    let args = ["batch", "--seeds", "1", "--ticks", "40", "--devoted"];
+    let a = sim_cli(&args);
+    let b = sim_cli(&args);
+    assert_eq!(code(&a), 0, "{}", stderr(&a));
+    assert_eq!(a.stdout, b.stdout);
+    let out = stdout(&a);
+    assert!(
+        out.contains(
+            "seed 1 devoted waits= zero_credit_waits=0/0 acts=submitted:2,applied:2,rejected:0"
+        ),
+        "{out}"
+    );
+    assert!(out.contains(" afford_candidates=dream:0,haunting:0,bribe:0,imported:0,rebuilt:0"));
+    assert!(out.contains("batch: totals dreams=0 hauntings=0 bribes=0"));
+    assert!(out.ends_with("batch: 1/1 seeds ok\n"));
+}
+
+#[test]
+fn devoted_reachability_fails_on_applied_zeros_not_candidates() {
+    let output = sim_cli(&[
+        "batch",
+        "--seeds",
+        "1",
+        "--ticks",
+        "40",
+        "--devoted",
+        "--require-reachability",
+    ]);
+    assert_eq!(code(&output), 1);
+    assert!(
+        stdout(&output)
+            .contains(" afford_candidates=dream:0,haunting:0,bribe:0,imported:0,rebuilt:0")
+    );
+    let fail = "batch: FAIL zero counts: dreams, hauntings, bribes, imported_claims, rebuilt_claims, carry_overs, nodes_dream_interpretation, nodes_magistrate_ruling";
+    assert!(stderr(&output).contains(fail), "{}", stderr(&output));
+}
+
+#[test]
 fn batch_uses_a_config_file() {
     let dir = TempDir::new("batch-config");
     let cfg = dir.path("c.json");
