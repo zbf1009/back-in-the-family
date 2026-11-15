@@ -2223,3 +2223,132 @@ batch: 5/5 seeds ok
 - OP-U13 step 5 rebuilt lever after offering-scale trials: `rebuilt_price 400 → 120` (satisfies `100 < 120 <= 460`), cumulative diff `/tmp/underworld-10.1-2026-11-15/rebuilt-120.diff`. `cargo run --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200` exit 0, five `ok`, hard targets pass; `batch: totals dreams=2 hauntings=1 bribes=2 birth_claims=2 imported_claims=1 rebuilt_claims=0 carry_overs=6 nodes_dream_interpretation=2 nodes_magistrate_ruling=2`. Run `/tmp/underworld-10.1-2026-11-15/rebuilt-120-5.log`. Rebuilt-strategy seed 2 has only 20 credits (spent on dream), seed 5 only 13; trial the minimum allowed rebuilt price 101 next, without changing any other lever.
 - Step 5 final permitted rebuilt-price trial `rebuilt_price 120 → 101` (`imported_price 100 < 101 <= yearly_cap 500 - haunt_price 40`), cumulative diff `/tmp/underworld-10.1-2026-11-15/rebuilt-101.diff`: `cargo run --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200` exit 0, five `ok`, hard targets pass; Player credits 0/20/500/0/0/13; `batch: totals dreams=2 hauntings=1 bribes=2 birth_claims=2 imported_claims=1 rebuilt_claims=0 carry_overs=6 nodes_dream_interpretation=2 nodes_magistrate_ruling=2`. Run `/tmp/underworld-10.1-2026-11-15/rebuilt-101-5.log`. The two first RebuiltBody-strategy waits (seeds 2, 5) receive only 20 and 13 credits even at funeral factor 40. The 160-credit median step-4 goal is also unmet (median 6.5); further scaling the funeral factor cannot credit the seed-1/seed-4 waits whose credit stays zero, and seed 3 already hits the 500 cap. Per OP-U13 step 6 stop: rebuilt_claims remains zero after offering-scale and rebuilt-price levers. Do not wire the gate, mark task 10.1 complete, or claim five-seed gated acceptance; restore experimental Params pending Author decision. Potential Author decisions: revise the design's affordability/credit target or explicitly approve a new calibration lever (e.g. an altered offering eligibility/formula or Auto_Player strategy), or accept a red gate. No such policy change is authorized here.
 
+
+### Spec: underworld — final check (task 12.1, 2026-11-15)
+
+- Starting commit `a7b6ddf523` (prior historical WIP archive); `git status --porcelain=v1 --untracked-files=all` empty before `cargo clean` and again before this log append. The retained proptest regression row is unchanged; its scenario seed occurs in historical fault logs, but its opaque proptest hash was not independently reproduced in this checkpoint. Earlier 10.1 trial STOP wording predates the Author’s OP-U15 decision and the later 10.1 closure, so the historical entries were preserved without rewriting. The task 10.1 checkbox differs from the closure entry and was not edited.
+- `cargo clean` exit **0**, 0.377 s wall (separate monotonic timing), removed 5,387 files / 4.8 GiB. Then exactly one full `scripts/gates.sh` invocation from that clean build: exit **0**, **1239.154 s wall** (20 min 39.154 s), printed `All gates passed.`. Clean plus full-gate timings total **1239.531 s** as an arithmetic sum, not a continuous measurement. Full stdout/stderr: `/home/kaiki/.cache/back-in-the-family/underworld/12.1/gates.log`; measured timings and exit status: `/home/kaiki/.cache/back-in-the-family/underworld/12.1/gates-timing.json`. R14.4 command `git diff --exit-code afaf87c -- crates/sim-core/src/llm eval/probe/templates/decision.system_one.v1.txt` exited **0**. No second gate run, changed property case count or parameter adjustment.
+- Gate-step seconds below are measured from monotonic timestamps at successive `==> ` output boundaries; nested web/probe/build markers are grouped under their parent gate. Such boundaries include adjacent output/transition overhead and are not individually instrumented exact command durations. Both 80-year steps stayed under the spec’s 60-second stop point; relative to the prior life-sim acceptance figure of about 20 s, this Devoted step added 24.753 s to the gate.
+
+| Existing gate step (script order) | Boundary-to-boundary seconds |
+|---|---:|
+| `cargo fmt --check` | 0.399 |
+| `cargo tree -p sim-core -e normal (checking for rand / getrandom)` | 0.062 |
+| `cargo clippy --workspace --all-targets -- -D warnings` | 9.818 |
+| `cargo clippy -p sim-core -p sim-wasm --target wasm32-unknown-unknown -- -D warnings` | 5.816 |
+| `cargo clippy -p sim-wasm --features bench --target wasm32-unknown-unknown -- -D warnings` | 0.194 |
+| `cargo test --workspace` | 1029.174 |
+| `cargo run -q --release -p sim-cli -- batch --seeds 1..=20 --ticks 2000` | 10.560 |
+| `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets` | 24.310 |
+| `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --devoted --require-reachability` | 24.753 |
+| `cargo test -p sim-wasm --features bench --test bench` | 4.122 |
+| `cargo test -p sim-wasm --target wasm32-unknown-unknown` | 31.839 |
+| `scripts/wasm-build.sh` | 14.376 |
+| `scripts/check-pnpm-version.sh` | 0.053 |
+| `mise exec -- pnpm --dir web install --frozen-lockfile` | 1.519 |
+| `mise exec -- pnpm --dir eval/probe install --frozen-lockfile` | 0.273 |
+| `mise exec -- pnpm --dir eval/probe run probe check-manifest` | 0.222 |
+| `mise exec -- pnpm --dir web run typecheck` | 2.746 |
+| `mise exec -- pnpm --dir web run test:unit` | 3.197 |
+| `mise exec -- pnpm --dir eval/probe run typecheck` | 4.510 |
+| `mise exec -- pnpm --dir eval/probe run test:unit` | 15.467 |
+| `mise exec -- pnpm --dir eval/probe run probe check-web-imports` | 0.217 |
+| `scripts/web-build.sh` | 0.946 |
+| `mise exec -- pnpm --dir web run test:smoke` | 54.578 |
+
+- Passive acceptance batch from this gate run (five `ok` lines and totals, exactly as printed):
+
+```text
+seed 1 ok ticks=29200 final=b7d43807a7b10c1c residents_min=48 residents_max=52 band_40_60_ticks=29200 queue_final=0 max_wait_npc=942 births=52 deaths=50 imported=0 rebuilt=0 origin_final=native:52,possessed:0,rebuilt:0 arrivals=native:52,possessed:0,rebuilt:0 events=13593 relations_max=2520 rejections=unknown_person:8,dead_person:31,self_target:5,intensity_out_of_range:0,id_exhausted:0,official_person:0,no_ghost:0,not_waiting:0,not_connected:0,rate_limited:0,insufficient_joss:0,yearly_cap:0,bad_amount:0,node_pending:0,slot_closed:0,slot_claimed:0,claim_held:0,register_wait:0,unknown_node:0,option_not_in_set:0,already_chosen:0 offerings=44 dreams=0 hauntings=0 bribes=0 claims=birth:1,imported:0,rebuilt:0 auto_placed=0 carry_overs=1 nodes=dream_interpretation:external:0,rules:0;magistrate_ruling:external:0,rules:0 max_wait_player=408 player_lives=1:death=13533,age_days=25519,joss=0;2:alive invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 2 ok ticks=29200 final=60aac25e66d04ee4 residents_min=48 residents_max=52 band_40_60_ticks=29200 queue_final=0 max_wait_npc=1095 births=58 deaths=59 imported=3 rebuilt=0 origin_final=native:51,possessed:1,rebuilt:0 arrivals=native:58,possessed:3,rebuilt:0 events=13729 relations_max=2355 rejections=unknown_person:5,dead_person:37,self_target:4,intensity_out_of_range:1,id_exhausted:0,official_person:0,no_ghost:0,not_waiting:0,not_connected:0,rate_limited:0,insufficient_joss:0,yearly_cap:0,bad_amount:0,node_pending:0,slot_closed:0,slot_claimed:0,claim_held:0,register_wait:0,unknown_node:0,option_not_in_set:0,already_chosen:0 offerings=117 dreams=0 hauntings=0 bribes=0 claims=birth:0,imported:0,rebuilt:0 auto_placed=1 carry_overs=1 nodes=dream_interpretation:external:0,rules:0;magistrate_ruling:external:0,rules:0 max_wait_player=1096 player_lives=1:death=11745,age_days=24572,joss=0;2:alive invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 3 ok ticks=29200 final=d42c8597714be26a residents_min=47 residents_max=52 band_40_60_ticks=29200 queue_final=0 max_wait_npc=1095 births=49 deaths=53 imported=3 rebuilt=3 origin_final=native:47,possessed:2,rebuilt:3 arrivals=native:49,possessed:3,rebuilt:3 events=14949 relations_max=2298 rejections=unknown_person:3,dead_person:27,self_target:6,intensity_out_of_range:2,id_exhausted:0,official_person:0,no_ghost:0,not_waiting:0,not_connected:0,rate_limited:0,insufficient_joss:0,yearly_cap:0,bad_amount:0,node_pending:0,slot_closed:0,slot_claimed:0,claim_held:0,register_wait:0,unknown_node:0,option_not_in_set:0,already_chosen:0 offerings=52 dreams=1 hauntings=0 bribes=1 claims=birth:0,imported:0,rebuilt:0 auto_placed=1 carry_overs=1 nodes=dream_interpretation:external:1,rules:0;magistrate_ruling:external:0,rules:1 max_wait_player=1096 player_lives=1:death=12890,age_days=29515,joss=34;2:alive invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 4 ok ticks=29200 final=8827a29693a6db43 residents_min=47 residents_max=52 band_40_60_ticks=29200 queue_final=1 max_wait_npc=1095 births=51 deaths=51 imported=1 rebuilt=0 origin_final=native:50,possessed:1,rebuilt:0 arrivals=native:51,possessed:1,rebuilt:0 events=13345 relations_max=2597 rejections=unknown_person:3,dead_person:38,self_target:5,intensity_out_of_range:3,id_exhausted:0,official_person:0,no_ghost:0,not_waiting:0,not_connected:0,rate_limited:0,insufficient_joss:0,yearly_cap:0,bad_amount:0,node_pending:0,slot_closed:0,slot_claimed:0,claim_held:0,register_wait:0,unknown_node:0,option_not_in_set:0,already_chosen:0 offerings=70 dreams=0 hauntings=0 bribes=0 claims=birth:1,imported:0,rebuilt:0 auto_placed=0 carry_overs=2 nodes=dream_interpretation:external:0,rules:0;magistrate_ruling:external:0,rules:0 max_wait_player=668 player_lives=1:death=8563,age_days=26176,joss=0;2:death=28531,age_days=19535,joss=0 invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 5 ok ticks=29200 final=24761c26dae6c515 residents_min=49 residents_max=52 band_40_60_ticks=29200 queue_final=0 max_wait_npc=889 births=52 deaths=51 imported=1 rebuilt=0 origin_final=native:51,possessed:1,rebuilt:0 arrivals=native:52,possessed:1,rebuilt:0 events=13180 relations_max=2320 rejections=unknown_person:3,dead_person:37,self_target:3,intensity_out_of_range:3,id_exhausted:0,official_person:0,no_ghost:0,not_waiting:0,not_connected:0,rate_limited:0,insufficient_joss:0,yearly_cap:0,bad_amount:0,node_pending:0,slot_closed:0,slot_claimed:0,claim_held:0,register_wait:0,unknown_node:0,option_not_in_set:0,already_chosen:0 offerings=47 dreams=0 hauntings=0 bribes=1 claims=birth:0,imported:0,rebuilt:0 auto_placed=1 carry_overs=1 nodes=dream_interpretation:external:0,rules:0;magistrate_ruling:external:0,rules:1 max_wait_player=1096 player_lives=1:death=17607,age_days=33009,joss=3;2:alive invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+batch: totals dreams=1 hauntings=0 bribes=2 birth_claims=2 imported_claims=0 rebuilt_claims=0 carry_overs=6 nodes_dream_interpretation=1 nodes_magistrate_ruling=2
+```
+
+- Devoted reachability batch from this gate run (five `ok` lines, five `devoted` lines and totals, exactly as printed):
+
+```text
+seed 1 ok ticks=29200 final=6aab26584ea42cd5 residents_min=48 residents_max=52 band_40_60_ticks=29200 queue_final=0 max_wait_npc=942 births=52 deaths=50 imported=0 rebuilt=0 origin_final=native:52,possessed:0,rebuilt:0 arrivals=native:52,possessed:0,rebuilt:0 events=14542 relations_max=2520 rejections=unknown_person:8,dead_person:31,self_target:5,intensity_out_of_range:0,id_exhausted:0,official_person:0,no_ghost:0,not_waiting:0,not_connected:0,rate_limited:0,insufficient_joss:0,yearly_cap:0,bad_amount:0,node_pending:0,slot_closed:0,slot_claimed:0,claim_held:0,register_wait:0,unknown_node:0,option_not_in_set:0,already_chosen:0 offerings=58 dreams=1 hauntings=1 bribes=1 claims=birth:1,imported:0,rebuilt:0 auto_placed=0 carry_overs=1 nodes=dream_interpretation:external:1,rules:0;magistrate_ruling:external:0,rules:1 max_wait_player=408 player_lives=1:death=13533,age_days=25519,joss=124;2:alive invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 1 devoted waits=1:joss=124,zero=0,acts=452,afford_candidates=dream,haunting,bribe zero_credit_waits=0/1 acts=submitted:961,applied:961,rejected:0
+seed 2 ok ticks=29200 final=5324c9766084c792 residents_min=48 residents_max=52 band_40_60_ticks=29200 queue_final=0 max_wait_npc=1095 births=57 deaths=58 imported=2 rebuilt=1 origin_final=native:51,possessed:0,rebuilt:1 arrivals=native:57,possessed:2,rebuilt:1 events=14778 relations_max=2381 rejections=unknown_person:5,dead_person:37,self_target:4,intensity_out_of_range:1,id_exhausted:0,official_person:0,no_ghost:0,not_waiting:0,not_connected:0,rate_limited:0,insufficient_joss:0,yearly_cap:0,bad_amount:0,node_pending:0,slot_closed:0,slot_claimed:0,claim_held:0,register_wait:0,unknown_node:0,option_not_in_set:0,already_chosen:0 offerings=125 dreams=1 hauntings=1 bribes=1 claims=birth:0,imported:0,rebuilt:1 auto_placed=0 carry_overs=1 nodes=dream_interpretation:external:1,rules:0;magistrate_ruling:external:0,rules:1 max_wait_player=180 player_lives=1:death=11745,age_days=24572,joss=500;2:alive invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 2 devoted waits=1:joss=500,zero=0,acts=392,afford_candidates=dream,haunting,bribe,imported,rebuilt zero_credit_waits=0/1 acts=submitted:968,applied:968,rejected:0
+seed 3 ok ticks=29200 final=08116b4277f98f89 residents_min=47 residents_max=52 band_40_60_ticks=29200 queue_final=0 max_wait_npc=1095 births=49 deaths=53 imported=3 rebuilt=3 origin_final=native:47,possessed:2,rebuilt:3 arrivals=native:49,possessed:3,rebuilt:3 events=15883 relations_max=2303 rejections=unknown_person:3,dead_person:27,self_target:6,intensity_out_of_range:2,id_exhausted:0,official_person:0,no_ghost:0,not_waiting:0,not_connected:0,rate_limited:0,insufficient_joss:0,yearly_cap:0,bad_amount:0,node_pending:0,slot_closed:0,slot_claimed:0,claim_held:0,register_wait:0,unknown_node:0,option_not_in_set:0,already_chosen:0 offerings=57 dreams=1 hauntings=1 bribes=1 claims=birth:0,imported:1,rebuilt:0 auto_placed=0 carry_overs=1 nodes=dream_interpretation:external:1,rules:0;magistrate_ruling:external:0,rules:1 max_wait_player=180 player_lives=1:death=12890,age_days=29515,joss=331;2:alive invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 3 devoted waits=1:joss=331,zero=0,acts=430,afford_candidates=dream,haunting,bribe,imported zero_credit_waits=0/1 acts=submitted:968,applied:968,rejected:0
+seed 4 ok ticks=29200 final=3241b96e371af404 residents_min=47 residents_max=52 band_40_60_ticks=29200 queue_final=0 max_wait_npc=1095 births=52 deaths=51 imported=1 rebuilt=0 origin_final=native:51,possessed:1,rebuilt:0 arrivals=native:52,possessed:1,rebuilt:0 events=14307 relations_max=2608 rejections=unknown_person:3,dead_person:38,self_target:5,intensity_out_of_range:3,id_exhausted:0,official_person:0,no_ghost:0,not_waiting:0,not_connected:0,rate_limited:0,insufficient_joss:0,yearly_cap:0,bad_amount:0,node_pending:0,slot_closed:0,slot_claimed:0,claim_held:0,register_wait:0,unknown_node:0,option_not_in_set:0,already_chosen:0 offerings=82 dreams=1 hauntings=1 bribes=1 claims=birth:1,imported:0,rebuilt:0 auto_placed=0 carry_overs=1 nodes=dream_interpretation:external:1,rules:0;magistrate_ruling:external:1,rules:0 max_wait_player=299 player_lives=1:death=8563,age_days=26176,joss=770;2:alive invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 4 devoted waits=1:joss=770,zero=0,acts=286,afford_candidates=dream,haunting,bribe,imported,rebuilt zero_credit_waits=0/1 acts=submitted:964,applied:964,rejected:0
+seed 5 ok ticks=29200 final=0b0f19d6f5972a90 residents_min=49 residents_max=52 band_40_60_ticks=29200 queue_final=0 max_wait_npc=754 births=52 deaths=51 imported=0 rebuilt=1 origin_final=native:51,possessed:0,rebuilt:1 arrivals=native:52,possessed:0,rebuilt:1 events=14192 relations_max=2360 rejections=unknown_person:3,dead_person:37,self_target:3,intensity_out_of_range:3,id_exhausted:0,official_person:0,no_ghost:0,not_waiting:0,not_connected:0,rate_limited:0,insufficient_joss:0,yearly_cap:0,bad_amount:0,node_pending:0,slot_closed:0,slot_claimed:0,claim_held:0,register_wait:0,unknown_node:0,option_not_in_set:0,already_chosen:0 offerings=51 dreams=1 hauntings=1 bribes=1 claims=birth:0,imported:0,rebuilt:1 auto_placed=0 carry_overs=1 nodes=dream_interpretation:external:1,rules:0;magistrate_ruling:external:0,rules:1 max_wait_player=180 player_lives=1:death=17607,age_days=33009,joss=500;2:alive invariants=pass pop_35_65=pass band_95=pass outsiders_le_births=pass outsiders_le_births_third=pass
+seed 5 devoted waits=1:joss=500,zero=0,acts=587,afford_candidates=dream,haunting,bribe,imported,rebuilt zero_credit_waits=0/1 acts=submitted:968,applied:968,rejected:0
+batch: totals dreams=5 hauntings=5 bribes=5 birth_claims=2 imported_claims=1 rebuilt_claims=2 carry_overs=5 nodes_dream_interpretation=5 nodes_magistrate_ruling=5 afford_candidates=dream:5,haunting:5,bribe:5,imported:4,rebuilt:3
+```
+
+- `git log --oneline origin/main..main` before the final log commit (unpushed commits, exact command output):
+
+```text
+a7b6ddf docs: archive prior underworld execution records
+011278a docs: update README and structure for underworld
+bc5df09 docs: mark underworld parity fixture complete
+4441879 test(fixtures): add a parity fixture with external choices
+398e440 docs(steering): add the Devoted reachability gate to the gate list
+7672b4a docs: close underworld task 10.2
+15f7b42 docs: record five devoted fault verdicts
+33378e2 docs: log underworld gate fault evidence and gate time
+974ef6e test(sim-cli): prove passive targets ignore zero underworld totals
+c4e3287 chore(gates): run the devoted reachability gate
+9c248ca docs: log the devoted batch reproduction check
+a4b341e feat(sim-cli): add the devoted batch run
+aa02308 docs: close underworld calibration with no params change
+df68c09 test(sim-cli): finish 9.6 Property 23 and task record
+07f7915 feat(sim-cli): set passive and devoted zero-count lists
+6089153 fix(sim-core): make the bribe atomic and assert append refusals
+324779a test(sim-core): prove the haunting, imported and birth claim paths work
+13bcaaf docs: close underworld 6.15b fault evidence
+18e4726 docs(underworld): require full bribe atomicity in task 6.18
+60c3dbd docs(underworld): add the F1/F2 fix task and the Devoted C2 re-runs
+eddb64c docs: log Kiro's review of the underworld 6.15b verdicts
+e8aec90 docs(underworld): record the post-diagnosis gate split and unblock the remaining tasks
+e49f8fd docs: log the underworld offering diagnosis
+3fa9b64 test(sim-core): add underworld checker recognition tests
+59e6092 test(sim-core): prove the rebuilt body path works
+b5d1385 test(sim-core): correct birth-slot claim lifecycle oracle
+1e4193d docs(underworld): split the gates, add the offering diagnosis and the C1/C2 evidence contract
+fb1b2b5 test(sim-cli): cover zero-count gate with Property 23
+aa30ce7 docs: record U5.3 fault audit
+73f6b96 test(sim-cli): verify auto player and batch report properties
+9edbec4 feat(sim-cli): add auto player and underworld batch reporting
+20ed6ff test(sim-core): recognize same-tick death after player placement
+85ba1dc docs(underworld): close checkpoint 8 with partial fault-injection status
+317393b docs: log underworld invariant fault injections
+7e40319 feat(sim-core): show the underworld in the snapshot
+a722add test(sim-core): tighten underworld property oracles
+05fbd88 test(sim-core): add underworld properties and snapshot WIP
+5086b28 test(sim-core): check the joss ledger and the yearly cap
+2d7318e test(sim-core): add the underworld run generator
+1bf8fdc feat(sim-core): check underworld invariants every tick
+2c1cde3 docs(underworld): checkpoint 5 green
+e9e0ba8 feat(sim-core): add node preview for external choices
+4a8316c feat(sim-core): add bribes and the magistrate ruling
+cde9e14 feat(sim-core): add hauntings
+9ca34ac feat(sim-core): add decision nodes and dreams
+c27062f feat(sim-core): build node contexts with a focus set
+7d73e24 feat(sim-core): add offerings by the living
+db0f174 docs(underworld): log a protected-file exposure during a search
+205bc82 feat(sim-core): add slot claims and carry-over
+99266bb feat(sim-core): bound the player soul's wait
+a97b1ed feat(sim-core): announce birth slots before births
+662f93c docs(underworld): checkpoint 2 green
+278145f feat(sim-core): add the magistrate
+f6b57ed feat(sim-core): add input outcomes and replay format 4
+f07a80a feat(sim-core): add joss paper accounts
+b44fa4b feat(sim-core): add underworld event kinds
+5ebb7d4 feat(sim-core): add underworld ids, stream tags and params
+46e4428 docs(underworld): add the task list
+ed6f94d docs(underworld): add the design and tighten the Auto_Player requirements
+35fc39d docs(underworld): add the requirements
+b679466 docs(steering): sync life-sim close-out and plan specs 5 and 6
+f8939ad docs(life-sim): log the push and live deploy
+```
+
+- stopped for Kiro's audit (task 13.1).
+
