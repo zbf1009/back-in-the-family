@@ -2352,3 +2352,9 @@ f8939ad docs(life-sim): log the push and live deploy
 
 - stopped for Kiro's audit (task 13.1).
 
+
+### Spec: underworld — Kiro audit (task 13.1, 2026-11-15)
+
+- Kiro wrote `docs/underworld-audit.md` against `06813b4`. `scripts/gates.sh` in a fresh clone (no `env`): exit 0, `All gates passed.`, 1,258 s; passive and Devoted 80-year batches `5/5 seeds ok` with final checksums and totals equal to the 10.3 and 12.1 records; R14.4 diff check exits 0. Every requirement row is `met` or `met with note`.
+- Findings for the Author: tasks 10.1 and 12.1 and parents 3, 6, 9, 10, 11, 12 unchecked although done; four log entries duplicated verbatim (no deletion; this note names them: 6.16, 6.15a, 9.6, 11.1); the WIP archive `a7b6ddf` matches Kiro's own copy of the working tree byte for byte but sits at the end of the file out of date order; Kiro's index-only commits of its own entries contributed to the long-lived WIP; no test pins exactly three ruling options; the prescribed U2.5 fault cannot reach the U2.5 checker (Kiro's fault-table error); gate time 1,258 s, of which `cargo test --workspace` about 1,030 s (`tests/underworld.rs` 635 s); Kiro's earlier "target date missed" line was premature, work finished on 2026-11-15.
+- Task 13.1 stays unchecked pending the Author's review. Nothing pushed.
