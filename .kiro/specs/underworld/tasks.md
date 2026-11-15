@@ -350,7 +350,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
       - If the batch fails an LS-R17 target or an invariant, **stop and report** to Kiro with the failing lines; do not change a Params value, a target or a check.
       - _Requirements: 11.7, 11.8_
       - Acceptance: the batch above exits 0 on the committed defaults; `git status` shows only the log before the commit; the R14.4 check. Commit as `docs: close underworld calibration with no params change`.
-  - [ ] 10.2 Wire the zero-count gate, gather the Auto_Player fault evidence, and measure the gate time (Blocked: OP-U14/OP-U15; Unblocked 2026-11-15)
+  - [x] 10.2 Wire the zero-count gate, gather the Auto_Player fault evidence, and measure the gate time (Blocked: OP-U14/OP-U15; Unblocked 2026-11-15)
     - Files: `crates/sim-cli/src/batch.rs`, `crates/sim-cli/src/lib.rs` (help text), `crates/sim-cli/tests/cli.rs`; temporary edits only for the faults (reverted); `docs/kiro-log.md`; `.kiro/specs/underworld/design.md` (dated note `### Measured gate time (<date>)` under "Gates").
     - Wire `zero_count_failures` over `ZERO_COUNT_LIST` into `--require-targets`, only after OP-U14: any zero listed count prints `batch: FAIL zero counts: <names>` and exit status 1. Update `BATCH_USAGE`. Test in `cli.rs` (or a `batch.rs` unit test with constructed `Totals`): a zero listed count gives the FAIL line and exit 1; `rebuilt_claims`, `player_lives`, `auto_placed` and `max_wait_player` never affect the exit status.
     - Auto_Player faults, per design "Checker and fault evidence" (last three bullets), each injected, observed under the C2 rules of 6.15b, reverted and logged:
