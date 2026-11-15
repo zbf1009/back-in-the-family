@@ -12,7 +12,7 @@ use serde_json::Value;
 use sim_wasm::{WasmSim, verify_replay, verify_replay_str};
 use wasm_bindgen_test::wasm_bindgen_test;
 
-const FIXTURES: [(&str, &str); 3] = [
+const FIXTURES: [(&str, &str); 4] = [
     (
         "seed1-pairwise",
         include_str!("../../../fixtures/parity/seed1-pairwise.replay.json"),
@@ -24,6 +24,10 @@ const FIXTURES: [(&str, &str); 3] = [
     (
         "seedbig-pairwise",
         include_str!("../../../fixtures/parity/seedbig-pairwise.replay.json"),
+    ),
+    (
+        "seedU-underworld",
+        include_str!("../../../fixtures/parity/seedU-underworld.replay.json"),
     ),
 ];
 
@@ -80,6 +84,48 @@ fn wasm_sim_api_reproduces_every_recorded_checksum() {
         }
         assert_eq!(sim.tick(), ticks, "fixture {name}");
     }
+}
+
+/// R14.6: the recorded Choose input is applied to a real node, not merely submitted.
+#[cfg(not(target_arch = "wasm32"))]
+#[test]
+fn underworld_fixture_applies_an_external_choice() {
+    use sim_core::ids::Tick;
+    use sim_core::input::InputPayload;
+    use sim_core::replay::{ReplayFile, verify};
+    use sim_core::tick::Sim;
+    use sim_core::underworld::nodes::ChoiceSource;
+    use sim_core::world::WorldConfig;
+
+    let file = ReplayFile::from_json_str(FIXTURES[3].1).expect("underworld replay format");
+    assert!(
+        file.inputs.iter().any(|input| matches!(
+            InputPayload::from(input.payload),
+            InputPayload::Choose { .. }
+        )),
+        "fixture must record a Choose input"
+    );
+    verify(&file).expect("every native checksum must match the fixture");
+
+    let config = WorldConfig::try_from(file.config).expect("underworld config");
+    let mut sim = Sim::new(file.seed, config).expect("underworld opening");
+    for input in &file.inputs {
+        let seq = sim
+            .submit(Tick(input.tick), input.payload.into())
+            .expect("recorded input submits");
+        assert_eq!(seq.0, input.seq, "keep original submission sequence");
+    }
+    for &expected in &file.checksums {
+        assert_eq!(sim.step(), expected, "native checksum for each tick");
+    }
+    assert!(
+        sim.world()
+            .nodes()
+            .resolved
+            .iter()
+            .any(|record| record.source == ChoiceSource::External),
+        "a recorded Choose must be applied as an External NodeRecord"
+    );
 }
 
 /// R18.3 and R18.2: the Snapshot at tick 500 of `seed1-pairwise` is byte-identical to
