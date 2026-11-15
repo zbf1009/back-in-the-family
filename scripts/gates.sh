@@ -38,6 +38,8 @@ run cargo test --workspace
 run cargo run -q --release -p sim-cli -- batch --seeds 1..=20 --ticks 2000
 # R17: Life_Runs (80 years) on the Acceptance_Seeds, with targets enforced.
 run cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets
+# R11.16: Devoted applied-success reachability; LS-R17 stays report-only here.
+run cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --devoted --require-reachability
 run cargo test -p sim-wasm --features bench --test bench
 run cargo test -p sim-wasm --target wasm32-unknown-unknown
 run scripts/wasm-build.sh
