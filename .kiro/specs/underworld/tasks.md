@@ -223,7 +223,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - No production change is expected. If the test finds a difference between the two bodies other than Origin, price and cap accounting, stop and report to Kiro.
     - _Requirements: 7.7, 7.11, 11.13_
     - Acceptance: `cargo test -p sim-core --test underworld a_rebuilt_claim_creates_an_imported_shaped_body` passes; Rust gates; the R14.4 check; the log record contains the function-only wording. Commit as `test(sim-core): prove the rebuilt body path works`.
-  - [ ] 6.15 Checker and fault evidence under the C1/C2 contract (R12.4 to R12.6)
+- [x] 6.15 Checker and fault evidence under the C1/C2 contract (R12.4 to R12.6)
     - Follow design "Checker and fault evidence (C1/C2, R12.4 to R12.6)". The earlier "Fault injections" table and the earlier 6.15 contract are superseded; the earlier 6.15 log entries stay as written and are re-judged in 6.15b. Leave 6.15 unchecked until 6.15a and 6.15b are both done.
     - [x] 6.15a C1: checker recognition tests
       - Files: `crates/sim-core/tests/underworld_checker.rs` (new; or, where a check needs private state, a unit test in `crates/sim-core/src/invariants.rs` next to the existing `U15.x` tests, as the design allows), `docs/kiro-log.md` (appended).
@@ -231,7 +231,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
       - No production code change.
       - _Requirements: 12.4, 12.6_
       - Acceptance: `cargo test -p sim-core --test underworld_checker` passes; Rust gates; the R14.4 check. Spot-check one test: change its asserted label, confirm the test fails, revert, and record the test, the changed label and the failure in the log. The log lists every C1 test name with its label. Commit as `test(sim-core): add underworld checker recognition tests`.
-    - [ ] 6.15b C2: system detection of each production fault, and re-judging the earlier records **STOP**
+    - [x] 6.15b C2: system detection of each production fault, and re-judging the earlier records **STOP**
       - Files: temporary edits only (reverted before any commit); `docs/kiro-log.md` (appended).
       - For each row of the design's C2 column (`U1.3`, `U2.5`, `U2.6`, `U4.3`, `U5.3`, `U7.10`, `U8.3`, `U15.8`, extended `5.8`): inject the listed production fault, run `cargo test -p sim-core --test underworld`, and, where the design's last column marks the fault reachable after the Auto_Player ("expected" or "to be observed": `U1.3`, `U2.5`, `U5.3`, `U7.10`, `U8.3`, `U15.8`, extended `5.8`), also run `cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200`. Record the first guard that fired (one of the guards the row allows), its tick and case or seed, and the causal link to the fault. Record batch reachability as observed, never as a general claim from a shorter run.
       - Compile errors, timeouts, interrupted runs and failures unrelated to the fault do not count. Never disable or weaken another production guard to reach a label. Revert the edit, preserve unrelated WIP, and confirm both commands pass and `git status` shows only the log.
