@@ -2233,3 +2233,236 @@ fn a_rebuilt_claim_creates_an_imported_shaped_body() {
         imported.joss()[&player].cap_year
     );
 }
+
+/// Builds a waiting Player_Soul through an ordinary death tick, then funds it
+/// through test support rather than relying on the offering economy.
+fn waiting_player_for_path_tests(mut params: sim_core::params::Params) -> World {
+    use sim_core::testing::set_invalid_joss_account;
+
+    let opening = World::new(3, WorldConfig::try_new(40).unwrap()).unwrap();
+    let player = opening.souls().player;
+    let SoulPlace::Body(first_body) = opening.souls().places[&player] else {
+        panic!("the opening Player_Soul has a body");
+    };
+    let age = usize::from(opening.age_years(&opening.persons()[&first_body]));
+    params.mortality_ppm_by_age = [0; 120];
+    params.mortality_ppm_by_age[age] = 1_000_000;
+    params.marriage_ppm = 0;
+    params.loan_ppm = 0;
+    params.social_ppm = 0;
+    params.offer_min_affinity = 101;
+    let mut world = World::new_with_params(3, WorldConfig::try_new(40).unwrap(), params).unwrap();
+    world.step(&[]);
+    assert_eq!(
+        world
+            .player_wait()
+            .expect("the player died and waits")
+            .ghost,
+        first_body
+    );
+    assert!(matches!(
+        world.souls().places[&player],
+        SoulPlace::Waiting { .. }
+    ));
+    let mut account = world.joss()[&player];
+    account.balance = params.rebuilt_price.max(params.haunt_price);
+    account.capped_spent = 0;
+    set_invalid_joss_account(&mut world, player, account);
+    world
+}
+
+/// Function-only: proves the path works; says nothing about whether it is
+/// affordable through normal play. R5.2 and R5.4.
+#[test]
+fn a_haunting_applies_and_changes_only_mood() {
+    use sim_core::ids::InputSeq;
+    use sim_core::input::{InputPayload, TickInput};
+    use sim_core::params::Params;
+    use sim_core::underworld::ghosts;
+    use sim_core::world::Life;
+
+    let before = waiting_player_for_path_tests(Params::DEFAULT);
+    let player = before.souls().player;
+    let ghost = before.player_wait().unwrap().ghost;
+    let target = ghosts::connected(&before, ghost)
+        .into_iter()
+        .find(|&id| {
+            before.age_years(&before.persons()[&id]) != before.age_years(&before.persons()[&ghost])
+        })
+        .expect("a connected Resident survives the fixture's mortality band");
+    let tick = before.tick();
+    let start = before.log().len();
+    let balance = before.joss()[&player].balance;
+    let mut with = before.clone();
+    let mut without = before;
+    let (_, outcomes) = with.step_with_outcomes(&[TickInput {
+        tick,
+        seq: InputSeq(1),
+        payload: InputPayload::Haunt { target },
+    }]);
+    without.step(&[]);
+    assert_eq!(outcomes.len(), 1);
+    assert_eq!(outcomes[0].result, Ok(()));
+    assert_eq!(
+        with.joss()[&player].balance,
+        balance - with.params().haunt_price
+    );
+    assert_eq!(with.joss()[&player].capped_spent, with.params().haunt_price);
+    let hauntings: Vec<_> = with.log().events()[start..]
+        .iter()
+        .filter(|event| matches!(event.kind, EventKind::Haunting { .. }))
+        .collect();
+    assert_eq!(hauntings.len(), 1);
+    assert_eq!(hauntings[0].tick, tick);
+    assert_eq!(hauntings[0].kind.actors().as_slice(), &[ghost, target]);
+    assert!(matches!(hauntings[0].kind, EventKind::Haunting {
+        ghost: g, target: t, intensity, price
+    } if g == ghost && t == target && intensity == with.params().haunt_intensity
+        && price == with.params().haunt_price));
+    let mut normalized = with.persons()[&target].clone();
+    let Life::Alive {
+        mood: with_mood, ..
+    } = normalized.life
+    else {
+        panic!("the connected target remains alive");
+    };
+    let Life::Alive {
+        mood: without_mood, ..
+    } = without.persons()[&target].life
+    else {
+        panic!("the control target remains alive");
+    };
+    assert_eq!(
+        i64::from(with_mood.get()),
+        (i64::from(without_mood.get()) - 15).max(-100),
+        "the haunting's documented Mood delta is bounded"
+    );
+    if let Life::Alive { mood, .. } = &mut normalized.life {
+        *mood = without_mood;
+    }
+    assert_eq!(
+        normalized,
+        without.persons()[&target],
+        "no other target field differs"
+    );
+}
+
+/// Function-only: proves the path works; says nothing about whether it is
+/// affordable through normal play. R7.7.
+#[test]
+fn an_imported_claim_creates_the_vessel() {
+    use sim_core::ids::InputSeq;
+    use sim_core::input::{InputPayload, TickInput};
+    use sim_core::params::Params;
+    use sim_core::values::Origin;
+
+    let mut world = waiting_player_for_path_tests(Params::DEFAULT);
+    let player = world.souls().player;
+    let before_people = world.persons().len();
+    let balance = world.joss()[&player].balance;
+    let tick = world.tick();
+    let start = world.log().len();
+    let (_, outcomes) = world.step_with_outcomes(&[TickInput {
+        tick,
+        seq: InputSeq(1),
+        payload: InputPayload::ClaimSlot {
+            slot: SlotRef::ImportedVessel,
+        },
+    }]);
+    assert_eq!(outcomes.len(), 1);
+    assert_eq!(outcomes[0].result, Ok(()));
+    assert!(
+        world.player_wait().is_none(),
+        "the player left the Waiting_Queue"
+    );
+    let SoulPlace::Body(body) = world.souls().places[&player] else {
+        panic!("the Player_Soul is in its new body");
+    };
+    let vessel = &world.persons()[&body];
+    assert_eq!(world.persons().len(), before_people + 1);
+    assert_eq!(vessel.soul, player);
+    assert_eq!(vessel.origin, Origin::Possessed);
+    assert!(matches!(vessel.life, Life::Alive { .. }));
+    assert_eq!(
+        world.joss()[&player].balance,
+        balance - world.params().imported_price
+    );
+    assert_eq!(world.joss()[&player].capped_spent, 0);
+    let possessions: Vec<_> = world.log().events()[start..]
+        .iter()
+        .filter(|event| matches!(event.kind, EventKind::Possession { .. }))
+        .collect();
+    assert_eq!(possessions.len(), 1);
+    assert_eq!(possessions[0].tick, tick);
+    assert!(
+        matches!(possessions[0].kind, EventKind::Possession { person, price }
+        if person == body && price == world.params().imported_price && price > 0)
+    );
+}
+
+/// Function-only: proves the path works; says nothing about whether it is
+/// affordable through normal play. R7.2 and R7.4.
+#[test]
+fn a_birth_slot_claim_places_the_player_at_birth() {
+    use sim_core::ids::InputSeq;
+    use sim_core::input::{InputPayload, TickInput};
+    use sim_core::params::Params;
+    use sim_core::values::Origin;
+
+    let mut params = Params::DEFAULT;
+    params.register_wait = 0;
+    params.birth_lead_days = 3;
+    params.birth_ppm_married = 1_000_000;
+    params.birth_ppm_unmarried = 1_000_000;
+    let mut world = waiting_player_for_path_tests(params);
+    let player = world.souls().player;
+    let ghost = world.player_wait().unwrap().ghost;
+    let slot = world
+        .slots()
+        .values()
+        .find(|slot| {
+            world.age_years(&world.persons()[&slot.mother])
+                != world.age_years(&world.persons()[&ghost])
+        })
+        .cloned()
+        .expect("the death tick announces a slot with a surviving mother");
+    assert_eq!(world.player_wait().unwrap().claim, None);
+    assert!(world.tick() >= world.player_wait().unwrap().access_from);
+    let (_, outcomes) = world.step_with_outcomes(&[TickInput {
+        tick: world.tick(),
+        seq: InputSeq(1),
+        payload: InputPayload::ClaimSlot {
+            slot: SlotRef::Birth(slot.id),
+        },
+    }]);
+    assert_eq!(outcomes.len(), 1);
+    assert_eq!(outcomes[0].result, Ok(()));
+    assert_eq!(world.player_wait().unwrap().claim, Some(slot.id));
+    assert!(world.slots().contains_key(&slot.id));
+    assert!(matches!(
+        world.souls().places[&player],
+        SoulPlace::Waiting { .. }
+    ));
+    while world.tick() < slot.birth {
+        world.step(&[]);
+    }
+    let start = world.log().len();
+    world.step(&[]);
+    assert!(!world.slots().contains_key(&slot.id));
+    assert!(
+        world.player_wait().is_none(),
+        "the Player_Soul left the Waiting_Queue"
+    );
+    let SoulPlace::Body(newborn) = world.souls().places[&player] else {
+        panic!("the Player_Soul took the newborn's body");
+    };
+    assert_eq!(world.persons()[&newborn].soul, player);
+    assert_eq!(world.persons()[&newborn].origin, Origin::Native);
+    assert_eq!(world.persons()[&newborn].birth_day, slot.birth.0 as i64);
+    let births: Vec<_> = world.log().events()[start..]
+        .iter()
+        .filter(|event| matches!(event.kind, EventKind::Birth { person } if person == newborn))
+        .collect();
+    assert_eq!(births.len(), 1);
+    assert_eq!(births[0].tick, slot.birth);
+}
