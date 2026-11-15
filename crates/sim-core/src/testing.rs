@@ -1,4 +1,4 @@
-//! Test-only mutation API for the checksum-sensitivity property (R5.10, Property 14).
+//! Test-only mutation and C1 illegal-fixture API, absent from normal builds.
 //!
 //! Compiled only under `#[cfg(any(test, feature = "test-support"))]`. Integration tests
 //! in `tests/` are built without `cfg(test)`, so `sim-core` enables the `test-support`
@@ -36,6 +36,23 @@ use crate::world::{
     Debt, Derived, Household, Life, Person, Property, PropertyKind, RejectReason, Rejections,
     Relation, SoulPlace, Souls, World, WorldConfig,
 };
+
+/// Inserts an intentionally illegal Event directly into the test-only log for C1
+/// checker-recognition fixtures. Normal simulation Events must use `World::append`.
+pub fn append_invalid_event(world: &mut World, tick: Tick, kind: EventKind) {
+    assert!(tick <= world.tick, "C1 Event cannot be from a future tick");
+    world
+        .log
+        .push(tick, kind, CausedBy::default(), EventTags::empty())
+        .expect("C1 fixture has room for one Event");
+}
+
+/// Sets one existing account in a test-only fixture, without a simulation credit or
+/// spend. C1 uses this to balance its illegal Event ledger; the Rebuilt function-only
+/// test uses it to fund a claim without asserting normal-play affordability.
+pub fn set_invalid_joss_account(world: &mut World, soul: SoulId, account: JossAccount) {
+    *world.joss.get_mut(&soul).expect("C1 Soul has an account") = account;
+}
 
 /// One single-field mutation. Selector fields are resolved modulo the number of
 /// candidates, so any value is legal.
