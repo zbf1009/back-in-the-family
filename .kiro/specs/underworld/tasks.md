@@ -276,7 +276,7 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - File: `crates/sim-cli/tests/batch_gate.rs` (new). Pure-function proptest over generated `Totals`, 1,000 cases.
     - **Property 23: The zero-count gate fails exactly on a zero total.** **Validates: Requirements 11.9, 11.11**
     - Acceptance: `cargo test -p sim-cli --test batch_gate` passes. Commit.
-  - [ ] 9.5 Offering diagnosis (H1–H5) **STOP**
+  - [x] 9.5 Offering diagnosis (H1–H5) **STOP**
     - Executable now, after 6.16. Independent of 6.15: the agent may run it before or after 6.15a/6.15b (the dependency graph places it after 6.15b, following the design's "Next order").
     - Files: none committed except `docs/kiro-log.md` (appended). The diagnostic program is isolated: a scratch program outside the committed tree, or a throwaway file removed after the run. It reads the simulation only through public `sim-core` and `sim-cli` APIs (`test-support` allowed) and submits inputs only as TickInputs. Output files stay outside the repository (for example under `/tmp/`).
     - Follow design "Offering diagnosis (H1–H5)" exactly. Run setup: `Params::DEFAULT` at the current commit, Acceptance_Seeds 1..=5, 29,200 ticks each, two branches per seed: the **passive branch** (the current Auto_Player inputs exactly as `batch` submits them) and the **Devoted_Branch** (the passive inputs plus the H4 social acts, nothing else changed: at most one legal `Act` every 30 days while the Player_Soul's body lives, `Help` first per body then alternating with `Gift`, intensity 100, round-robin over living kin of the body in Person ID order, else the living Resident with the highest affinity toward the body, ties lower ID).
