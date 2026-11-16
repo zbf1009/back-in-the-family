@@ -46,7 +46,7 @@ Tick granularity: **1 day per tick**. Decided by the author on 2026-11-04, after
 
 ## Quality gates
 
-- Rust: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`.
+- Rust: `cargo fmt --check`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo test --workspace`. The workspace `Cargo.toml` sets `[profile.dev.package.sim-core] opt-level = 2` (underworld task 15.1; debug assertions and overflow checks stay on) so the debug property tests fit the CI job's `timeout-minutes: 60`; do not remove it without re-measuring. `scripts/gates.sh` from a clean build takes about 377 s locally (2026-11-16) and the CI run about 10 minutes.
 - Web (`web/`) and probe (`eval/probe/`), run by `scripts/gates.sh` after the Rust gates, the three `sim-cli batch` steps (the short batch `--seeds 1..=20 --ticks 2000`; the passive 80-year acceptance batch `--seeds 1..=5 --ticks 29200 --require-targets`, which hard-checks the invariants and the LS-R17 targets, every underworld count report-only; and the Devoted reachability gate `--seeds 1..=5 --ticks 29200 --devoted --require-reachability`, which hard-checks the invariants and eight applied counts summed over the five seeds (dreams, hauntings, bribes, imported and rebuilt claims, carry-overs, both decision-node families), with birth claims and `afford_candidates` report-only) and `scripts/wasm-build.sh`, in this order:
   - pnpm version check (`scripts/check-pnpm-version.sh`): `mise.toml` and `web/package.json` `packageManager` present and equal (the probe's `packageManager` is checked too).
   - frozen-lockfile install: `pnpm --dir web install --frozen-lockfile`.

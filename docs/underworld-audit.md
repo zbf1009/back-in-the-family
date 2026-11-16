@@ -42,7 +42,7 @@ Status values: `met`, `met with note`, `not met`.
 | R14.4 | `llm/` and template byte-identical | met | Diff check and `source_guard.rs` hash test. |
 | R14.5 | Regeneration stated | met | Commit scan above. |
 | R14.6 | A fixture with an applied External_Choice | met | `fixtures/parity/seedU-underworld.replay.json` (seed 45, `Choose` at tick 765); `parity.rs` asserts an External `NodeRecord`. |
-| R14.7 | Gates from a clean build | met with note | This audit (1,258 s) and kiro-log 12.1 (1,239 s). Note: finding 7. |
+| R14.7 | Gates from a clean build | met with note | This audit (1,258 s) and kiro-log 12.1 (1,239 s). Note: finding 7. Update 2026-11-16: 377 s after task 15.1 (follow-up section below). |
 | R15.1 to R15.14 | The Magistrate | met | Property 7, 14, 15, 17; `U15.1`, `U15.4` to `U15.8` with C1 tests; C2 U15.8 (append refusal, half-applied Bribe found by Property 14 before 6.18). |
 
 ## Findings
@@ -53,14 +53,14 @@ Status values: `met`, `met with note`, `not met`.
 4. **U15.8 before 6.18.** With the Appeal actor swap, the passive 80-year release batch exited 0 with `bribes=0`: every Bribe left a BribeOffering and a spend behind a rejected input, and no per-tick check sees that. 6.18 removed the path (atomic `append_all`). Recorded as evidence that the release batch alone cannot detect half-applied inputs.
 5. **R6.3 test.** No test asserts that the ruling option set equals exactly `grant_next_slot`, `grant_later_slot`, `deny`; it holds by the single constant `RULING_OPTIONS`.
 6. **Fault table error (Kiro's design).** The prescribed U2.5 fault (`credit` ignores the cap) cannot reach the U2.5 checker, because the offering Event caps its `credited` field before calling `credit`; the earlier assertion (debug) or U1.3 (release, and on the Devoted re-run) catches it instead. C1 covers the U2.5 label.
-7. **Gate time.** 1,258 s here, 1,239 s in 12.1, against 346 s at the end of life-sim. `cargo test --workspace` takes about 1,030 s of it in debug: `tests/underworld.rs` 635 s, `sim-cli` `tests/auto_player.rs` 140 s, `tests/cli.rs` 80 s. The two 80-year steps take about 48 s together. The CI job has `timeout-minutes: 45`; the last CI run took 1.3 times the local time, so about 27 minutes is expected. No optimization was made.
+7. **Gate time.** 1,258 s here, 1,239 s in 12.1, against 346 s at the end of life-sim. `cargo test --workspace` takes about 1,030 s of it in debug: `tests/underworld.rs` 635 s, `sim-cli` `tests/auto_player.rs` 140 s, `tests/cli.rs` 80 s. The two 80-year steps take about 48 s together. The CI job has `timeout-minutes: 45`; the last CI run took 1.3 times the local time, so about 27 minutes is expected. No optimization was made. Update 2026-11-16: superseded by task 15.1 (Author, option B); see the follow-up section "task 15.1 and push" below. The text above is kept as written on 2026-11-15.
 8. **Rebuilt_Body.** No unique benefit in this spec, by the Author's decision; the spec 6 node with acceptance targets (a) to (d) is in `structure.md` and the rebirth roles are in `product.md`. Passive players never claim one; the Devoted gate shows two applied claims on normal mechanics.
 9. **Target date.** Kiro's log entry of 2026-11-15 ("The underworld target date 2026-11-15 is missed") was premature: implementation and the final gate run finished on 2026-11-15 (`06813b4`, 22:06); audit and push remain.
 10. **Open for later specs.** The 3.66-year median to first zero for positive kin Relations is to be watched in spec 6 (OP-U15). A precise append-refusal mapping (F1 residual) is a later design. Task 13.1 stays unchecked until the Author has reviewed these findings.
 
 ## Follow-up review (task 14.1, 2026-11-15)
 
-Author's decisions on the findings (kiro-log "Author's audit decisions and close-out edits"): finding 1 fixed by status and indentation edits in `6532d5e`; finding 5 answered by task 14.1; finding 7 kept as separate later work (`structure.md`), build profiles unchanged; findings 2, 3, 6 and 9 stand as recorded, no log entry reordered or deleted.
+Author's decisions on the findings (kiro-log "Author's audit decisions and close-out edits"): finding 1 fixed by status and indentation edits in `6532d5e`; finding 5 answered by task 14.1; finding 7 kept as separate later work (`structure.md`), build profiles unchanged (as decided on 2026-11-15; reversed by task 15.1 after the CI timeout, see the next section); findings 2, 3, 6 and 9 stand as recorded, no log entry reordered or deleted.
 
 Checks run by Kiro on `1abb054`:
 
@@ -72,3 +72,18 @@ Checks run by Kiro on `1abb054`:
 | R6.3 | met with note (inspection only) | met: direct contract test on a fired node and its context |
 
 Tasks 13, 13.1 and 14 are checked. Nothing pushed.
+
+## Follow-up review (task 15.1 and push, 2026-11-16)
+
+Added 2026-11-16 to bring the audit to the current state; the sections above are unchanged in substance.
+
+- The first push (`cb8e88f..ee59702`) ran CI run `43730516957`, which was cancelled by the job's `timeout-minutes: 45` inside "Run gates" with no test failed and nothing deployed. Kiro's estimate in finding 7 (about 27 minutes) was wrong.
+- The Author chose option B. Task 15.1 (`ed70b0b`) added only `[profile.dev.package.sim-core] opt-level = 2` to the workspace `Cargo.toml` (no proptest override) and raised `timeout-minutes` from 45 to 60 in `.github/workflows/deploy.yml`. Debug assertions and overflow checks stay on for `sim-core`; no source, test, case count, Param, Checksum or fixture changed.
+- Kiro's review: `scripts/gates.sh` in a fresh clone of `ed70b0b` exits 0 in 377 s (against 1,258 s in this audit); the 41 batch lines are byte-identical to this audit's run; `tests/underworld.rs` 99 s; R14.4 diff check exits 0.
+- Second push `ee59702..84e0128`: CI run `43789626782` passed gates, deploy configuration check and deploy in about 10 minutes. The underworld build is live.
+
+| Row | Before | After |
+|---|---|---|
+| R14.7 | met with note (1,258 s; CI timeout risk) | met with note (377 s locally, about 10 minutes in CI, `timeout-minutes: 60`) |
+
+Finding 7 is resolved by task 15.1. Tasks 15 and 15.1 are checked.
