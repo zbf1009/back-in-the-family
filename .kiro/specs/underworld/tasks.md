@@ -438,8 +438,8 @@ The tasks are run one at a time by an external terminal coding agent. Kiro does 
     - _Requirements: 6.3, 3.2_
     - Acceptance: the new test passes in `cargo test -p sim-core --test underworld <name>` (or the module path used); Rust gates pass; R14.4 diff check exits 0; append a log entry `### Spec: underworld — audit follow-up 14.1 R6.3 contract test (<date>)` with the test name, command and result; commit `test(sim-core): pin the magistrate ruling option set` (one commit; stage files by name). Then STOP and report the commit hash and results to Kiro.
 
-- [ ] 15. CI gate time (Author decision 2026-11-15, CI run 43730516957 cancelled at 45 minutes, nothing deployed)
-  - [ ] 15.1 Optimize the sim-core debug build for tests and raise the CI timeout
+- [x] 15. CI gate time (Author decision 2026-11-15, CI run 43730516957 cancelled at 45 minutes, nothing deployed)
+  - [x] 15.1 Optimize the sim-core debug build for tests and raise the CI timeout
     - Executed by the terminal agent. Files: `Cargo.toml` (workspace), `.github/workflows/deploy.yml`, `docs/kiro-log.md`. No source or test change.
     - Step 1 baseline (before any edit, on the current HEAD): `cargo clean`, then time `scripts/gates.sh` (wall) and, after it, time `cargo test -p sim-core --test underworld` alone; record both, plus the per-binary `finished in` times of `cargo test --workspace` from the gate output.
     - Step 2: add `[profile.dev.package.sim-core]` with `opt-level = 2`. Optionally add `[profile.dev.package.proptest]` `opt-level = 2` only if a measured comparison shows it lowers the time; record the measurement either way. Do not change any other profile key, any proptest case count, any test, or any `#[cfg]`.
