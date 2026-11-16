@@ -2403,3 +2403,10 @@ f8939ad docs(life-sim): log the push and live deploy
 - Checks by Kiro: the sim-core rustc line under `cargo test -p sim-core --lib --no-run -v` shows `-C opt-level=2` and `-C debug-assertions=on` and no `-C overflow-checks`, so overflow checks follow debug assertions and stay on; the F1 test `a_bribe_with_a_swapped_appeal_spends_nothing_and_fires_no_node` with `--nocapture` prints the debug assertion panic at `magistrate.rs:182` (`UnknownActor` vs `IdExhausted`) and passes. `scripts/gates.sh` in a fresh clone of `ed70b0b`: exit 0, `All gates passed.`, 377 s (against 1,258 s in the 13.1 audit run). The 41 batch lines (short, passive and Devoted, totals included) are byte-identical to the 13.1 audit run; passed-test sum 606 against 605, the difference being the 14.1 test; `tests/underworld.rs` 99 s, `auto_player.rs` 16 s, `cli.rs` 9 s. R14.4 diff check exits 0.
 - A first fresh-clone attempt failed with "Disk quota exceeded" in `/tmp` (Kiro's earlier 4.5 GB audit clone); not a gate failure. Removed and re-run.
 - Tasks 15 and 15.1 checked by Kiro. Nothing pushed.
+
+### Spec: underworld — push and live deploy (2026-11-16)
+
+- The Author approved the push. Kiro re-checked the range (5 commits, `5430c43..84e0128`, nothing new on `origin/main`) and pushed: `ee59702..84e0128`.
+- CI run `43789626782` (`deploy`): success in about 10 minutes (02:01:26 to 02:11:43 UTC; the cancelled run before 15.1 hit 45 minutes); gates, deploy configuration check and `web/dist` deploy all passed. The underworld build is now live.
+- Live check in headless Chrome: page loads with World_Config `{"opening_residents":50}`; seed 1, Create, Run: tick 0 to 90 to 268 in about 4.5 s with changing checksums, Run_State `running`, 60 to 61 ticks per second. The only console error is a 404 for `/favicon.ico` (the site ships none); no page error.
+- This entry stays local and goes out with the next spec's first push.
