@@ -11,24 +11,25 @@ The design adds four things and changes as little else as possible:
 3. **Seams for the UI**: an extended Snapshot, stop reasons returned from `Sim::step`, checked submission (`Sim::try_submit_all`), and new `WasmSim` methods. Replay format 5.
 4. **Web_App**: clock-paced play in the Sim_Worker that stops after any stop tick, a Canvas Town_View behind a small sprite interface, an identity panel, the Choice_Panel, four Scene_Templates, the Chronicle_Panel and the Underworld_Panel; a playthrough Smoke_Test.
 
-Code facts this design relies on (read from the repository on 2026-11-16):
+Code facts from the current repository at the commit where this spec starts (baseline only; target values are defined below in the task boundaries):
 
-| Fact | Where |
+| Baseline fact | Where |
 |---|---|
 | `World::step_with_outcomes` runs steps 1, 2a (`apply_inputs`), 2b (`underworld::resolve_pending`), 3 to 13, 14 (advance), 15 (checksum) | `crates/sim-core/src/tick.rs` |
 | `Nodes { ids: IdCounter, pending: BTreeMap<NodeId, PendingNode>, resolved: Vec<NodeRecord> }`; `pending` is empty at every tick boundary; `NodeRef::Trigger { seq }` | `underworld/nodes.rs` |
 | `InputPayload` has `Act`, `ClaimSlot { slot: SlotRef }`, `Haunt`, `Bribe`, `CarryOver`, `Dream`, `Choose`; `RejectReason::ALL` has 21 entries with canonical tags 0..=20 | `input.rs` |
-| A Standing_Slot claim calls `outsiders::create_outsider`, which draws Traits keyed by the **new Person ID and the claim tick**, then `carry_over::apply` | `underworld/slots.rs`, `outsiders.rs` |
-| `PlayerWait { ghost, access_from, claim, carry_over }` is created by `player::start_wait` from `death::process_deaths` | `underworld/player.rs`, `death.rs` |
-| `choose_player_soul` picks any living Resident aged 20..=50 by one world-level draw; opening loans have due ticks 60..=720 | `opening.rs` |
-| Repayments (step 10, `economy::process_repayments`) roll on monthly anniversaries of the loan tick (`elapsed % 30 == 0`) and pay at most `ceil(principal / 3)`; an overdue Debt stays open | `economy.rs` |
-| At a death, `settle_debts` moves a Debt the deceased owed to the first heir (forgiven when there is no heir or the heir is the creditor) and forgives every Debt the deceased was owed | `death.rs` |
-| Every Event-caused affinity change goes through `social::move_relation` (called from `apply_social` with the new Event's ID in scope); relation decay (step 13) only moves affinity one point toward 0 and never crosses a negative threshold downward; `dreams::change_relation` only moves a Relation toward a Ghost's dead body; births, marriage and the opening write Relations directly but only create or raise them | `social.rs`, `dreams.rs`, `births.rs`, `opening.rs` |
-| The Event_Log is encoded as `(length, BLAKE3 hash-chain digest)`; `CANON_VERSION = 3` | `events.rs`, `canon.rs` |
-| `REPLAY_VERSION = 4`; versions 2 and 3 are rejected as `UnsupportedVersion` | `replay.rs` |
-| `WasmSim` exposes `new`, `submit`, `step`, `tick`, `run_ticks`, `snapshot` | `crates/sim-wasm/src/lib.rs` |
-| The SimController runs `Speed` ticks per Frame (rAF or 16 ms timer) and throttles `status` to 100 ms | `web/src/worker/controller.ts` |
-| Measured batch wall times (release, 5 × 29,200 ticks): passive 25.5 s, Devoted 22.6 s; full gates 377 s from a clean build | `docs/kiro-log.md` (underworld 10.2, 15.1) |
+| Existing canonical version is 3 and existing replay version is 4; versions 2 and 3 are rejected | `canon.rs`, `replay.rs` |
+| `WasmSim` exposes `new`, `submit`, `step`, `tick`, `run_ticks`, `snapshot`; the controller runs Speed ticks per Frame and throttles status | `crates/sim-wasm/src/lib.rs`, `web/src/worker/controller.ts` |
+| Measured baseline batch/full-gate times | `docs/kiro-log.md` |
+
+The target changes are not facts about the current code. Canonical boundaries are task 1.1 (v3→v4 Narrator), task 3.1 (v4→v5 IntroDebt), and task 4.1 (v5→v6 Rebuilt_Draw), each with same-task fixture regeneration. Replay stays v4 through task 4.1; task 6.1 alone raises it to v5 and rejects v2, v3 and v4.
+
+| Target boundary | Canonical change | Fixture rule |
+|---|---|---|
+| task 1.1 | `World.narrator`, narrator Params, Chronicle state | regenerate fixtures as Canon v4 |
+| task 3.1 | `World.intro_debt` and its Canon encoding | regenerate fixtures as Canon v5 |
+| task 4.1 | `PlayerWait.rebuilt_draw` and its Canon encoding | regenerate fixtures as Canon v6 |
+| task 6.1 | replay DTO migration and `REPLAY_VERSION = 5` | migrate/re-record all replay fixtures |
 
 ### Scope guard
 
@@ -351,7 +352,7 @@ export interface SpriteSet {
 
 The placeholder draws filled rectangles, circles and one-character glyphs in monochrome with the limited tints (`self`, `kin`, `rememberer`, `affected`, `neutral`). No image file ships. After the Author's Art_Trial decision, a `kenney.ts` implementation can be added behind the same interface without touching components.
 
-**Art_Trial (Author checkpoint, Requirement 12.2–12.6).** A separate task, not on the critical path: download the Kenney 1-Bit Pack outside the repository, open its license file, record the file name and finding in `docs/kiro-log.md`, render the one representative screen (Town_View with Households and Residents, graveyard, the funeral scene with props, the state glyphs including the Soul_Marker) in a scratch branch or local-only build, record coverage, legibility at 1280×720 and a screenshot path, then **stop for the Author's decision**. No pack file is committed before it. The slice ships with placeholders if the decision comes late.
+**Art_Trial (Author checkpoint, Requirement 12.2–12.6).** This is the C4 release checkpoint in task 11, and therefore blocks the subsequent proof/close phases until the Author records a decision. Download the Kenney 1-Bit Pack outside the repository, open its license file, record the file name and finding in `docs/kiro-log.md`, render the representative screen in a scratch branch or local-only build, record coverage, legibility at 1280×720 and a screenshot path, then **stop for the Author's decision**. No pack file is committed before it. If the decision is late, the slice keeps placeholders and the task closes only with the recorded checkpoint decision.
 
 **Asset gate** (Requirement 12.7, 12.9): `web/scripts/check-deploy.ts` already enforces the 25 MiB limit. It gains one check: every media file in `web/dist` (`.png .gif .webp .jpg .svg .ttf .otf .woff .woff2 .mp3 .ogg .wav`) must be listed in `web/assets/ASSETS.json` with `source: "project"` or a pack name, and every pack name there must appear in the `README.md` third-party table. With placeholders the list is empty and the check passes trivially.
 
@@ -415,6 +416,13 @@ pub struct ChronicleEntry {
 
 pub struct Chronicle { entries: Vec<ChronicleEntry>, digest: [u8; 32] }   // encoded as (len, digest), like EventLog
 ```
+`PlayerFamily` is the closed enum, in canonical and family-order order: `FamilyDeath` (`family_death`), `Inheritance` (`inheritance`), `DebtDue` (`debt_due`), `Feud` (`feud`), and `LifeStage` (`life_stage`). `EntrySource` is `External` (`external`), `RulesDefault` (`rules_default`), or `AutoResolved` (`auto_resolved`). `StakeUnit` is `Money` (`money`), `JossPaper` (`joss_paper`), `Affinity` (`affinity`), or `TraitPoints` (`trait_points`). `PreviewWhat` is `Money` (`money`), `Debt` (`debt`), `Affinity` (`affinity`), or `Trait(TraitName)` (`trait:<trait_name>` in Snapshot text). `PlayerOption` has exactly these 24 IDs, in this append-only canonical tag order: `comfort_mourner`, `send_flowers`, `stay_away`, `keep_it`, `thank_family`, `pay_debts`, `repay_now`, `ask_for_time`, `ignore_it`, `demand_payment`, `forgive_debt`, `wait_it_out`, `apologize`, `retaliate`, `let_it_go`, `ask_for_a_toy`, `visit_grandparents`, `ask_for_nothing`, `stand_up_to_bully`, `tell_a_teacher`, `keep_quiet`, `get_a_job`, `help_at_home`, `tend_the_shrine` (tags 0..=23). The Playthrough tie-break compares the canonical tag, not a locale or string sort.
+
+`SkipReason` is the closed, append-only enum `MissingPerson`, `MissingHousehold`, `MissingDebt`, `DeadPerson`, `DebtNotOpen`, `WrongDebtor`, `InsufficientMoney`, `AlreadyApplied`, and `OutOfBounds`, with Snapshot labels `missing_person`, `missing_household`, `missing_debt`, `dead_person`, `debt_not_open`, `wrong_debtor`, `insufficient_money`, `already_applied`, and `out_of_bounds`, respectively. `EffectPart::check` evaluates the named target and its required state immediately before application: Social requires both named Persons alive and distinct; Repay requires the named Debt open, its debtor equal to the doer, and debtor money at least `amount`; Forgive requires the named Debt open and the chooser the creditor; Trait requires the named Person alive and the delta in -1..=1. It returns the first applicable `SkipReason`; applying a valid part returns the Event IDs it appended.
+
+Every enum above has an explicit `Canon` tag in the listed order. `ChronicleEntry` encodes fields in declaration order, including the skipped `(part index as u8, SkipReason)` list and appended Event IDs. `Chronicle` uses `digest_0 = [0; 32]` and `digest_(n+1) = blake3(digest_n || canonical_bytes(entry_(n+1)))`; its Canon encoding is the u32 entry length followed by the 32-byte digest, exactly as `EventLog`. The Snapshot DTO serializes `family`, `source`, `unit`, `what`, and `SkipReason` using the labels above, all project `u64` values as canonical decimal strings, with `deny_unknown_fields`; `skipped` is an array of `{part, reason}` and no field is omitted except documented optional/null fields.
+
+`IntroDebt::Undesignated` exists only during `opening::generate` before step 9c. It must never be observed at a tick boundary, Checksum, replay, Snapshot, or test fixture; the first completed World is `Grace` or `Ended`. The task 3.1 tests own this assertion, including C1 and Property 19; task 1.1 tests only the Narrator skeleton.
 
 `PlayerOption` is a new closed enum with snake_case IDs (the 24 IDs in the tables above), separate from the underworld `NodeOption`, so the underworld enum and its canonical tags do not change. Canonical tags are explicit and append-only, as in `nodes.rs`.
 
@@ -424,7 +432,7 @@ pub struct Chronicle { entries: Vec<ChronicleEntry>, digest: [u8; 32] }   // enc
 
 `Params` gains: `first_interrupt_min: 600`, `first_interrupt_max: 900`, `interrupt_gap_min: 900`, `interrupt_gap_target: 1_200`, `debt_due_lead: 30`, `opening_trigger_max: 870`, `min_salience: 30`, `life_stage_ages: [2_190, 4_380, 5_840]`. `Params::stress*` keep these defaults.
 
-`CANON_VERSION` goes from 3 to 4 (new World fields `narrator` and `intro_debt`, new `PlayerWait` field, new Params fields). Chronicle encoding as `(len, digest)` keeps per-tick checksum cost O(new entries); `Derived` gets nothing new.
+Canonical encoding advances at each state boundary, rather than hiding several incompatible layouts behind one number: task 1.1 advances `CANON_VERSION` 3→4 for `narrator` and the new Params; task 3.1 advances 4→5 for `intro_debt`; task 4.1 advances 5→6 for `PlayerWait.rebuilt_draw`. Chronicle encoding as `(len, digest)` keeps per-tick checksum cost O(new entries); `Derived` gets nothing new. A fixture committed at an earlier boundary is regenerated by the task that changes its Canon version.
 
 `StreamTag` gains `Narrator` and `RebuiltDraw` with the next free values; existing values never change.
 
@@ -725,7 +733,7 @@ Rust properties use `proptest` over generated worlds (`Params::stress_underworld
 - The existing controller tests that assume "Speed ticks per Frame" (`controller-frames`, `controller-speed`, parts of `controller-clock`) are rewritten for the pacer; their properties (one reply per request, no clock value in handle calls, Speed change applies to the next batch) are kept.
 - Example tests: `pause` reports `user`; `choose` leaves Run_State; rejection reply; empty Chronicle line; dream disabled reasons; no haunting or Bribe control; trademark denylist over `templates.ts`; `check-deploy` with an unlisted `.png`. The advancement gate (Requirement 8.9), driven through `player_node_state()`: `run` and `step` while it reports `answered: false` reply `node_unanswered` with no advancement call, no input change and no pacer-anchor change, and a second `run` fails the same way; a `choose` the handle rejects leaves `answered: false`; after an accepted `choose` the same requests advance; a rejected `choose-and-run` changes nothing and an accepted one submits and advances inside the one request; `set-speed` and `pause` are accepted while the node is unanswered; a `create-world` while a node is unanswered and a frame callback is queued cancels that callback and drops the old queued requests before the reply, and the callback then neither steps nor posts; the run and step controls render disabled exactly while `answered` is false.
 - **Playthrough Smoke_Test** (`tests/smoke/playthrough.spec.ts`): create the world through the seed and config fields with the fixture's values. **Stage 1 at Speed 1** (Requirement 16.2, 16.11): leave Speed at 1, press Run, and measure the wall time from the click to the first `player_node` stop; attach `first-stop-ms` and record it beside the 20 to 30 s target and `first_interrupt_min = 600` in `docs/kiro-log.md`. Later set Speed 365 and use Run; at every stop assert fixture tick/reasons and visible identity, ties and previews, submit the fixture input through page controls, then press Run. Use marked public Step clicks only for the seed-search fallback. Compare all fixture Checksums through the harness at the end. At every `player_node` stop the run and step controls are disabled until the choice is submitted. At the first such stop the test also sends `run` through the Worker request path (the harness posts the request; it never calls the controller directly and never only checks the disabled button) and asserts the reply is `node_unanswered` and the tick did not advance. Because the fixture answers every Player_Node, the gate never changes which ticks the fixture runs, so its Checksums equal the native ones (Requirement 15.5).
-- **Smoke time bound** (Requirement 16.8): `B = 30 s + (ceil(f₁ / 30) + 5) s + ceil((L − f₁) / 1,000) s + 5 s × K + 0.1 s × S`, where `f₁` is the fixture's first stop tick (≤ 870, so the Speed 1 stage takes at most 29 s at Play_Rate 30, plus 5 s for Run latency and pacing jitter), `L` the fixture's last tick (≤ 8,000), `K` the number of stops and `S` the fallback Step clicks (0 normally, ≤ 200). 30 s covers load and create, 1,000 ticks/s is the floor the worker must reach at Speed 365 (target 10,950), 5 s per stop covers the scene and the clicks. With `f₁ ≤ 870`, `L ≤ 8,000`, `K ≤ 10` and `S = 0`, `B ≤ 30 + 34 + 8 + 50 = 122 s`; with the fallback, `B ≤ 142 s`. The playthrough spec's timeout is `B` computed from the stage file; `globalTimeout` becomes 170 s (WS-R9.13, existing specs) + `B`. The task records the measured worker rate at Speed 365; if it is below 1,000 ticks/s the bound is recomputed with the measured rate and logged.
+- **Smoke time bound** (Requirement 16.8): `B = 30 s + ceil(f₁ / (PLAY_RATE × 1)) s + ceil((L − f₁) / (PLAY_RATE × 365)) s + 5 s × K + 0.1 s × S`, with the stage-file ticks `f₁` and `L`, stop count `K`, and fallback Step count `S`. The first term covers load/create, the second is the Speed-1 stage at the fixed 30 ticks/s (plus the separately recorded 20–30 s target check), the third is the Speed-365 target rate, and the stop/Step terms cover UI interaction. This is a timeout bound, not a claim that the worker sustains a hidden 1,000 ticks/s floor; the only pacing contract is Speed × 30 ticks/s. The smoke uses Speed 365 plus Run between stops, or the explicitly marked public-Step fallback, and never mixes the Worker gate into the headless C1 first-stop measurement.
 
 ### Gate additions and cost
 

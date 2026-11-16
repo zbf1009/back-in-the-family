@@ -36,25 +36,23 @@ The tasks are run one at a time by an external terminal coding agent. OMP (stand
 
 Each checkpoint is the proof that one phase works, and the point where the Author can cut scope if the window is closing. The report at each one says what is done, what is not, and the measured time.
 
-- **C1, after task 4.** Headless. `cargo test --workspace` passes. A run of the five Acceptance_Seeds shows the first Player_Life's first Player_Node firing at an offset in the First_Interrupt_Band, `600 <= offset < 900` (that is `600..=899`; an offset of 900 fails), and the report names the family. Run the seeds past offset 900, not to tick 900, so a late first stop is visible as a failure with its real offset instead of as "none". The Intro_Debt is excluded from repayment rolls and from `pay_debts`, and a constructed death that transfers it while the life continues leaves the grace in place.
-- **C2, after task 6.** The regenerated Parity_Fixtures pass native against WASM, and the replay of one stream resolves a Player_Node by Rules_Default (R15.2). No web change yet.
-- **C3, after task 8.** The P-1 gate. In the browser, at the first `player_node` stop, a `run` sent through the Worker request path is answered `node_unanswered` and the tick does not advance; after a choice is submitted, `run` advances and the node resolves with that choice. A rejected choice does not open the gate.
-- **C4, after task 11.** The Author judges the Art_Trial and decides adopt, adopt plus drawn gaps, or change. The decision is recorded in `docs/kiro-log.md`. No pack file is committed before it. If the decision is late, the slice ships with the placeholder sprites and task 11 closes on the log entry alone.
+- **C1, after task 4.** Headless only. A core/CLI run of the five Acceptance_Seeds runs past offset 900 and reports each first stop; the half-open band is `600 <= offset < 900` and offset 900 fails. It also reports IntroDebt Grace evidence. This checkpoint does not measure Worker wall time or apply the Worker unanswered-node gate; task 14 owns the Speed-1 measurement.
+- **C2, after task 6.** The regenerated fixtures pass native/WASM parity, and a replay stream resolves a Player_Node by Rules_Default. No web change yet.
+- **C3, after task 8.** The Worker gate: at the first node stop, a Worker-path `run` returns `node_unanswered` without advancing; after an accepted choice, `run` advances and resolves it; a rejected choice does not open the gate.
+- **C4, after task 11.** The Author judges the Art_Trial and records adopt, adopt plus drawn gaps, or change in `docs/kiro-log.md`; the checkpoint blocks proof/close tasks. No pack file is committed before the decision; late decisions keep placeholders but still require the recorded checkpoint.
 
 ## Tasks
 
 - [ ] 1. Narrator skeleton: state, step 2c, step 13a, the `ChoosePlayer` input
   - [ ] 1.1 Add the Narrator state, the two steps and the input
-    - Files: `crates/sim-core/src/narrator/mod.rs` (new), `crates/sim-core/src/narrator/chronicle.rs` (new), `crates/sim-core/src/tick.rs`, `crates/sim-core/src/world.rs`, `crates/sim-core/src/opening.rs`, `crates/sim-core/src/testing.rs`, `crates/sim-core/src/input.rs`, `crates/sim-core/src/lib.rs`, `crates/sim-core/src/params.rs`, `crates/sim-core/src/rng.rs`, `crates/sim-core/src/canon.rs`, `fixtures/parity/*` (regenerated).
-    - Follow design "Tick step order", "sim-core: narrator/ module" and "Data Models".
-    - `World::narrator` with `pending: Option<PlayerNode>`, the hash-chained `Chronicle` and `life: Option<PlayerLife>`, encoded inside the Checksum after `nodes` (the end of the current `impl Canon for World` in `world.rs`). `CANON_VERSION` 4. `Params` gains `first_interrupt_min: 600`, `first_interrupt_max: 900`, `interrupt_gap_min: 900`, `interrupt_gap_target: 1_200`, `debt_due_lead: 30`, `opening_trigger_max: 870`, `min_salience: 30`, `life_stage_ages: [2_190, 4_380, 5_840]`. `StreamTag::Narrator` takes the next free value; existing `StreamTag` values do not change.
-    - `opening.rs` and `testing.rs` change only because both name every `World` field exhaustively: `generate` builds the `World` with a struct literal (`opening.rs`, `player_wait: None`) and `testing::apply` destructures it with no `..` (`testing.rs`). Each gains `narrator: Narrator::default()` and nothing else. No opening rule, no body selection, no added Debt and no `intro_debt` in this task; those are task 3.1.
-    - Step 13a runs after step 13 and step 2c runs after step 2b and before step 3. With no Patterns yet, 13a only tracks the Player_Life (R3.7) and 2c resolves nothing.
-    - `InputPayload::ChoosePlayer { node, option }`. The handler `narrator::attach_choice` checks `unknown_node`, `option_not_in_set`, `already_chosen`, in that order, reusing the existing `RejectReason` labels (R1.6). `PlayerOption` is a new closed enum with explicit append-only canonical tags, separate from the underworld `NodeOption`.
-    - Step 2c applies `external.unwrap_or(rules_default)` with the skip rule and the `chooser_absent` path (R1.4, R1.9, R1.10). No execution-mode branch anywhere in this task.
-    - Unit tests: `Params::DEFAULT` pins `first_interrupt_min = 600`; a `ChoosePlayer` for a tick with no pending node is rejected `unknown_node` and changes nothing but `rejections`; `chooser_absent` from a constructed World applies the Rules_Default, skips every part naming the chooser and sets the flag. Property 3 (an invalid choice changes nothing but `rejections`) and Property 4 (the skip rule).
+    - Files: `crates/sim-core/src/narrator/mod.rs` (new), `crates/sim-core/src/narrator/chronicle.rs` (new), `crates/sim-core/src/tick.rs`, `crates/sim-core/src/world.rs`, `crates/sim-core/src/opening.rs`, `crates/sim-core/src/testing.rs`, `crates/sim-core/src/input.rs`, `crates/sim-core/src/replay.rs`, `crates/sim-core/src/lib.rs`, `crates/sim-core/src/params.rs`, `crates/sim-core/src/rng.rs`, `crates/sim-core/src/canon.rs`, `crates/sim-core/tests/replay.rs`, `fixtures/parity/*` (regenerated).
+    - Follow design "Tick step order", "sim-core: narrator/ module", "Data Models", and the Chronicle contract. `PlayerFamily`, `PlayerOption` (the 24 IDs and tags 0..=23), `EntrySource`, `SkipReason`, `EffectPart::check`, `PreviewWhat`, `StakeUnit`, and the Chronicle hash-chain/Canon encoding are defined there; this task implements the complete closed enums and exact labels/tags.
+    - `World::narrator` with `pending: Option<PlayerNode>`, the hash-chained `Chronicle` and `life: Option<PlayerLife>`, encoded inside the Checksum after `nodes`. `CANON_VERSION` advances 3→4 at this task boundary. `Params` gains the narrator fields and `StreamTag::Narrator`; existing stream tags do not change.
+    - `opening.rs` and `testing.rs` gain `narrator: Narrator::default()` only. No `intro_debt`, opening rule, body selection or added Debt is introduced here; task 3.1 owns `IntroDebt` and the next Canon boundary.
+    - `InputPayload::ChoosePlayer { node, option }` and the matching `ReplayPayload` arm are implemented here. `ReplayPlayerOption` uses the same snake_case IDs and strict decimal-string Node ID, with `deny_unknown_fields`; the replay version remains baseline v4 in this task.
+    - Unit tests cover the exact Chronicle/SkipReason JSON and canonical round-trip, `ChoosePlayer` DTO round-trip, strict unknown/u64 rejection, and a v4 replay retaining its baseline header. Property 3 and Property 4 are owned by `crates/sim-core/tests/narrator.rs` in task 2.1.
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 1.10, 1.11, 1.12, 3.1, 3.7, 15.1_
-    - Acceptance: fixture acceptance (Rust gates, the wasm32 tests, the short batch, the passive acceptance batch, the R15.6 check). Commit `feat(sim-core): add the narrator steps and the player choice input` with the regeneration line.
+    - Acceptance: fixture acceptance for Canon v4 (Rust gates, wasm32 tests, short batch, passive acceptance batch, R15.6 check). Commit `feat(sim-core): add the narrator steps and the player choice input` with the regeneration line.
 
 - [ ] 2. Patterns, options, salience and the budget
   - [ ] 2.1 Add the five Pattern families and the selection rule
@@ -72,76 +70,60 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
 
 - [ ] 3. Intro_Debt and Intro_Grace
   - [ ] 3.1 Designate the Intro_Debt and protect it
-    - Files: `crates/sim-core/src/intro.rs` (new), `crates/sim-core/src/lib.rs`, `crates/sim-core/src/world.rs`, `crates/sim-core/src/opening.rs`, `crates/sim-core/src/testing.rs`, `crates/sim-core/src/economy.rs`, `crates/sim-core/src/narrator/patterns.rs`, `crates/sim-core/src/tick.rs`, `fixtures/parity/*` (regenerated).
-    - Follow design "Opening" and "Intro_Debt and Intro_Grace".
-    - `intro_debt: IntroDebt` is declared on `World`, encoded inside the Checksum immediately after `debts`, and added to the exhaustive destructure in `testing::apply` and to the `impl Canon for World` destructure. `intro.rs` is declared as a module in `lib.rs` in the same commit.
-    - `IntroDebt` has three variants, not two. `generate` builds the `World` with a struct literal before step 9c runs, and until 9c there is no Debt to name, so the literal cannot write `Grace`. The third variant is `Undesignated`, the state of a World whose opening has not yet designated the Intro_Debt. It carries no loan and no body. `generate` sets it in the struct literal; step 9c is the only writer of `Grace`; `intro::update` is the only writer of `Ended`; nothing ever writes `Undesignated` again (R5.11). A finished opening is never `Undesignated`, and a tick boundary never holds it, so no checksummed state that escapes `generate` is undesignated.
-    - `opening.rs` step 9 chooses the body by the three-tier rule (R5.3) and step 9b adds one real `loan` at tick 0 when the chosen body holds no qualifying Debt. Step 9c sets `intro_debt = Grace { loan, body }` once, overwriting `Undesignated`.
-    - Step 10 skips the designated loan before its roll, so no draw is taken for it and the other Debts' rolls are unchanged (R5.9). The `inheritance` `pay_debts` builder fixes the target to the oldest other open Debt of the body, or omits the option (R5.12).
-    - `intro::update` runs at the end of 2c, step 4 and 13a, and ends the grace only when the first node has actually resolved, the Debt is no longer open, or the first life has ended. A step 4 that transfers the Debt and leaves it open while the life continues does not end it (R5.10).
-    - The `debt_due` selector places the Intro_Debt's eligible candidate first at its trigger tick while the grace holds and no first node has fired, without changing its Salience or the relative order of the other candidates (R5.16).
-    - Tests: Property 10 (opening) and Property 19 (grace). Example tests: designation on seeds 0..=999 for every `n` (generation only); one World per grace end cause; one open-transfer case where the life continues and the grace survives; the report-only count over seeds 0..=199 at the default `n`, run to tick 870, of Intro_Debts closed or transferred before their trigger.
+    - Files: `crates/sim-core/src/intro.rs` (new), `crates/sim-core/src/lib.rs`, `crates/sim-core/src/world.rs`, `crates/sim-core/src/opening.rs`, `crates/sim-core/src/testing.rs`, `crates/sim-core/src/economy.rs`, `crates/sim-core/src/narrator/patterns.rs`, `crates/sim-core/src/tick.rs`, `crates/sim-core/src/canon.rs`, `crates/sim-core/tests/narrator.rs`, `fixtures/parity/*` (regenerated).
+    - Follow design "Opening" and "Intro_Debt and Intro_Grace". All exhaustive World literals/destructures, test-support mutations and Canon encoding are updated in this task.
+    - `intro_debt: IntroDebt` is encoded after `debts`; `CANON_VERSION` advances 4→5 at this boundary. `Undesignated` is only the opening-construction value before step 9c and is never observed at a tick boundary, Checksum, replay, Snapshot or fixture. The first completed World is `Grace` or `Ended`; task-owned tests assert this and own C1's Property 19 evidence.
+    - `IntroDebt` has `Undesignated`, `Grace { loan, body }`, and `Ended { loan }`; only opening writes `Grace`, only `intro::update` writes `Ended`, and no path writes `Undesignated` after construction. Step 9c designates the Debt; step 10 and Narrator priority use the state exactly as specified.
+    - `opening.rs` step 9 chooses the body by the three-tier rule and step 9b adds one real `loan` at tick 0 when required; step 9c sets `Grace { loan, body }` once. The design's replay/Checksum boundary excludes the temporary `Undesignated` value.
+    - Tests: Property 10 and Property 19, including designation on seeds 0..=999, each Grace end cause, open transfer with ongoing life, and the report-only loss count over seeds 0..=199.
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11, 5.12, 5.13, 5.14, 5.15, 5.16_
-    - Acceptance: fixture acceptance. Commit `feat(sim-core): add the intro debt and its grace` with the regeneration line.
-
+    - Acceptance: fixture acceptance for Canon v5. C1 first-stop/Grace evidence is collected here, not in task 1.1. Commit `feat(sim-core): add the intro debt and its grace` with the regeneration line.
 - [ ] 4. Rebuilt_Body Customization and Path_Status
   - [ ] 4.1 Add Customization, the Rebuilt_Draw and Path_Status
-    - Files: `crates/sim-core/src/underworld/customization.rs` (new), `crates/sim-core/src/underworld/slots.rs`, `crates/sim-core/src/underworld/player.rs`, `crates/sim-core/src/outsiders.rs`, `crates/sim-core/src/input.rs`, `crates/sim-core/src/rng.rs`, `crates/sim-cli/src/auto_player.rs`, `fixtures/parity/*` (regenerated).
-    - Follow design "Customization and Base_Traits" and "Path_Status".
-    - `InputPayload::ClaimSlot` gains `customization: Option<Customization>`. `RejectReason` gains `BadCustomization` (tag 21) and `CustomizationNotAllowed` (tag 22).
+    - Files: `crates/sim-core/src/underworld/customization.rs` (new), `crates/sim-core/src/underworld/slots.rs`, `crates/sim-core/src/underworld/player.rs`, `crates/sim-core/src/outsiders.rs`, `crates/sim-core/src/input.rs`, `crates/sim-core/src/replay.rs`, `crates/sim-core/src/world.rs`, `crates/sim-core/src/testing.rs`, `crates/sim-core/src/canon.rs`, `crates/sim-core/src/rng.rs`, `crates/sim-cli/src/auto_player.rs`, `crates/sim-core/tests/replay.rs`, `fixtures/parity/*` (regenerated).
+    - Follow design "Customization and Base_Traits" and "Path_Status". `PlayerWait.rebuilt_draw` is the Canon boundary of this task: `CANON_VERSION` advances 5→6 and all exhaustive World construction/destruction and test-support mutation sites are updated here.
+    - `InputPayload::ClaimSlot` gains `customization: Option<Customization>`, and `ReplayPayload::ClaimSlot` gains the matching optional DTO with `skip_serializing_if = Option::is_none`; this task keeps replay v4. `RejectReason` gains `BadCustomization` (tag 21) and `CustomizationNotAllowed` (tag 22).
     - `PlayerWait` gains `rebuilt_draw: Traits`, drawn once in `start_wait` from `StreamTag::RebuiltDraw` and never rewritten (R6.2). `claim_standing` applies `customize(base_traits(carry), c)` and skips the later `carry_over::apply`.
-    - `slots::claim` splits into `check_claim` and `apply_claim`. `path_status` runs the same checks and sorts the reasons into `announced`, `claimable`, `affordable` and `needed` (R7.7).
-    - The Devoted Auto_Player sends `Set { piety, 3 }` with every Rebuilt_Body claim, so the existing reachability gate stays green (R6.12).
-    - Tests: Property 11 (rejection), Property 12 (the body equals Base_Traits plus the Customization), Property 13 (the draw is stable), Property 14 (Path_Status predicts the claim). Targeted tests for R6.8 (one Set and one Adjust from the same World, including the Carry_Over Trait) and R6.9 (one existing rule reads the customized Trait and changes its outcome).
+    - `slots::claim` splits into `check_claim` and `apply_claim`. `path_status` runs the same checks and sorts the reasons into `announced`, `claimable`, `affordable` and `needed` (R7.7). The Devoted Auto_Player sends `Set { piety, 3 }` with every Rebuilt_Body claim.
+    - Tests own Properties 11–14, including DTO round-trips, Set/Adjust, Carry_Over overlap, stable draw and Path_Status prediction. Acceptance is fixture acceptance for Canon v6 plus the Devoted reachability gate.
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.12, 7.7_
-    - Acceptance: fixture acceptance, and the Devoted reachability gate (`batch --seeds 1..=5 --ticks 29200 --devoted --require-reachability`) exits 0 with its current counts. Commit `feat(sim-core): add rebuilt body customization` with the regeneration line.
+    - Commit `feat(sim-core): add rebuilt body customization` with the regeneration line.
   - **STOP (checkpoint C1).** Report: the five Acceptance_Seeds run past offset 900 with the first stop offset and family of each, where an offset of 900 fails the band (checkpoint C1 above); the seeds 0..=199 loss count from task 3; the Devoted gate result. Do not start task 5 until the Author has seen it.
 
 - [ ] 5. Snapshot, stops and checked submission
   - [ ] 5.1 Extend the Snapshot and return stops from the step
     - Files: `crates/sim-core/src/snapshot.rs`, `crates/sim-core/src/stops.rs` (new), `crates/sim-core/src/tick.rs`, `crates/sim-wasm/src/lib.rs`, `crates/sim-wasm/tests/parity.rs`.
-    - Follow design "Stops and checked submission", "sim-wasm" and "Snapshot additions".
-    - The Snapshot gains `player`, `player_node`, `chronicle` (the 100 most recent entries), `underworld_view` and `person_names`, in the orders and shapes of the design's JSON block. No accepted-choice field: the accepted choice lives in the input stream, not the World.
-    - `Sim::last_stops()` returns the `StopSet` of the last stepped tick. `Sim::try_submit_all` clones, runs steps 1 and 2a, and submits all or nothing (Property 16, R8.8).
-    - `WasmSim` gains `run_until_stop`, `submit_checked` and `checksums`, each with a plain-Rust twin. `run_until_stop` is a core method and resolves an unanswered node by R1.4; it carries no gate.
-    - Tests: Property 15 (Snapshot equals a reference and changes no Checksum) and Property 16. The native and WASM Snapshot JSON stays byte-identical (R7.8).
-    - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.8, 8.8_
-    - Acceptance: Rust gates, the wasm32 tests, the R15.6 check. No Checksum change is expected; if one occurs, regenerate the fixtures and say so. Commit `feat: extend the snapshot and add checked submission`.
+    - Follow design "Stops and checked submission", "sim-wasm" and "Snapshot additions". This task provides the native/WASM API consumed by tasks 7.1 and 8.1: `StopSet`, `last_stops`, `run_until_stop`, `try_submit_all`, `submit_checked`, `checksums`, extended `snapshot`, and their exact JSON/reply shapes.
+    - `StopSet` preserves all simultaneous reasons, resets after each stepped tick, stops on the stop tick itself, and never runs a tick after a stop. `run_until_stop` resolves unanswered nodes by the core default contract; it has no Worker gate. Snapshot and stop reads change no Checksum.
+    - Tests own Properties 15 and 16, including native/WASM byte parity, multi-reason stops, stop reset, all-or-nothing submission, and no extra tick after a stop.
+    - _Requirements: 7.1–7.8, 8.3, 8.4, 8.8_
+    - Acceptance: Rust gates, wasm32 parity, and R15.6. A checksum change regenerates fixtures in this task; it is not deferred.
 
 - [ ] 6. Replay format 5 and the fixture migration
   - [ ] 6.1 Raise the replay version and migrate every fixture
-    - Files: `crates/sim-core/src/replay.rs`, `crates/sim-core/src/input.rs`, `crates/sim-cli/src/batch.rs`, `crates/sim-cli/src/commands.rs`, `fixtures/parity/*` (regenerated), `fixtures/parity/README.md`.
-    - Follow design "Inputs and replay format 5".
-    - `REPLAY_VERSION = 5`; versions 2, 3 and 4 decode to `UnsupportedVersion`. `customization` is omitted when `None`, so encode(decode(x)) is byte-identical (R15.3).
-    - Migrate the Auto_Player, the CLI commands and every committed Parity_Fixture (R15.4).
-    - Tests: Property 17 (round trip, version rejection, and a replay that resolves a Player_Node, including a first one, by Rules_Default). One example rejects a version 4 file.
+    - Files: `crates/sim-core/src/replay.rs`, `crates/sim-core/src/input.rs`, `crates/sim-core/tests/replay.rs`, `crates/sim-cli/src/auto_player.rs`, `crates/sim-cli/src/batch.rs`, `crates/sim-cli/src/commands.rs`, `fixtures/parity/*` (regenerated), `fixtures/parity/README.md`, `README.md`.
+    - Consume the staged DTOs from tasks 1.1 and 4.1; do not redefine their arms. This is the only `REPLAY_VERSION` boundary: raise 4→5, reject versions 2, 3 and 4, migrate all fixtures and update baseline/target documentation. `customization` is omitted when `None`, and decode/encode is byte-identical.
+    - Tests own Property 17: round trip, version rejection, and a replay resolving a first Player_Node by Rules_Default. One example rejects a version 4 file.
     - _Requirements: 15.2, 15.3, 15.4_
-    - Acceptance: fixture acceptance, and the wasm32 parity test passes on the regenerated fixtures. Commit `feat: raise the replay format to version 5` with the regeneration line.
+    - Acceptance: fixture migration and wasm32 parity. Commit `feat: raise the replay format to version 5` with the regeneration line.
   - **STOP (checkpoint C2).** Report: the parity result, and the tick and source of the Rules_Default resolution in the replay stream. Do not start task 7 until the Author has seen it.
 
 - [ ] 7. Clock-paced play
   - [ ] 7.1 Replace ticks-per-frame with the pacer
-    - Files: `web/src/shared/speeds.ts`, `web/src/worker/pacer.ts` (new), `web/src/worker/controller.ts`, `web/src/worker/sim.worker.ts`, `web/tests/unit/pacer.test.ts` (new), `web/tests/unit/controller-*.test.ts`.
-    - Follow design "Clock pacing" and "Stops".
-    - `PLAY_RATE = 30`. On each Frame the controller runs `min(due, maxBatch)` ticks through `run_until_stop`, with `maxBatch = max(1, speed × 30 / 20)`, and re-anchors when more than one second behind. The clock only decides how many ticks run (R8.11).
-    - A stop pauses the Worker after that tick and posts one unthrottled `status` with the tick, the Checksum, the reasons and the Snapshot (R8.3, R8.4).
-    - Tests: Property 21 (the pacer). The existing controller tests that assume "Speed ticks per Frame" are rewritten for the pacer; their properties (one reply per request, no clock value in a handle call, a Speed change applies to the next batch) stay.
+    - Files: `web/src/shared/protocol.ts`, `web/src/shared/world-snapshot.ts` (new), `web/src/shared/speeds.ts`, `web/src/worker/pacer.ts` (new), `web/src/worker/controller.ts`, `web/src/worker/sim.worker.ts`, `web/tests/unit/pacer.test.ts` (new), `web/tests/unit/controller-*.test.ts`.
+    - Consume task 5's `SimHandle` methods and define the protocol's discriminated request/reply/status types, `PauseReason`, World Snapshot and stop payload before wiring controller calls. `PLAY_RATE = 30`; Speed is a multiplier; the clock passes only tick counts, never clock/random values to WASM.
+    - On each Frame run the bounded pacer through `run_until_stop`; re-anchor after more than one second of backlog. A stop posts exactly one unthrottled status with all reasons, tick, checksum and Snapshot; no tick follows the stop.
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.11_
-    - Acceptance: `pnpm --dir web run typecheck` and the web unit tests pass; Rust gates are unchanged. Commit `feat(web): pace the simulation by wall time`.
+    - Acceptance: `pnpm --dir web run typecheck` and web unit tests pass; the protocol, controller and worker status types compile and Property 21 passes. Rust gates are unchanged. Commit `feat(web): pace the simulation by wall time`.
 
 - [ ] 8. The interactive advancement gate
   - [ ] 8.1 Refuse to advance an unanswered Player_Node
-    - Files: `crates/sim-core/src/tick.rs`, `crates/sim-wasm/src/lib.rs`, `web/src/shared/protocol.ts`, `web/src/worker/controller.ts`, `web/src/App.svelte`, `web/tests/unit/controller-stops.test.ts` (new).
-    - Follow design "Interactive advancement gate", "Replacing the World" and "sim-wasm" (`player_node_state`).
-    - `Sim::player_node_state()` reads `narrator.pending` and `inputs.for_tick(world.tick())` and returns whether a Player_Node is pending and whether an accepted `ChoosePlayer` for its Choice_Tick is in the stream. `WasmSim::player_node_state()` exposes it. The read takes no draw, changes no state and is never encoded. The Snapshot is not given an accepted-choice field.
-    - The controller keeps `this.pending` from the last `player_node_state()` it read, refreshed after every `run_until_stop` and every `submit_checked`. While it is `{pending: true, answered: false}`, `run` and `step` reply `node_unanswered` and return before any other work: no tick, no input, no Checksum, the Run_State stays `paused` and the pacer anchor is untouched (R8.9).
-    - `choose-and-run` submits the choice and advances one tick inside the one request, and only when `submit_checked` accepts; on rejection it changes nothing. A repeated `run`, a repeated `choose` or a rejected `choose` never advances part way.
-    - `create-world`, on success and before its reply, cancels the scheduled frame or timer callback and drops the queued requests of the old World. `#onFrame` checks the world id and does nothing when the World has been replaced. A failed `create-world` leaves the running World running.
-    - The Web_App disables the run and step controls while `this.pending` is unanswered. That disablement is presentation; the Worker refuses a direct request the same way. `set-speed` and `pause` stay enabled.
-    - Tests: Property 22, extended with the no-partial-advance, rejected-choice, `choose-and-run` and stale-callback cases. The example tests named in design "Web" for the gate.
+    - Files: `crates/sim-core/src/tick.rs`, `crates/sim-wasm/src/lib.rs`, `web/src/shared/protocol.ts`, `web/src/worker/controller.ts`, `web/src/worker/sim.worker.ts`, `web/src/App.svelte`, `web/tests/unit/controller-stops.test.ts` (new).
+    - Consume task 5's `player_node_state`, `submit_checked`, `run_until_stop` and task 7's protocol. Implement `choose`, `choose-and-run`, `world-snapshot`, `dream`, `claim`, `checksums`, and `player_node_state` with exactly one reply each; replace-world cancellation/stale callback handling is part of this task.
+    - The gate is Worker-only: unanswered `run`/`step` returns `node_unanswered` without advancing; accepted choice permits exactly tick t+1; rejected choice leaves it unanswered. Core, CLI and replay keep the default-resolution contract.
+    - Tests own Property 22 and cover no partial advance, rejected choice, choose-and-run and World reset.
     - _Requirements: 8.6, 8.7, 8.9_
-    - Acceptance: web typecheck and unit tests pass; Rust gates pass; the R15.6 check. Commit `feat(web): refuse to advance an unanswered player node`.
-  - **STOP (checkpoint C3).** Report: the Property 22 result, and a short note of the manual check (a `run` through the harness at the first stop is refused; after a choice, `run` advances). Do not start task 9 until the Author has seen it. This is the P-1 execution scope checkpoint.
+    - Acceptance: web typecheck and unit tests pass; Rust gates and R15.6 pass. Commit `feat(web): refuse to advance an unanswered player node`.
 
 - [ ] 9. Town_View, identity and the Choice and Chronicle panels
   - [ ] 9.1 Draw the town and show who the choice affects
@@ -236,25 +218,33 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
 
 ## Task Dependency Graph
 
+The serial waves remain the execution order; the explicit interface edges below prevent an executing agent from guessing cross-task contracts:
+
 ```json
 {
   "waves": [
-    { "id": 0, "tasks": ["1.1"] },
-    { "id": 1, "tasks": ["2.1"] },
-    { "id": 2, "tasks": ["3.1"] },
-    { "id": 3, "tasks": ["4.1"] },
-    { "id": 4, "tasks": ["5.1"] },
-    { "id": 5, "tasks": ["6.1"] },
-    { "id": 6, "tasks": ["7.1"] },
-    { "id": 7, "tasks": ["8.1"] },
-    { "id": 8, "tasks": ["9.1"] },
-    { "id": 9, "tasks": ["10.1"] },
-    { "id": 10, "tasks": ["11.1"] },
-    { "id": 11, "tasks": ["12.1"] },
-    { "id": 12, "tasks": ["13.1"] },
-    { "id": 13, "tasks": ["14.1"] },
-    { "id": 14, "tasks": ["15.1"] },
-    { "id": 15, "tasks": ["16.1"] }
+    { "id": 0, "tasks": ["1.1"] }, { "id": 1, "tasks": ["2.1"] },
+    { "id": 2, "tasks": ["3.1"] }, { "id": 3, "tasks": ["4.1"] },
+    { "id": 4, "tasks": ["5.1"] }, { "id": 5, "tasks": ["6.1"] },
+    { "id": 6, "tasks": ["7.1"] }, { "id": 7, "tasks": ["8.1"] },
+    { "id": 8, "tasks": ["9.1"] }, { "id": 9, "tasks": ["10.1"] },
+    { "id": 10, "tasks": ["11.1"] }, { "id": 11, "tasks": ["12.1"] },
+    { "id": 12, "tasks": ["13.1"] }, { "id": 13, "tasks": ["14.1"] },
+    { "id": 14, "tasks": ["15.1"] }, { "id": 15, "tasks": ["16.1"] }
+  ],
+  "edges": [
+    { "from": "1.1", "to": "2.1", "provides": "Narrator/Chronicle/PlayerOption and ChoosePlayer DTO" },
+    { "from": "1.1", "to": "6.1", "provides": "ReplayPayload.ChoosePlayer; do not redefine" },
+    { "from": "2.1", "to": "3.1", "provides": "patterns consumed by IntroDebt priority" },
+    { "from": "3.1", "to": "4.1", "provides": "IntroDebt and Canon v5" },
+    { "from": "4.1", "to": "6.1", "provides": "ClaimSlot Customization DTO; version-only closure" },
+    { "from": "5.1", "to": "7.1", "provides": "StopSet/run_until_stop/submit_checked/checksums SimHandle" },
+    { "from": "5.1", "to": "8.1", "provides": "player_node_state and checked submission" },
+    { "from": "7.1", "to": "8.1", "provides": "protocol, pacer and worker status types" },
+    { "from": "12.1", "to": "13.1", "provides": "batch strategy and playthrough search" },
+    { "from": "13.1", "to": "14.1", "provides": "frozen replay/stage fixture" },
+    { "from": "8.1", "to": "14.1", "provides": "interactive Worker gate" },
+    { "from": "11.1", "to": "12.1", "provides": "C4 decision; proof phase remains blocked until recorded" }
   ]
 }
 ```
