@@ -25,7 +25,7 @@ use crate::ids::{
 
 /// Version of the canonical layout. Bump it whenever any encoding rule or any encoded
 /// field changes, so old and new checksums can never be confused for each other.
-pub const CANON_VERSION: u16 = 3;
+pub const CANON_VERSION: u16 = 4;
 
 /// Sink for canonical bytes.
 pub trait CanonWriter {

@@ -512,6 +512,10 @@ impl AppliedCounts {
                     self.carry_overs = self.carry_overs.saturating_add(1);
                 }
                 InputPayload::Choose { .. } => self.choices = self.choices.saturating_add(1),
+                // The underworld generator intentionally never emits Player_Node choices.
+                InputPayload::ChoosePlayer { .. } => {
+                    unreachable!("underworld generator does not emit ChoosePlayer")
+                }
                 InputPayload::Act { .. } => {}
             }
         }
