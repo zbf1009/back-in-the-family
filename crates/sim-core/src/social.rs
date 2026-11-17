@@ -867,6 +867,23 @@ mod tests {
     }
 
     #[test]
+    fn rebuilt_customization_changes_the_social_kind_prior() {
+        use crate::underworld::carry_over::TraitName;
+        use crate::underworld::customization::{Customization, customize};
+
+        let base = traits_with(0);
+        let tuned = customize(
+            base.clone(),
+            Customization::Set {
+                trait_name: TraitName::Warmth,
+                value: 3,
+            },
+        );
+        assert_ne!(kind_weights(&base, -10), kind_weights(&tuned, -10));
+        assert!(kind_weights(&tuned, -10)[0] > kind_weights(&base, -10)[0]);
+    }
+
+    #[test]
     fn a_vindictive_holder_keeps_negative_affinity() {
         let mut w = world();
         w.tick = crate::ids::Tick(29);

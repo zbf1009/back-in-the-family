@@ -974,6 +974,7 @@ mod tests {
                 InputPayload::Bribe { amount: 100 },
                 InputPayload::ClaimSlot {
                     slot: SlotRef::ImportedVessel,
+                    customization: None,
                 },
             ],
         );

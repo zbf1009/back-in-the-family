@@ -90,7 +90,7 @@ fn release(world: &mut World, soul: SoulId) {
     } else {
         Origin::Possessed
     };
-    create_outsider(world, soul, origin, 0);
+    create_outsider(world, soul, origin, 0, None);
 }
 
 /// Whether [`create_outsider`] can allocate a Person and a Household: a counter fails
@@ -113,6 +113,7 @@ pub(crate) fn create_outsider(
     soul: SoulId,
     origin: Origin,
     price: u64,
+    selected_traits: Option<Traits>,
 ) -> Option<PersonId> {
     if origin == Origin::Native {
         return None;
@@ -197,7 +198,7 @@ pub(crate) fn create_outsider(
         return None;
     };
     let household = HouseholdId(raw_household);
-    let traits = draw_traits(world, id);
+    let traits = selected_traits.unwrap_or_else(|| draw_traits(world, id));
     let used: BTreeSet<u16> = world
         .derived
         .living_names

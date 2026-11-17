@@ -199,7 +199,10 @@ impl World {
                     }
                 }
             }
-            InputPayload::ClaimSlot { slot } => crate::underworld::slots::claim(self, slot),
+            InputPayload::ClaimSlot {
+                slot,
+                customization,
+            } => crate::underworld::slots::claim(self, slot, customization),
             InputPayload::CarryOver { trait_name } => {
                 crate::underworld::player::store_carry_over(self, trait_name)
             }
@@ -372,6 +375,19 @@ impl Sim {
     /// The checksum of every tick run so far, in tick order.
     pub fn checksums(&self) -> &[Checksum] {
         &self.checksums
+    }
+}
+
+#[cfg(any(test, feature = "test-support"))]
+impl Sim {
+    /// Construct a Sim around a prepared World for pure status-vs-submit tests.
+    pub fn from_test_world(world: World) -> Self {
+        Self {
+            world,
+            inputs: InputStream::new(),
+            checksums: Vec::new(),
+            last_outcomes: Vec::new(),
+        }
     }
 }
 

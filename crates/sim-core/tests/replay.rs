@@ -410,6 +410,51 @@ fn invalid_config_values_are_a_config_error_at_verify() {
     assert!(matches!(verify(&file), Err(ReplayError::Config(_))));
 }
 
+#[test]
+fn v4_claim_customization_round_trips_without_changing_version() {
+    use sim_core::replay::ReplayPayload;
+    use sim_core::underworld::carry_over::TraitName;
+    use sim_core::underworld::customization::Customization;
+    use sim_core::underworld::slots::SlotRef;
+
+    let payloads = [
+        (
+            InputPayload::ClaimSlot {
+                slot: SlotRef::ImportedVessel,
+                customization: None,
+            },
+            r#"{"ClaimSlot":{"slot":"ImportedVessel"}}"#,
+        ),
+        (
+            InputPayload::ClaimSlot {
+                slot: SlotRef::RebuiltBody,
+                customization: Some(Customization::Set {
+                    trait_name: TraitName::Piety,
+                    value: 3,
+                }),
+            },
+            r#"{"ClaimSlot":{"slot":"RebuiltBody","customization":{"Set":{"trait_name":"piety","value":3}}}}"#,
+        ),
+        (
+            InputPayload::ClaimSlot {
+                slot: SlotRef::RebuiltBody,
+                customization: Some(Customization::Adjust {
+                    first: (TraitName::Piety, -1),
+                    second: (TraitName::Greed, 1),
+                }),
+            },
+            r#"{"ClaimSlot":{"slot":"RebuiltBody","customization":{"Adjust":{"first":{"trait_name":"piety","delta":-1},"second":{"trait_name":"greed","delta":1}}}}}"#,
+        ),
+    ];
+    assert_eq!(REPLAY_VERSION, 4);
+    for (payload, expected) in payloads {
+        let json = serde_json::to_string(&ReplayPayload::from(payload)).unwrap();
+        assert_eq!(json, expected);
+        let dto: ReplayPayload = serde_json::from_str(&json).unwrap();
+        assert_eq!(InputPayload::from(dto), payload);
+    }
+}
+
 proptest! {
     #![proptest_config(ProptestConfig { cases: 100, ..ProptestConfig::default() })]
 

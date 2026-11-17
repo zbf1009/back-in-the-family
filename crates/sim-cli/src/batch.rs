@@ -541,15 +541,18 @@ impl Tally {
                 match input.payload {
                     InputPayload::ClaimSlot {
                         slot: SlotRef::Birth(_),
+                        ..
                     } => self.claims[0] += 1,
                     InputPayload::ClaimSlot {
                         slot: SlotRef::ImportedVessel,
+                        ..
                     } => {
                         self.claims[1] += 1;
                         standing_claims[0] += 1;
                     }
                     InputPayload::ClaimSlot {
                         slot: SlotRef::RebuiltBody,
+                        ..
                     } => {
                         self.claims[2] += 1;
                         standing_claims[1] += 1;

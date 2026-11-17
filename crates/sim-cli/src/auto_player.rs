@@ -5,6 +5,7 @@ use sim_core::input::InputPayload;
 use sim_core::rng::{StreamTag, below, draw};
 use sim_core::tick::Sim;
 use sim_core::underworld::carry_over::TraitName;
+use sim_core::underworld::customization::Customization;
 use sim_core::underworld::dreams::DreamIntent;
 use sim_core::underworld::nodes::NodeRef;
 use sim_core::underworld::slots::SlotRef;
@@ -314,7 +315,13 @@ impl AutoPlayer {
                 .then_some(SlotRef::ImportedVessel),
         };
         if let Some(slot) = slot {
-            payloads.push(InputPayload::ClaimSlot { slot });
+            payloads.push(InputPayload::ClaimSlot {
+                slot,
+                customization: (slot == SlotRef::RebuiltBody).then_some(Customization::Set {
+                    trait_name: TraitName::Piety,
+                    value: 3,
+                }),
+            });
         }
         payloads
     }

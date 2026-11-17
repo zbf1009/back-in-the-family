@@ -196,12 +196,15 @@ fn inspect(seed: u64, ticks: u64, sim: Sim) -> (String, Facts) {
             match input.payload {
                 InputPayload::ClaimSlot {
                     slot: SlotRef::Birth(_),
+                    ..
                 } => facts.claims[0] += 1,
                 InputPayload::ClaimSlot {
                     slot: SlotRef::ImportedVessel,
+                    ..
                 } => facts.claims[1] += 1,
                 InputPayload::ClaimSlot {
                     slot: SlotRef::RebuiltBody,
+                    ..
                 } => facts.claims[2] += 1,
                 InputPayload::CarryOver { .. } => facts.carry_overs += 1,
                 _ => {}

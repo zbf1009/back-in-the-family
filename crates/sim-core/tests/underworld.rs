@@ -1298,8 +1298,8 @@ proptest! {
                     return None;
                 }
                 match entry.payload {
-                    InputPayload::ClaimSlot { slot: SlotRef::ImportedVessel } => Some(SlotRef::ImportedVessel),
-                    InputPayload::ClaimSlot { slot: SlotRef::RebuiltBody } => Some(SlotRef::RebuiltBody),
+                    InputPayload::ClaimSlot { slot: SlotRef::ImportedVessel, .. } => Some(SlotRef::ImportedVessel),
+                    InputPayload::ClaimSlot { slot: SlotRef::RebuiltBody, .. } => Some(SlotRef::RebuiltBody),
                     _ => None,
                 }
             }) {
@@ -1449,9 +1449,11 @@ fn placement_ends_old_wait(
             .any(|entry| match entry.payload {
                 InputPayload::ClaimSlot {
                     slot: SlotRef::ImportedVessel,
+                    ..
                 } => standing_claim_ends_old_wait(before, stage, SlotRef::ImportedVessel),
                 InputPayload::ClaimSlot {
                     slot: SlotRef::RebuiltBody,
+                    ..
                 } => standing_claim_ends_old_wait(before, stage, SlotRef::RebuiltBody),
                 _ => false,
             })
@@ -1596,7 +1598,7 @@ proptest! {
             // claim ends this wait before deaths; its new body can die in step 4,
             // starting a different wait before the slot stage.
             for entry in planned.iter().filter(|entry| entry.result.is_ok()) {
-                let InputPayload::ClaimSlot { slot } = entry.payload else { continue };
+                let InputPayload::ClaimSlot { slot, .. } = entry.payload else { continue };
                 match slot {
                     SlotRef::Birth(id) => {
                         let stage_claim = stage.player_wait().and_then(|wait| wait.claim);
@@ -1685,7 +1687,7 @@ proptest! {
             if let Some(since) = since
                 && tick.0.saturating_sub(since) > params.player_max_wait
                 && !planned.iter().any(|entry| entry.result.is_ok()
-                    && matches!(entry.payload, InputPayload::ClaimSlot { slot: SlotRef::ImportedVessel | SlotRef::RebuiltBody }))
+                    && matches!(entry.payload, InputPayload::ClaimSlot { slot: SlotRef::ImportedVessel | SlotRef::RebuiltBody, .. }))
             {
                 prop_assert!(player_arrival_ends_old_wait(&before, &after, |kind| match kind {
                     EventKind::Possession { person, price } if *price == 0 => Some(*person),
@@ -1718,12 +1720,13 @@ proptest! {
             if !left {
                 continue;
             }
-            // Remove both the stored choice from an earlier tick and today's input.
-            // Removing only today's input would apply the earlier choice, potentially
-            // changing a second, different Trait in the comparison.
-            let baseline_inputs: Vec<_> = inputs.iter().filter(|input| {
-                !matches!(input.payload, InputPayload::CarryOver { .. })
-            }).copied().collect();
+            // Remove the stored and same-tick Carry_Over, preserving the Rebuilt
+            // Customization, so differences come only from the carried Trait.
+            let baseline_inputs: Vec<_> = inputs
+                .iter()
+                .filter(|input| !matches!(input.payload, InputPayload::CarryOver { .. }))
+                .copied()
+                .collect();
             let mut baseline = before.without_carry_over();
             baseline.step(&baseline_inputs);
             let body_with = player_body(&after).expect("the player received a new body");
@@ -1742,6 +1745,11 @@ proptest! {
                     _ => None,
                 })
                 .or_else(|| before.player_wait().and_then(|wait| wait.carry_over));
+            let customized = planned.iter().rev().find_map(|entry| match entry.payload {
+                InputPayload::ClaimSlot { slot: SlotRef::RebuiltBody, customization: Some(c) }
+                    if entry.result.is_ok() => Some(c),
+                _ => None,
+            });
             let ghost = before.player_wait().expect("an exit has a previous body").ghost;
             let traits_with = &after.persons()[&body_with].traits;
             let traits_without = &baseline.persons()[&body_without].traits;
@@ -1750,7 +1758,17 @@ proptest! {
                 let original = trait_value(traits_without, name);
                 prop_assert!((-3..=3).contains(&actual), "trait {name:?} out of range");
                 let expected = if stored == Some(name) {
-                    trait_value(&before.persons()[&ghost].traits, name)
+                    let base = trait_value(&before.persons()[&ghost].traits, name);
+                    match customized {
+                        Some(sim_core::underworld::customization::Customization::Set { trait_name, value })
+                            if trait_name == name => value,
+                        Some(sim_core::underworld::customization::Customization::Adjust { first, second })
+                            if first.0 == name || second.0 == name => {
+                                let delta = if first.0 == name { first.1 } else { second.1 };
+                                (base.saturating_add(delta)).clamp(-3, 3)
+                            }
+                        _ => base,
+                    }
                 } else {
                     original
                 };
@@ -2149,18 +2167,36 @@ fn a_rebuilt_claim_creates_an_imported_shaped_body() {
     account.capped_spent = 0;
     set_invalid_joss_account(&mut before, player, account);
     let tick = before.tick();
+    let carry = sim_core::underworld::carry_over::TraitName::Piety;
+    let ghost_piety = before.persons()[&ghost].traits.piety;
+    // The carry-over overlaps the customized Trait; the latter wins on Rebuilt.
+    let carry_input = TickInput {
+        tick,
+        seq: InputSeq(0),
+        payload: InputPayload::CarryOver { trait_name: carry },
+    };
+    let (before, carry_outcomes) = before.after_inputs_and_nodes(&[carry_input]);
+    assert_eq!(carry_outcomes[0].result, Ok(()));
     let start = before.log().len();
 
-    let claim = |slot| {
+    let customization = sim_core::underworld::customization::Customization::Set {
+        trait_name: sim_core::underworld::carry_over::TraitName::Piety,
+        value: 3,
+    };
+    let claim = |slot, customization| {
         [TickInput {
             tick,
             seq: InputSeq(1),
-            payload: InputPayload::ClaimSlot { slot },
+            payload: InputPayload::ClaimSlot {
+                slot,
+                customization,
+            },
         }]
     };
-    let (rebuilt, rebuilt_outcomes) = before.after_inputs_and_nodes(&claim(SlotRef::RebuiltBody));
+    let (rebuilt, rebuilt_outcomes) =
+        before.after_inputs_and_nodes(&claim(SlotRef::RebuiltBody, Some(customization)));
     let (imported, imported_outcomes) =
-        before.after_inputs_and_nodes(&claim(SlotRef::ImportedVessel));
+        before.after_inputs_and_nodes(&claim(SlotRef::ImportedVessel, None));
     assert_eq!(rebuilt_outcomes.len(), 1);
     assert!(
         rebuilt_outcomes[0].result.is_ok(),
@@ -2192,13 +2228,51 @@ fn a_rebuilt_claim_creates_an_imported_shaped_body() {
     );
     assert_eq!(rebuilt.persons()[&rebuilt_body].origin, Origin::Rebuilt);
     assert_eq!(imported.persons()[&imported_body].origin, Origin::Possessed);
-    let mut normalized = rebuilt.persons()[&rebuilt_body].clone();
-    normalized.origin = Origin::Possessed;
+    let rebuilt_person = &rebuilt.persons()[&rebuilt_body];
+    let imported_person = &imported.persons()[&imported_body];
+    assert_eq!(rebuilt_person.id, imported_person.id);
+    assert_eq!(rebuilt_person.soul, imported_person.soul);
+    assert_eq!(rebuilt_person.name, imported_person.name);
+    assert_eq!(rebuilt_person.birth_day, imported_person.birth_day);
+    assert_eq!(rebuilt_person.sex, imported_person.sex);
+    assert_eq!(rebuilt_person.wage, imported_person.wage);
+    assert_eq!(rebuilt_person.life, imported_person.life);
+    let base = sim_core::underworld::slots::base_traits(&before, Some(carry)).unwrap();
+    assert_eq!(base.piety, ghost_piety);
     assert_eq!(
-        normalized,
-        imported.persons()[&imported_body],
-        "only Origin differs"
+        rebuilt_person.traits,
+        sim_core::underworld::customization::customize(base.clone(), customization)
     );
+    assert_eq!(rebuilt_person.traits.greed, base.greed);
+    assert_eq!(rebuilt_person.traits.loyalty, base.loyalty);
+    assert_eq!(rebuilt_person.traits.pride, base.pride);
+    assert_eq!(rebuilt_person.traits.warmth, base.warmth);
+    assert_eq!(rebuilt_person.traits.temper, base.temper);
+    assert_eq!(rebuilt_person.traits.vindictiveness, base.vindictiveness);
+    assert_eq!(rebuilt_person.traits.piety.get(), 3);
+    assert_eq!(imported_person.traits.piety, ghost_piety);
+    let no_carry = before.without_carry_over();
+    let (imported_fresh, outcomes) =
+        no_carry.after_inputs_and_nodes(&claim(SlotRef::ImportedVessel, None));
+    assert_eq!(outcomes[0].result, Ok(()));
+    let fresh_traits = &imported_fresh.persons()[&imported_body].traits;
+    assert_eq!(imported_person.traits.greed, fresh_traits.greed);
+    assert_eq!(imported_person.traits.loyalty, fresh_traits.loyalty);
+    assert_eq!(imported_person.traits.pride, fresh_traits.pride);
+    assert_eq!(imported_person.traits.warmth, fresh_traits.warmth);
+    assert_eq!(imported_person.traits.temper, fresh_traits.temper);
+    assert_eq!(
+        imported_person.traits.vindictiveness,
+        fresh_traits.vindictiveness
+    );
+    let uncustomized = sim_core::underworld::customization::Customization::Set {
+        trait_name: carry,
+        value: base.piety.get(),
+    };
+    let (plain_rebuilt, outcomes) =
+        before.after_inputs_and_nodes(&claim(SlotRef::RebuiltBody, Some(uncustomized)));
+    assert_eq!(outcomes[0].result, Ok(()));
+    assert_eq!(plain_rebuilt.persons()[&rebuilt_body].traits, base);
 
     let rebuilt_events = &rebuilt.log().events()[start..];
     let imported_events = &imported.log().events()[start..];
@@ -2367,6 +2441,7 @@ fn an_imported_claim_creates_the_vessel() {
         seq: InputSeq(1),
         payload: InputPayload::ClaimSlot {
             slot: SlotRef::ImportedVessel,
+            customization: None,
         },
     }]);
     assert_eq!(outcomes.len(), 1);
@@ -2433,6 +2508,7 @@ fn a_birth_slot_claim_places_the_player_at_birth() {
         seq: InputSeq(1),
         payload: InputPayload::ClaimSlot {
             slot: SlotRef::Birth(slot.id),
+            customization: None,
         },
     }]);
     assert_eq!(outcomes.len(), 1);

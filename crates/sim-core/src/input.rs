@@ -15,6 +15,7 @@ use crate::canon::{Canon, CanonWriter};
 use crate::ids::{IdCounter, InputSeq, NodeId, PersonId, Tick};
 use crate::narrator::PlayerOption;
 use crate::underworld::carry_over::TraitName;
+use crate::underworld::customization::Customization;
 use crate::underworld::dreams::DreamIntent;
 use crate::underworld::nodes::{NodeOption, NodeRef};
 use crate::underworld::slots::SlotRef;
@@ -38,10 +39,11 @@ pub enum InputPayload {
         target: PersonId,
         intensity: u8,
     },
-    /// Claim one slot: a Birth_Slot by ID, or one of the two Standing_Slots (R7.2, R7.7).
     ClaimSlot {
         /// The slot the Player_Soul claims.
         slot: SlotRef,
+        /// Optional customization, legal only for a Rebuilt_Body.
+        customization: Option<Customization>,
     },
     /// The Player_Soul's Ghost haunts one living Connected_Person (R5.1).
     Haunt {
@@ -123,13 +125,17 @@ pub enum RejectReason {
     OptionNotInSet,
     /// The pending node already has a valid External_Choice (R3.4).
     AlreadyChosen,
+    /// The Rebuilt_Body customization is malformed or outside its bounds.
+    BadCustomization,
+    /// A customization was supplied for a non-Rebuilt_Body slot.
+    CustomizationNotAllowed,
 }
 
 impl RejectReason {
     /// Every reason in report order: the life-sim reasons first, then the underworld
     /// reasons in the order their labels first appear in the design's input table.
     /// The `batch` report lists all of them.
-    pub const ALL: [Self; 21] = [
+    pub const ALL: [Self; 23] = [
         Self::UnknownPerson,
         Self::DeadPerson,
         Self::SelfTarget,
@@ -151,6 +157,8 @@ impl RejectReason {
         Self::UnknownNode,
         Self::OptionNotInSet,
         Self::AlreadyChosen,
+        Self::BadCustomization,
+        Self::CustomizationNotAllowed,
     ];
 
     /// The report label used by `sim-cli batch`.
@@ -177,6 +185,8 @@ impl RejectReason {
             Self::UnknownNode => "unknown_node",
             Self::OptionNotInSet => "option_not_in_set",
             Self::AlreadyChosen => "already_chosen",
+            Self::BadCustomization => "bad_customization",
+            Self::CustomizationNotAllowed => "customization_not_allowed",
         }
     }
 }
@@ -322,6 +332,8 @@ impl Canon for RejectReason {
             Self::UnknownNode => 18,
             Self::OptionNotInSet => 19,
             Self::AlreadyChosen => 20,
+            Self::BadCustomization => 21,
+            Self::CustomizationNotAllowed => 22,
         };
         tag.encode(w);
     }
@@ -410,6 +422,8 @@ mod tests {
             "unknown_node",
             "option_not_in_set",
             "already_chosen",
+            "bad_customization",
+            "customization_not_allowed",
         ];
         let actual: Vec<&str> = RejectReason::ALL.iter().map(|r| r.label()).collect();
         assert_eq!(actual, expected);

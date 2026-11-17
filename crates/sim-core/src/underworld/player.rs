@@ -13,7 +13,10 @@
 
 use crate::canon::{Canon, CanonWriter};
 use crate::ids::{BirthSlotId, PersonId, SoulId, Tick};
+use crate::params::draw_trait;
+use crate::rng::{StreamTag, draw};
 use crate::underworld::carry_over::TraitName;
+use crate::values::Traits;
 use crate::world::{Life, RejectReason, World};
 
 /// One stay of the Player_Soul in the Waiting_Queue (design "Data Models").
@@ -27,6 +30,8 @@ pub struct PlayerWait {
     pub claim: Option<BirthSlotId>,
     /// The trait copied into the next body (R9.1), `None` for the fallback.
     pub carry_over: Option<TraitName>,
+    /// Seven uncustomized Traits drawn once when the Player_Wait begins.
+    pub rebuilt_draw: Traits,
 }
 
 impl Canon for PlayerWait {
@@ -36,11 +41,13 @@ impl Canon for PlayerWait {
             access_from,
             claim,
             carry_over,
+            rebuilt_draw,
         } = self;
         ghost.encode(w);
         access_from.encode(w);
         claim.encode(w);
         carry_over.encode(w);
+        rebuilt_draw.encode(w);
     }
 }
 
@@ -109,11 +116,30 @@ pub(crate) fn start_wait(world: &mut World, soul: SoulId, death_tick: Tick) {
         return;
     };
     let access_from = Tick(death_tick.0.saturating_add(world.params.register_wait));
+    let trait_at = |index| {
+        draw_trait(draw(
+            world.seed,
+            ghost.rng_key(),
+            StreamTag::RebuiltDraw,
+            death_tick,
+            index,
+        ))
+    };
+    let rebuilt_draw = Traits {
+        greed: trait_at(0),
+        loyalty: trait_at(1),
+        pride: trait_at(2),
+        warmth: trait_at(3),
+        temper: trait_at(4),
+        vindictiveness: trait_at(5),
+        piety: trait_at(6),
+    };
     world.player_wait = Some(PlayerWait {
         ghost,
         access_from,
         claim: None,
         carry_over: None,
+        rebuilt_draw,
     });
 }
 

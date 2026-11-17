@@ -44,7 +44,7 @@ impl TraitName {
 }
 
 /// The value of `name` in `traits`.
-fn value(traits: &Traits, name: TraitName) -> Trait {
+pub(crate) fn value(traits: &Traits, name: TraitName) -> Trait {
     match name {
         TraitName::Greed => traits.greed,
         TraitName::Loyalty => traits.loyalty,
@@ -57,7 +57,7 @@ fn value(traits: &Traits, name: TraitName) -> Trait {
 }
 
 /// Writes `value` into the `name` field of `traits`.
-fn set(traits: &mut Traits, name: TraitName, value: Trait) {
+pub(crate) fn set(traits: &mut Traits, name: TraitName, value: Trait) {
     match name {
         TraitName::Greed => traits.greed = value,
         TraitName::Loyalty => traits.loyalty = value,

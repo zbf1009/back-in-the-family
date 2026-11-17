@@ -1454,6 +1454,7 @@ mod tests {
             access_from: crate::ids::Tick(0),
             claim: None,
             carry_over: None,
+            rebuilt_draw: w.persons[&ghost].traits.clone(),
         });
         let violation = check_player_wait(&w).unwrap_err();
         assert_eq!(violation.criterion, "U7.10");
@@ -1484,6 +1485,7 @@ mod tests {
             access_from: crate::ids::Tick(0),
             claim: None,
             carry_over: None,
+            rebuilt_draw: w.persons[&body].traits.clone(),
         });
         let violation = check_player_wait(&w).unwrap_err();
         assert_eq!(violation.criterion, "U8.3");
@@ -1513,6 +1515,7 @@ mod tests {
             access_from: crate::ids::Tick(0),
             claim: Some(crate::ids::BirthSlotId(9)),
             carry_over: None,
+            rebuilt_draw: w.persons[&body].traits.clone(),
         });
         let violation = check_player_wait(&w).unwrap_err();
         assert_eq!(violation.criterion, "U7.10");

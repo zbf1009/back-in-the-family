@@ -416,7 +416,19 @@ fn plan_claim(sim: &mut Sim, planned: &mut Vec<Submitted>, d: &dyn Fn(u64) -> u6
         4 => SlotRef::Birth(BirthSlotId(9999)),
         _ => return,
     };
-    submit(sim, planned, InputPayload::ClaimSlot { slot });
+    submit(
+        sim,
+        planned,
+        InputPayload::ClaimSlot {
+            slot,
+            customization: (slot == SlotRef::RebuiltBody).then_some(
+                sim_core::underworld::customization::Customization::Set {
+                    trait_name: sim_core::underworld::carry_over::TraitName::Piety,
+                    value: 3,
+                },
+            ),
+        },
+    );
 }
 
 fn submit(sim: &mut Sim, planned: &mut Vec<Submitted>, payload: InputPayload) -> Option<InputSeq> {
@@ -504,6 +516,7 @@ impl AppliedCounts {
                 InputPayload::Bribe { .. } => self.bribes = self.bribes.saturating_add(1),
                 InputPayload::ClaimSlot {
                     slot: SlotRef::Birth(_),
+                    ..
                 } => self.birth_claims = self.birth_claims.saturating_add(1),
                 InputPayload::ClaimSlot { .. } => {
                     self.standing_claims = self.standing_claims.saturating_add(1);

@@ -76,6 +76,7 @@ use crate::input::{InputPayload, SubmitError};
 use crate::narrator::PlayerOption;
 use crate::tick::{Sim, SimError};
 use crate::underworld::carry_over::TraitName;
+use crate::underworld::customization::Customization;
 use crate::underworld::dreams::DreamIntent;
 use crate::underworld::nodes::{NodeOption, NodeRef};
 use crate::underworld::slots::SlotRef;
@@ -321,6 +322,64 @@ impl From<ReplayTraitName> for TraitName {
     }
 }
 
+/// One named Trait and a signed step in an Adjust customization.
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ReplayTraitAdjust {
+    pub trait_name: ReplayTraitName,
+    pub delta: i8,
+}
+
+/// Strict file-format twin of a Rebuilt_Body customization.
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub enum ReplayCustomization {
+    Set {
+        trait_name: ReplayTraitName,
+        value: i8,
+    },
+    Adjust {
+        first: ReplayTraitAdjust,
+        second: ReplayTraitAdjust,
+    },
+}
+
+impl From<Customization> for ReplayCustomization {
+    fn from(customization: Customization) -> Self {
+        match customization {
+            Customization::Set { trait_name, value } => Self::Set {
+                trait_name: trait_name.into(),
+                value,
+            },
+            Customization::Adjust { first, second } => Self::Adjust {
+                first: ReplayTraitAdjust {
+                    trait_name: first.0.into(),
+                    delta: first.1,
+                },
+                second: ReplayTraitAdjust {
+                    trait_name: second.0.into(),
+                    delta: second.1,
+                },
+            },
+        }
+    }
+}
+
+impl From<ReplayCustomization> for Customization {
+    fn from(customization: ReplayCustomization) -> Self {
+        match customization {
+            ReplayCustomization::Set { trait_name, value } => Self::Set {
+                trait_name: trait_name.into(),
+                value,
+            },
+            ReplayCustomization::Adjust { first, second } => Self::Adjust {
+                first: (first.trait_name.into(), first.delta),
+                second: (second.trait_name.into(), second.delta),
+            },
+        }
+    }
+}
+
 /// File-format twin of [`DreamIntent`], written as its card name.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -545,6 +604,8 @@ pub enum ReplayPayload {
     },
     ClaimSlot {
         slot: ReplaySlotRef,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        customization: Option<ReplayCustomization>,
     },
     CarryOver {
         trait_name: ReplayTraitName,
@@ -587,7 +648,13 @@ impl From<InputPayload> for ReplayPayload {
                 target: target.0,
                 intensity,
             },
-            InputPayload::ClaimSlot { slot } => Self::ClaimSlot { slot: slot.into() },
+            InputPayload::ClaimSlot {
+                slot,
+                customization,
+            } => Self::ClaimSlot {
+                slot: slot.into(),
+                customization: customization.map(Into::into),
+            },
             InputPayload::CarryOver { trait_name } => Self::CarryOver {
                 trait_name: trait_name.into(),
             },
@@ -623,7 +690,13 @@ impl From<ReplayPayload> for InputPayload {
                 target: PersonId(target),
                 intensity,
             },
-            ReplayPayload::ClaimSlot { slot } => Self::ClaimSlot { slot: slot.into() },
+            ReplayPayload::ClaimSlot {
+                slot,
+                customization,
+            } => Self::ClaimSlot {
+                slot: slot.into(),
+                customization: customization.map(Into::into),
+            },
             ReplayPayload::CarryOver { trait_name } => Self::CarryOver {
                 trait_name: trait_name.into(),
             },
@@ -1037,20 +1110,43 @@ mod tests {
             (
                 InputPayload::ClaimSlot {
                     slot: SlotRef::Birth(BirthSlotId(3)),
+                    customization: None,
                 },
                 r#"{"ClaimSlot":{"slot":{"Birth":"3"}}}"#,
             ),
             (
                 InputPayload::ClaimSlot {
                     slot: SlotRef::ImportedVessel,
+                    customization: None,
                 },
                 r#"{"ClaimSlot":{"slot":"ImportedVessel"}}"#,
             ),
             (
                 InputPayload::ClaimSlot {
                     slot: SlotRef::RebuiltBody,
+                    customization: None,
                 },
                 r#"{"ClaimSlot":{"slot":"RebuiltBody"}}"#,
+            ),
+            (
+                InputPayload::ClaimSlot {
+                    slot: SlotRef::RebuiltBody,
+                    customization: Some(Customization::Set {
+                        trait_name: TraitName::Warmth,
+                        value: 2,
+                    }),
+                },
+                r#"{"ClaimSlot":{"slot":"RebuiltBody","customization":{"Set":{"trait_name":"warmth","value":2}}}}"#,
+            ),
+            (
+                InputPayload::ClaimSlot {
+                    slot: SlotRef::RebuiltBody,
+                    customization: Some(Customization::Adjust {
+                        first: (TraitName::Greed, -1),
+                        second: (TraitName::Piety, 1),
+                    }),
+                },
+                r#"{"ClaimSlot":{"slot":"RebuiltBody","customization":{"Adjust":{"first":{"trait_name":"greed","delta":-1},"second":{"trait_name":"piety","delta":1}}}}}"#,
             ),
             (
                 InputPayload::CarryOver {
@@ -1122,6 +1218,10 @@ mod tests {
         for text in [
             r#"{"CarryOver":{"trait_name":"wrath"}}"#,
             r#"{"ClaimSlot":{"slot":{"Birth":"three"}}}"#,
+            r#"{"ClaimSlot":{"slot":"RebuiltBody","customization":{"Set":{"trait_name":"unknown","value":2}}}}"#,
+            r#"{"ClaimSlot":{"slot":"RebuiltBody","customization":{"Set":{"trait_name":"piety","value":256}}}}"#,
+            r#"{"ClaimSlot":{"slot":"RebuiltBody","customization":{"Set":{"trait_name":"piety","value":1},"Adjust":{"first":{"trait_name":"greed","delta":1},"second":{"trait_name":"piety","delta":-1}}}}}"#,
+            r#"{"ClaimSlot":{"slot":"RebuiltBody","customization":{"Adjust":{"first":{"trait_name":"greed","delta":1}}}}}"#,
         ] {
             assert!(
                 serde_json::from_str::<ReplayPayload>(text).is_err(),

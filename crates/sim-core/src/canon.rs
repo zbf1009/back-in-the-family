@@ -25,7 +25,7 @@ use crate::ids::{
 
 /// Version of the canonical layout. Bump it whenever any encoding rule or any encoded
 /// field changes, so old and new checksums can never be confused for each other.
-pub const CANON_VERSION: u16 = 5;
+pub const CANON_VERSION: u16 = 6;
 
 /// Sink for canonical bytes.
 pub trait CanonWriter {
@@ -256,6 +256,6 @@ mod tests {
 
     #[test]
     fn canon_version_is_encoded_as_u16() {
-        assert_eq!(encode_to_vec(&CANON_VERSION), [5, 0]);
+        assert_eq!(encode_to_vec(&CANON_VERSION), [6, 0]);
     }
 }

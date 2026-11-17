@@ -315,6 +315,8 @@ pub enum Mutation {
     SlotBirth { slot: u64 },
     /// `World::player_wait`: bump `access_from`, or install a wait when there is none.
     PlayerWait,
+    /// Stored Rebuilt_Draw: change one Trait without changing the wait metadata.
+    RebuiltDraw,
     /// `Nodes::resolved`: change one record's `applied` to the next option, or install
     /// one record when the run has none.
     NodeRecordApplied { record: u64 },
@@ -1021,6 +1023,7 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
                     access_from,
                     claim: _,
                     carry_over: _,
+                    rebuilt_draw: _,
                 } = wait;
                 *access_from = Tick(access_from.0.wrapping_add(1));
                 true
@@ -1033,8 +1036,18 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
                     access_from: *tick,
                     claim: None,
                     carry_over: None,
+                    rebuilt_draw: persons[&ghost].traits.clone(),
                 });
                 true
+            }
+        }
+        Mutation::RebuiltDraw => {
+            if let Some(wait) = player_wait.as_mut() {
+                wait.rebuilt_draw.piety =
+                    Trait::clamped(i64::from(wait.rebuilt_draw.piety.get()).saturating_add(1));
+                true
+            } else {
+                false
             }
         }
         Mutation::NodeRecordApplied { record } => {
@@ -1284,6 +1297,16 @@ mod tests {
                 "{mutation:?} did not reach the checksum"
             );
         }
+    }
+
+    #[test]
+    fn rebuilt_draw_changes_the_checksum_when_a_wait_exists() {
+        let mut base = world();
+        assert!(apply(&mut base, Mutation::PlayerWait));
+        let mut changed = base.clone();
+        assert!(apply(&mut changed, Mutation::RebuiltDraw));
+        assert_ne!(changed, base);
+        assert_ne!(Checksum::of(&changed), Checksum::of(&base));
     }
 
     #[test]

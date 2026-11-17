@@ -62,9 +62,12 @@ pub enum StreamTag {
     /// Auto_Player plans its Player_Soul inputs from `StreamTag::AutoPlayer` streams
     /// keyed by the world seed and the Player_Soul's ID (R11.1), so tooling can never
     /// alias a simulation stream. Value 17 is permanent like the others.
+    /// Auto_Player planning stream, keyed by the Player_Soul.
     AutoPlayer = 17,
     /// Narrator Rules_Default noise keyed by the triggering Event or body ID.
     Narrator = 18,
+    /// Rebuilt_Draw values, keyed by the Ghost body and death tick.
+    RebuiltDraw = 19,
 }
 
 // Distinct odd multipliers, one per input position (seed, entity, tag, tick, index).
@@ -172,6 +175,8 @@ mod tests {
         assert_eq!(StreamTag::Nodes as u8, 15);
         assert_eq!(StreamTag::Offerings as u8, 16);
         assert_eq!(StreamTag::AutoPlayer as u8, 17);
+        assert_eq!(StreamTag::Narrator as u8, 18);
+        assert_eq!(StreamTag::RebuiltDraw as u8, 19);
     }
 
     #[test]

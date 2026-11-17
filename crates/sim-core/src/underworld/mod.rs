@@ -8,6 +8,7 @@ use crate::values::Origin;
 use crate::world::{SoulPlace, World};
 
 pub mod carry_over;
+pub mod customization;
 pub mod dreams;
 pub mod ghosts;
 pub mod hauntings;
@@ -77,7 +78,7 @@ pub(crate) fn place_player_if_overdue(world: &mut World) {
     // R8.2: release the claim by dropping the wait.
     world.player_wait = None;
     if let Some(body) =
-        crate::outsiders::create_outsider(world, world.souls.player, Origin::Possessed, 0)
+        crate::outsiders::create_outsider(world, world.souls.player, Origin::Possessed, 0, None)
     {
         crate::underworld::carry_over::apply(world, body, ghost, trait_name);
     }
