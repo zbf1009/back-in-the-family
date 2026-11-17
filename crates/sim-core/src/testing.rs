@@ -54,6 +54,89 @@ pub fn set_invalid_joss_account(world: &mut World, soul: SoulId, account: JossAc
     *world.joss.get_mut(&soul).expect("C1 Soul has an account") = account;
 }
 
+/// Installs a constructed Player_Node for skip and rejection property tests only.
+/// Production nodes always come from narrator::run and the shared ID counter.
+pub fn install_player_node(world: &mut World, node: crate::narrator::PlayerNode) {
+    world.narrator.pending = Some(node);
+}
+
+/// Changes a constructed World's next tick without running unrelated systems.
+pub fn set_tick(world: &mut World, tick: Tick) {
+    world.tick = tick;
+}
+
+/// Sets a constructed test's Resident balance so skip-rule tests can invalidate
+/// a previously legal repayment without adding a money source to production rules.
+pub fn set_person_money(world: &mut World, person: PersonId, money: u64) {
+    if let Some(p) = world.persons.get_mut(&person)
+        && let Life::Alive { money: balance, .. } = &mut p.life
+    {
+        *balance = money;
+    }
+}
+
+/// Constructs a current Player_Life budget for childhood option properties.
+pub fn set_player_life(world: &mut World, life: crate::narrator::PlayerLife) {
+    world.narrator.life = Some(life);
+}
+
+/// Sets a test body's birth day to exercise a childhood Life_Stage clock.
+pub fn set_person_birth_day(world: &mut World, person: PersonId, birth_day: i64) {
+    world
+        .persons
+        .get_mut(&person)
+        .expect("test body exists")
+        .birth_day = birth_day;
+}
+
+/// Set a constructed directed Relation to a known threshold value for feud tests.
+pub fn set_relation_affinity(world: &mut World, from: PersonId, to: PersonId, affinity: i8) {
+    let relation = world
+        .relations
+        .entry((from, to))
+        .or_insert_with(|| Relation {
+            affinity: Score::clamped(0),
+            trust: Score::clamped(0),
+            tags: RelTags::empty(),
+        });
+    relation.affinity = Score::clamped(i64::from(affinity));
+    crate::social::apply_threshold_tags(&mut relation.tags, relation.affinity, &world.params);
+}
+
+/// Adds a real loan Event and an open Debt for deterministic Narrator trigger tests.
+pub fn add_test_debt(
+    world: &mut World,
+    debtor: PersonId,
+    creditor: PersonId,
+    due: Tick,
+    amount: u64,
+) -> EventId {
+    assert!(debtor != creditor && amount > 0);
+    let loan = world
+        .append(
+            EventKind::Loan {
+                lender: creditor,
+                borrower: debtor,
+                amount,
+                due,
+            },
+            CausedBy::default(),
+            EventTags::empty(),
+        )
+        .expect("test loan actors are living Residents");
+    world.debts.insert(
+        loan,
+        Debt {
+            creditor,
+            debtor,
+            principal: amount,
+            open: amount,
+            due,
+        },
+    );
+    loan
+}
+
 /// One single-field mutation. Selector fields are resolved modulo the number of
 /// candidates, so any value is legal.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]

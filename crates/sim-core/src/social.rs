@@ -18,8 +18,8 @@ use crate::world::{AppendRefused, Household, Life, Relation, World, unordered_pa
 
 /// The signed affinity and trust change one direction of a social act applies.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Default)]
-struct Effect {
-    affinity: i64,
+pub(crate) struct Effect {
+    pub(crate) affinity: i64,
     trust: i64,
 }
 
@@ -31,7 +31,7 @@ struct Effect {
 /// (`help`, `gift` and `apology` raise; `quarrel`, `insult` and `theft` lower). All
 /// divisions are on the non-negative intensity and round down; the caps are the table's
 /// `<=` bounds.
-fn effects(kind: SocialKind, intensity: Intensity) -> (Effect, Effect) {
+pub(crate) fn effects(kind: SocialKind, intensity: Intensity) -> (Effect, Effect) {
     let i = i64::from(intensity.get());
     let divide = |by: i64, cap: i64| i.checked_div(by).unwrap_or(0).min(cap);
     let lower = |by: i64, cap: i64| divide(by, cap).saturating_neg();
@@ -112,6 +112,7 @@ fn move_relation(
     to: PersonId,
     affinity_delta: i64,
     trust_delta: i64,
+    event: EventId,
 ) {
     if affinity_delta == 0 && trust_delta == 0 {
         return;
@@ -126,10 +127,29 @@ fn move_relation(
             trust: Score::clamped(0),
             tags: RelTags::empty(),
         });
-    relation.affinity =
-        Score::clamped(i64::from(relation.affinity.get()).saturating_add(affinity_delta));
+    let before = relation.affinity.get();
+    relation.affinity = Score::clamped(i64::from(before).saturating_add(affinity_delta));
     relation.trust = Score::clamped(i64::from(relation.trust.get()).saturating_add(trust_delta));
     apply_threshold_tags(&mut relation.tags, relation.affinity, &params);
+    let after = relation.affinity.get();
+    if before >= params.grudge_threshold && after < params.grudge_threshold {
+        let player = world.souls.places.get(&world.souls.player);
+        if matches!(player, Some(crate::world::SoulPlace::Body(body)) if *body == from || *body == to)
+            && world
+                .persons
+                .get(&from)
+                .is_some_and(|p| matches!(p.life, Life::Alive { .. }))
+            && world
+                .persons
+                .get(&to)
+                .is_some_and(|p| matches!(p.life, Life::Alive { .. }))
+        {
+            world
+                .narrator
+                .crossings
+                .push(crate::narrator::Crossing { event, from, to });
+        }
+    }
 }
 
 /// Applies one social act: appends the Event, applies the Mood deltas through
@@ -162,6 +182,7 @@ pub(crate) fn apply_social(
         doer,
         target_to_actor.affinity,
         target_to_actor.trust,
+        id,
     );
     move_relation(
         world,
@@ -169,6 +190,7 @@ pub(crate) fn apply_social(
         target,
         actor_to_target.affinity,
         actor_to_target.trust,
+        id,
     );
     Ok(id)
 }

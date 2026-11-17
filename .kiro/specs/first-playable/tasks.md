@@ -57,7 +57,7 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - Acceptance: fixture acceptance for Canon v4 (Rust gates, including compilation of `crates/sim-core/tests/underworld_gen/mod.rs`, wasm32 tests, short batch, passive acceptance batch, R15.6 check). Commit `feat(sim-core): add the narrator steps and the player choice input` with the regeneration line.
 
 - [ ] 2. Patterns, options, salience and the budget
-  - [ ] 2.1 Add the five Pattern families and the selection rule
+  - [x] 2.1 Add the five Pattern families and the selection rule
     - Files: `crates/sim-core/src/narrator/patterns.rs` (new), `crates/sim-core/src/narrator/options.rs` (new), `crates/sim-core/src/narrator/salience.rs` (new), `crates/sim-core/src/social.rs`, `crates/sim-core/src/economy.rs`, `fixtures/parity/*` (regenerated).
     - Follow design "Pattern families", "Feud first crossing", "Salience" and the `run` steps in "sim-core: narrator/ module".
     - The five families in the order `family_death`, `inheritance`, `debt_due`, `feud`, `life_stage`, with the option tables, Stakes and priors exactly as the design table gives them. Life_Stage ages 2,190, 4,380, 5,840 with the three option rows.

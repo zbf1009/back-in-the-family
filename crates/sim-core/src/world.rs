@@ -440,6 +440,11 @@ impl World {
         &self.nodes
     }
 
+    /// Player_Node, Chronicle and current Player_Life budget.
+    pub fn narrator(&self) -> &crate::narrator::Narrator {
+        &self.narrator
+    }
+
     /// Sources and sinks of the last tick run.
     pub fn last_flows(&self) -> FlowTotals {
         self.flows
@@ -861,6 +866,10 @@ impl Canon for World {
             narrator,
             derived: _,
         } = self;
+        debug_assert!(
+            narrator.crossings.is_empty(),
+            "crossings must be empty at checksum boundary"
+        );
         CANON_VERSION.encode(w);
         seed.encode(w);
         config.encode(w);

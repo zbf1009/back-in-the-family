@@ -253,6 +253,27 @@ fn settle_estate(
     }
 }
 
+/// Close an open Debt through the same death-settlement forgiveness path.
+pub(crate) fn forgive_debt(
+    world: &mut World,
+    loan: EventId,
+    caused_by: CausedBy,
+) -> Result<EventId, crate::world::AppendRefused> {
+    let debt = world.debts.get(&loan).expect("forgiven debt remains open");
+    let (creditor, debtor, amount) = (debt.creditor, debt.debtor, debt.open);
+    let id = world.append(
+        EventKind::DebtForgiven {
+            creditor,
+            debtor,
+            amount,
+        },
+        caused_by,
+        EventTags::empty(),
+    )?;
+    world.debts.remove(&loan);
+    Ok(id)
+}
+
 /// Settles the Debts of the deceased (OP-2 A), each citing the `loan` and the `death`.
 ///
 /// A Debt the deceased owed moves to the first heir, or is forgiven when there is no
@@ -289,18 +310,7 @@ fn settle_debts(world: &mut World, deceased: PersonId, heirs: &[PersonId], death
                 }
             }
             None => {
-                let appended = world.append(
-                    EventKind::DebtForgiven {
-                        creditor: debt.creditor,
-                        debtor: deceased,
-                        amount: debt.open,
-                    },
-                    cause,
-                    EventTags::empty(),
-                );
-                if appended.is_ok() {
-                    world.debts.remove(&loan);
-                }
+                let _ = forgive_debt(world, loan, cause);
             }
         }
     }
@@ -312,21 +322,10 @@ fn settle_debts(world: &mut World, deceased: PersonId, heirs: &[PersonId], death
         .map(|(&loan, _)| loan)
         .collect();
     for loan in owing {
-        let Some(debt) = world.debts.get(&loan).cloned() else {
+        if !world.debts.contains_key(&loan) {
             continue;
-        };
-        let appended = world.append(
-            EventKind::DebtForgiven {
-                creditor: deceased,
-                debtor: debt.debtor,
-                amount: debt.open,
-            },
-            CausedBy::new(vec![loan, death]),
-            EventTags::empty(),
-        );
-        if appended.is_ok() {
-            world.debts.remove(&loan);
         }
+        let _ = forgive_debt(world, loan, CausedBy::new(vec![loan, death]));
     }
 }
 

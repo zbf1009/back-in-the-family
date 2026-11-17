@@ -337,6 +337,66 @@ fn repayment_ppm(traits: &Traits) -> u32 {
     u32::try_from(ppm).unwrap_or(950_000)
 }
 
+/// Applies a repayment from either the monthly roll or a Narrator option through
+/// the same money flow, Event and Debt update. A refused append undoes the transfer.
+pub(crate) fn repay(
+    world: &mut World,
+    loan: EventId,
+    amount: u64,
+    trigger: Option<EventId>,
+) -> Option<EventId> {
+    let debt = world.debts.get(&loan)?;
+    if amount == 0 || amount > debt.open {
+        return None;
+    }
+    let (debtor, creditor, remaining) =
+        (debt.debtor, debt.creditor, debt.open.saturating_sub(amount));
+    if !flow(
+        world,
+        Flow::Repayment {
+            from: debtor,
+            to: creditor,
+        },
+        amount,
+    ) {
+        return None;
+    }
+    let mut tags = EventTags::empty();
+    tags.insert(EventTag::Cash);
+    if remaining > 0 {
+        tags.insert(EventTag::Partial);
+    }
+    let appended = world.append(
+        EventKind::Repayment {
+            payer: debtor,
+            payee: creditor,
+            amount,
+        },
+        CausedBy::new(std::iter::once(loan).chain(trigger).collect()),
+        tags,
+    );
+    let Ok(id) = appended else {
+        // Counter exhaustion is the only refusal in a valid World. The rollback
+        // restores the exact balances because the transfer has no other writers.
+        let reversed = flow(
+            world,
+            Flow::Repayment {
+                from: creditor,
+                to: debtor,
+            },
+            amount,
+        );
+        debug_assert!(reversed, "repayment rollback must restore both balances");
+        return None;
+    };
+    if remaining == 0 {
+        world.debts.remove(&loan);
+    } else if let Some(open_debt) = world.debts.get_mut(&loan) {
+        open_debt.open = remaining;
+    }
+    Some(id)
+}
+
 /// Step 8 of the tick: repayments (design "Repayments").
 ///
 /// For every open Debt in loan Event ID order whose debtor is a Resident and whose
@@ -347,7 +407,7 @@ fn repayment_ppm(traits: &Traits) -> u32 {
 pub(crate) fn process_repayments(world: &mut World) {
     let loans: Vec<EventId> = world.debts.keys().copied().collect();
     for loan in loans {
-        let Some(debt) = world.debts.get(&loan).cloned() else {
+        let Some(debt) = world.debts.get(&loan) else {
             continue;
         };
         let Some(loan_tick) = world.log.event(loan).map(|event| event.tick) else {
@@ -388,48 +448,7 @@ pub(crate) fn process_repayments(world: &mut World) {
         if amount == 0 {
             continue;
         }
-        if !flow(
-            world,
-            Flow::Repayment {
-                from: debt.debtor,
-                to: debt.creditor,
-            },
-            amount,
-        ) {
-            continue;
-        }
-        let remaining = debt.open.saturating_sub(amount);
-        let mut tags = EventTags::empty();
-        tags.insert(EventTag::Cash);
-        if remaining > 0 {
-            tags.insert(EventTag::Partial);
-        }
-        let appended = world.append(
-            EventKind::Repayment {
-                payer: debt.debtor,
-                payee: debt.creditor,
-                amount,
-            },
-            CausedBy::new(vec![loan]),
-            tags,
-        );
-        if appended.is_err() {
-            // Only an exhausted counter can refuse; undo the transfer.
-            let _ = flow(
-                world,
-                Flow::Repayment {
-                    from: debt.creditor,
-                    to: debt.debtor,
-                },
-                amount,
-            );
-            continue;
-        }
-        if remaining == 0 {
-            world.debts.remove(&loan);
-        } else if let Some(open_debt) = world.debts.get_mut(&loan) {
-            open_debt.open = remaining;
-        }
+        let _ = repay(world, loan, amount, None);
     }
 }
 
@@ -942,6 +961,49 @@ mod tests {
         assert_eq!(money(&w, creditor), 100);
         assert_eq!(w.debts()[&loan].open, 200);
         assert_eq!(w.flows, FlowTotals::default(), "a repayment is a transfer");
+    }
+
+    #[test]
+    fn narrator_repayment_uses_monthly_flow_event_and_debt_update() {
+        let (mut world, debtor, creditor, loan) = repayment_setup();
+        let trigger = world
+            .append(
+                EventKind::Social {
+                    kind: crate::values::SocialKind::Help,
+                    doer: debtor,
+                    target: creditor,
+                    intensity: crate::values::Intensity::new(10).unwrap(),
+                },
+                CausedBy::new(vec![]),
+                EventTags::empty(),
+            )
+            .unwrap();
+        let event_id = repay(&mut world, loan, 100, Some(trigger)).expect("valid repayment");
+        let event = world.log.event(event_id).unwrap();
+        assert_eq!(event.caused_by.as_slice(), &[loan, trigger]);
+        assert_eq!(
+            event.kind,
+            EventKind::Repayment {
+                payer: debtor,
+                payee: creditor,
+                amount: 100
+            }
+        );
+        assert!(event.tags.contains(EventTag::Cash));
+        assert!(event.tags.contains(EventTag::Partial));
+        assert_eq!(world.debts[&loan].open, 200);
+        assert_eq!((money(&world, debtor), money(&world, creditor)), (900, 100));
+        assert_eq!(world.flows, FlowTotals::default());
+    }
+
+    #[test]
+    fn refused_repayment_changes_nothing() {
+        let (mut world, _debtor, _creditor, loan) = repayment_setup();
+        for amount in [0, 301, u64::MAX] {
+            let before = world.clone();
+            assert_eq!(repay(&mut world, loan, amount, None), None);
+            assert_eq!(world, before);
+        }
     }
 
     #[test]
