@@ -144,7 +144,7 @@ fn auto_player_record_contains_choices_and_replays() {
     let result = sim_cli(&[
         "record",
         "--seed",
-        "3",
+        "1",
         "--ticks",
         "29200",
         "--auto-player",
