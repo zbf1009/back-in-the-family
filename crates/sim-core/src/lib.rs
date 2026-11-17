@@ -23,6 +23,7 @@ pub mod input;
 pub mod invariants;
 pub mod llm;
 pub mod names;
+pub mod narrator;
 pub mod opening;
 pub mod outsiders;
 pub mod params;

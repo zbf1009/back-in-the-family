@@ -330,6 +330,7 @@ pub struct World {
     pub(crate) slots: BTreeMap<BirthSlotId, crate::underworld::slots::BirthSlot>,
     pub(crate) player_wait: Option<crate::underworld::player::PlayerWait>,
     pub(crate) nodes: crate::underworld::nodes::Nodes,
+    pub(crate) narrator: crate::narrator::Narrator,
     pub(crate) derived: Derived,
 }
 
@@ -857,6 +858,7 @@ impl Canon for World {
             slots,
             player_wait,
             nodes,
+            narrator,
             derived: _,
         } = self;
         CANON_VERSION.encode(w);
@@ -882,6 +884,7 @@ impl Canon for World {
         slots.encode(w);
         player_wait.encode(w);
         nodes.encode(w);
+        narrator.encode(w);
     }
 }
 

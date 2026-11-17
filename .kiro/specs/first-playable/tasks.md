@@ -43,8 +43,8 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
 
 ## Tasks
 
-- [ ] 1. Narrator skeleton: state, step 2c, step 13a, the `ChoosePlayer` input
-  - [ ] 1.1 Add the Narrator state, the two steps and the input
+- [x] 1. Narrator skeleton: state, step 2c, step 13a, the `ChoosePlayer` input
+  - [x] 1.1 Add the Narrator state, the two steps and the input
     - Files: `crates/sim-core/src/narrator/mod.rs` (new), `crates/sim-core/src/narrator/chronicle.rs` (new), `crates/sim-core/src/tick.rs`, `crates/sim-core/src/world.rs`, `crates/sim-core/src/opening.rs`, `crates/sim-core/src/testing.rs`, `crates/sim-core/src/input.rs`, `crates/sim-core/src/replay.rs`, `crates/sim-core/src/lib.rs`, `crates/sim-core/src/params.rs`, `crates/sim-core/src/rng.rs`, `crates/sim-core/src/canon.rs`, `crates/sim-core/tests/replay.rs`, `crates/sim-core/tests/underworld_gen/mod.rs`, `fixtures/parity/*` (regenerated).
     - Follow design "Tick step order", "sim-core: narrator/ module", "Data Models", and the Chronicle contract. `PlayerFamily`, `PlayerOption` (the 24 IDs and tags 0..=23), `EntrySource`, `SkipReason`, `EffectPart::check`, `PreviewWhat`, `StakeUnit`, and the Chronicle hash-chain/Canon encoding are defined there; this task implements the complete closed enums and exact labels/tags.
     - `EffectPart::Repay` and its `check` contract are definition-only in this task: validate the open Debt, matching debtor and sufficient money, but do not move money, append a repayment, call `economy::repay`, or add a temporary local repayment path. Task 2.1 is the sole task that wires the checked effect to the shared `economy::repay` seam.

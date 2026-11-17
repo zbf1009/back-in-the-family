@@ -158,6 +158,8 @@ pub enum Mutation {
     /// `Nodes::resolved`: change one record's `applied` to the next option, or install
     /// one record when the run has none.
     NodeRecordApplied { record: u64 },
+    /// `World::narrator.life`: install or advance the current player-life budget.
+    NarratorLife,
     /// `Derived::living_names`: add a free full name. **Not checksummed** (R16.5).
     DerivedName,
     /// `Derived::last_grievance`: add or bump one pair. **Not checksummed** (R16.5).
@@ -201,6 +203,7 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
         slots,
         player_wait,
         nodes,
+        narrator,
         derived,
     } = world;
 
@@ -912,6 +915,22 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
                 source: crate::underworld::nodes::ChoiceSource::RulesDefault,
                 rules_default: crate::underworld::nodes::NodeOption::DismissDream,
             });
+            true
+        }
+        Mutation::NarratorLife => {
+            if let Some(life) = narrator.life.as_mut() {
+                life.start = Tick(life.start.0.wrapping_add(1));
+            } else {
+                let Some(body) = persons.keys().next().copied() else {
+                    return false;
+                };
+                narrator.life = Some(crate::narrator::PlayerLife {
+                    body,
+                    start: *tick,
+                    first_fire: None,
+                    last_fire: None,
+                });
+            }
             true
         }
         Mutation::DerivedName => {

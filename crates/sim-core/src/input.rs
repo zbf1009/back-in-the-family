@@ -12,7 +12,8 @@
 use std::fmt;
 
 use crate::canon::{Canon, CanonWriter};
-use crate::ids::{IdCounter, InputSeq, PersonId, Tick};
+use crate::ids::{IdCounter, InputSeq, NodeId, PersonId, Tick};
+use crate::narrator::PlayerOption;
 use crate::underworld::carry_over::TraitName;
 use crate::underworld::dreams::DreamIntent;
 use crate::underworld::nodes::{NodeOption, NodeRef};
@@ -71,6 +72,8 @@ pub enum InputPayload {
         /// The option to apply; an option outside the node's set is rejected.
         option: NodeOption,
     },
+    /// Answer the Player_Node fired on the preceding tick by its shared Node ID.
+    ChoosePlayer { node: NodeId, option: PlayerOption },
 }
 
 /// Why an input was skipped at apply time (R1.5, R6.5).

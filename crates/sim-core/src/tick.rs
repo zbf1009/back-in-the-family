@@ -1,15 +1,13 @@
 //! The tick loop (R16.2).
 //!
-//! [`World::step`] runs exactly these 15 steps, in this order, on every tick. "Today"
-//! is the world's tick `T` throughout the step.
+//! [`World::step`] runs the 15 numbered steps with Narrator steps 2c and 13a.
+//! "Today" is the world's tick `T` throughout the step.
 //!
 //! 1. **Reset flows.** `flows = FlowTotals { sources: 0, sinks: 0 }`.
-//! 2. **Apply inputs** in `(tick, seq)` order (2a), then **resolve nodes** (2b). Each
-//!    `Act` is validated (R1.5, R6.5) and, if valid, appended as a social Event through
-//!    `social::apply_social`; the underworld payloads run their own check tables
-//!    (`Dream`, `Haunt`, `Bribe`, `ClaimSlot`, `CarryOver`, `Choose`). Invalid inputs
-//!    are recorded in `rejections` with `(T, seq, reason)`. Every node the tick fired
-//!    then resolves in Node ID order and is recorded; after 2b none is pending (R3.3).
+//! 2. **Apply inputs** in `(tick, seq)` order (2a), then **resolve underworld nodes**
+//!    (2b), then **resolve yesterday's Player_Node** (2c). Invalid inputs are
+//!    recorded in `rejections`. Underworld nodes still resolve in the same tick;
+//!    a Player_Node uses exactly the following Choice_Tick.
 //! 3. **Outsider releases and the Player_Soul placement** (R11, R8.1): every waiting
 //!    Soul other than the Player_Soul whose wait exceeds Max_Wait gets an outsider body,
 //!    in Soul ID order; then the Player_Soul is placed in a new Imported_Vessel when its
@@ -35,6 +33,8 @@
 //! 13. **Relation decay**, only when `T % 30 == 29`: every Relation whose `from` is a
 //!     Resident moves one point toward 0, except negative affinity of a vindictive
 //!     holder.
+//!
+//! 13a. **Narrator** observes the completed life-sim/underworld tick.
 //! 14. **Advance** `tick` to `T + 1`.
 //! 15. **Checksum** of the resulting World.
 //!
@@ -51,7 +51,7 @@ use crate::values::Intensity;
 use crate::world::{AppendRefused, ConfigError, Life, RejectReason, World, WorldConfig};
 
 impl World {
-    /// Runs one tick (the 15 steps documented above) and returns the checksum of the
+    /// Runs one tick (including steps 2c and 13a) and returns the checksum of the
     /// resulting state.
     ///
     /// `inputs` must already be in `(tick, seq)` order and are applied as given;
@@ -76,8 +76,9 @@ impl World {
         self.flows = crate::economy::FlowTotals::default();
         // 2a. Apply inputs.
         let outcomes = self.apply_inputs(inputs);
-        // 2b. Resolve the nodes the inputs fired.
+        // 2b. Resolve same-tick underworld nodes; 2c. Resolve yesterday's Player_Node.
         crate::underworld::resolve_pending(self);
+        crate::narrator::resolve(self);
         // 3. Outsider releases, then the Player_Soul's forced placement (R8.1).
         crate::outsiders::release_outsiders(self);
         crate::underworld::place_player_if_overdue(self);
@@ -101,6 +102,8 @@ impl World {
         crate::economy::process_economy(self);
         // 13. Relation decay.
         crate::social::process_relation_decay(self);
+        // 13a. Narrator observes the completed life-sim/underworld tick.
+        crate::narrator::run(self);
         // 14. Advance the tick.
         self.tick = Tick(
             self.tick
@@ -206,6 +209,9 @@ impl World {
             }
             InputPayload::Choose { node, option } => {
                 crate::underworld::nodes::attach_choice(self, node, option)
+            }
+            InputPayload::ChoosePlayer { node, option } => {
+                crate::narrator::attach_choice(self, node, option)
             }
         }
     }

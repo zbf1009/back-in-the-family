@@ -32,6 +32,7 @@
 //! {"Haunt":{"target":"9"}}
 //! {"Bribe":{"amount":"120"}}
 //! {"Choose":{"node":{"Trigger":{"seq":"64"}},"option":"heed_warning"}}
+//! {"ChoosePlayer":{"node":"12","option":"repay_now"}}
 //! ```
 //!
 //! - Every `u64` (`seed`, `ticks`, input `tick` and `seq`, person ids, slot ids) is a JSON string
@@ -54,7 +55,7 @@
 //! The serde derives live only on the DTO types in this module ([`ReplayFile`],
 //! [`ReplayInput`], [`ReplayPayload`], [`ReplaySlotRef`], [`ReplayTraitName`],
 //! [`ReplayDreamIntent`], [`ReplayNodeRef`], [`ReplayNodeOption`],
-//! [`ReplaySocialKind`], [`ReplayConfig`]). Core
+//! [`ReplayPlayerOption`], [`ReplaySocialKind`], [`ReplayConfig`]). Core
 //! types (`WorldConfig`, `InputPayload`, ...) convert to and from them, so a change to a
 //! core type cannot change the on-disk format by accident.
 //!
@@ -70,8 +71,9 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::checksum::Checksum;
-use crate::ids::{BirthSlotId, PersonId, Tick};
+use crate::ids::{BirthSlotId, NodeId, PersonId, Tick};
 use crate::input::{InputPayload, SubmitError};
+use crate::narrator::PlayerOption;
 use crate::tick::{Sim, SimError};
 use crate::underworld::carry_over::TraitName;
 use crate::underworld::dreams::DreamIntent;
@@ -438,6 +440,97 @@ impl From<ReplayNodeOption> for NodeOption {
     }
 }
 
+/// Strict replay ID for the 24 closed player-facing options.
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ReplayPlayerOption {
+    ComfortMourner,
+    SendFlowers,
+    StayAway,
+    KeepIt,
+    ThankFamily,
+    PayDebts,
+    RepayNow,
+    AskForTime,
+    IgnoreIt,
+    DemandPayment,
+    ForgiveDebt,
+    WaitItOut,
+    Apologize,
+    Retaliate,
+    LetItGo,
+    AskForAToy,
+    VisitGrandparents,
+    AskForNothing,
+    StandUpToBully,
+    TellATeacher,
+    KeepQuiet,
+    GetAJob,
+    HelpAtHome,
+    TendTheShrine,
+}
+
+impl From<PlayerOption> for ReplayPlayerOption {
+    fn from(option: PlayerOption) -> Self {
+        match option {
+            PlayerOption::ComfortMourner => Self::ComfortMourner,
+            PlayerOption::SendFlowers => Self::SendFlowers,
+            PlayerOption::StayAway => Self::StayAway,
+            PlayerOption::KeepIt => Self::KeepIt,
+            PlayerOption::ThankFamily => Self::ThankFamily,
+            PlayerOption::PayDebts => Self::PayDebts,
+            PlayerOption::RepayNow => Self::RepayNow,
+            PlayerOption::AskForTime => Self::AskForTime,
+            PlayerOption::IgnoreIt => Self::IgnoreIt,
+            PlayerOption::DemandPayment => Self::DemandPayment,
+            PlayerOption::ForgiveDebt => Self::ForgiveDebt,
+            PlayerOption::WaitItOut => Self::WaitItOut,
+            PlayerOption::Apologize => Self::Apologize,
+            PlayerOption::Retaliate => Self::Retaliate,
+            PlayerOption::LetItGo => Self::LetItGo,
+            PlayerOption::AskForAToy => Self::AskForAToy,
+            PlayerOption::VisitGrandparents => Self::VisitGrandparents,
+            PlayerOption::AskForNothing => Self::AskForNothing,
+            PlayerOption::StandUpToBully => Self::StandUpToBully,
+            PlayerOption::TellATeacher => Self::TellATeacher,
+            PlayerOption::KeepQuiet => Self::KeepQuiet,
+            PlayerOption::GetAJob => Self::GetAJob,
+            PlayerOption::HelpAtHome => Self::HelpAtHome,
+            PlayerOption::TendTheShrine => Self::TendTheShrine,
+        }
+    }
+}
+impl From<ReplayPlayerOption> for PlayerOption {
+    fn from(option: ReplayPlayerOption) -> Self {
+        match option {
+            ReplayPlayerOption::ComfortMourner => Self::ComfortMourner,
+            ReplayPlayerOption::SendFlowers => Self::SendFlowers,
+            ReplayPlayerOption::StayAway => Self::StayAway,
+            ReplayPlayerOption::KeepIt => Self::KeepIt,
+            ReplayPlayerOption::ThankFamily => Self::ThankFamily,
+            ReplayPlayerOption::PayDebts => Self::PayDebts,
+            ReplayPlayerOption::RepayNow => Self::RepayNow,
+            ReplayPlayerOption::AskForTime => Self::AskForTime,
+            ReplayPlayerOption::IgnoreIt => Self::IgnoreIt,
+            ReplayPlayerOption::DemandPayment => Self::DemandPayment,
+            ReplayPlayerOption::ForgiveDebt => Self::ForgiveDebt,
+            ReplayPlayerOption::WaitItOut => Self::WaitItOut,
+            ReplayPlayerOption::Apologize => Self::Apologize,
+            ReplayPlayerOption::Retaliate => Self::Retaliate,
+            ReplayPlayerOption::LetItGo => Self::LetItGo,
+            ReplayPlayerOption::AskForAToy => Self::AskForAToy,
+            ReplayPlayerOption::VisitGrandparents => Self::VisitGrandparents,
+            ReplayPlayerOption::AskForNothing => Self::AskForNothing,
+            ReplayPlayerOption::StandUpToBully => Self::StandUpToBully,
+            ReplayPlayerOption::TellATeacher => Self::TellATeacher,
+            ReplayPlayerOption::KeepQuiet => Self::KeepQuiet,
+            ReplayPlayerOption::GetAJob => Self::GetAJob,
+            ReplayPlayerOption::HelpAtHome => Self::HelpAtHome,
+            ReplayPlayerOption::TendTheShrine => Self::TendTheShrine,
+        }
+    }
+}
+
 /// File-format twin of [`InputPayload`].
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -473,6 +566,11 @@ pub enum ReplayPayload {
         node: ReplayNodeRef,
         option: ReplayNodeOption,
     },
+    ChoosePlayer {
+        #[serde(with = "u64_string")]
+        node: u64,
+        option: ReplayPlayerOption,
+    },
 }
 
 impl From<InputPayload> for ReplayPayload {
@@ -501,6 +599,10 @@ impl From<InputPayload> for ReplayPayload {
             InputPayload::Bribe { amount } => Self::Bribe { amount },
             InputPayload::Choose { node, option } => Self::Choose {
                 node: node.into(),
+                option: option.into(),
+            },
+            InputPayload::ChoosePlayer { node, option } => Self::ChoosePlayer {
+                node: node.0,
                 option: option.into(),
             },
         }
@@ -535,6 +637,10 @@ impl From<ReplayPayload> for InputPayload {
             ReplayPayload::Bribe { amount } => Self::Bribe { amount },
             ReplayPayload::Choose { node, option } => Self::Choose {
                 node: node.into(),
+                option: option.into(),
+            },
+            ReplayPayload::ChoosePlayer { node, option } => Self::ChoosePlayer {
+                node: NodeId(node),
                 option: option.into(),
             },
         }
@@ -1022,6 +1128,49 @@ mod tests {
                 "{text}"
             );
         }
+    }
+
+    #[test]
+    fn player_choice_round_trips_with_strict_node_id_and_baseline_header() {
+        for &option in PlayerOption::ALL {
+            let payload = InputPayload::ChoosePlayer {
+                node: NodeId(u64::MAX),
+                option,
+            };
+            let json = serde_json::to_string(&ReplayPayload::from(payload)).unwrap();
+            assert_eq!(
+                json,
+                format!(
+                    r#"{{"ChoosePlayer":{{"node":"18446744073709551615","option":"{}"}}}}"#,
+                    option.label()
+                )
+            );
+            let parsed: ReplayPayload = serde_json::from_str(&json).unwrap();
+            assert_eq!(InputPayload::from(parsed), payload);
+        }
+
+        for bad in [
+            r#"{"ChoosePlayer":{"node":12,"option":"repay_now"}}"#,
+            r#"{"ChoosePlayer":{"node":"01","option":"repay_now"}}"#,
+            r#"{"ChoosePlayer":{"node":"18446744073709551616","option":"repay_now"}}"#,
+            r#"{"ChoosePlayer":{"node":"12","option":"repay_now","extra":true}}"#,
+            r#"{"ChoosePlayer":{"node":"12","option":"unknown"}}"#,
+        ] {
+            assert!(serde_json::from_str::<ReplayPayload>(bad).is_err(), "{bad}");
+        }
+
+        let payload = InputPayload::ChoosePlayer {
+            node: NodeId(12),
+            option: PlayerOption::RepayNow,
+        };
+        let file = record(1, WorldConfig::default(), &[(Tick(1), payload)], 2).unwrap();
+        let json = file.to_json_string().unwrap();
+        assert!(
+            json.starts_with(r#"{"format":"back-in-the-family/replay","version":4,"seed":"1""#)
+        );
+        assert!(json.contains(r#""payload":{"ChoosePlayer":{"node":"12","option":"repay_now"}}"#));
+        assert_eq!(ReplayFile::from_json_str(&json).unwrap(), file);
+        assert_eq!(verify(&file), Ok(()));
     }
 
     fn reason_for(world: &mut World, payload: InputPayload) -> RejectReason {

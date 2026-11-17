@@ -63,6 +63,8 @@ pub enum StreamTag {
     /// keyed by the world seed and the Player_Soul's ID (R11.1), so tooling can never
     /// alias a simulation stream. Value 17 is permanent like the others.
     AutoPlayer = 17,
+    /// Narrator Rules_Default noise keyed by the triggering Event or body ID.
+    Narrator = 18,
 }
 
 // Distinct odd multipliers, one per input position (seed, entity, tag, tick, index).

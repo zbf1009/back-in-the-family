@@ -161,6 +161,22 @@ pub struct Params {
     pub burn_small_affinity_gain: i8,
     /// Lower bound of the daily mortality rate, in ppm (OP-D7 A). `0` disables it.
     pub mortality_floor_ppm: u32,
+    /// Earliest first Player_Node offset in a Player_Life.
+    pub first_interrupt_min: u64,
+    /// Exclusive upper bound of the first-life target band.
+    pub first_interrupt_max: u64,
+    /// Minimum tick gap between Player_Nodes in one life.
+    pub interrupt_gap_min: u64,
+    /// Target tick gap between Player_Nodes in one life.
+    pub interrupt_gap_target: u64,
+    /// Days before a Debt comes due that its Narrator clock trigger fires.
+    pub debt_due_lead: u64,
+    /// Latest opening Intro_Debt trigger offset.
+    pub opening_trigger_max: u64,
+    /// Lowest salience eligible for Narrator consideration.
+    pub min_salience: i64,
+    /// Life-stage ages, in days, in increasing order.
+    pub life_stage_ages: [u64; 3],
 }
 
 /// The default mortality table: `15` at birth, `1` for ages 1..=17, then rising bands
@@ -284,6 +300,14 @@ impl Params {
         burn_offering_affinity_gain: 3,
         burn_small_affinity_gain: 1,
         mortality_floor_ppm: 0,
+        first_interrupt_min: 600,
+        first_interrupt_max: 900,
+        interrupt_gap_min: 900,
+        interrupt_gap_target: 1_200,
+        debt_due_lead: 30,
+        opening_trigger_max: 870,
+        min_salience: 30,
+        life_stage_ages: [2_190, 4_380, 5_840],
     };
 
     /// Raised rates for short property-test runs: deaths, births, releases, debts at
@@ -420,6 +444,14 @@ impl Canon for Params {
             burn_offering_affinity_gain,
             burn_small_affinity_gain,
             mortality_floor_ppm,
+            first_interrupt_min,
+            first_interrupt_max,
+            interrupt_gap_min,
+            interrupt_gap_target,
+            debt_due_lead,
+            opening_trigger_max,
+            min_salience,
+            life_stage_ages,
         } = self;
         // Fixed-length table, so no length prefix is needed.
         for ppm in mortality_ppm_by_age {
@@ -480,6 +512,16 @@ impl Canon for Params {
         burn_offering_affinity_gain.encode(w);
         burn_small_affinity_gain.encode(w);
         mortality_floor_ppm.encode(w);
+        first_interrupt_min.encode(w);
+        first_interrupt_max.encode(w);
+        interrupt_gap_min.encode(w);
+        interrupt_gap_target.encode(w);
+        debt_due_lead.encode(w);
+        opening_trigger_max.encode(w);
+        min_salience.encode(w);
+        for age in life_stage_ages {
+            age.encode(w);
+        }
     }
 }
 
@@ -708,14 +750,19 @@ mod tests {
         use crate::canon::{CanonBytes, encode_to_vec};
 
         let bytes = encode_to_vec(&Params::DEFAULT);
-        // 120 u32 rates + 279 bytes of scalars (pinned here on purpose: a field added
-        // to Params without encoding it fails the exhaustive destructuring instead).
-        assert_eq!(bytes.len(), 759);
+        // 120 u32 rates + 359 bytes of scalars, including the narrator fields.
+        // The exact width is pinned so an encoding change has an explicit boundary.
+        assert_eq!(bytes.len(), 839);
         assert_eq!(&bytes[..4], &15u32.to_le_bytes());
         assert_eq!(
-            &bytes[bytes.len() - 8..],
-            &[6, 4, 3, 1, 0, 0, 0, 0],
-            "the four dream gains, then mortality_floor_ppm"
+            &bytes[bytes.len() - 24..],
+            &[
+                2_190u64.to_le_bytes(),
+                4_380u64.to_le_bytes(),
+                5_840u64.to_le_bytes()
+            ]
+            .concat(),
+            "the three fixed life-stage ages follow the narrator Params"
         );
         let mut w = CanonBytes::new();
         Params::DEFAULT.encode(&mut w);

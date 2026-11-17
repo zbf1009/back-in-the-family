@@ -256,6 +256,6 @@ mod tests {
 
     #[test]
     fn canon_version_is_encoded_as_u16() {
-        assert_eq!(encode_to_vec(&CANON_VERSION), [3, 0]);
+        assert_eq!(encode_to_vec(&CANON_VERSION), [4, 0]);
     }
 }
