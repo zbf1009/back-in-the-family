@@ -828,75 +828,50 @@ proptest! {
                 }
             }
 
-            // A repayment reduces its Debt by exactly its magnitude and moves the money
-            // from the debtor to the creditor.
-            for event in tail {
-                if let EventKind::Repayment {
-                    payer,
-                    payee,
-                    amount,
-                } = &event.kind
-                {
-                    let loan = event
-                        .caused_by
-                        .iter()
-                        .find(|cause| before.debts().contains_key(cause))
-                        .ok_or_else(|| {
-                            TestCaseError::fail(tick_error(format!(
-                                "repayment {} cites no open Debt",
-                                event.id.0
-                            )))
-                        })?;
-                    let old = &before.debts()[&loan];
-                    // A death earlier in this tick may have transferred the Debt, so the
-                    // payer is the debtor after any `debt_transfer` before this Event.
-                    let transferred_to = tail
-                        .iter()
-                        .rev()
-                        .filter(|candidate| candidate.id.0 < event.id.0)
-                        .find_map(|candidate| match &candidate.kind {
-                            EventKind::DebtTransfer { to, .. }
-                                if candidate.caused_by.iter().any(|cause| cause == loan) =>
-                            {
-                                Some(*to)
-                            }
-                            _ => None,
-                        });
-                    prop_assert_eq!(transferred_to.unwrap_or(old.debtor), *payer);
-                    prop_assert_eq!(old.creditor, *payee);
-                    prop_assert!(*amount >= 1 && *amount <= old.open);
-                    let remaining = after.debts().get(&loan).map(|debt| debt.open).unwrap_or(0);
-                    prop_assert_eq!(old.open.checked_sub(*amount), Some(remaining));
-                    if remaining > 0 {
-                        prop_assert!(event.tags.contains(EventTag::Partial));
+            // Fold each old Debt's events in Event ID order. A Narrator repayment
+            // (step 2c) and an ordinary repayment (step 10) can both occur in one
+            // tick, so comparing each individual payment to the end-of-tick Debt
+            // would mistake a legal second payment for an overpayment.
+            for (&loan, old) in before.debts() {
+                let mut debtor = old.debtor;
+                let mut open = Some(old.open);
+                for event in tail.iter().filter(|event| event.caused_by.iter().any(|cause| cause == loan)) {
+                    match &event.kind {
+                        EventKind::DebtTransfer { from, to, amount } => {
+                            prop_assert_eq!(open, Some(*amount), "{}", tick_error(format!("transfer {} did not move the open debt {loan:?}", event.id.0)));
+                            prop_assert_eq!(*from, debtor);
+                            prop_assert_ne!(*to, old.creditor);
+                            debtor = *to;
+                        }
+                        EventKind::DebtForgiven { creditor, debtor: forgiven, amount } => {
+                            prop_assert_eq!(*creditor, old.creditor);
+                            prop_assert_eq!(*forgiven, debtor);
+                            prop_assert_eq!(open, Some(*amount), "{}", tick_error(format!("forgiveness {} did not close the remaining debt {loan:?}", event.id.0)));
+                            open = None;
+                        }
+                        EventKind::Repayment { payer, payee, amount } => {
+                            prop_assert_eq!(*payer, debtor);
+                            prop_assert_eq!(*payee, old.creditor);
+                            let previous = open.ok_or_else(|| TestCaseError::fail(tick_error(format!("repayment {} followed closure of debt {loan:?}", event.id.0))))?;
+                            prop_assert!(*amount >= 1 && *amount <= previous, "{}", tick_error(format!("repayment {} exceeded remaining debt {loan:?}", event.id.0)));
+                            let remaining = previous.checked_sub(*amount).ok_or_else(|| TestCaseError::fail(tick_error(format!("repayment {} underflowed debt {loan:?}", event.id.0))))?;
+                            prop_assert_eq!(event.tags.contains(EventTag::Partial), remaining > 0);
+                            open = (remaining > 0).then_some(remaining);
+                        }
+                        _ => {}
                     }
                 }
-            }
-
-            // A Debt disappears only when a repayment reached 0 or a `debt_forgiven`
-            // for it was appended in this tick — never because it is overdue.
-            for (&loan, old) in before.debts() {
-                if after.debts().contains_key(&loan) {
-                    continue;
+                match (open, after.debts().get(&loan)) {
+                    (Some(remaining), Some(actual)) => {
+                        prop_assert_eq!(actual.open, remaining, "{}", tick_error(format!("debt {loan:?} has wrong remaining amount")));
+                        prop_assert_eq!(actual.debtor, debtor);
+                        prop_assert_eq!(actual.creditor, old.creditor);
+                        prop_assert_eq!(actual.principal, old.principal);
+                        prop_assert_eq!(actual.due, old.due);
+                    }
+                    (None, None) => {}
+                    _ => return Err(TestCaseError::fail(tick_error(format!("debt {loan:?} closure disagrees with its Events")))),
                 }
-                let forgiven = tail.iter().any(|event| {
-                    matches!(event.kind, EventKind::DebtForgiven { .. })
-                        && event.caused_by.iter().any(|cause| cause == loan)
-                });
-                let repaid: u64 = tail
-                    .iter()
-                    .filter(|event| matches!(event.kind, EventKind::Repayment { .. }))
-                    .filter(|event| event.caused_by.iter().any(|cause| cause == loan))
-                    .map(|event| event.kind.magnitude())
-                    .sum();
-                prop_assert!(
-                    forgiven || repaid == old.open,
-                    "{}",
-                    tick_error(format!(
-                        "debt {loan:?} vanished with {} of {} repaid and no forgiveness",
-                        repaid, old.open
-                    ))
-                );
             }
         }
     }
