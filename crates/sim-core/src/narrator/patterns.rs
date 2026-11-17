@@ -136,12 +136,15 @@ fn inheritances(world: &World, body: PersonId, events: &[&Event], out: &mut Vec<
         co_heirs.sort_unstable();
         co_heirs.dedup();
         co_heirs.truncate(2);
-        // BTreeMap's first matching loan is the oldest open debt. Task 3.1 adds
-        // the Intro_Debt exclusion after it creates the designation state.
+        // Freeze the oldest eligible target at build time; Grace protects only its loan.
+        let protected = match world.intro_debt {
+            crate::intro::IntroDebt::Grace { loan, .. } => Some(loan),
+            _ => None,
+        };
         let pay_loan = world
             .debts
             .iter()
-            .find(|(_, debt)| debt.debtor == body && debt.open > 0)
+            .find(|(loan, debt)| Some(**loan) != protected && debt.debtor == body && debt.open > 0)
             .map(|(&loan, debt)| (loan, debt.open.min(amount)));
         let mut who = vec![deceased];
         who.extend(co_heirs.iter().copied());

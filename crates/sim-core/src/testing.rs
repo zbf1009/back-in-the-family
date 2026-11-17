@@ -29,6 +29,7 @@ use crate::events::{CausedBy, EventKind, EventTags};
 use crate::ids::{
     BirthSlotId, EventId, HouseholdId, IdCounter, InputSeq, PersonId, PropertyId, SoulId, Tick,
 };
+use crate::intro::IntroDebt;
 use crate::names::{FEMALE_FIRST_COUNT, SURNAME_COUNT};
 use crate::underworld::joss::JossAccount;
 use crate::values::{Mood, Origin, RelTags, RelationTag, Score, Sex, Trait};
@@ -137,6 +138,80 @@ pub fn add_test_debt(
     loan
 }
 
+/// Construct a death-settlement transfer of the designated open Debt for a Grace test.
+pub fn transfer_intro_debt(world: &mut World, debtor: PersonId) {
+    let IntroDebt::Grace { loan, .. } = world.intro_debt else {
+        panic!("opening grace required")
+    };
+    world
+        .debts
+        .get_mut(&loan)
+        .expect("designated loan open")
+        .debtor = debtor;
+}
+
+/// Construct a closed designated Debt, as if death settlement had forgiven it.
+pub fn close_intro_debt(world: &mut World) {
+    let IntroDebt::Grace { loan, .. } = world.intro_debt else {
+        panic!("opening grace required")
+    };
+    world.debts.remove(&loan);
+}
+
+/// Remove a non-designated test Debt to verify the inheritance option is omitted.
+pub fn close_test_debt(world: &mut World, loan: EventId) {
+    assert!(
+        !matches!(world.intro_debt, IntroDebt::Grace { loan: designated, .. } if designated == loan)
+    );
+    world.debts.remove(&loan);
+}
+
+/// Construct an ended first Player_Life without modifying the designated Debt.
+pub fn end_intro_life(world: &mut World) {
+    world
+        .souls
+        .places
+        .insert(world.souls.player, SoulPlace::Waiting { since: world.tick });
+}
+
+/// Read an inheritance candidate's fixed pay-debts target in a constructed test World.
+pub fn inheritance_pay_target(world: &World, deceased: PersonId) -> Option<EventId> {
+    let SoulPlace::Body(body) = world.souls.places[&world.souls.player] else {
+        return None;
+    };
+    let event = crate::events::Event {
+        id: EventId(0),
+        tick: world.tick,
+        kind: EventKind::Inheritance {
+            deceased,
+            heir: body,
+            amount: 100,
+        },
+        caused_by: CausedBy::default(),
+        tags: EventTags::empty(),
+    };
+    let life_start = world
+        .narrator
+        .life
+        .as_ref()
+        .map_or(Tick(0), |life| life.start);
+    crate::narrator::patterns::collect(world, body, life_start, &[&event], &[])
+        .into_iter()
+        .find(|candidate| candidate.family == crate::narrator::PlayerFamily::Inheritance)
+        .and_then(|candidate| {
+            candidate
+                .options
+                .into_iter()
+                .find(|option| option.id == crate::narrator::PlayerOption::PayDebts)
+        })
+        .and_then(|option| {
+            option.parts.into_iter().find_map(|part| match part {
+                crate::narrator::EffectPart::Repay { loan, .. } => Some(loan),
+                _ => None,
+            })
+        })
+}
+
 /// One single-field mutation. Selector fields are resolved modulo the number of
 /// candidates, so any value is legal.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -200,6 +275,8 @@ pub enum Mutation {
     DebtCreditor { debt: u64 },
     /// `Debt::debtor`: another Person.
     DebtDebtor { debt: u64 },
+    /// Change the designated loan's state without changing the Debt itself.
+    IntroDebtState,
     /// `Souls::places`: flip one Soul between a body and the queue.
     SoulPlaceField { soul: u64 },
     /// `Souls::places`: insert a waiting Soul at the counter's next id.
@@ -276,6 +353,7 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
         properties,
         relations,
         debts,
+        intro_debt,
         souls,
         log,
         flows,
@@ -1000,6 +1078,13 @@ pub fn apply(world: &mut World, mutation: Mutation) -> bool {
             });
             true
         }
+        Mutation::IntroDebtState => {
+            let IntroDebt::Grace { loan, .. } = *intro_debt else {
+                return false;
+            };
+            *intro_debt = IntroDebt::Ended { loan };
+            true
+        }
         Mutation::NarratorLife => {
             if let Some(life) = narrator.life.as_mut() {
                 life.start = Tick(life.start.0.wrapping_add(1));
@@ -1142,6 +1227,7 @@ mod tests {
             Mutation::DebtPrincipal { debt: 0 },
             Mutation::DebtCreditor { debt: 0 },
             Mutation::DebtDebtor { debt: 0 },
+            Mutation::IntroDebtState,
             Mutation::SoulPlaceField { soul: 0 },
             Mutation::AddSoul,
             Mutation::RemoveSoul { soul: 0 },

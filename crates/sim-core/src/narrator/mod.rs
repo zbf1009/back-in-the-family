@@ -522,9 +522,7 @@ pub(crate) fn resolve(world: &mut World) {
     });
 }
 
-/// Put a designated eligible Intro_Debt ahead of other candidates during
-/// Intro_Grace. The designation itself arrives with task 3.1; `None` is the
-/// ordinary ordering when no Intro_Debt has been designated.
+/// Put the eligible designated Intro_Debt ahead of ordinary candidates during Grace.
 fn order_candidates(candidates: &mut Vec<Candidate>, intro_loan: Option<EventId>) {
     candidates.sort_by_key(|candidate| {
         (
@@ -708,7 +706,22 @@ pub(crate) fn run(world: &mut World) {
     let mut candidates =
         patterns::collect(world, body, life_start, &events, &world.narrator.crossings);
     candidates.retain(|candidate| candidate.salience >= world.params.min_salience);
-    order_candidates(&mut candidates, None);
+    let intro_loan = match world.intro_debt {
+        crate::intro::IntroDebt::Grace {
+            loan,
+            body: first_body,
+        } if first_body == body
+            && world.narrator.life.as_ref().is_some_and(|life| {
+                life.start == Tick(0)
+                    && life.first_fire.is_none()
+                    && world.tick.0.saturating_sub(life.start.0) >= world.params.first_interrupt_min
+            }) =>
+        {
+            Some(loan)
+        }
+        _ => None,
+    };
+    order_candidates(&mut candidates, intro_loan);
     let can_fire = {
         let life = world.narrator.life.as_ref().expect("embodied life");
         (life.first_fire.is_none()

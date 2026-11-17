@@ -407,6 +407,10 @@ pub(crate) fn repay(
 pub(crate) fn process_repayments(world: &mut World) {
     let loans: Vec<EventId> = world.debts.keys().copied().collect();
     for loan in loans {
+        if matches!(world.intro_debt, crate::intro::IntroDebt::Grace { loan: protected, .. } if protected == loan)
+        {
+            continue;
+        }
         let Some(debt) = world.debts.get(&loan) else {
             continue;
         };

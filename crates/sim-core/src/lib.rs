@@ -20,6 +20,7 @@ pub mod economy;
 pub mod events;
 pub mod ids;
 pub mod input;
+pub mod intro;
 pub mod invariants;
 pub mod llm;
 pub mod names;

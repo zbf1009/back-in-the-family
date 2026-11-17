@@ -320,6 +320,7 @@ pub struct World {
     pub(crate) properties: BTreeMap<PropertyId, Property>,
     pub(crate) relations: BTreeMap<(PersonId, PersonId), Relation>,
     pub(crate) debts: BTreeMap<EventId, Debt>,
+    pub(crate) intro_debt: crate::intro::IntroDebt,
     pub(crate) souls: Souls,
     pub(crate) log: EventLog,
     pub(crate) flows: FlowTotals,
@@ -387,6 +388,11 @@ impl World {
     /// Open Debts in loan Event ID order.
     pub fn debts(&self) -> &BTreeMap<EventId, Debt> {
         &self.debts
+    }
+
+    /// The one opening Debt's grace, or its terminal designation.
+    pub fn intro_debt(&self) -> crate::intro::IntroDebt {
+        self.intro_debt
     }
 
     /// Souls and the Player_Soul.
@@ -853,6 +859,7 @@ impl Canon for World {
             properties,
             relations,
             debts,
+            intro_debt,
             souls,
             log,
             flows,
@@ -883,6 +890,7 @@ impl Canon for World {
         properties.encode(w);
         relations.encode(w);
         debts.encode(w);
+        intro_debt.encode(w);
         souls.encode(w);
         log.encode(w);
         flows.encode(w);

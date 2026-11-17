@@ -8,6 +8,7 @@ use proptest::prelude::*;
 use sim_core::events::EventKind;
 use sim_core::ids::{InputSeq, NodeId, PersonId, Tick};
 use sim_core::input::{InputPayload, TickInput};
+use sim_core::intro::IntroDebt;
 use sim_core::narrator::{
     EffectPart, EntrySource, PlannedOption, PlayerFamily, PlayerLife, PlayerNode, PlayerOption,
     PreviewEntry, PreviewWhat, SkipReason, StakeUnit, Stakes,
@@ -110,6 +111,301 @@ fn observable_equal(left: &World, right: &World) -> bool {
         && left.narrator() == right.narrator()
 }
 
+// Feature: first-playable, Property 10: The opening gives a guaranteed first stop
+#[test]
+fn opening_designates_a_real_eligible_debt_for_every_seed() {
+    for seed in 0..=999u64 {
+        let world = World::new(seed, WorldConfig::default()).expect("valid opening");
+        let second = World::new(seed, WorldConfig::default()).expect("same opening");
+        assert_eq!(world, second, "seed {seed}");
+        let IntroDebt::Grace { loan, body: chosen } = world.intro_debt() else {
+            panic!("seed {seed}: opening escaped without Grace");
+        };
+        assert_eq!(body(&world), chosen, "seed {seed}");
+        let person = &world.persons()[&chosen];
+        assert!(matches!(person.life, Life::Alive { .. }));
+        assert!((20..=50).contains(&world.age_years(person)));
+        let home = match person.life {
+            Life::Alive { household, .. } => household,
+            _ => unreachable!(),
+        };
+        assert!(world.persons().values().any(|other| other.id != chosen
+            && matches!(other.life, Life::Alive { household, .. } if household == home)));
+        let debt = &world.debts()[&loan];
+        let other = if debt.debtor == chosen {
+            debt.creditor
+        } else {
+            assert_eq!(debt.creditor, chosen);
+            debt.debtor
+        };
+        assert!(matches!(world.persons()[&other].life, Life::Alive { .. }));
+        let offset = debt
+            .due
+            .0
+            .checked_sub(world.params().debt_due_lead)
+            .unwrap();
+        assert!(
+            (world.params().first_interrupt_min..=world.params().opening_trigger_max)
+                .contains(&offset),
+            "seed {seed}: {offset}"
+        );
+        assert!(offset < world.params().first_interrupt_max);
+        assert!(matches!(
+            world.log().event(loan).unwrap().kind,
+            EventKind::Loan { .. }
+        ));
+        assert!(
+            world
+                .debts()
+                .iter()
+                .find(|(_, d)| {
+                    let counterpart = if d.debtor == chosen {
+                        d.creditor
+                    } else {
+                        d.debtor
+                    };
+                    (d.debtor == chosen || d.creditor == chosen)
+                        && d.due
+                            .0
+                            .checked_sub(world.params().debt_due_lead)
+                            .is_some_and(|t| {
+                                (world.params().first_interrupt_min
+                                    ..=world.params().opening_trigger_max)
+                                    .contains(&t)
+                            })
+                        && matches!(world.persons()[&counterpart].life, Life::Alive { .. })
+                })
+                .is_some_and(|(&first, _)| first == loan)
+        );
+    }
+}
+
+// Feature: first-playable, Property 19: Intro_Grace ends only on a real end condition
+#[test]
+fn grace_and_first_stop_report_for_default_seeds() {
+    let mut lost = 0u64;
+    for seed in 0..=199u64 {
+        let mut world = World::new(seed, WorldConfig::default()).unwrap();
+        let IntroDebt::Grace {
+            loan,
+            body: first_body,
+        } = world.intro_debt()
+        else {
+            unreachable!()
+        };
+        let trigger = world.debts()[&loan].due.0 - world.params().debt_due_lead;
+        let mut lost_this_seed = false;
+        let mut first_stop = None;
+        for tick in 0..=870u64 {
+            if tick > trigger {
+                break;
+            }
+            world.step(&[]);
+            assert_ne!(world.intro_debt(), IntroDebt::Undesignated);
+            let open = world.debts().get(&loan);
+            let still_involves_body =
+                open.is_some_and(|d| d.debtor == first_body || d.creditor == first_body);
+            if tick < trigger
+                && (!still_involves_body
+                    || !matches!(world.souls().places[&world.souls().player], SoulPlace::Body(id) if id == first_body))
+            {
+                lost_this_seed = true;
+            }
+            if let Some(node) = world.narrator().pending.as_ref() {
+                first_stop.get_or_insert((node.fired.0, node.family));
+            }
+            if let IntroDebt::Grace {
+                loan: current,
+                body: current_body,
+            } = world.intro_debt()
+            {
+                assert_eq!((current, current_body), (loan, first_body));
+                assert!(
+                    open.is_some(),
+                    "seed {seed} tick {tick}: grace kept closed debt"
+                );
+                assert!(
+                    matches!(world.souls().places[&world.souls().player], SoulPlace::Body(id) if id == first_body)
+                );
+                assert!(
+                    world
+                        .narrator()
+                        .chronicle
+                        .entries()
+                        .iter()
+                        .all(|e| e.node.is_none())
+                );
+            }
+        }
+        if lost_this_seed {
+            lost += 1;
+        }
+        if let Some((tick, _)) = first_stop {
+            assert!(
+                (600..900).contains(&tick),
+                "seed {seed}: first stop offset {tick}"
+            );
+        } else if !lost_this_seed {
+            panic!("seed {seed}: no first stop despite surviving Intro_Debt");
+        }
+    }
+    println!("intro trigger loss seeds=0..=199 count={lost}");
+}
+
+#[test]
+fn grace_survives_transfer_but_ends_once_after_closure_or_first_life_death() {
+    let mut transferred = World::new(70, WorldConfig::default()).unwrap();
+    let IntroDebt::Grace {
+        loan,
+        body: first_body,
+    } = transferred.intro_debt()
+    else {
+        unreachable!()
+    };
+    let heir = transferred
+        .persons()
+        .keys()
+        .copied()
+        .find(|id| *id != first_body && *id != transferred.debts()[&loan].creditor)
+        .unwrap();
+    testing::transfer_intro_debt(&mut transferred, heir);
+    transferred.step(&[]);
+    assert_eq!(
+        transferred.intro_debt(),
+        IntroDebt::Grace {
+            loan,
+            body: first_body
+        }
+    );
+    assert_eq!(transferred.debts()[&loan].debtor, heir);
+    testing::close_intro_debt(&mut transferred);
+    transferred.step(&[]);
+    assert_eq!(transferred.intro_debt(), IntroDebt::Ended { loan });
+    transferred.step(&[]);
+    assert_eq!(transferred.intro_debt(), IntroDebt::Ended { loan });
+
+    let mut died = World::new(71, WorldConfig::default()).unwrap();
+    let IntroDebt::Grace { loan, .. } = died.intro_debt() else {
+        unreachable!()
+    };
+    testing::end_intro_life(&mut died);
+    died.step(&[]);
+    assert_eq!(died.intro_debt(), IntroDebt::Ended { loan });
+}
+
+#[test]
+fn first_node_resolution_ends_grace_only_on_the_choice_tick() {
+    let mut world = World::new(72, WorldConfig::default()).unwrap();
+    let IntroDebt::Grace { loan, .. } = world.intro_debt() else {
+        unreachable!()
+    };
+    let mut fired = None;
+    for _ in 0..900 {
+        world.step(&[]);
+        if let Some(node) = world.narrator().pending.as_ref() {
+            fired = Some((node.fired, node.family));
+            assert!(matches!(world.intro_debt(), IntroDebt::Grace { .. }));
+            break;
+        }
+    }
+    let (tick, family) = fired.expect("first-life node");
+    assert!((600..900).contains(&tick.0));
+    world.step(&[]);
+    assert_eq!(world.intro_debt(), IntroDebt::Ended { loan });
+    assert!(
+        world
+            .narrator()
+            .chronicle
+            .entries()
+            .iter()
+            .any(|entry| entry.tick.0 == tick.0 + 1
+                && entry.node.is_some()
+                && entry.family == family
+                && entry.source == EntrySource::RulesDefault)
+    );
+    world.step(&[]);
+    assert_eq!(world.intro_debt(), IntroDebt::Ended { loan });
+}
+
+#[test]
+fn grace_skips_monthly_repayment_and_excludes_intro_from_inheritance() {
+    let mut world = world(73);
+    let IntroDebt::Grace {
+        loan,
+        body: chooser,
+    } = world.intro_debt()
+    else {
+        unreachable!()
+    };
+    let original = world.debts()[&loan].clone();
+    let other = other_living(&world, chooser);
+    let second = testing::add_test_debt(&mut world, chooser, other, Tick(720), 100);
+    assert_eq!(testing::inheritance_pay_target(&world, other), Some(second));
+    let mut only_intro = world.clone();
+    testing::close_test_debt(&mut only_intro, second);
+    assert_eq!(testing::inheritance_pay_target(&only_intro, other), None);
+    let anniversary = Tick(30);
+    testing::set_tick(&mut world, anniversary);
+    world.step(&[]);
+    assert_eq!(
+        world.debts()[&loan],
+        original,
+        "step 10 never pays the designated loan during Grace"
+    );
+    assert_eq!(world.debts()[&loan], original);
+}
+
+#[test]
+fn eligible_intro_debt_outweighs_same_tick_event_candidate() {
+    let mut world = world(74);
+    let IntroDebt::Grace {
+        loan,
+        body: chooser,
+    } = world.intro_debt()
+    else {
+        unreachable!()
+    };
+    let trigger = world.debts()[&loan].due.0 - world.params().debt_due_lead;
+    let other = if world.debts()[&loan].debtor == chooser {
+        world.debts()[&loan].creditor
+    } else {
+        world.debts()[&loan].debtor
+    };
+    testing::set_player_life(
+        &mut world,
+        PlayerLife {
+            body: chooser,
+            start: Tick(0),
+            first_fire: None,
+            last_fire: None,
+        },
+    );
+    testing::set_tick(&mut world, Tick(trigger));
+    testing::append_invalid_event(
+        &mut world,
+        Tick(trigger),
+        EventKind::Inheritance {
+            deceased: other,
+            heir: chooser,
+            amount: 100,
+        },
+    );
+    world.step(&[]);
+    let node = world
+        .narrator()
+        .pending
+        .as_ref()
+        .expect("eligible intro debt fires first");
+    assert_eq!(node.family, PlayerFamily::DebtDue);
+    assert_eq!(node.fired, Tick(trigger));
+    assert_eq!(
+        world.intro_debt(),
+        IntroDebt::Grace {
+            loan,
+            body: chooser
+        }
+    );
+}
 // Feature: first-playable, Property 6: Ordering and selection follow the budget rule
 #[test]
 fn default_params_never_fire_a_first_node_before_600_ticks() {

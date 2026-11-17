@@ -79,11 +79,13 @@ impl World {
         // 2b. Resolve same-tick underworld nodes; 2c. Resolve yesterday's Player_Node.
         crate::underworld::resolve_pending(self);
         crate::narrator::resolve(self);
+        crate::intro::update(self);
         // 3. Outsider releases, then the Player_Soul's forced placement (R8.1).
         crate::outsiders::release_outsiders(self);
         crate::underworld::place_player_if_overdue(self);
         // 4. Deaths, inheritance and debts at death.
         crate::death::process_deaths(self);
+        crate::intro::update(self);
         // 5. Offerings by the living, including today's funerals.
         crate::underworld::process_offerings(self);
         // 6. Births from open Birth_Slots.
@@ -104,6 +106,7 @@ impl World {
         crate::social::process_relation_decay(self);
         // 13a. Narrator observes the completed life-sim/underworld tick.
         crate::narrator::run(self);
+        crate::intro::update(self);
         // 14. Advance the tick.
         self.tick = Tick(
             self.tick

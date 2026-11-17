@@ -18,6 +18,7 @@
 use crate::economy::{Flow, flow};
 use crate::events::{CausedBy, EventKind, EventLog, EventTags};
 use crate::ids::{HouseholdId, IdCounter, PersonId, PropertyId, SoulId, Tick};
+use crate::intro::IntroDebt;
 use crate::names::{SURNAME_COUNT, pick_full_name};
 use crate::params::Params;
 use crate::rng::{StreamTag, below, draw, in_range};
@@ -74,6 +75,11 @@ const WORLD_LOAN_AMOUNT: u64 = 8_000;
 const WORLD_LOAN_DUE: u64 = 9_000;
 const WORLD_LOAN_COUNT: u64 = 10_000;
 const WORLD_PLAYER_SOUL: u64 = 11_000;
+const WORLD_PLAYER_SOUL_FALLBACK: u64 = WORLD_PLAYER_SOUL + 1;
+const WORLD_PLAYER_SOUL_ANY: u64 = WORLD_PLAYER_SOUL + 2;
+const WORLD_INTRO_LENDER: u64 = 11_003;
+const WORLD_INTRO_AMOUNT: u64 = 11_004;
+const WORLD_INTRO_DUE: u64 = 11_005;
 
 /// Adults in a couple, the age band of the first adult and the partner's age spread.
 const COUPLE_AGE_MIN: i64 = 25;
@@ -153,6 +159,7 @@ pub(crate) fn generate(
         properties: std::collections::BTreeMap::new(),
         relations: std::collections::BTreeMap::new(),
         debts: std::collections::BTreeMap::new(),
+        intro_debt: IntroDebt::Undesignated,
         souls: Souls {
             places: std::collections::BTreeMap::new(),
             player: SoulId(0),
@@ -1125,40 +1132,178 @@ fn assign_joss(world: &mut World) {
     }
 }
 
-/// Step 9: the Player_Soul is the Soul of a Resident aged 20..=50 (R12.5).
+/// Step 9: select a qualified adult, add a real loan if needed, then designate it.
 fn choose_player_soul(world: &mut World) -> Result<(), ConfigError> {
-    let candidates: Vec<PersonId> = world
-        .persons
-        .values()
-        .filter(|person| {
-            matches!(person.life, Life::Alive { .. })
-                && (PLAYER_SOUL_AGE_MIN..=PLAYER_SOUL_AGE_MAX).contains(&world.age_years(person))
+    let eligible: Vec<(PersonId, HouseholdId)> = residents_with_household(world)
+        .into_iter()
+        .filter(|(id, household)| {
+            (PLAYER_SOUL_AGE_MIN..=PLAYER_SOUL_AGE_MAX)
+                .contains(&world.age_years(&world.persons[id]))
+                && world.persons.values().any(|other| {
+                    other.id != *id
+                        && matches!(other.life, Life::Alive { household: home, .. } if home == *household)
+                })
         })
-        .map(|person| person.id)
         .collect();
-    if candidates.is_empty() {
-        return Err(ConfigError::Generation("player soul: no candidate"));
+    let qualified: Vec<_> = eligible
+        .iter()
+        .copied()
+        .filter(|(id, _)| qualifying_loan(world, *id).is_some())
+        .collect();
+    let indebted_or_estranged: Vec<_> = eligible
+        .iter()
+        .copied()
+        .filter(|(id, _)| {
+            world
+                .debts
+                .values()
+                .any(|debt| debt.debtor == *id || debt.creditor == *id)
+                || world.relations.iter().any(|(&(from, _), relation)| {
+                    from == *id && relation.affinity.get() < world.params.grudge_threshold
+                })
+        })
+        .collect();
+    let (body, household) = if !qualified.is_empty() {
+        pick_adult(world, &qualified, WORLD_PLAYER_SOUL)
+    } else if !indebted_or_estranged.is_empty() {
+        pick_adult(world, &indebted_or_estranged, WORLD_PLAYER_SOUL_FALLBACK)
+    } else {
+        pick_adult(world, &eligible, WORLD_PLAYER_SOUL_ANY)
     }
-    let index = below(
-        draw(
-            world.seed,
-            crate::ids::EntityId(0),
-            StreamTag::OpeningWorld,
-            OPENING_TICK,
-            WORLD_PLAYER_SOUL,
-        ),
-        u64::try_from(candidates.len()).unwrap_or(1),
-    );
-    let index = usize::try_from(index).unwrap_or(0);
-    let chosen = candidates
-        .get(index)
-        .ok_or(ConfigError::Generation("player soul: index out of range"))?;
-    world.souls.player = world
-        .persons
-        .get(chosen)
-        .map(|person| person.soul)
-        .ok_or(ConfigError::Generation("player soul: missing person"))?;
+    .ok_or(ConfigError::Generation("player soul: no candidate"))?;
+    world.souls.player = world.persons[&body].soul;
+    let loan = match qualifying_loan(world, body) {
+        Some(loan) => loan,
+        None => add_intro_loan(world, body, household, &eligible)?,
+    };
+    world.intro_debt = IntroDebt::Grace { loan, body };
     Ok(())
+}
+
+/// Oldest open qualifying loan for this body and a living counterparty.
+fn qualifying_loan(world: &World, body: PersonId) -> Option<crate::ids::EventId> {
+    world.debts.iter().find_map(|(&loan, debt)| {
+        let other = if debt.debtor == body {
+            debt.creditor
+        } else if debt.creditor == body {
+            debt.debtor
+        } else {
+            return None;
+        };
+        let trigger = debt.due.0.checked_sub(world.params.debt_due_lead)?;
+        (debt.open > 0
+            && (world.params.first_interrupt_min..=world.params.opening_trigger_max)
+                .contains(&trigger)
+            && world
+                .persons
+                .get(&other)
+                .is_some_and(|person| matches!(person.life, Life::Alive { .. })))
+        .then_some(loan)
+    })
+}
+
+/// Step 9b: one opening-only loan, with the ordinary event, transfer and Debt record.
+fn add_intro_loan(
+    world: &mut World,
+    body: PersonId,
+    household: HouseholdId,
+    eligible: &[(PersonId, HouseholdId)],
+) -> Result<crate::ids::EventId, ConfigError> {
+    let lenders: Vec<_> = eligible
+        .iter()
+        .copied()
+        .filter(|(id, home)| {
+            *id != body && *home != household && balance(world, *id) >= OPENING_LOAN_LENDER_MIN
+        })
+        .collect();
+    let (lender, borrower, amount) =
+        if let Some((lender, _)) = pick_adult(world, &lenders, WORLD_INTRO_LENDER) {
+            let amount = u64::try_from(in_range(
+                draw(
+                    world.seed,
+                    crate::ids::EntityId(0),
+                    StreamTag::OpeningWorld,
+                    OPENING_TICK,
+                    WORLD_INTRO_AMOUNT,
+                ),
+                OPENING_LOAN_AMOUNT_MIN,
+                OPENING_LOAN_AMOUNT_MAX,
+            ))
+            .unwrap_or(500)
+            .min(balance(world, lender));
+            (lender, body, amount)
+        } else {
+            let borrower = eligible
+                .iter()
+                .find(|(id, home)| *id != body && *home != household)
+                .map(|(id, _)| *id)
+                .ok_or(ConfigError::Generation("opening debt"))?;
+            (body, borrower, balance(world, body).min(500))
+        };
+    if amount == 0 {
+        return Err(ConfigError::Generation("opening debt"));
+    }
+    let due_min = world
+        .params
+        .first_interrupt_min
+        .checked_add(world.params.debt_due_lead)
+        .ok_or(ConfigError::Generation("opening debt"))?;
+    let due_max = world
+        .params
+        .opening_trigger_max
+        .checked_add(world.params.debt_due_lead)
+        .ok_or(ConfigError::Generation("opening debt"))?;
+    let due = Tick(
+        u64::try_from(in_range(
+            draw(
+                world.seed,
+                crate::ids::EntityId(0),
+                StreamTag::OpeningWorld,
+                OPENING_TICK,
+                WORLD_INTRO_DUE,
+            ),
+            i64::try_from(due_min).map_err(|_| ConfigError::Generation("opening debt"))?,
+            i64::try_from(due_max).map_err(|_| ConfigError::Generation("opening debt"))?,
+        ))
+        .map_err(|_| ConfigError::Generation("opening debt"))?,
+    );
+    let mut tags = EventTags::empty();
+    tags.insert(crate::events::EventTag::Cash);
+    let loan = world
+        .log
+        .push(
+            OPENING_TICK,
+            EventKind::Loan {
+                lender,
+                borrower,
+                amount,
+                due,
+            },
+            CausedBy::default(),
+            tags,
+        )
+        .map_err(|_| ConfigError::Generation("opening debt"))?;
+    if !flow(
+        world,
+        Flow::Loan {
+            from: lender,
+            to: borrower,
+        },
+        amount,
+    ) {
+        return Err(ConfigError::Generation("opening debt"));
+    }
+    world.debts.insert(
+        loan,
+        Debt {
+            creditor: lender,
+            debtor: borrower,
+            principal: amount,
+            open: amount,
+            due,
+        },
+    );
+    Ok(loan)
 }
 
 /// Living Persons with the Household they live in, in Person ID order.
