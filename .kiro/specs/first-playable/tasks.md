@@ -70,8 +70,8 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5, 2.6, 2.7, 2.8, 2.9, 2.10, 2.11, 2.12, 3.2, 3.3, 3.4, 3.5, 3.6, 3.8, 3.9, 4.1, 4.2, 4.3, 4.4, 4.5, 4.6, 4.7_
     - Acceptance: fixture acceptance. Commit `feat(sim-core): add the narrator patterns and the interrupt budget` with the regeneration line.
 
-- [ ] 3. Intro_Debt and Intro_Grace
-  - [ ] 3.1 Designate the Intro_Debt and protect it
+- [x] 3. Intro_Debt and Intro_Grace
+  - [x] 3.1 Designate the Intro_Debt and protect it
     - Files: `crates/sim-core/src/intro.rs` (new), `crates/sim-core/src/lib.rs`, `crates/sim-core/src/world.rs`, `crates/sim-core/src/opening.rs`, `crates/sim-core/src/testing.rs`, `crates/sim-core/src/economy.rs`, `crates/sim-core/src/narrator/patterns.rs`, `crates/sim-core/src/tick.rs`, `crates/sim-core/src/canon.rs`, `crates/sim-core/tests/narrator.rs`, `fixtures/parity/*` (regenerated).
     - Follow design "Opening" and "Intro_Debt and Intro_Grace". All exhaustive World literals/destructures, test-support mutations and Canon encoding are updated in this task.
     - `intro_debt: IntroDebt` is encoded after `debts`; `CANON_VERSION` advances 4→5 at this boundary. `Undesignated` is only the opening-construction value before step 9c and is never observed at a tick boundary, Checksum, replay, Snapshot or fixture. The first completed World is `Grace` or `Ended`; task-owned tests assert this and own C1's Property 19 evidence.
@@ -80,8 +80,8 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - Tests: Property 10 and Property 19, including designation on seeds 0..=999, each Grace end cause, open transfer with ongoing life, and the report-only loss count over seeds 0..=199.
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11, 5.12, 5.13, 5.14, 5.15, 5.16_
     - Acceptance: fixture acceptance for Canon v5. C1 first-stop/Grace evidence is collected here, not in task 1.1. Commit `feat(sim-core): add the intro debt and its grace` with the regeneration line.
-- [ ] 4. Rebuilt_Body Customization and Path_Status
-  - [ ] 4.1 Add Customization, the Rebuilt_Draw and Path_Status
+- [x] 4. Rebuilt_Body Customization and Path_Status
+  - [x] 4.1 Add Customization, the Rebuilt_Draw and Path_Status
     - Files: `crates/sim-core/src/underworld/customization.rs` (new), `crates/sim-core/src/underworld/mod.rs`, `crates/sim-core/src/underworld/slots.rs`, `crates/sim-core/src/underworld/player.rs`, `crates/sim-core/src/outsiders.rs`, `crates/sim-core/src/input.rs`, `crates/sim-core/src/tick.rs`, `crates/sim-core/src/replay.rs`, `crates/sim-core/src/world.rs`, `crates/sim-core/src/testing.rs`, `crates/sim-core/src/canon.rs`, `crates/sim-core/src/invariants.rs`, `crates/sim-core/src/rng.rs`, `crates/sim-core/tests/replay.rs`, `crates/sim-core/tests/underworld.rs`, `crates/sim-core/tests/underworld_gen/mod.rs`, `crates/sim-cli/src/auto_player.rs`, `crates/sim-cli/src/batch.rs`, `crates/sim-cli/tests/auto_player.rs`, `fixtures/parity/*` (regenerated).
     - Follow design "Customization and Base_Traits" and "Path_Status".
     - **Step 0, a separate repair commit before the feature work.** `cargo test --workspace` is currently red on `main` at `5ff8eb7`, in two committed assertions that the task 3.1 Canon bump and Intro_Grace left stale, neither of which this task introduces: `crates/sim-core/src/canon.rs:259` asserts `encode_to_vec(&CANON_VERSION) == [4, 0]` while `CANON_VERSION` is 5, and `crates/sim-core/src/context_builder.rs` `PINNED_DEBT_CONTEXT_JSON` holds `"wealth":28260` for Person 2 where the Intro_Grace repayment skip now gives `30103`. Fix both to the values the current code produces, confirm `cargo test --workspace` is green, and commit `fix(sim-core): refresh the assertions stale after the canon bump` on its own. Do not fold this into the feature commit, and do not change `CANON_VERSION` or any Intro_Grace rule to make an old assertion pass: the code is right and the assertions are stale. Report in the log which commit left each one stale.
