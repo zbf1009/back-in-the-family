@@ -11,11 +11,13 @@ inputs and the checksum of every tick.
 | `seedbig-pairwise.replay.json` | 18446744073709551557 | `{"opening_residents":50}` | 2000 | 120 |
 | `seedU-underworld.replay.json` | 185 | `{"opening_residents":50}` | 2053 | 60 random + passive Auto_Player |
 
-One tick is one day, so the config has no tick-length field. The files use replay format
-version 4: `Act` payloads, with `tick`, `actor` and `target` as strict decimal strings
-and `kind` one of the card event names (`help`, `gift`, `quarrel`, `insult`, `theft`,
-`apology`). Version 4 is the life-sim shape with the underworld payload kinds added by
-later tasks; a version 3 file is rejected as unsupported.
+One tick is one day, so the config has no tick-length field. The spec-start baseline
+was replay version 4; first-playable task 6.1 migrates every replay to version 5 while
+keeping Canon version 6. Versions 2, 3 and 4 are rejected as unsupported. Version 5
+consumes the staged `ChoosePlayer` and `ClaimSlot` Customization DTOs (Set and Adjust);
+`customization` is omitted when `None`. All `u64` values remain strict decimal strings,
+and `Act.kind` remains one of the card event names (`help`, `gift`, `quarrel`, `insult`,
+`theft`, `apology`). Compact decode/encode is byte-identical; recorded files add a newline.
 
 `seedbig` is above 2^53 on purpose: it exercises the `u64`-as-decimal-string path that
 JavaScript numbers cannot hold. The 120 inputs per file are generated from the seed
@@ -90,15 +92,16 @@ sim-cli record --seed 2 --ticks 2000 --random-inputs 120 \
   --config fixtures/configs/pairwise.json --out fixtures/parity/seed2-pairwise.replay.json
 sim-cli record --seed 18446744073709551557 --ticks 2000 --random-inputs 120 \
   --config fixtures/configs/pairwise.json --out fixtures/parity/seedbig-pairwise.replay.json
-sim-cli record --seed 45 --ticks 1164 --random-inputs 60 --auto-player \
+sim-cli record --seed 185 --ticks 2053 --random-inputs 60 --auto-player \
   --out fixtures/parity/seedU-underworld.replay.json
 sim-cli snapshot --replay fixtures/parity/seed1-pairwise.replay.json --at 500 \
   --out fixtures/parity/seed1-pairwise.snapshot-500.json
 ```
 
 The output is byte-identical on every run, so running the script twice leaves
-`git status` unchanged. After an intentional change the diff shows the new checksums;
-review it before committing.
+`git status` unchanged. A format-only migration changes replay headers, not per-tick
+simulation checksums or the Snapshot. Compare both before committing; never replace
+simulation checksum baselines to conceal an unexpected change.
 
 ## Rules
 

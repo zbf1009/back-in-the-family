@@ -1165,3 +1165,185 @@ proptest! {
         }
     }
 }
+
+// Feature: first-playable, Property 17: Replay format 5 round-trips and replays exactly
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
+    #[test]
+    fn property_17_replay_round_trip_and_version_rejection(
+        scenario in underworld_gen::arb_scenario(),
+        id in any::<u64>(),
+        option in 0usize..PlayerOption::ALL.len(),
+        value in any::<i8>(),
+        delta in prop_oneof![Just(-1i8), Just(1i8)],
+    ) {
+        use sim_core::ids::BirthSlotId;
+        use sim_core::replay::{ReplayError, ReplayFile, record, verify};
+        use sim_core::underworld::carry_over::TraitName;
+        use sim_core::underworld::customization::Customization;
+        use sim_core::underworld::dreams::DreamIntent;
+        use sim_core::underworld::nodes::{NodeOption, NodeRef};
+        use sim_core::underworld::slots::SlotRef;
+
+        let run = underworld_gen::driven(scenario);
+        let mut inputs: Vec<_> = run.sim.inputs().all().iter()
+            .map(|input| (input.tick, input.payload)).collect();
+        // Every case covers every DTO arm, both customizations and an omitted None.
+        // These inputs may be rejected at apply time; do not filter them out.
+        let payloads = [
+            InputPayload::Act {
+                kind: SocialKind::Help, actor: PersonId(id), target: PersonId(1), intensity: 40,
+            },
+            InputPayload::ClaimSlot { slot: SlotRef::Birth(BirthSlotId(id)), customization: None },
+            InputPayload::ClaimSlot { slot: SlotRef::ImportedVessel, customization: None },
+            InputPayload::ClaimSlot {
+                slot: SlotRef::RebuiltBody,
+                customization: Some(Customization::Set { trait_name: TraitName::Piety, value }),
+            },
+            InputPayload::ClaimSlot {
+                slot: SlotRef::RebuiltBody,
+                customization: Some(Customization::Adjust {
+                    first: (TraitName::Greed, delta), second: (TraitName::Warmth, -delta),
+                }),
+            },
+            InputPayload::Haunt { target: PersonId(id) },
+            InputPayload::Bribe { amount: id },
+            InputPayload::CarryOver { trait_name: TraitName::Piety },
+            InputPayload::Dream { dreamer: PersonId(id), intent: DreamIntent::Warn },
+            InputPayload::Choose { node: NodeRef::Trigger { seq: InputSeq(id) }, option: NodeOption::HeedWarning },
+            InputPayload::ChoosePlayer { node: NodeId(id), option: PlayerOption::ALL[option] },
+        ];
+        inputs.extend(payloads.map(|payload| (Tick(0), payload)));
+        // The replay format has no Params field: reuse stress-generated inputs, but
+        // record/verify with the public replay contract's DEFAULT Params (design:713 deviation).
+        let config = WorldConfig::try_new(scenario.residents).unwrap();
+        let file = record(scenario.seed, config, &inputs, underworld_gen::TICKS).unwrap();
+        prop_assert_eq!(file.version, 5);
+        let json = file.to_json_string().unwrap();
+        let back = ReplayFile::from_json_str(&json).unwrap();
+        prop_assert_eq!(&back, &file);
+        prop_assert_eq!(back.to_json_string().unwrap(), json);
+        prop_assert_eq!(verify(&back), Ok(()));
+        for found in [2, 3, 4] {
+            let mut old = file.clone();
+            old.version = found;
+            let expected = Err(ReplayError::UnsupportedVersion { found });
+            prop_assert_eq!(ReplayFile::from_json_str(&old.to_json_string().unwrap()), expected.clone());
+            prop_assert_eq!(verify(&old), expected.map(|_| ()));
+        }
+    }
+}
+
+// Feature: first-playable, Property 17: Replay format 5 round-trips and replays exactly
+#[test]
+fn property_17_first_player_node_replays_from_both_sources() {
+    use sim_core::replay::{ReplayFile, record, verify};
+    use sim_core::tick::Sim;
+
+    for seed in 1..=5 {
+        for answer in [false, true] {
+            let config = WorldConfig::default();
+            let mut live = Sim::new(seed, config).unwrap();
+            for _ in 0..1_000 {
+                if live.world().narrator().pending.is_some() {
+                    break;
+                }
+                live.step();
+            }
+            let pending = live
+                .world()
+                .narrator()
+                .pending
+                .as_ref()
+                .expect("the real first Player_Node must fire")
+                .clone();
+            assert_eq!(
+                live.world().narrator().life.as_ref().unwrap().first_fire,
+                Some(pending.fired)
+            );
+            let choice_tick = live.world().tick();
+            assert_eq!(choice_tick.0, pending.fired.0 + 1);
+            let chosen = if answer {
+                pending
+                    .options
+                    .iter()
+                    .map(|option| option.id)
+                    .find(|option| *option != pending.rules_default)
+                    .expect("a non-default choice")
+            } else {
+                pending.rules_default
+            };
+            let mut inputs = Vec::new();
+            if answer {
+                let payload = InputPayload::ChoosePlayer {
+                    node: pending.id,
+                    option: chosen,
+                };
+                live.submit(choice_tick, payload).unwrap();
+                inputs.push((choice_tick, payload));
+            }
+            live.step();
+            if answer {
+                assert_eq!(live.last_outcomes()[0].result, Ok(()));
+            }
+            let source = if answer {
+                EntrySource::External
+            } else {
+                EntrySource::RulesDefault
+            };
+            let entry = live
+                .world()
+                .narrator()
+                .chronicle
+                .entries()
+                .iter()
+                .find(|entry| entry.node == Some(pending.id))
+                .expect("first node resolved");
+            assert_eq!(entry.tick, choice_tick);
+            assert_eq!(entry.applied, chosen);
+            assert_eq!(entry.source, source);
+            assert!(!entry.chooser_absent);
+
+            let file = record(seed, config, &inputs, live.world().tick().0).unwrap();
+            assert_eq!(file.checksums, live.checksums());
+            let json = file.to_json_string().unwrap();
+            let replay = ReplayFile::from_json_str(&json).unwrap();
+            assert_eq!(replay.to_json_string().unwrap(), json);
+            assert_eq!(verify(&replay), Ok(()));
+            let mut played = Sim::new(replay.seed, replay.config.try_into().unwrap()).unwrap();
+            for input in &replay.inputs {
+                played
+                    .submit(Tick(input.tick), input.payload.into())
+                    .unwrap();
+            }
+            for expected in &replay.checksums {
+                assert_eq!(played.step(), *expected);
+            }
+            assert_eq!(
+                played.world().narrator().chronicle,
+                live.world().narrator().chronicle
+            );
+            let observed = played
+                .world()
+                .narrator()
+                .chronicle
+                .entries()
+                .iter()
+                .find(|entry| entry.node == Some(pending.id))
+                .unwrap();
+            assert_eq!(observed.source, source);
+            assert_eq!(observed.applied, chosen);
+            println!(
+                "C2 replay seed={seed} first_node={} fired={} resolved={} family={} source={} applied={} ticks={} parity=ok",
+                pending.id.0,
+                pending.fired.0,
+                observed.tick.0,
+                observed.family.label(),
+                observed.source.label(),
+                observed.applied.label(),
+                replay.ticks,
+            );
+        }
+    }
+}

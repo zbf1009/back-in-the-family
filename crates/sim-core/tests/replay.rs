@@ -1,10 +1,9 @@
 //! Replay file: record and verify in-process, JSON round trip, tamper detection and
 //! strict parsing (R16.6, R1.3).
 //!
-//! The replay format is version 4: config `{ "opening_residents": 50 }` and `Act`
-//! payloads (the underworld payloads arrive with their handlers). The Parity_Fixtures
-//! are recorded with `scripts/regen-fixtures.sh`; their native/WASM parity tests live in
-//! `crates/sim-wasm/tests/parity.rs`.
+//! The replay format is version 5, including Player_Node choices and both Rebuilt_Body
+//! customization forms. The Parity_Fixtures are recorded with `scripts/regen-fixtures.sh`;
+//! their native/WASM parity tests live in `crates/sim-wasm/tests/parity.rs`.
 
 use proptest::prelude::*;
 use sim_core::checksum::Checksum;
@@ -140,7 +139,7 @@ fn json_has_the_documented_shape() {
     .unwrap();
     let json = file.to_json_string().unwrap();
     assert!(json.starts_with(
-        r#"{"format":"back-in-the-family/replay","version":4,"seed":"1","config":{"opening_residents":50},"ticks":"2","inputs":[{"tick":"5","seq":"0","payload":{"Act":{"kind":"help","actor":"3","target":"17","intensity":40}}}],"checksums":["#
+        r#"{"format":"back-in-the-family/replay","version":5,"seed":"1","config":{"opening_residents":50},"ticks":"2","inputs":[{"tick":"5","seq":"0","payload":{"Act":{"kind":"help","actor":"3","target":"17","intensity":40}}}],"checksums":["#
     ));
     for c in &file.checksums {
         assert!(json.contains(&format!("\"{c}\"")));
@@ -188,7 +187,7 @@ fn a_config_with_a_workload_field_is_rejected_and_no_world_is_created() {
         other => panic!("expected Malformed, got {other:?}"),
     }
     // A whole replay file with the legacy config fails the same way.
-    let file = r#"{"format":"back-in-the-family/replay","version":4,"seed":"1","config":{"opening_residents":50,"workload":"Pairwise"},"ticks":"0","inputs":[],"checksums":[]}"#;
+    let file = r#"{"format":"back-in-the-family/replay","version":5,"seed":"1","config":{"opening_residents":50,"workload":"Pairwise"},"ticks":"0","inputs":[],"checksums":[]}"#;
     match ReplayFile::from_json_str(file) {
         Err(ReplayError::Malformed(message)) => {
             assert!(message.contains("unknown field `workload`"), "{message}");
@@ -224,6 +223,21 @@ fn a_version_3_file_is_rejected_as_unsupported() {
     assert_eq!(
         verify(&file),
         Err(ReplayError::UnsupportedVersion { found: 3 })
+    );
+}
+
+#[test]
+fn a_version_4_file_is_rejected_as_unsupported() {
+    let v4 = r#"{"format":"back-in-the-family/replay","version":4,"seed":"1","config":{"opening_residents":50},"ticks":"0","inputs":[],"checksums":[]}"#;
+    assert_eq!(
+        ReplayFile::from_json_str(v4),
+        Err(ReplayError::UnsupportedVersion { found: 4 })
+    );
+    let mut file = sample();
+    file.version = 4;
+    assert_eq!(
+        verify(&file),
+        Err(ReplayError::UnsupportedVersion { found: 4 })
     );
 }
 
@@ -270,7 +284,7 @@ fn unknown_format_and_version_are_rejected() {
         ReplayFile::from_json_str(&bad_format),
         Err(ReplayError::UnknownFormat { .. })
     ));
-    let bad_version = json.replacen("\"version\":4", "\"version\":3", 1);
+    let bad_version = json.replacen("\"version\":5", "\"version\":3", 1);
     assert_ne!(bad_version, json);
     assert_eq!(
         ReplayFile::from_json_str(&bad_version),
@@ -411,7 +425,7 @@ fn invalid_config_values_are_a_config_error_at_verify() {
 }
 
 #[test]
-fn v4_claim_customization_round_trips_without_changing_version() {
+fn v5_claim_customization_round_trips_with_none_omitted() {
     use sim_core::replay::ReplayPayload;
     use sim_core::underworld::carry_over::TraitName;
     use sim_core::underworld::customization::Customization;
@@ -446,7 +460,7 @@ fn v4_claim_customization_round_trips_without_changing_version() {
             r#"{"ClaimSlot":{"slot":"RebuiltBody","customization":{"Adjust":{"first":{"trait_name":"piety","delta":-1},"second":{"trait_name":"greed","delta":1}}}}}"#,
         ),
     ];
-    assert_eq!(REPLAY_VERSION, 4);
+    assert_eq!(REPLAY_VERSION, 5);
     for (payload, expected) in payloads {
         let json = serde_json::to_string(&ReplayPayload::from(payload)).unwrap();
         assert_eq!(json, expected);

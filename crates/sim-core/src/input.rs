@@ -42,7 +42,7 @@ pub enum InputPayload {
     ClaimSlot {
         /// The slot the Player_Soul claims.
         slot: SlotRef,
-        /// Optional customization, legal only for a Rebuilt_Body.
+        /// Required for a Rebuilt_Body; `None` for other paths is omitted in replay v5.
         customization: Option<Customization>,
     },
     /// The Player_Soul's Ghost haunts one living Connected_Person (R5.1).
@@ -74,7 +74,7 @@ pub enum InputPayload {
         /// The option to apply; an option outside the node's set is rejected.
         option: NodeOption,
     },
-    /// Answer the Player_Node fired on the preceding tick by its shared Node ID.
+    /// Answer the Player_Node fired on the preceding tick by its shared Node ID (replay v5).
     ChoosePlayer { node: NodeId, option: PlayerOption },
 }
 

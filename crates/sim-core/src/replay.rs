@@ -5,12 +5,12 @@
 //! and compares each tick's checksum with the recorded one; the recorded checksums are
 //! never used to build state.
 //!
-//! # Format (version 4)
+//! # Format (version 5)
 //!
 //! ```json
 //! {
 //!   "format": "back-in-the-family/replay",
-//!   "version": 4,
+//!   "version": 5,
 //!   "seed": "1",
 //!   "config": { "opening_residents": 50 },
 //!   "ticks": "2000",
@@ -26,7 +26,8 @@
 //! ```json
 //! {"ClaimSlot":{"slot":{"Birth":"3"}}}
 //! {"ClaimSlot":{"slot":"ImportedVessel"}}
-//! {"ClaimSlot":{"slot":"RebuiltBody"}}
+//! {"ClaimSlot":{"slot":"RebuiltBody","customization":{"Set":{"trait_name":"warmth","value":2}}}}
+//! {"ClaimSlot":{"slot":"RebuiltBody","customization":{"Adjust":{"first":{"trait_name":"greed","delta":-1},"second":{"trait_name":"piety","delta":1}}}}}
 //! {"CarryOver":{"trait_name":"piety"}}
 //! {"Dream":{"dreamer":"17","intent":"warn"}}
 //! {"Haunt":{"target":"9"}}
@@ -46,9 +47,9 @@
 //! - Unknown fields are rejected, so a typo or a newer format cannot be silently
 //!   ignored. [`ReplayConfig`] rejects a `workload` field with serde's `unknown field
 //!   \`workload\`` and no World is created (R1.3).
-//! - Version 3 files (the life-sim format) and version 2 files (the skeleton format)
-//!   are rejected as [`ReplayError::UnsupportedVersion`]. Version 4 is the same shape
-//!   as version 3; the bump marks the underworld payloads that later tasks add.
+//! - Versions 2 (skeleton), 3 (life-sim) and 4 (underworld baseline) are rejected as
+//!   [`ReplayError::UnsupportedVersion`]. Version 5 consumes the staged Player_Node
+//!   choice and Rebuilt_Body customization payloads. A `None` customization is omitted.
 //!
 //! # Layering
 //!
@@ -86,7 +87,7 @@ use crate::world::{ConfigError, WorldConfig};
 /// The `format` string of every replay file.
 pub const REPLAY_FORMAT: &str = "back-in-the-family/replay";
 /// The only replay `version` this code reads and writes.
-pub const REPLAY_VERSION: u32 = 4;
+pub const REPLAY_VERSION: u32 = 5;
 
 /// Strict decimal-string codec for `u64`, for `#[serde(with = "u64_string")]`.
 mod u64_string {
@@ -1037,7 +1038,7 @@ mod tests {
             other => panic!("expected Malformed, got {other:?}"),
         }
         // A whole replay file with the same config fails the same way.
-        let file = r#"{"format":"back-in-the-family/replay","version":4,"seed":"1","config":{"opening_residents":50,"workload":"Pairwise"},"ticks":"0","inputs":[],"checksums":[]}"#;
+        let file = r#"{"format":"back-in-the-family/replay","version":5,"seed":"1","config":{"opening_residents":50,"workload":"Pairwise"},"ticks":"0","inputs":[],"checksums":[]}"#;
         match ReplayFile::from_json_str(file) {
             Err(ReplayError::Malformed(message)) => assert!(
                 message.contains("unknown field `workload`"),
@@ -1231,7 +1232,7 @@ mod tests {
     }
 
     #[test]
-    fn player_choice_round_trips_with_strict_node_id_and_baseline_header() {
+    fn player_choice_round_trips_with_strict_node_id_and_version_5_header() {
         for &option in PlayerOption::ALL {
             let payload = InputPayload::ChoosePlayer {
                 node: NodeId(u64::MAX),
@@ -1266,7 +1267,7 @@ mod tests {
         let file = record(1, WorldConfig::default(), &[(Tick(1), payload)], 2).unwrap();
         let json = file.to_json_string().unwrap();
         assert!(
-            json.starts_with(r#"{"format":"back-in-the-family/replay","version":4,"seed":"1""#)
+            json.starts_with(r#"{"format":"back-in-the-family/replay","version":5,"seed":"1""#)
         );
         assert!(json.contains(r#""payload":{"ChoosePlayer":{"node":"12","option":"repay_now"}}"#));
         assert_eq!(ReplayFile::from_json_str(&json).unwrap(), file);

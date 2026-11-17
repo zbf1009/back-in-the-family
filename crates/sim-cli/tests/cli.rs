@@ -400,10 +400,10 @@ fn replay_malformed_inputs_exit_two() {
     // A directory is not a replay file.
     assert_eq!(code(&sim_cli(&["replay", s(&dir.path(""))])), 2);
 
-    // Unsupported versions: 3 (the life-sim format) and 5 (a future one).
-    for (n, version) in [(3, 3), (5, 5)] {
-        let bad = dir.path(&format!("v{n}.json"));
-        let changed = text.replacen("\"version\":4", &format!("\"version\":{version}"), 1);
+    // Unsupported versions: all old formats and one future header.
+    for version in [2, 3, 4, 6] {
+        let bad = dir.path(&format!("v{version}.json"));
+        let changed = text.replacen("\"version\":5", &format!("\"version\":{version}"), 1);
         assert_ne!(changed, text);
         fs::write(&bad, changed).unwrap();
         let o = sim_cli(&["replay", s(&bad)]);
