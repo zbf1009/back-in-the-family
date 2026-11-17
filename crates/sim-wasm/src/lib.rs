@@ -77,6 +77,59 @@ impl WasmSim {
     pub fn snapshot_string(&self) -> String {
         sim_core::snapshot::snapshot_json(self.inner.world())
     }
+
+    /// Plain-Rust body of `run_until_stop`; the JSON field order is part of its reply.
+    pub fn run_until_stop_json(&mut self, max: u32) -> String {
+        let result = self.inner.run_until_stop(max);
+        let checksum = result
+            .checksum
+            .map_or_else(String::new, |c| c.to_hex_string());
+        let stops = serde_json::to_string(&result.stops.labels()).expect("stop labels serialize");
+        format!(
+            r#"{{"ran":{},"checksum":"{}","stops":{}}}"#,
+            result.ran, checksum, stops
+        )
+    }
+
+    /// Preflight the current-tick payload array before queuing any of it.
+    pub fn submit_checked_json(&mut self, inputs_json: &str) -> Result<String, String> {
+        let inputs: Vec<sim_core::replay::ReplayPayload> =
+            serde_json::from_str(inputs_json).map_err(|e| e.to_string())?;
+        let payloads: Vec<_> = inputs.into_iter().map(Into::into).collect();
+        Ok(match self.inner.try_submit_all(&payloads) {
+            Ok(_) => String::from(r#"{"ok":true}"#),
+            Err((index, reason)) => format!(
+                r#"{{"ok":false,"index":{},"reason":"{}"}}"#,
+                index,
+                reason.label()
+            ),
+        })
+    }
+
+    /// Tick `from..=to` of the already recorded checksum history.
+    pub fn checksums_json(&self, from: u64, to: u64) -> String {
+        let history = self.inner.checksums();
+        let start = usize::try_from(from).unwrap_or(usize::MAX);
+        let end = usize::try_from(to.saturating_add(1)).unwrap_or(usize::MAX);
+        let values: Vec<_> = history
+            .get(start..end.min(history.len()))
+            .unwrap_or(&[])
+            .iter()
+            .map(|checksum| checksum.to_hex_string())
+            .collect();
+        serde_json::to_string(&values).expect("checksum list serializes")
+    }
+
+    /// Pending node + accepted input-stream choice; never World snapshot state.
+    pub fn player_node_state_json(&self) -> String {
+        match self.inner.player_node_state() {
+            None => String::from(r#"{"pending":false}"#),
+            Some((node, answered)) => format!(
+                r#"{{"pending":true,"node":"{}","answered":{}}}"#,
+                node.0, answered
+            ),
+        }
+    }
 }
 
 #[wasm_bindgen]
@@ -113,6 +166,27 @@ impl WasmSim {
     /// The Snapshot JSON of the current World (R18), compact and read-only.
     pub fn snapshot(&self) -> String {
         self.snapshot_string()
+    }
+
+    /// Up to `max` core ticks; pauses on the first stop tick, without a Worker gate.
+    pub fn run_until_stop(&mut self, max: u32) -> String {
+        self.run_until_stop_json(max)
+    }
+
+    /// Checked, all-or-nothing current-tick payload array.
+    pub fn submit_checked(&mut self, inputs_json: &str) -> Result<String, JsError> {
+        self.submit_checked_json(inputs_json)
+            .map_err(|e| JsError::new(&e))
+    }
+
+    /// Read already-computed per-tick checksum strings, inclusive range.
+    pub fn checksums(&self, from: u64, to: u64) -> String {
+        self.checksums_json(from, to)
+    }
+
+    /// Whether a pending node has a checked choice in the input stream.
+    pub fn player_node_state(&self) -> String {
+        self.player_node_state_json()
     }
 }
 

@@ -280,6 +280,7 @@ pub struct Sim {
     inputs: InputStream,
     checksums: Vec<Checksum>,
     last_outcomes: Vec<InputOutcome>,
+    last_stops: crate::stops::StopSet,
 }
 
 impl Sim {
@@ -289,6 +290,7 @@ impl Sim {
             inputs: InputStream::new(),
             checksums: Vec::new(),
             last_outcomes: Vec::new(),
+            last_stops: crate::stops::StopSet::default(),
         })
     }
 
@@ -304,6 +306,7 @@ impl Sim {
             inputs: InputStream::new(),
             checksums: Vec::new(),
             last_outcomes: Vec::new(),
+            last_stops: crate::stops::StopSet::default(),
         })
     }
 
@@ -312,13 +315,49 @@ impl Sim {
         self.inputs.submit(self.world.tick(), tick, payload)
     }
 
-    /// Runs the current tick with its inputs and returns (and records) the checksum.
+    /// Runs the current tick, returning and recording its checksum and stop reasons.
     pub fn step(&mut self) -> Checksum {
+        let before_place = self
+            .world
+            .souls()
+            .places
+            .get(&self.world.souls().player)
+            .copied();
+        let resolved = self.world.nodes().resolved.len();
         let tick = self.world.tick();
         let (checksum, outcomes) = self.world.step_with_outcomes(self.inputs.for_tick(tick));
         self.last_outcomes = outcomes;
+        self.last_stops = crate::stops::stops_for(before_place, &self.world, tick, resolved);
         self.checksums.push(checksum);
         checksum
+    }
+
+    /// Stop reasons from the last stepped tick. This read changes no World state.
+    pub fn last_stops(&self) -> crate::stops::StopSet {
+        self.last_stops
+    }
+
+    /// Runs up to `max` ticks, stopping on the tick that first produces any stop.
+    pub fn run_until_stop(&mut self, max: u32) -> crate::stops::RunUntilStop {
+        let mut ran = 0;
+        while ran < max {
+            let checksum = self.step();
+            ran = ran
+                .checked_add(1)
+                .expect("run count cannot exceed u32::MAX");
+            if self.last_stops.any() {
+                return crate::stops::RunUntilStop {
+                    ran,
+                    checksum: Some(checksum),
+                    stops: self.last_stops,
+                };
+            }
+        }
+        crate::stops::RunUntilStop {
+            ran,
+            checksum: self.checksums.last().copied(),
+            stops: crate::stops::StopSet::default(),
+        }
     }
 
     /// Previews the Decision_Node `payload` would fire on the current tick (design
@@ -378,6 +417,49 @@ impl Sim {
     }
 }
 
+impl Sim {
+    /// Atomically validates and queues all inputs for the current tick.
+    pub fn try_submit_all(
+        &mut self,
+        payloads: &[InputPayload],
+    ) -> Result<Vec<InputSeq>, (usize, RejectReason)> {
+        let tick = self.world.tick();
+        let mut preview = self.world.clone();
+        preview.flows = crate::economy::FlowTotals::default();
+        for input in self.inputs.for_tick(tick) {
+            let _ = preview.apply_one(input.seq, input.payload);
+        }
+        let start_seq = self.inputs.next_seq().0;
+        let mut seqs = Vec::with_capacity(payloads.len());
+        for (index, &payload) in payloads.iter().enumerate() {
+            let seq = start_seq
+                .checked_add(u64::try_from(index).unwrap_or(u64::MAX))
+                .filter(|&seq| seq != u64::MAX)
+                .map(InputSeq)
+                .ok_or((index, RejectReason::IdExhausted))?;
+            preview
+                .apply_one(seq, payload)
+                .map_err(|reason| (index, reason))?;
+            seqs.push(seq);
+        }
+        for &payload in payloads {
+            self.inputs
+                .submit(tick, tick, payload)
+                .expect("preflighted sequence capacity");
+        }
+        Ok(seqs)
+    }
+
+    /// The pending Player_Node and whether its accepted choice is queued for its Choice_Tick.
+    pub fn player_node_state(&self) -> Option<(crate::ids::NodeId, bool)> {
+        let node = self.world.narrator().pending.as_ref()?;
+        let answered = self.inputs.for_tick(self.world.tick()).iter().any(|input| {
+            matches!(input.payload, InputPayload::ChoosePlayer { node: id, option } if id == node.id && node.options.iter().any(|planned| planned.id == option))
+        });
+        Some((node.id, answered))
+    }
+}
+
 #[cfg(any(test, feature = "test-support"))]
 impl Sim {
     /// Construct a Sim around a prepared World for pure status-vs-submit tests.
@@ -387,6 +469,7 @@ impl Sim {
             inputs: InputStream::new(),
             checksums: Vec::new(),
             last_outcomes: Vec::new(),
+            last_stops: crate::stops::StopSet::default(),
         }
     }
 }
@@ -399,6 +482,7 @@ mod tests {
     use crate::underworld::dreams::DreamIntent;
     use crate::underworld::nodes::{ChoiceSource, PreviewError};
     use crate::values::SocialKind;
+    use proptest::prelude::*;
 
     fn sim() -> Sim {
         Sim::new(42, WorldConfig::try_new(40).unwrap()).unwrap()
@@ -437,6 +521,371 @@ mod tests {
             .next()
             .expect("the Opening_World leaves a kin Relation");
         (s, body, dreamer)
+    }
+
+    #[test]
+    fn checked_submission_rejects_whole_batch_without_mutation() {
+        use crate::underworld::carry_over::TraitName;
+        use crate::underworld::slots::SlotRef;
+        let (mut sim, _, _) = waiting_sim();
+        let before_world = sim.world.clone();
+        let before_inputs = sim.inputs.clone();
+        assert_eq!(
+            sim.try_submit_all(&[
+                InputPayload::CarryOver {
+                    trait_name: TraitName::Piety
+                },
+                InputPayload::ClaimSlot {
+                    slot: SlotRef::RebuiltBody,
+                    customization: None
+                },
+            ]),
+            Err((1, RejectReason::BadCustomization))
+        );
+        assert_eq!(sim.world, before_world);
+        assert_eq!(sim.inputs, before_inputs);
+        assert_eq!(
+            sim.try_submit_all(&[InputPayload::CarryOver {
+                trait_name: TraitName::Piety
+            }]),
+            Ok(vec![InputSeq(0)])
+        );
+        assert_eq!(
+            sim.world, before_world,
+            "accepted inputs stay pending until step 2a"
+        );
+        assert_eq!(
+            sim.world.player_wait().unwrap().rebuilt_draw,
+            before_world.player_wait().unwrap().rebuilt_draw
+        );
+    }
+
+    #[test]
+    fn stop_on_tick_and_reset_after_next_step() {
+        let (mut sim, _, dreamer) = waiting_sim();
+        sim.submit(
+            Tick(0),
+            InputPayload::Dream {
+                dreamer,
+                intent: DreamIntent::Warn,
+            },
+        )
+        .unwrap();
+        let result = sim.run_until_stop(20);
+        assert_eq!(result.ran, 1);
+        assert!(result.stops.dream_resolved);
+        assert_eq!(sim.world.tick(), Tick(1));
+        assert_eq!(sim.checksums().len(), 1);
+        assert_eq!(sim.last_stops(), result.stops);
+        let next = sim.run_until_stop(1);
+        assert_eq!(next.ran, 1);
+        assert!(!next.stops.dream_resolved);
+        assert_eq!(sim.checksums().len(), 2);
+    }
+
+    #[test]
+    fn pending_choice_state_reads_input_stream_not_world() {
+        use crate::narrator::{
+            PlannedOption, PlayerFamily, PlayerNode, PlayerOption, StakeUnit, Stakes,
+        };
+        let mut sim = sim();
+        let body = match sim.world.souls.places[&sim.world.souls.player] {
+            crate::world::SoulPlace::Body(id) => id,
+            _ => unreachable!(),
+        };
+        sim.world.tick = Tick(1);
+        sim.world.narrator.pending = Some(PlayerNode {
+            id: crate::ids::NodeId(17),
+            family: PlayerFamily::DebtDue,
+            chooser: body,
+            fired: Tick(0),
+            stakes: Stakes {
+                who: vec![body],
+                amount: 1,
+                unit: StakeUnit::Money,
+                by: Tick(1),
+            },
+            options: vec![
+                PlannedOption {
+                    id: PlayerOption::IgnoreIt,
+                    parts: vec![],
+                    preview: vec![],
+                },
+                PlannedOption {
+                    id: PlayerOption::AskForTime,
+                    parts: vec![],
+                    preview: vec![],
+                },
+            ],
+            rules_default: PlayerOption::IgnoreIt,
+            external: None,
+            trigger: None,
+        });
+        let node = crate::ids::NodeId(17);
+        assert_eq!(sim.player_node_state(), Some((node, false)));
+        let before = crate::checksum::Checksum::of(sim.world());
+        assert_eq!(
+            sim.try_submit_all(&[InputPayload::ChoosePlayer {
+                node,
+                option: PlayerOption::RepayNow,
+            }]),
+            Err((0, RejectReason::OptionNotInSet))
+        );
+        assert_eq!(sim.player_node_state(), Some((node, false)));
+        assert!(sim.inputs().all().is_empty());
+        assert_eq!(crate::checksum::Checksum::of(sim.world()), before);
+        assert_eq!(
+            sim.try_submit_all(&[InputPayload::ChoosePlayer {
+                node,
+                option: PlayerOption::AskForTime,
+            }]),
+            Ok(vec![InputSeq(0)])
+        );
+        assert_eq!(sim.player_node_state(), Some((node, true)));
+        assert_eq!(crate::checksum::Checksum::of(sim.world()), before);
+        assert!(
+            sim.world
+                .narrator
+                .pending
+                .as_ref()
+                .unwrap()
+                .external
+                .is_none()
+        );
+        assert_eq!(
+            sim.try_submit_all(&[InputPayload::ChoosePlayer {
+                node,
+                option: PlayerOption::IgnoreIt,
+            }]),
+            Err((0, RejectReason::AlreadyChosen))
+        );
+        assert_eq!(sim.player_node_state(), Some((node, true)));
+        sim.step();
+        assert_eq!(sim.player_node_state(), None);
+    }
+
+    #[test]
+    fn simultaneous_death_and_node_reasons_are_preserved() {
+        use crate::narrator::{
+            PlannedOption, PlayerFamily, PlayerNode, PlayerOption, StakeUnit, Stakes,
+        };
+        let mut sim = sim();
+        let player = sim.world.souls.player;
+        let crate::world::SoulPlace::Body(body) = sim.world.souls.places[&player] else {
+            unreachable!()
+        };
+        let before_place = Some(crate::world::SoulPlace::Body(body));
+        sim.world
+            .souls
+            .places
+            .insert(player, crate::world::SoulPlace::Waiting { since: Tick(0) });
+        sim.world.narrator.pending = Some(PlayerNode {
+            id: crate::ids::NodeId(17),
+            family: PlayerFamily::DebtDue,
+            chooser: body,
+            fired: Tick(0),
+            stakes: Stakes {
+                who: vec![body],
+                amount: 1,
+                unit: StakeUnit::Money,
+                by: Tick(1),
+            },
+            options: vec![PlannedOption {
+                id: PlayerOption::IgnoreIt,
+                parts: vec![],
+                preview: vec![],
+            }],
+            rules_default: PlayerOption::IgnoreIt,
+            external: None,
+            trigger: None,
+        });
+        let stops = crate::stops::stops_for(
+            before_place,
+            &sim.world,
+            Tick(0),
+            sim.world.nodes().resolved.len(),
+        );
+        assert_eq!(stops.labels(), ["player_node", "player_died"]);
+    }
+
+    #[test]
+    fn dream_and_rebirth_stop_together_without_an_extra_tick() {
+        let (mut sim, _, dreamer) = waiting_sim();
+        let player = sim.world.souls.player;
+        sim.world.joss.get_mut(&player).unwrap().balance = 200;
+        sim.world.player_wait.as_mut().unwrap().access_from = Tick(0);
+        sim.try_submit_all(&[
+            InputPayload::Dream {
+                dreamer,
+                intent: DreamIntent::Warn,
+            },
+            InputPayload::ClaimSlot {
+                slot: crate::underworld::slots::SlotRef::ImportedVessel,
+                customization: None,
+            },
+        ])
+        .unwrap();
+        let stopped = sim.run_until_stop(20);
+        assert_eq!(stopped.ran, 1);
+        assert_eq!(stopped.stops.labels(), ["dream_resolved", "player_reborn"]);
+        assert_eq!(sim.world.tick(), Tick(1));
+        assert_eq!(sim.checksums().len(), 1);
+        assert!(
+            sim.last_outcomes()
+                .iter()
+                .all(|outcome| outcome.result.is_ok())
+        );
+        assert_eq!(sim.run_until_stop(0).ran, 0);
+        assert_eq!(sim.last_stops(), stopped.stops);
+        sim.step();
+        assert!(!sim.last_stops().dream_resolved);
+        assert!(!sim.last_stops().player_reborn);
+    }
+
+    #[test]
+    fn player_death_stops_on_the_death_tick() {
+        let mut params = crate::params::Params::DEFAULT;
+        params.mortality_ppm_by_age = [1_000_000; 120];
+        params.mortality_floor_ppm = 1_000_000;
+        let mut sim = Sim::new_with_params(42, WorldConfig::default(), params).unwrap();
+        let stopped = sim.run_until_stop(20);
+        assert_eq!(stopped.ran, 1);
+        assert!(stopped.stops.player_died);
+        assert_eq!(sim.world.tick(), Tick(1));
+        assert_eq!(sim.checksums().len(), 1);
+    }
+
+    fn checked_payload(sim: &Sim, selector: u8, raw: u8) -> InputPayload {
+        use crate::underworld::carry_over::TraitName;
+        use crate::underworld::customization::Customization;
+        use crate::underworld::nodes::{NodeOption, NodeRef};
+        use crate::underworld::slots::SlotRef;
+
+        let (actor, target) = two_residents(sim);
+        let dreamer = sim
+            .world
+            .player_wait()
+            .and_then(|wait| {
+                crate::underworld::ghosts::connected(sim.world(), wait.ghost)
+                    .into_iter()
+                    .next()
+            })
+            .unwrap_or(PersonId(target));
+        match selector % 12 {
+            0 => act(actor, target, raw),
+            1 => act(u64::MAX, target, raw),
+            2 => InputPayload::CarryOver {
+                trait_name: TraitName::ALL[usize::from(raw) % 7],
+            },
+            3 => InputPayload::ClaimSlot {
+                slot: SlotRef::ImportedVessel,
+                customization: None,
+            },
+            4 => InputPayload::ClaimSlot {
+                slot: SlotRef::RebuiltBody,
+                customization: Some(Customization::Set {
+                    trait_name: TraitName::Piety,
+                    value: i8::try_from(raw % 11).unwrap().saturating_sub(5),
+                }),
+            },
+            5 => InputPayload::ClaimSlot {
+                slot: SlotRef::Birth(crate::ids::BirthSlotId(u64::from(raw))),
+                customization: None,
+            },
+            6 => InputPayload::Dream {
+                dreamer,
+                intent: DreamIntent::Warn,
+            },
+            7 => InputPayload::Haunt { target: dreamer },
+            8 => InputPayload::Bribe {
+                amount: u64::from(raw),
+            },
+            9 => InputPayload::ChoosePlayer {
+                node: sim
+                    .world
+                    .narrator()
+                    .pending
+                    .as_ref()
+                    .map_or(crate::ids::NodeId(0), |n| n.id),
+                option: sim
+                    .world
+                    .narrator()
+                    .pending
+                    .as_ref()
+                    .map_or(crate::narrator::PlayerOption::IgnoreIt, |n| n.rules_default),
+            },
+            10 => InputPayload::ChoosePlayer {
+                node: crate::ids::NodeId(u64::MAX),
+                option: crate::narrator::PlayerOption::RepayNow,
+            },
+            _ => InputPayload::Choose {
+                node: NodeRef::Trigger {
+                    seq: sim.inputs.next_seq(),
+                },
+                option: NodeOption::TakeComfort,
+            },
+        }
+    }
+
+    // Feature: first-playable, Property 16: Checked submission is exact
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(100))]
+
+        #[test]
+        fn property_16_checked_submission_matches_real_step(
+            seed in any::<u64>(), mode in 0u8..3, balance in 0u64..700,
+            existing in prop::collection::vec((0u8..12,any::<u8>()),0..5),
+            proposed in prop::collection::vec((0u8..12,any::<u8>()),0..10),
+        ) {
+            let mut sim = if mode == 1 { waiting_sim().0 } else {
+                Sim::new(seed,WorldConfig::default()).unwrap()
+            };
+            if mode == 1 {
+                let player = sim.world.souls.player;
+                sim.world.joss.get_mut(&player).unwrap().balance = balance;
+                sim.world.player_wait.as_mut().unwrap().access_from = Tick(balance % 2);
+            } else if mode == 2 {
+                let mut params = sim.world.params;
+                params.first_interrupt_min = 0;
+                sim = Sim::new_with_params(seed,WorldConfig::default(),params).unwrap();
+                let crate::world::SoulPlace::Body(body) = sim.world.souls.places[&sim.world.souls.player] else { unreachable!() };
+                let other = sim.world.persons.values().find(|p| p.id != body && matches!(p.life,Life::Alive{..})).unwrap().id;
+                let due = Tick(sim.world.params.debt_due_lead);
+                crate::testing::add_test_debt(&mut sim.world,body,other,due,100);
+                sim.step();
+            }
+            for (selector,raw) in existing {
+                let payload = checked_payload(&sim,selector,raw);
+                sim.submit(sim.world.tick(),payload).unwrap();
+            }
+            let payloads: Vec<_> = proposed.into_iter().map(|(selector,raw)|checked_payload(&sim,selector,raw)).collect();
+            let before = sim.clone();
+            let mut reference = sim.clone();
+            let offset = reference.inputs.for_tick(reference.world.tick()).len();
+            for &payload in &payloads { reference.submit(reference.world.tick(),payload).unwrap(); }
+            let expected_checksum = reference.step();
+            let first_failure = reference.last_outcomes()[offset..].iter().enumerate()
+                .find_map(|(index,outcome)|outcome.result.err().map(|reason|(index,reason)));
+            let result = sim.try_submit_all(&payloads);
+            prop_assert_eq!(&sim.world,&before.world);
+            prop_assert_eq!(&sim.checksums,&before.checksums);
+            prop_assert_eq!(&sim.last_outcomes,&before.last_outcomes);
+            prop_assert_eq!(sim.last_stops,before.last_stops);
+            match (result,first_failure) {
+                (Ok(seqs),None) => {
+                    prop_assert_eq!(seqs.len(),payloads.len());
+                    prop_assert_eq!(sim.step(),expected_checksum);
+                    prop_assert!(sim.last_outcomes()[offset..].iter().all(|outcome|outcome.result.is_ok()));
+                    prop_assert_eq!(sim.inputs(),reference.inputs());
+                },
+                (Err(actual),Some(expected)) => {
+                    prop_assert_eq!(actual,expected);
+                    prop_assert_eq!(sim.inputs(),before.inputs());
+                    prop_assert_eq!(sim.player_node_state(),before.player_node_state());
+                },
+                (actual,expected) => prop_assert!(false,"checked result {actual:?} differs from real failure {expected:?}"),
+            }
+        }
     }
 
     fn act(actor: u64, target: u64, intensity: u8) -> InputPayload {

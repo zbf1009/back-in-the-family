@@ -219,3 +219,175 @@ fn tampered_fixture_error_names_the_tick() {
         "fixture {name}: error should name tick 42, got: {err}"
     );
 }
+
+#[wasm_bindgen_test(unsupported = test)]
+fn stop_and_checked_submission_are_identical_on_native_and_wasm() {
+    let mut sim = WasmSim::create(1, r#"{"opening_residents":50}"#).unwrap();
+    let before = sim.snapshot();
+    assert_eq!(sim.player_node_state_json(), r#"{"pending":false}"#);
+    let bad = sim
+        .submit_checked_json(r#"[{"ChoosePlayer":{"node":"12","option":"repay_now"}}]"#)
+        .unwrap();
+    assert_eq!(bad, r#"{"ok":false,"index":0,"reason":"unknown_node"}"#);
+    assert_eq!(sim.snapshot(), before);
+    assert_eq!(sim.tick(), 0);
+    let first = sim.run_until_stop_json(1000);
+    let first: Value = serde_json::from_str(&first).unwrap();
+    assert!(first["ran"].as_u64().unwrap() < 1000);
+    assert!(
+        first["stops"]
+            .as_array()
+            .unwrap()
+            .contains(&Value::String("player_node".into()))
+    );
+    let tick = sim.tick();
+    assert_eq!(tick, first["ran"].as_u64().unwrap());
+    let snapshot: Value = serde_json::from_str(&sim.snapshot()).unwrap();
+    let node = snapshot["player_node"]["id"].as_str().unwrap();
+    assert_eq!(
+        sim.player_node_state_json(),
+        format!(r#"{{"pending":true,"node":"{}","answered":false}}"#, node)
+    );
+    let option = snapshot["player_node"]["options"][0]["id"]
+        .as_str()
+        .unwrap();
+    let chosen = serde_json::json!([{"ChoosePlayer":{"node":node,"option":option}}]).to_string();
+    let stopped_snapshot = sim.snapshot();
+    let stopped_checksums = sim.checksums_json(0, u64::MAX);
+    assert_eq!(sim.submit_checked_json(&chosen).unwrap(), r#"{"ok":true}"#);
+    assert_eq!(
+        sim.player_node_state_json(),
+        format!(r#"{{"pending":true,"node":"{}","answered":true}}"#, node)
+    );
+    assert_eq!(sim.tick(), tick);
+    assert_eq!(
+        sim.snapshot(),
+        stopped_snapshot,
+        "Snapshot excludes queued choices"
+    );
+    assert_eq!(sim.checksums_json(0, u64::MAX), stopped_checksums);
+    assert!(
+        sim.submit_checked_json(&chosen)
+            .unwrap()
+            .contains("already_chosen")
+    );
+    assert_eq!(sim.snapshot(), stopped_snapshot);
+    assert_eq!(sim.checksums_json(0, u64::MAX), stopped_checksums);
+    let next = sim.run_until_stop_json(1);
+    let next: Value = serde_json::from_str(&next).unwrap();
+    assert_eq!(next["ran"], 1);
+    assert_eq!(sim.tick(), tick + 1);
+    assert_eq!(sim.player_node_state_json(), r#"{"pending":false}"#);
+    assert_eq!(
+        sim.checksums_json(tick, tick),
+        serde_json::json!([next["checksum"]]).to_string()
+    );
+}
+
+#[wasm_bindgen_test(unsupported = test)]
+fn checked_wasm_payloads_reject_malformed_json_without_queuing() {
+    let mut sim = WasmSim::create(1, r#"{"opening_residents":50}"#).unwrap();
+    assert!(
+        sim.submit_checked_json(r#"[{"ChoosePlayer":{"node":12,"option":"repay_now"}}]"#)
+            .is_err()
+    );
+    assert!(
+        sim.submit_checked_json(
+            r#"[{"ChoosePlayer":{"node":"12","option":"repay_now","extra":1}}]"#
+        )
+        .is_err()
+    );
+    assert_eq!(
+        sim.run_until_stop_json(0),
+        r#"{"ran":0,"checksum":"","stops":[]}"#
+    );
+    assert_eq!(sim.tick(), 0);
+    assert_eq!(sim.checksums_json(0, 0), "[]");
+}
+
+#[wasm_bindgen_test(unsupported = test)]
+fn extended_snapshot_and_stop_replies_match_core_on_every_fixture_tick() {
+    use sim_core::ids::Tick;
+    use sim_core::replay::ReplayFile;
+    use sim_core::tick::Sim;
+    use sim_core::world::WorldConfig;
+
+    for (name, json) in FIXTURES {
+        let file = ReplayFile::from_json_str(json).unwrap();
+        let mut core = Sim::new(file.seed, WorldConfig::try_from(file.config).unwrap()).unwrap();
+        let mut wasm =
+            WasmSim::create(file.seed, &serde_json::to_string(&file.config).unwrap()).unwrap();
+        for input in &file.inputs {
+            core.submit(Tick(input.tick), input.payload.into()).unwrap();
+            wasm.submit_json(
+                &serde_json::json!({"tick":input.tick.to_string(),"payload":input.payload})
+                    .to_string(),
+            )
+            .unwrap();
+        }
+        assert_eq!(
+            wasm.snapshot(),
+            sim_core::snapshot::snapshot_json(core.world()),
+            "fixture {name}: opening Snapshot"
+        );
+        for (tick, expected) in file.checksums.iter().enumerate() {
+            let reply = wasm.run_until_stop(1);
+            let checksum = core.step();
+            assert_eq!(&checksum, expected, "fixture {name}: tick {tick}");
+            let expected_reply = format!(
+                r#"{{"ran":1,"checksum":"{}","stops":{}}}"#,
+                checksum.to_hex_string(),
+                serde_json::to_string(&core.last_stops().labels()).unwrap()
+            );
+            assert_eq!(
+                reply, expected_reply,
+                "fixture {name}: tick {tick} stop reply"
+            );
+            let before = core.clone();
+            assert_eq!(
+                wasm.snapshot(),
+                sim_core::snapshot::snapshot_json(core.world()),
+                "fixture {name}: tick {tick} Snapshot"
+            );
+            assert_eq!(wasm.snapshot_string(), wasm.snapshot());
+            assert_eq!(
+                sim_core::checksum::Checksum::of(core.world()),
+                sim_core::checksum::Checksum::of(before.world())
+            );
+        }
+        let all: Vec<_> = file.checksums.iter().map(|c| c.to_hex_string()).collect();
+        assert_eq!(
+            wasm.checksums(0, u64::MAX),
+            serde_json::to_string(&all).unwrap()
+        );
+        assert_eq!(wasm.checksums(u64::MAX, u64::MAX), "[]");
+        assert_eq!(wasm.checksums(5, 4), "[]");
+        assert_eq!(
+            wasm.checksums(2, 3),
+            serde_json::to_string(&all[2..=3]).unwrap()
+        );
+    }
+}
+
+#[wasm_bindgen_test(unsupported = test)]
+fn core_run_resolves_an_unanswered_player_node_by_default() {
+    let mut sim = WasmSim::create(1, r#"{"opening_residents":50}"#).unwrap();
+    let stop: Value = serde_json::from_str(&sim.run_until_stop(1000)).unwrap();
+    assert_eq!(stop["stops"], serde_json::json!(["player_node"]));
+    let snapshot: Value = serde_json::from_str(&sim.snapshot()).unwrap();
+    let default = &snapshot["player_node"]["rules_default"];
+    let tick = sim.tick();
+    let next: Value = serde_json::from_str(&sim.run_until_stop(1)).unwrap();
+    assert_eq!(next["ran"], 1);
+    assert_eq!(sim.tick(), tick + 1);
+    assert_eq!(sim.player_node_state(), r#"{"pending":false}"#);
+    let resolved: Value = serde_json::from_str(&sim.snapshot()).unwrap();
+    let choice_tick = tick.to_string();
+    let entry = resolved["chronicle"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["tick"] == choice_tick && entry["source"] == "rules_default")
+        .unwrap();
+    assert_eq!(&entry["applied"], default);
+}

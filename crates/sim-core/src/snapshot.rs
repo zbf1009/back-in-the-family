@@ -30,6 +30,141 @@ struct SnapshotDto {
     standing_slots: Vec<StandingSlotDto>,
     player_wait: Option<PlayerWaitDto>,
     pending_nodes: Vec<PendingNodeDto>,
+    player: PlayerViewDto,
+    player_node: Option<PlayerNodeDto>,
+    chronicle: Vec<ChronicleDto>,
+    underworld_view: Option<UnderworldViewDto>,
+    person_names: Vec<NamedPersonDto>,
+}
+
+#[derive(Serialize)]
+struct PlayerViewDto {
+    place: &'static str,
+    body: Option<u64>,
+    earlier_bodies: Vec<EarlierBodyDto>,
+    blood_ties: Vec<RelationDto>,
+    relations: Vec<RelationDto>,
+    past_life_ties: Vec<PastLifeTieDto>,
+}
+
+#[derive(Serialize)]
+struct EarlierBodyDto {
+    id: u64,
+    name: String,
+    origin: &'static str,
+    death: String,
+}
+
+#[derive(Serialize)]
+struct RelationDto {
+    person: u64,
+    affinity: i8,
+    kinship: Vec<&'static str>,
+}
+
+#[derive(Serialize)]
+struct PastLifeTieDto {
+    rememberer: u64,
+    earlier_body: u64,
+    affinity: i8,
+}
+
+#[derive(Serialize)]
+struct StakesDto {
+    who: Vec<u64>,
+    amount: String,
+    unit: &'static str,
+    by: String,
+}
+
+#[derive(Serialize)]
+struct PreviewDto {
+    person: u64,
+    what: String,
+    delta: String,
+}
+
+#[derive(Serialize)]
+struct PlayerOptionDto {
+    id: &'static str,
+    preview: Vec<PreviewDto>,
+}
+
+#[derive(Serialize)]
+struct PlayerNodeDto {
+    id: String,
+    family: &'static str,
+    fired: String,
+    choice_tick: String,
+    resolves: String,
+    stakes: StakesDto,
+    options: Vec<PlayerOptionDto>,
+    rules_default: &'static str,
+}
+
+#[derive(Serialize)]
+struct ChronicleDto {
+    tick: String,
+    family: &'static str,
+    stakes: StakesDto,
+    applied: &'static str,
+    source: &'static str,
+    chooser_absent: bool,
+    skipped: Vec<SkippedDto>,
+}
+
+#[derive(Serialize)]
+struct SkippedDto {
+    part: u8,
+    reason: &'static str,
+}
+
+#[derive(Serialize)]
+struct NeededDto {
+    kind: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tick: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    amount: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<&'static str>,
+}
+
+#[derive(Serialize)]
+struct PathStatusDto {
+    announced: bool,
+    claimable: bool,
+    affordable: bool,
+    needed: Vec<NeededDto>,
+}
+
+#[derive(Serialize)]
+struct UnderworldSlotDto {
+    slot: String,
+    kind: &'static str,
+    price: String,
+    birth: Option<String>,
+    status: PathStatusDto,
+}
+
+#[derive(Serialize)]
+struct BaseTraitsDto {
+    carry_over: Option<&'static str>,
+    traits: TraitsDto,
+}
+
+#[derive(Serialize)]
+struct UnderworldViewDto {
+    connected: Vec<u64>,
+    ghost_traits: TraitsDto,
+    slots: Vec<UnderworldSlotDto>,
+    base_traits: Vec<BaseTraitsDto>,
+}
+
+#[derive(Serialize)]
+struct NamedPersonDto {
+    id: u64,
+    name: String,
 }
 
 /// The one fixed official Person (R15.13): its Card_Person fields and its own Soul ID
@@ -141,6 +276,102 @@ struct PlaceDto {
 #[derive(Serialize)]
 struct WaitingDto {
     since: String,
+}
+
+fn stakes_dto(stakes: &crate::narrator::Stakes) -> StakesDto {
+    StakesDto {
+        who: stakes.who.iter().map(|id| id.0).collect(),
+        amount: stakes.amount.to_string(),
+        unit: stakes.unit.label(),
+        by: stakes.by.0.to_string(),
+    }
+}
+
+fn preview_dto(entry: &crate::narrator::PreviewEntry) -> PreviewDto {
+    PreviewDto {
+        person: entry.person.0,
+        what: entry.what.label().to_owned(),
+        delta: entry.delta.to_string(),
+    }
+}
+
+fn player_node_dto(node: &crate::narrator::PlayerNode) -> PlayerNodeDto {
+    let choice_tick = node.fired.0.saturating_add(1).to_string();
+    PlayerNodeDto {
+        id: node.id.0.to_string(),
+        family: node.family.label(),
+        fired: node.fired.0.to_string(),
+        resolves: choice_tick.clone(),
+        choice_tick,
+        stakes: stakes_dto(&node.stakes),
+        options: node
+            .options
+            .iter()
+            .map(|option| PlayerOptionDto {
+                id: option.id.label(),
+                preview: option.preview.iter().map(preview_dto).collect(),
+            })
+            .collect(),
+        rules_default: node.rules_default.label(),
+    }
+}
+
+fn chronicle_dto(entry: &crate::narrator::ChronicleEntry) -> ChronicleDto {
+    ChronicleDto {
+        tick: entry.tick.0.to_string(),
+        family: entry.family.label(),
+        stakes: stakes_dto(&entry.stakes),
+        applied: entry.applied.label(),
+        source: entry.source.label(),
+        chooser_absent: entry.chooser_absent,
+        skipped: entry
+            .skipped
+            .iter()
+            .map(|(part, reason)| SkippedDto {
+                part: *part,
+                reason: reason.label(),
+            })
+            .collect(),
+    }
+}
+
+fn path_status_dto(status: crate::underworld::slots::PathStatus) -> PathStatusDto {
+    use crate::underworld::slots::Needed;
+    PathStatusDto {
+        announced: status.announced,
+        claimable: status.claimable,
+        affordable: status.affordable,
+        needed: status
+            .needed
+            .into_iter()
+            .map(|needed| match needed {
+                Needed::WaitUntil(tick) => NeededDto {
+                    kind: "wait_until",
+                    tick: Some(tick.0.to_string()),
+                    amount: None,
+                    name: None,
+                },
+                Needed::JossShort(amount) => NeededDto {
+                    kind: "joss_short",
+                    tick: None,
+                    amount: Some(amount.to_string()),
+                    name: None,
+                },
+                Needed::CapRoomShort(amount) => NeededDto {
+                    kind: "cap_room_short",
+                    tick: None,
+                    amount: Some(amount.to_string()),
+                    name: None,
+                },
+                Needed::Named(name) => NeededDto {
+                    kind: "named",
+                    tick: None,
+                    amount: None,
+                    name: Some(name),
+                },
+            })
+            .collect(),
+    }
 }
 
 /// The compact Snapshot JSON of `world` (design "Snapshot").
@@ -285,9 +516,182 @@ pub fn snapshot_json(world: &World) -> String {
         })
         .collect();
 
+    let current_body = match world.souls().places.get(&player_soul) {
+        Some(SoulPlace::Body(id)) => Some(*id),
+        _ => None,
+    };
+    let earlier_bodies: Vec<EarlierBodyDto> = world
+        .persons()
+        .values()
+        .filter(|person| person.soul == player_soul && Some(person.id) != current_body)
+        .filter_map(|person| match person.life {
+            Life::Dead { death } => Some(EarlierBodyDto {
+                id: person.id.0,
+                name: person.name.text(person.sex),
+                origin: person.origin.as_str(),
+                death: death.0.to_string(),
+            }),
+            Life::Alive { .. } => None,
+        })
+        .collect();
+    let earlier_ids: std::collections::BTreeSet<u64> =
+        earlier_bodies.iter().map(|p| p.id).collect();
+    let mut blood_ties = Vec::new();
+    let mut relations = Vec::new();
+    if let Some(body) = current_body {
+        for (&(from, to), relation) in world.relations() {
+            if from != body
+                || !world
+                    .persons()
+                    .get(&to)
+                    .is_some_and(|p| matches!(p.life, Life::Alive { .. }))
+            {
+                continue;
+            }
+            let dto = RelationDto {
+                person: to.0,
+                affinity: relation.affinity.get(),
+                kinship: relation
+                    .tags
+                    .iter()
+                    .filter(|tag| tag.is_kinship())
+                    .map(|tag| tag.name())
+                    .collect(),
+            };
+            if relation.tags.has_kinship() {
+                blood_ties.push(dto);
+            } else {
+                relations.push(dto);
+            }
+        }
+    }
+    let past_life_ties = world
+        .relations()
+        .iter()
+        .filter_map(|(&(from, to), relation)| {
+            (world
+                .persons()
+                .get(&from)
+                .is_some_and(|p| matches!(p.life, Life::Alive { .. }))
+                && earlier_ids.contains(&to.0)
+                && Some(to) != current_body)
+                .then_some(PastLifeTieDto {
+                    rememberer: from.0,
+                    earlier_body: to.0,
+                    affinity: relation.affinity.get(),
+                })
+        })
+        .collect();
+    let player = PlayerViewDto {
+        place: if current_body.is_some() {
+            "body"
+        } else {
+            "waiting"
+        },
+        body: current_body.map(|id| id.0),
+        earlier_bodies,
+        blood_ties,
+        relations,
+        past_life_ties,
+    };
+    let player_node = world.narrator().pending.as_ref().map(player_node_dto);
+    let entries = world.narrator().chronicle.entries();
+    let chronicle = entries
+        .iter()
+        .skip(entries.len().saturating_sub(100))
+        .map(chronicle_dto)
+        .collect();
+    let underworld_view = world.player_wait().map(|wait| {
+        use crate::underworld::slots::{SlotRef, base_traits, path_status};
+        let connected = crate::underworld::ghosts::connected(world, wait.ghost)
+            .into_iter()
+            .map(|id| id.0)
+            .collect();
+        let mut slots = world
+            .slots()
+            .values()
+            .map(|slot| UnderworldSlotDto {
+                slot: format!("birth:{}", slot.id.0),
+                kind: "birth_slot",
+                price: "0".to_owned(),
+                birth: Some(slot.birth.0.to_string()),
+                status: path_status_dto(path_status(world, SlotRef::Birth(slot.id))),
+            })
+            .collect::<Vec<_>>();
+        for (slot, kind, price) in [
+            (
+                SlotRef::ImportedVessel,
+                "imported_vessel",
+                world.params().imported_price,
+            ),
+            (
+                SlotRef::RebuiltBody,
+                "rebuilt_body",
+                world.params().rebuilt_price,
+            ),
+        ] {
+            slots.push(UnderworldSlotDto {
+                slot: kind.to_owned(),
+                kind,
+                price: price.to_string(),
+                birth: None,
+                status: path_status_dto(path_status(world, slot)),
+            });
+        }
+        let ghost_traits = traits_dto(&world.persons()[&wait.ghost].traits);
+        let base_traits = std::iter::once(None)
+            .chain(
+                crate::underworld::carry_over::TraitName::ALL
+                    .into_iter()
+                    .map(Some),
+            )
+            .map(|carry| BaseTraitsDto {
+                carry_over: carry.map(trait_name),
+                traits: traits_dto(&base_traits(world, carry).expect("PlayerWait exists")),
+            })
+            .collect();
+        UnderworldViewDto {
+            connected,
+            ghost_traits,
+            slots,
+            base_traits,
+        }
+    });
+    let mut referenced = std::collections::BTreeSet::new();
+    if let Some(body) = player.body {
+        referenced.insert(body);
+    }
+    for body in &player.earlier_bodies {
+        referenced.insert(body.id);
+    }
+    for tie in player.blood_ties.iter().chain(&player.relations) {
+        referenced.insert(tie.person);
+    }
+    for tie in &player.past_life_ties {
+        referenced.insert(tie.rememberer);
+        referenced.insert(tie.earlier_body);
+    }
+    if let Some(node) = &player_node {
+        referenced.extend(node.stakes.who.iter().copied());
+        for option in &node.options {
+            referenced.extend(option.preview.iter().map(|p| p.person));
+        }
+    }
+    for entry in entries.iter().skip(entries.len().saturating_sub(100)) {
+        referenced.extend(entry.stakes.who.iter().map(|id| id.0));
+    }
+    let person_names = referenced
+        .into_iter()
+        .filter_map(|id| world.persons().get(&crate::ids::PersonId(id)))
+        .filter(|person| matches!(person.life, Life::Dead { .. }))
+        .map(|person| NamedPersonDto {
+            id: person.id.0,
+            name: person.name.text(person.sex),
+        })
+        .collect();
     let dto = SnapshotDto {
         tick: world.tick().0.to_string(),
-        player_soul: soul_id(world.souls().player),
+        player_soul: soul_id(player_soul),
         residents,
         households,
         souls,
@@ -297,6 +701,11 @@ pub fn snapshot_json(world: &World) -> String {
         standing_slots,
         player_wait,
         pending_nodes,
+        player,
+        player_node,
+        chronicle,
+        underworld_view,
+        person_names,
     };
     serde_json::to_string(&dto).expect("the snapshot DTO is always serializable")
 }
@@ -570,5 +979,35 @@ mod tests {
             assert!(soul["place"]["waiting"]["since"].is_string());
             assert!(soul["place"]["body"].is_null());
         }
+    }
+    #[test]
+    fn waiting_view_uses_core_path_status_and_fixed_base_traits() {
+        let world = waiting_player();
+        let before = Checksum::of(&world);
+        let value: Value = serde_json::from_str(&snapshot_json(&world)).unwrap();
+        let view = &value["underworld_view"];
+        assert_eq!(view["base_traits"].as_array().unwrap().len(), 8);
+        assert_eq!(
+            view["base_traits"][0]["traits"]["piety"],
+            world.player_wait().unwrap().rebuilt_draw.piety.get()
+        );
+        for slot in view["slots"].as_array().unwrap() {
+            let reference = match slot["slot"].as_str().unwrap() {
+                "imported_vessel" => crate::underworld::slots::SlotRef::ImportedVessel,
+                "rebuilt_body" => crate::underworld::slots::SlotRef::RebuiltBody,
+                id => crate::underworld::slots::SlotRef::Birth(crate::ids::BirthSlotId(
+                    id.strip_prefix("birth:").unwrap().parse().unwrap(),
+                )),
+            };
+            let status = crate::underworld::slots::path_status(&world, reference);
+            assert_eq!(slot["status"]["announced"], status.announced);
+            assert_eq!(slot["status"]["claimable"], status.claimable);
+            assert_eq!(slot["status"]["affordable"], status.affordable);
+            assert_eq!(
+                slot["status"]["needed"].as_array().unwrap().len(),
+                status.needed.len()
+            );
+        }
+        assert_eq!(Checksum::of(&world), before);
     }
 }

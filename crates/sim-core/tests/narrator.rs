@@ -3,6 +3,8 @@
 //! These tests deliberately drive `World::step`/`step_with_outcomes`; constructed player
 //! nodes use only the test-support fixture helpers, never narrator implementation internals.
 
+mod underworld_gen;
+
 use proptest::prelude::*;
 
 use sim_core::events::EventKind;
@@ -1014,4 +1016,152 @@ fn example_life_stage_candidate() {
         world.narrator().pending.as_ref().map(|node| node.family),
         Some(PlayerFamily::LifeStage)
     );
+}
+
+fn assert_snapshot_blocks(world: &World) {
+    use serde_json::{Value, json};
+    use sim_core::underworld::carry_over::TraitName;
+    use sim_core::underworld::slots::{Needed, SlotRef, base_traits, path_status};
+
+    let value: Value = serde_json::from_str(&sim_core::snapshot::snapshot_json(world)).unwrap();
+    let current = match world.souls().places[&world.souls().player] {
+        SoulPlace::Body(id) => Some(id),
+        SoulPlace::Waiting { .. } => None,
+    };
+    let earlier: Vec<_> = world.persons().values()
+        .filter(|p| p.soul == world.souls().player && Some(p.id) != current)
+        .map(|p| {
+            let Life::Dead { death } = p.life else { panic!("earlier body must be dead") };
+            json!({"id":p.id.0,"name":p.name.text(p.sex),"origin":p.origin.as_str(),"death":death.0.to_string()})
+        }).collect();
+    let mut blood = Vec::new();
+    let mut other = Vec::new();
+    let mut past = Vec::new();
+    for (&(from, to), relation) in world.relations() {
+        let living_from = matches!(world.persons()[&from].life, Life::Alive { .. });
+        let living_to = matches!(world.persons()[&to].life, Life::Alive { .. });
+        if Some(from) == current && living_to {
+            let kinship: Vec<_> = relation
+                .tags
+                .iter()
+                .filter(|tag| tag.is_kinship())
+                .map(|tag| tag.name())
+                .collect();
+            let tie = json!({"person":to.0,"affinity":relation.affinity.get(),"kinship":kinship});
+            if relation.tags.has_kinship() {
+                blood.push(tie);
+            } else {
+                other.push(tie);
+            }
+        }
+        if living_from && earlier.iter().any(|p| p["id"] == to.0) {
+            past.push(
+                json!({"rememberer":from.0,"earlier_body":to.0,"affinity":relation.affinity.get()}),
+            );
+        }
+    }
+    assert_eq!(
+        value["player"],
+        json!({
+            "place":if current.is_some() { "body" } else { "waiting" },
+            "body":current.map(|id| id.0),"earlier_bodies":earlier,
+            "blood_ties":blood,"relations":other,"past_life_ties":past
+        })
+    );
+    let stakes = |s: &Stakes| json!({"who":s.who.iter().map(|id| id.0).collect::<Vec<_>>(),"amount":s.amount.to_string(),"unit":s.unit.label(),"by":s.by.0.to_string()});
+    let expected_node = world.narrator().pending.as_ref().map(|n| {
+        let options: Vec<_> = n.options.iter().map(|o| {
+            let preview: Vec<_> = o.preview.iter().map(|p| json!({"person":p.person.0,"what":p.what.label(),"delta":p.delta.to_string()})).collect();
+            json!({"id":o.id.label(),"preview":preview})
+        }).collect();
+        json!({"id":n.id.0.to_string(),"family":n.family.label(),"fired":n.fired.0.to_string(),
+            "choice_tick":n.fired.0.saturating_add(1).to_string(),"resolves":n.fired.0.saturating_add(1).to_string(),
+            "stakes":stakes(&n.stakes),"options":options,"rules_default":n.rules_default.label()})
+    });
+    assert_eq!(value["player_node"], json!(expected_node));
+    let entries = world.narrator().chronicle.entries();
+    let recent = &entries[entries.len().saturating_sub(100)..];
+    let chronicle: Vec<_> = recent.iter().map(|e| {
+        let skipped: Vec<_> = e.skipped.iter().map(|(part, reason)| json!({"part":part,"reason":reason.label()})).collect();
+        json!({"tick":e.tick.0.to_string(),"family":e.family.label(),"stakes":stakes(&e.stakes),
+            "applied":e.applied.label(),"source":e.source.label(),"chooser_absent":e.chooser_absent,"skipped":skipped})
+    }).collect();
+    assert_eq!(value["chronicle"], json!(chronicle));
+    let traits = |t: &sim_core::values::Traits| json!({"greed":t.greed.get(),"loyalty":t.loyalty.get(),"pride":t.pride.get(),"warmth":t.warmth.get(),"temper":t.temper.get(),"vindictiveness":t.vindictiveness.get(),"piety":t.piety.get()});
+    let expected_view = world.player_wait().map(|wait| {
+        let mut slots: Vec<_> = world.slots().values().map(|s| (SlotRef::Birth(s.id),format!("birth:{}",s.id.0),"birth_slot",0,Some(s.birth.0.to_string()))).collect();
+        slots.push((SlotRef::ImportedVessel,"imported_vessel".to_owned(),"imported_vessel",world.params().imported_price,None));
+        slots.push((SlotRef::RebuiltBody,"rebuilt_body".to_owned(),"rebuilt_body",world.params().rebuilt_price,None));
+        let slots: Vec<_> = slots.into_iter().map(|(slot,id,kind,price,birth)| {
+            let status = path_status(world, slot);
+            let needed: Vec<_> = status.needed.iter().map(|n| match n {
+                Needed::WaitUntil(t) => json!({"kind":"wait_until","tick":t.0.to_string()}),
+                Needed::JossShort(a) => json!({"kind":"joss_short","amount":a.to_string()}),
+                Needed::CapRoomShort(a) => json!({"kind":"cap_room_short","amount":a.to_string()}),
+                Needed::Named(name) => json!({"kind":"named","name":name}),
+            }).collect();
+            json!({"slot":id,"kind":kind,"price":price.to_string(),"birth":birth,"status":{
+                "announced":status.announced,"claimable":status.claimable,"affordable":status.affordable,"needed":needed}})
+        }).collect();
+        let bases: Vec<_> = std::iter::once(None).chain(TraitName::ALL.into_iter().map(Some))
+            .map(|carry| json!({"carry_over":carry.map(|t| match t {
+                TraitName::Greed => "greed", TraitName::Loyalty => "loyalty", TraitName::Pride => "pride",
+                TraitName::Warmth => "warmth", TraitName::Temper => "temper", TraitName::Vindictiveness => "vindictiveness", TraitName::Piety => "piety",
+            }),"traits":traits(&base_traits(world,carry).unwrap())})).collect();
+        json!({"connected":sim_core::underworld::ghosts::connected(world,wait.ghost).iter().map(|id|id.0).collect::<Vec<_>>(),
+            "ghost_traits":traits(&world.persons()[&wait.ghost].traits),"slots":slots,"base_traits":bases})
+    });
+    assert_eq!(value["underworld_view"], json!(expected_view));
+    let mut referenced = std::collections::BTreeSet::new();
+    if let Some(id) = current {
+        referenced.insert(id.0);
+    }
+    for p in &earlier {
+        referenced.insert(p["id"].as_u64().unwrap());
+    }
+    for tie in blood.iter().chain(&other) {
+        referenced.insert(tie["person"].as_u64().unwrap());
+    }
+    for tie in &past {
+        referenced.insert(tie["rememberer"].as_u64().unwrap());
+        referenced.insert(tie["earlier_body"].as_u64().unwrap());
+    }
+    if let Some(n) = &world.narrator().pending {
+        referenced.extend(n.stakes.who.iter().map(|id| id.0));
+        referenced.extend(
+            n.options
+                .iter()
+                .flat_map(|o| o.preview.iter().map(|p| p.person.0)),
+        );
+    }
+    referenced.extend(
+        recent
+            .iter()
+            .flat_map(|e| e.stakes.who.iter().map(|id| id.0)),
+    );
+    let names: Vec<_> = world
+        .persons()
+        .values()
+        .filter(|p| referenced.contains(&p.id.0) && matches!(p.life, Life::Dead { .. }))
+        .map(|p| json!({"id":p.id.0,"name":p.name.text(p.sex)}))
+        .collect();
+    assert_eq!(value["person_names"], json!(names));
+}
+
+// Feature: first-playable, Property 15: The Snapshot reports the World exactly and changes nothing
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
+    #[test]
+    fn property_15_snapshot_reports_generated_runs(scenario in underworld_gen::arb_scenario()) {
+        let mut run = underworld_gen::Run::new(scenario);
+        for _ in 0..underworld_gen::TICKS {
+            let (mut before, after, _) = run.step();
+            let checksum = sim_core::checksum::Checksum::of(&before);
+            assert_snapshot_blocks(&before);
+            prop_assert_eq!(sim_core::checksum::Checksum::of(&before),checksum);
+            assert_snapshot_blocks(&after);
+            prop_assert_eq!(before.step(&run.last_inputs),sim_core::checksum::Checksum::of(&after));
+        }
+    }
 }

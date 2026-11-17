@@ -32,6 +32,7 @@ pub mod replay;
 pub mod rng;
 pub mod snapshot;
 pub mod social;
+pub mod stops;
 #[cfg(any(test, feature = "test-support"))]
 pub mod testing;
 pub mod tick;
