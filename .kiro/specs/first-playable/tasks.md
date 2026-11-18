@@ -153,6 +153,14 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - **`fixture.spec.ts` step 2 (R16.15; design "Page controls check"; ruled 2026-11-18).** Replace the exact set of four test-id buttons and the `replay|verify|submit|input` name pattern: assert that `create`, `run`, `pause` and `step` are each present, that no `button` or `link` has an accessible name matching `/replay|verif/i`, and that no `data-testid` matches it. Do not rely on the new panels rendering no control before a World exists.
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 10.3, 10.6, 10.7, 10.8, 12.1, 16.15_
     - Acceptance: web typecheck and unit tests pass, and `scripts/web-build.sh` and `pnpm --dir web run test:smoke` pass with the changed step 2. Commit `feat(web): add the town view and the choice and chronicle panels`.
+  - [ ] 9.2 Keep the page's World current
+    - Files: `web/src/main/ui-state.ts`, `web/src/App.svelte`, `web/tests/unit/ui-state.test.ts`. No Worker, protocol or smoke file changes.
+    - Follow design "World delivery to the page" (R9.9; ruled 2026-11-18). The single read after `create-world` that task 9.1 added stays and becomes one case of the paused rule.
+    - The reducer takes the World from `snapshot.stop.world` on a reply as well as on a status, so a manual `pause` shows the World of the tick it stopped on. This is a defect of task 9.1 as committed, read in `ui-state.ts` and not run.
+    - Paused and stale (no World, or its `tick` differs from the displayed tick): one `world-snapshot`, as after a `step` that reported no stop. Running: one `world-snapshot` for every ten `status` messages without `stop`. Never two reads outstanding, no timer, no clock, and a failed read is not repeated for the same tick.
+    - The decision is a pure function of the reducer state, and `App.svelte` only sends what it asks for. Tests in `ui-state.test.ts`: the `pause` reply, a `step` with and without a stop, `create-world`, the tenth running status, no second read while one is outstanding, a failed read, and a World replaced while a read is outstanding; and one fast-check test over generated event sequences that reads are never concurrent, are at least ten running statuses apart, and that a paused state with a stale World has a read outstanding or a failed one. It is not a numbered property.
+    - _Requirements: 9.2, 9.9_
+    - Acceptance: web typecheck, unit tests, `scripts/web-build.sh` and `pnpm --dir web run test:smoke` pass, with `responsive.spec.ts` and `playwright.config.ts` unchanged. The log records, from one run of the built page at Speed 1, the status tick beside the World's tick at two moments while running and after a manual Pause. A long task in `responsive.spec.ts` is reported to the Author, not patched. Commit `feat(web): keep the page's world current`.
 
 - [ ] 10. Scenes and the Underworld_Panel
   - [ ] 10.1 Stage the four scenes and the rebirth panel
