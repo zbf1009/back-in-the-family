@@ -11,11 +11,18 @@
 mod life_gen;
 
 use proptest::prelude::*;
-use serde_json::Value;
+use serde_json::{Value, json};
 use sim_core::checksum::Checksum;
-use sim_core::ids::PersonId;
+use sim_core::ids::{PersonId, Tick};
+use sim_core::input::InputPayload;
+use sim_core::params::Params;
 use sim_core::snapshot::snapshot_json;
-use sim_core::world::{Life, SoulPlace, World};
+use sim_core::testing::{Mutation, apply, prepare_player_wait, set_invalid_joss_account};
+use sim_core::tick::Sim;
+use sim_core::underworld::dreams::DreamIntent;
+use sim_core::underworld::nodes::NodeFamily;
+use sim_core::underworld::slots::SlotRef;
+use sim_core::world::{Life, SoulPlace, World, WorldConfig};
 
 /// Checks that `json` is the Snapshot of `world` (R18.1).
 fn check_snapshot(world: &World, json: &str) {
@@ -200,4 +207,180 @@ proptest! {
         }
         prop_assert_eq!(with.checksums(), without.checksums());
     }
+}
+
+fn waiting_for_snapshot(params: Params, access_from: Option<Tick>) -> (World, PersonId) {
+    let mut world = World::new_with_params(22, WorldConfig::try_new(40).unwrap(), params).unwrap();
+    let ghost = prepare_player_wait(&mut world, Tick(0), access_from, None);
+    let dreamer = sim_core::underworld::ghosts::connected(&world, ghost)
+        .into_iter()
+        .next()
+        .expect("the opening body has living kin");
+    let player = world.souls().player;
+    let mut account = world.joss()[&player];
+    account.balance = params
+        .dream_price
+        .saturating_add(params.imported_price)
+        .saturating_add(100);
+    set_invalid_joss_account(&mut world, player, account);
+    (world, dreamer)
+}
+
+fn read_snapshot(world: &World) -> Value {
+    let checksum = Checksum::of(world);
+    let text = snapshot_json(world);
+    assert_eq!(snapshot_json(world), text);
+    assert_eq!(Checksum::of(world), checksum);
+    serde_json::from_str(&text).unwrap()
+}
+
+#[test]
+fn dream_price_is_read_from_default_and_stress_params() {
+    for params in [Params::DEFAULT, Params::stress_underworld()] {
+        let (world, _) = waiting_for_snapshot(params, None);
+        let value = read_snapshot(&world);
+        assert_eq!(
+            value["underworld_view"]["dream_price"],
+            world.params().dream_price.to_string()
+        );
+    }
+}
+
+#[test]
+fn last_dream_is_omitted_until_a_real_dream_resolves() {
+    let opening = World::new(22, WorldConfig::try_new(40).unwrap()).unwrap();
+    assert!(read_snapshot(&opening).get("last_dream").is_none());
+    let (world, dreamer) = waiting_for_snapshot(Params::DEFAULT, None);
+    let mut sim = Sim::from_test_world(world);
+    assert!(read_snapshot(sim.world()).get("last_dream").is_none());
+    sim.try_submit_all(&[InputPayload::Dream {
+        dreamer,
+        intent: DreamIntent::Warn,
+    }])
+    .unwrap();
+    assert!(read_snapshot(sim.world()).get("last_dream").is_none());
+    let stopped = sim.run_until_stop(20);
+    assert_eq!(stopped.ran, 1);
+    assert!(stopped.stops.dream_resolved);
+    let record = sim
+        .world()
+        .nodes()
+        .resolved
+        .iter()
+        .rev()
+        .find(|record| record.family == NodeFamily::DreamInterpretation)
+        .unwrap();
+    let value = read_snapshot(sim.world());
+    assert_eq!(
+        value["last_dream"],
+        json!({"tick": record.tick.0.to_string(), "dreamer": record.subject.0,
+            "applied": record.applied.id()})
+    );
+    assert_eq!(record.subject, dreamer);
+    assert_eq!(value["last_dream"]["tick"], "0");
+    assert_eq!(value["tick"], "1");
+    let last = value["last_dream"].clone();
+    sim.step();
+    assert_eq!(read_snapshot(sim.world())["last_dream"], last);
+}
+
+#[test]
+fn last_dream_selects_the_latest_real_resolved_record() {
+    let (world, dreamer) = waiting_for_snapshot(Params::DEFAULT, None);
+    let mut sim = Sim::from_test_world(world);
+    for intent in [DreamIntent::Warn, DreamIntent::Reassure] {
+        sim.try_submit_all(&[InputPayload::Dream { dreamer, intent }])
+            .unwrap();
+        sim.step();
+    }
+    let records: Vec<_> = sim
+        .world()
+        .nodes()
+        .resolved
+        .iter()
+        .filter(|record| record.family == NodeFamily::DreamInterpretation)
+        .collect();
+    assert_eq!(records.len(), 2);
+    let last = records[1];
+    assert_eq!(
+        read_snapshot(sim.world())["last_dream"],
+        json!({"tick": last.tick.0.to_string(), "dreamer": last.subject.0,
+            "applied": last.applied.id()})
+    );
+}
+
+#[test]
+fn last_dream_survives_a_same_tick_dream_and_standing_claim() {
+    let (world, dreamer) = waiting_for_snapshot(Params::DEFAULT, Some(Tick(0)));
+    let mut sim = Sim::from_test_world(world);
+    sim.try_submit_all(&[
+        InputPayload::Dream {
+            dreamer,
+            intent: DreamIntent::Warn,
+        },
+        InputPayload::ClaimSlot {
+            slot: SlotRef::ImportedVessel,
+            customization: None,
+        },
+    ])
+    .unwrap();
+    let stopped = sim.run_until_stop(20);
+    assert_eq!(stopped.ran, 1);
+    assert_eq!(stopped.stops.labels(), ["dream_resolved", "player_reborn"]);
+    assert!(
+        sim.last_outcomes()
+            .iter()
+            .all(|outcome| outcome.result.is_ok())
+    );
+    let value = read_snapshot(sim.world());
+    assert!(value["underworld_view"].is_null());
+    let record = sim.world().nodes().resolved.last().unwrap();
+    assert_eq!(record.family, NodeFamily::DreamInterpretation);
+    assert_eq!(
+        value["last_dream"],
+        json!({"tick": record.tick.0.to_string(), "dreamer": record.subject.0,
+            "applied": record.applied.id()})
+    );
+}
+
+#[test]
+fn last_dream_names_a_dreamer_who_has_since_died() {
+    let (world, dreamer) = waiting_for_snapshot(Params::DEFAULT, None);
+    let mut sim = Sim::from_test_world(world);
+    sim.try_submit_all(&[InputPayload::Dream {
+        dreamer,
+        intent: DreamIntent::Warn,
+    }])
+    .unwrap();
+    sim.step();
+    let mut world = sim.world().clone();
+    let selector = world
+        .persons()
+        .keys()
+        .position(|id| *id == dreamer)
+        .unwrap();
+    assert!(apply(
+        &mut world,
+        Mutation::PersonField {
+            person: u64::try_from(selector).unwrap(),
+            part: 11,
+        }
+    ));
+    let person = &world.persons()[&dreamer];
+    assert!(matches!(person.life, Life::Dead { .. }));
+    let value = read_snapshot(&world);
+    let expected = json!({"id": dreamer.0, "name": person.name.text(person.sex)});
+    assert!(
+        value["person_names"]
+            .as_array()
+            .unwrap()
+            .contains(&expected)
+    );
+    assert!(
+        value["residents"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|person| person["id"] != dreamer.0)
+    );
 }

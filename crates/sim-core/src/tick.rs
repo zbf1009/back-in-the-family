@@ -492,7 +492,6 @@ mod tests {
     /// Sim, the Ghost's body and a living Connected_Person of it.
     fn waiting_sim() -> (Sim, PersonId, PersonId) {
         use crate::underworld::ghosts::connected;
-        use crate::underworld::player::start_wait;
 
         let mut s = Sim::new_with_params(
             22,
@@ -501,18 +500,8 @@ mod tests {
         )
         .unwrap();
         let player = s.world.souls.player;
-        let crate::world::SoulPlace::Body(body) = s.world.souls.places[&player] else {
-            panic!("the Player_Soul starts in a body");
-        };
         let tick = s.world.tick;
-        if let Some(person) = s.world.persons.get_mut(&body) {
-            person.life = Life::Dead { death: tick };
-        }
-        s.world
-            .souls
-            .places
-            .insert(player, crate::world::SoulPlace::Waiting { since: tick });
-        start_wait(&mut s.world, player, tick);
+        let body = crate::testing::prepare_player_wait(&mut s.world, tick, None, None);
         if let Some(account) = s.world.joss.get_mut(&player) {
             account.balance = 100;
         }

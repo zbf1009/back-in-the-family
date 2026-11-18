@@ -34,6 +34,8 @@ struct SnapshotDto {
     player_node: Option<PlayerNodeDto>,
     chronicle: Vec<ChronicleDto>,
     underworld_view: Option<UnderworldViewDto>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_dream: Option<LastDreamDto>,
     person_names: Vec<NamedPersonDto>,
 }
 
@@ -155,10 +157,18 @@ struct BaseTraitsDto {
 
 #[derive(Serialize)]
 struct UnderworldViewDto {
+    dream_price: String,
     connected: Vec<u64>,
     ghost_traits: TraitsDto,
     slots: Vec<UnderworldSlotDto>,
     base_traits: Vec<BaseTraitsDto>,
+}
+
+#[derive(Serialize)]
+struct LastDreamDto {
+    tick: String,
+    dreamer: u64,
+    applied: &'static str,
 }
 
 #[derive(Serialize)]
@@ -651,12 +661,24 @@ pub fn snapshot_json(world: &World) -> String {
             })
             .collect();
         UnderworldViewDto {
+            dream_price: world.params().dream_price.to_string(),
             connected,
             ghost_traits,
             slots,
             base_traits,
         }
     });
+    let last_dream = world
+        .nodes()
+        .resolved
+        .iter()
+        .rev()
+        .find(|record| record.family == crate::underworld::nodes::NodeFamily::DreamInterpretation)
+        .map(|record| LastDreamDto {
+            tick: record.tick.0.to_string(),
+            dreamer: record.subject.0,
+            applied: record.applied.id(),
+        });
     let mut referenced = std::collections::BTreeSet::new();
     if let Some(body) = player.body {
         referenced.insert(body);
@@ -679,6 +701,9 @@ pub fn snapshot_json(world: &World) -> String {
     }
     for entry in entries.iter().skip(entries.len().saturating_sub(100)) {
         referenced.extend(entry.stakes.who.iter().map(|id| id.0));
+    }
+    if let Some(dream) = &last_dream {
+        referenced.insert(dream.dreamer);
     }
     let person_names = referenced
         .into_iter()
@@ -705,6 +730,7 @@ pub fn snapshot_json(world: &World) -> String {
         player_node,
         chronicle,
         underworld_view,
+        last_dream,
         person_names,
     };
     serde_json::to_string(&dto).expect("the snapshot DTO is always serializable")
@@ -859,22 +885,7 @@ mod tests {
     /// A world whose Player_Soul died at tick 0 and waits with its body as the Ghost.
     fn waiting_player() -> World {
         let mut world = world();
-        let player = world.souls.player;
-        let SoulPlace::Body(body) = world.souls.places[&player] else {
-            panic!("the Player_Soul starts in a body");
-        };
-        if let Some(person) = world.persons.get_mut(&body) {
-            person.life = Life::Dead {
-                death: crate::ids::Tick(0),
-            };
-        }
-        world.souls.places.insert(
-            player,
-            SoulPlace::Waiting {
-                since: crate::ids::Tick(0),
-            },
-        );
-        crate::underworld::player::start_wait(&mut world, player, crate::ids::Tick(0));
+        crate::testing::prepare_player_wait(&mut world, crate::ids::Tick(0), None, None);
         world
     }
 

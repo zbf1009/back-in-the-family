@@ -54,7 +54,7 @@ test('Property 24: Snapshot whole years, signed previews, Stakes and Needed rema
       }
       const waiting: WorldSnapshot = { ...world, player_node: null,
         player: { ...world.player, place: 'waiting', body: null },
-        underworld_view: { connected: [], ghost_traits: base.residents[0]!.traits, base_traits: [],
+        underworld_view: { dream_price: '20', connected: [], ghost_traits: base.residents[0]!.traits, base_traits: [],
           slots: [{ slot: 'rebuilt_body', kind: 'rebuilt_body', price: '400', birth: null,
             status: { announced: true, claimable: false, affordable: false, needed: missing } }] },
       };

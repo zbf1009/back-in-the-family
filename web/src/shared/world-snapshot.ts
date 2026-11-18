@@ -40,6 +40,7 @@ export type Needed =
   | { kind: 'named'; name: string };
 export interface PathStatus { announced: boolean; claimable: boolean; affordable: boolean; needed: Needed[] }
 export interface UnderworldView {
+  dream_price: string;
   connected: number[];
   ghost_traits: Traits;
   slots: { slot: Slot; kind: 'birth_slot' | 'imported_vessel' | 'rebuilt_body'; price: string; birth: string | null; status: PathStatus }[];
@@ -80,5 +81,8 @@ export interface WorldSnapshot {
   player_node: PlayerNode | null;
   chronicle: ChronicleEntry[];
   underworld_view: UnderworldView | null;
+  last_dream?: { tick: string; dreamer: number; applied:
+    | 'heed_warning' | 'take_comfort' | 'follow_urging' | 'believe_revelation' | 'obey_ban'
+    | 'burn_offering' | 'burn_small' | 'dismiss_dream' };
   person_names: { id: number; name: string }[];
 }

@@ -55,6 +55,34 @@ pub fn set_invalid_joss_account(world: &mut World, soul: SoulId, account: JossAc
     *world.joss.get_mut(&soul).expect("C1 Soul has an account") = account;
 }
 
+/// Prepares a test wait through the production start_wait path, retaining its draw
+/// unless a test needs a fixed Base_Traits vector. This helper is not in normal builds.
+pub fn prepare_player_wait(
+    world: &mut World,
+    death: Tick,
+    access_from: Option<Tick>,
+    rebuilt_draw: Option<crate::values::Traits>,
+) -> PersonId {
+    let player = world.souls.player;
+    let SoulPlace::Body(body) = world.souls.places[&player] else {
+        panic!("the prepared player starts in a body");
+    };
+    world.persons.get_mut(&body).expect("the body exists").life = Life::Dead { death };
+    world
+        .souls
+        .places
+        .insert(player, SoulPlace::Waiting { since: death });
+    crate::underworld::player::start_wait(world, player, death);
+    let wait = world.player_wait.as_mut().expect("start_wait made a wait");
+    if let Some(access_from) = access_from {
+        wait.access_from = access_from;
+    }
+    if let Some(rebuilt_draw) = rebuilt_draw {
+        wait.rebuilt_draw = rebuilt_draw;
+    }
+    body
+}
+
 /// Installs a constructed Player_Node for skip and rejection property tests only.
 /// Production nodes always come from narrator::run and the shared ID counter.
 pub fn install_player_node(world: &mut World, node: crate::narrator::PlayerNode) {

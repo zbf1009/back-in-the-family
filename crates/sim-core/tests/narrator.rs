@@ -1109,9 +1109,23 @@ fn assert_snapshot_blocks(world: &World) {
                 TraitName::Warmth => "warmth", TraitName::Temper => "temper", TraitName::Vindictiveness => "vindictiveness", TraitName::Piety => "piety",
             }),"traits":traits(&base_traits(world,carry).unwrap())})).collect();
         json!({"connected":sim_core::underworld::ghosts::connected(world,wait.ghost).iter().map(|id|id.0).collect::<Vec<_>>(),
+            "dream_price":world.params().dream_price.to_string(),
             "ghost_traits":traits(&world.persons()[&wait.ghost].traits),"slots":slots,"base_traits":bases})
     });
     assert_eq!(value["underworld_view"], json!(expected_view));
+    let last_dream = world.nodes().resolved.iter().rev().find(|record| {
+        record.family == sim_core::underworld::nodes::NodeFamily::DreamInterpretation
+    });
+    match last_dream {
+        Some(record) => assert_eq!(
+            value.get("last_dream"),
+            Some(
+                &json!({"tick":record.tick.0.to_string(),"dreamer":record.subject.0,
+                "applied":record.applied.id()})
+            )
+        ),
+        None => assert!(value.get("last_dream").is_none()),
+    }
     let mut referenced = std::collections::BTreeSet::new();
     if let Some(id) = current {
         referenced.insert(id.0);
@@ -1139,6 +1153,9 @@ fn assert_snapshot_blocks(world: &World) {
             .iter()
             .flat_map(|e| e.stakes.who.iter().map(|id| id.0)),
     );
+    if let Some(record) = last_dream {
+        referenced.insert(record.subject.0);
+    }
     let names: Vec<_> = world
         .persons()
         .values()
