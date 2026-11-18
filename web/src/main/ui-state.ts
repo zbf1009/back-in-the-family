@@ -15,6 +15,7 @@
 
 import type { Request, RunState, Snapshot, WorkerMessage } from '../shared/protocol.ts';
 import { type SeedProblem, seedProblemMessage } from '../shared/seed.ts';
+import type { WorldSnapshot } from '../shared/world-snapshot.ts';
 
 /**
  * A Worker_Protocol `reply` message, derived from the shared union. This is the
@@ -47,6 +48,8 @@ export interface UiState {
   speed: number;
   /** Last Worker read of the pending node's accepted-choice state. */
   playerNode: Snapshot['playerNode'];
+  /** Latest completed World Snapshot; presentation never computes an outcome. */
+  world: WorldSnapshot | null;
   /** Error area text; non-empty while the last reply-or-fatal event was a failure (R5.8). */
   error: string | null;
   /** Seed validation message; set by a rejected seed, cleared by a sent create-world (R3.3). */
@@ -85,6 +88,7 @@ export function initialUiState(): UiState {
     tps: null,
     speed: 1,
     playerNode: { pending: false },
+    world: null,
     error: null,
     seedMessage: null,
     createPending: false,
@@ -125,7 +129,10 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       const cleared = clearPending(s, e.request);
       if (e.message.ok) {
         // Success: adopt the snapshot and clear the error area (R5.8).
-        return { ...cleared, ...fromSnapshot(e.message.snapshot), error: null };
+        return {
+          ...cleared, ...fromSnapshot(e.message.snapshot), error: null,
+          world: e.message.world ?? (e.message.snapshot.worldId === s.worldId ? s.world : null),
+        };
       }
       // Failure: keep tick, checksum, worldId and runState; only show the error
       // text (R3.6, R5.9). The worker left its state unchanged, so the snapshot
@@ -141,7 +148,7 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       }
       // A status never carries an error and never clears one: the error area is
       // governed by replies and fatals only (R5.8). Adopt the live values.
-      return { ...s, ...fromSnapshot(e.snapshot) };
+      return { ...s, ...fromSnapshot(e.snapshot), world: e.snapshot.stop?.world ?? s.world };
     }
 
     case 'fatal':

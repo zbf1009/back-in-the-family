@@ -71,6 +71,7 @@ function stateFor(runState: RunState, stepPending: boolean, createPending: boole
     tps: 123,
     speed: 365,
     playerNode: { pending: false },
+    world: null,
     error: null,
     seedMessage: null,
     createPending,

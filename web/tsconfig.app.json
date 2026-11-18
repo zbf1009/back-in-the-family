@@ -18,5 +18,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["src/main/**/*.ts", "src/shared/**/*.ts", "src/main.ts", "src/**/*.svelte"]
+  "include": ["src/main/**/*.ts", "src/art/**/*.ts", "src/shared/**/*.ts", "src/main.ts", "src/**/*.svelte"]
 }

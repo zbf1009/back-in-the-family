@@ -22,6 +22,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
+import { readFileSync } from 'node:fs';
+import type { WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import {
   initialUiState,
   reduce,
@@ -355,4 +357,27 @@ test('R8.9: stop, accepted choice, rejection and replacement keep UI gate in syn
   s = reduce(s, { type: 'status', snapshot: snap });
   assert.deepEqual(s.playerNode, { pending: false });
   assert.equal(controls(s).run, true);
+});
+
+test('R9.2: reducer adopts only completed World carriers and preserves them between stops', () => {
+  const world: WorldSnapshot = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seed1-pairwise.snapshot-500.json', import.meta.url), 'utf8'));
+  const snapshot: Snapshot = { worldId: 1, runState: 'paused', tick: '500', checksum: 'a1b2c3d4e5f60718',
+    speed: 1, tps: null, playerNode: { pending: false } };
+  const request: Request = { type: 'world-snapshot', id: 1 };
+  let s = reduce({ ...initialUiState(), worldId: 1 }, { type: 'reply', request,
+    message: { type: 'reply', id: 1, ok: true, snapshot, world } });
+  assert.equal(s.world, world);
+  const running: Snapshot = { ...snapshot, runState: 'running', tick: '550' };
+  s = reduce(s, { type: 'status', snapshot: running });
+  assert.equal(s.world, world, 'ordinary statuses do not invent a World');
+  const stopped = { ...world, tick: '641' };
+  s = reduce(s, { type: 'status', snapshot: { ...snapshot, tick: '641', stop: { reasons: ['player_node'], world: stopped } } });
+  assert.equal(s.world, stopped);
+  s = reduce(s, { type: 'reply', request, message: { type: 'reply', id: 1, ok: false, kind: 'rejected', error: 'option_not_in_set', snapshot } });
+  assert.equal(s.world, stopped);
+  s = reduce(s, { type: 'status', snapshot: { ...snapshot, worldId: 2, stop: { reasons: ['player_node'], world } } });
+  assert.equal(s.world, stopped, 'stale-world status does not replace the display');
+  s = reduce(s, { type: 'reply', request: { type: 'create-world', id: 2, seed: '1', config: '{}' },
+    message: { type: 'reply', id: 2, ok: true, snapshot: { ...snapshot, worldId: 2, tick: '0', checksum: null } } });
+  assert.equal(s.world, null, 'replacement without a World never retains the old town');
 });

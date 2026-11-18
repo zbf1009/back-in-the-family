@@ -247,14 +247,16 @@ test('built page matches the native fixture and the page controls advance it', a
   // The file ends with a trailing newline, which the textarea preserves.
   await expect(page.getByTestId('config')).toHaveValue(pairwiseConfigText);
 
-  //    R9.11: there is no replay / verify / input control on the page. Only
-  //    create/run/pause/step/speed controls exist.
-  const buttonTestIds = await page.locator('button[data-testid]').evaluateAll((els) =>
+  //    R16.15: preserve the shell controls; no replay or verification control.
+  for (const id of ['create', 'run', 'pause', 'step']) {
+    await expect(page.getByTestId(id)).toHaveCount(1);
+  }
+  await expect(page.getByRole('button', { name: /replay|verif/i })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: /replay|verif/i })).toHaveCount(0);
+  const testIds = await page.locator('[data-testid]').evaluateAll((els) =>
     els.map((el) => el.getAttribute('data-testid')),
   );
-  expect(new Set(buttonTestIds)).toEqual(new Set(['create', 'run', 'pause', 'step']));
-  // No control mentions replay, verify, submit or input anywhere in its text.
-  await expect(page.getByRole('button', { name: /replay|verify|submit|input/i })).toHaveCount(0);
+  expect(testIds.filter((id) => /replay|verif/i.test(id ?? ''))).toEqual([]);
 
   // 3. R9.5, R9.6: protocol run vs the native fixture.
   const protocolChecksums = await protocolRun(page, {
