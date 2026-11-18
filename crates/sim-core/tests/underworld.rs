@@ -2542,3 +2542,84 @@ fn a_birth_slot_claim_places_the_player_at_birth() {
     assert_eq!(births.len(), 1);
     assert_eq!(births[0].tick, slot.birth);
 }
+
+#[test]
+fn customize_matches_shared_golden_vectors_and_all_required_boundaries() {
+    use serde_json::Value;
+    use sim_core::ids::Tick;
+    use sim_core::replay::ReplayCustomization;
+    use sim_core::testing::prepare_player_wait;
+    use sim_core::underworld::carry_over::TraitName;
+    use sim_core::underworld::customization::{Customization, customize};
+    use sim_core::underworld::slots::base_traits;
+    use sim_core::values::{Trait, Traits};
+
+    fn traits(value: &Value) -> Traits {
+        let read =
+            |name: &str| Trait::new(i8::try_from(value[name].as_i64().unwrap()).unwrap()).unwrap();
+        assert_eq!(value.as_object().unwrap().len(), 7);
+        Traits {
+            greed: read("greed"),
+            loyalty: read("loyalty"),
+            pride: read("pride"),
+            warmth: read("warmth"),
+            temper: read("temper"),
+            vindictiveness: read("vindictiveness"),
+            piety: read("piety"),
+        }
+    }
+
+    let cases: Vec<Value> =
+        serde_json::from_str(include_str!("../../../fixtures/customization/golden.json")).unwrap();
+    assert!(!cases.is_empty());
+    let draw = traits(&cases[0]["base"]);
+    let mut world = World::new(1, WorldConfig::try_new(50).unwrap()).unwrap();
+    prepare_player_wait(&mut world, Tick(0), None, Some(draw));
+    let uncarried = base_traits(&world, None).unwrap();
+    let carried = base_traits(&world, Some(TraitName::Pride)).unwrap();
+    assert_ne!(uncarried, carried);
+    let mut coverage = [[false; 6]; 2];
+    let mut carry_overrides = [false; 2];
+    for (index, case) in cases.iter().enumerate() {
+        assert_eq!(case.as_object().unwrap().len(), 3);
+        let base = traits(&case["base"]);
+        let group = if base == uncarried { 0 } else { 1 };
+        if group == 1 {
+            assert_eq!(
+                base, carried,
+                "vector {index} is a real carried Base_Traits entry"
+            );
+        }
+        let input = &case["customization"];
+        let dto: ReplayCustomization = serde_json::from_value(input.clone()).unwrap();
+        let customization: Customization = dto.into();
+        assert_eq!(
+            customize(base, customization),
+            traits(&case["expected"]),
+            "vector {index}"
+        );
+        if let Some(set) = input.get("Set") {
+            let name = set["trait_name"].as_str().unwrap();
+            let value = set["value"].as_i64().unwrap();
+            coverage[group][0] |= value == -3;
+            coverage[group][1] |= value == 3;
+            coverage[group][2] |= case["base"][name].as_i64().unwrap() == value;
+            carry_overrides[0] |= group == 1 && name == "pride";
+        } else {
+            let adjust = &input["Adjust"];
+            for part in ["first", "second"] {
+                let entry = &adjust[part];
+                let name = entry["trait_name"].as_str().unwrap();
+                let base = case["base"][name].as_i64().unwrap();
+                let delta = entry["delta"].as_i64().unwrap();
+                coverage[group][3] |= base == 3 && delta == 1;
+                coverage[group][4] |= base == -3 && delta == -1;
+                carry_overrides[1] |= group == 1 && name == "pride";
+            }
+            coverage[group][5] |= adjust["first"]["delta"].as_i64().unwrap()
+                != adjust["second"]["delta"].as_i64().unwrap();
+        }
+    }
+    assert_eq!(coverage, [[true; 6]; 2]);
+    assert_eq!(carry_overrides, [true; 2]);
+}

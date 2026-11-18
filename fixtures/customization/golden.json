@@ -1,0 +1,344 @@
+[
+  {
+    "base": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": 2,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    },
+    "customization": {
+      "Set": {
+        "trait_name": "greed",
+        "value": -3
+      }
+    },
+    "expected": {
+      "greed": -3,
+      "loyalty": 3,
+      "pride": 2,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    }
+  },
+  {
+    "base": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": 2,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    },
+    "customization": {
+      "Set": {
+        "trait_name": "greed",
+        "value": 3
+      }
+    },
+    "expected": {
+      "greed": 3,
+      "loyalty": 3,
+      "pride": 2,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    }
+  },
+  {
+    "base": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": 2,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    },
+    "customization": {
+      "Set": {
+        "trait_name": "piety",
+        "value": -1
+      }
+    },
+    "expected": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": 2,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    }
+  },
+  {
+    "base": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": 2,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    },
+    "customization": {
+      "Adjust": {
+        "first": {
+          "trait_name": "loyalty",
+          "delta": 1
+        },
+        "second": {
+          "trait_name": "warmth",
+          "delta": -1
+        }
+      }
+    },
+    "expected": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": 2,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    }
+  },
+  {
+    "base": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": 2,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    },
+    "customization": {
+      "Adjust": {
+        "first": {
+          "trait_name": "greed",
+          "delta": 1
+        },
+        "second": {
+          "trait_name": "temper",
+          "delta": -1
+        }
+      }
+    },
+    "expected": {
+      "greed": 2,
+      "loyalty": 3,
+      "pride": 2,
+      "warmth": -3,
+      "temper": -1,
+      "vindictiveness": 1,
+      "piety": -1
+    }
+  },
+  {
+    "base": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": -3,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    },
+    "customization": {
+      "Set": {
+        "trait_name": "greed",
+        "value": -3
+      }
+    },
+    "expected": {
+      "greed": -3,
+      "loyalty": 3,
+      "pride": -3,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    }
+  },
+  {
+    "base": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": -3,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    },
+    "customization": {
+      "Set": {
+        "trait_name": "greed",
+        "value": 3
+      }
+    },
+    "expected": {
+      "greed": 3,
+      "loyalty": 3,
+      "pride": -3,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    }
+  },
+  {
+    "base": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": -3,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    },
+    "customization": {
+      "Set": {
+        "trait_name": "piety",
+        "value": -1
+      }
+    },
+    "expected": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": -3,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    }
+  },
+  {
+    "base": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": -3,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    },
+    "customization": {
+      "Adjust": {
+        "first": {
+          "trait_name": "loyalty",
+          "delta": 1
+        },
+        "second": {
+          "trait_name": "warmth",
+          "delta": -1
+        }
+      }
+    },
+    "expected": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": -3,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    }
+  },
+  {
+    "base": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": -3,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    },
+    "customization": {
+      "Adjust": {
+        "first": {
+          "trait_name": "greed",
+          "delta": 1
+        },
+        "second": {
+          "trait_name": "temper",
+          "delta": -1
+        }
+      }
+    },
+    "expected": {
+      "greed": 2,
+      "loyalty": 3,
+      "pride": -3,
+      "warmth": -3,
+      "temper": -1,
+      "vindictiveness": 1,
+      "piety": -1
+    }
+  },
+  {
+    "base": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": -3,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    },
+    "customization": {
+      "Set": {
+        "trait_name": "pride",
+        "value": 3
+      }
+    },
+    "expected": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": 3,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    }
+  },
+  {
+    "base": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": -3,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    },
+    "customization": {
+      "Adjust": {
+        "first": {
+          "trait_name": "pride",
+          "delta": 1
+        },
+        "second": {
+          "trait_name": "greed",
+          "delta": -1
+        }
+      }
+    },
+    "expected": {
+      "greed": 0,
+      "loyalty": 3,
+      "pride": -2,
+      "warmth": -3,
+      "temper": 0,
+      "vindictiveness": 1,
+      "piety": -1
+    }
+  }
+]
