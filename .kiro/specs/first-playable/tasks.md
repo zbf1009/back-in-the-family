@@ -203,7 +203,8 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - The test plays the fixture's seed through the real controls: Speed 1 to the first stop, then Speed 365 and Run between stops, submitting each input by clicking or filling controls (R16.1, R16.2, R16.3). At the first `player_node` stop it sends one `run` through the Worker request path and asserts `node_unanswered` and that the tick did not advance (R8.9). It submits no input through the harness.
     - At each stage it asserts the Pause_Reason, the tick, the visible Soul_Marker and name, the two tie lists and, at a node, every Option_Preview (R16.4, R16.5). At the end it compares every worker Checksum from tick 1 to the fixture's last tick (R16.6).
     - The test timeout is `B` computed from the stage file, and `globalTimeout` becomes 170 s plus `B` (R16.8). The log records the measured wall time of the Speed 1 stage beside the 20 to 30 s target and `first_interrupt_min = 600` (R16.11). A time outside that range is reported to the Author rather than patched.
-    - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.5, 16.6, 16.7, 16.8, 16.11_
+    - From before the first Run click to the fixture's last tick the test observes `longtask` entries, and before the harness reads the Checksums it attaches `long-task-count` and `longest-main-task-ms`; the log records both (R16.14; design "Playthrough long-task report"). Report only: no value fails the test, no fault injection is owed for it, and a reported task goes to the Author rather than being patched.
+    - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.5, 16.6, 16.7, 16.8, 16.11, 16.14_
     - Acceptance: the Smoke_Test passes, and `scripts/gates.sh` exits 0. Commit `test(web): add the playthrough smoke test`.
 
 - [ ] 15. Fault injections, the comparison document and steering
@@ -219,7 +220,7 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
 - [ ] 16. Final check and audit
   - [ ] 16.1 Confirm the gates and hand over
     - Files: `docs/kiro-log.md` only.
-    - Run `scripts/gates.sh` from a clean build and record the wall time against the 377 s baseline, the `first_stop_band` line, the Playthrough_Branch time and the Speed 1 first-stop measurement (R16.9, R13.4, R16.11).
+    - Run `scripts/gates.sh` from a clean build and record the wall time against the 377 s baseline, the `first_stop_band` line, the Playthrough_Branch time, the Speed 1 first-stop measurement and the playthrough's two long-task figures (R16.9, R13.4, R16.11, R16.14).
     - Confirm the R15.6 check exits 0 and that no file under `crates/sim-core/src/llm/` or the System One template changed.
     - _Requirements: 15.6, 16.9_
     - Acceptance: one log entry `### Spec: first-playable — final check (<date>)` with the commands and the figures. **STOP.** Report the commit history and the figures to OMP for the audit. Do not push.
