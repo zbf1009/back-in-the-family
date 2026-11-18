@@ -50,6 +50,10 @@ export interface UiState {
   playerNode: Snapshot['playerNode'];
   /** Latest completed World Snapshot; presentation never computes an outcome. */
   world: WorldSnapshot | null;
+  /** One outstanding read, or the tick whose read failed; never both. */
+  worldRead: { state: 'pending' | 'failed'; worldId: number; tick: string } | null;
+  /** Running statuses since a World carrier or the last read request, capped at ten. */
+  worldStatuses: number;
   /** Error area text; non-empty while the last reply-or-fatal event was a failure (R5.8). */
   error: string | null;
   /** Seed validation message; set by a rejected seed, cleared by a sent create-world (R3.3). */
@@ -76,7 +80,8 @@ export type UiEvent =
   | { type: 'status'; snapshot: Snapshot }
   | { type: 'fatal' | 'worker-error'; error: string }
   | { type: 'seed-invalid'; problem: SeedProblem }
-  | { type: 'request-sent'; request: Request };
+  | { type: 'request-sent'; request: Request }
+  | { type: 'world-read-failed'; worldId: number; tick: string; error: string };
 
 /** The initial display state: no world, Speed 1 selected, everything else empty (R4.4, R5.2). */
 export function initialUiState(): UiState {
@@ -89,6 +94,8 @@ export function initialUiState(): UiState {
     speed: 1,
     playerNode: { pending: false },
     world: null,
+    worldRead: null,
+    worldStatuses: 0,
     error: null,
     seedMessage: null,
     createPending: false,
@@ -113,32 +120,47 @@ export function reduce(s: UiState, e: UiEvent): UiState {
     case 'request-sent': {
       // A create-world clears the seed message (the seed was accepted) and marks
       // the create control busy (R3.3, R3.8). A step marks the step control busy
-      // (R4.10). Other requests do not touch these flags here.
+      // (R4.10). A World read records its origin before App sends the request.
       switch (e.request.type) {
         case 'create-world':
           return { ...s, seedMessage: null, createPending: true };
         case 'step':
           return { ...s, stepPending: true };
+        case 'world-snapshot':
+          return s.worldRead?.state === 'pending' || s.tick === null ? s : {
+            ...s, worldRead: { state: 'pending', worldId: s.worldId, tick: s.tick }, worldStatuses: 0,
+          };
         default:
           return s;
       }
     }
 
     case 'reply': {
-      // Clear whichever pending flag this reply answers, regardless of success.
-      const cleared = clearPending(s, e.request);
-      if (e.message.ok) {
-        // Success: adopt the snapshot and clear the error area (R5.8).
-        return {
-          ...cleared, ...fromSnapshot(e.message.snapshot), error: null,
-          world: e.message.world ?? (e.message.snapshot.worldId === s.worldId ? s.world : null),
-        };
+      const read = e.request.type === 'world-snapshot' ? s.worldRead : null;
+      const cleared = e.request.type === 'world-snapshot' ? { ...s, worldRead: null } : clearPending(s, e.request);
+      // Finish the old read without adopting its values or error after replacement.
+      if (e.request.type === 'world-snapshot'
+        && (e.message.snapshot.worldId !== s.worldId || (read !== null && read.worldId !== s.worldId))) {
+        return cleared;
       }
-      // Failure: keep tick, checksum, worldId and runState; only show the error
-      // text (R3.6, R5.9). The worker left its state unchanged, so the snapshot
-      // it echoes equals what we already show; we do not copy it, to be explicit
-      // that nothing the worker did not complete is displayed.
-      return { ...cleared, error: e.message.error };
+      if (e.message.ok) {
+        const replaced = e.message.snapshot.worldId !== s.worldId;
+        const next = {
+          ...cleared, ...fromSnapshot(e.message.snapshot), error: null,
+          world: replaced ? null : s.world,
+          worldStatuses: replaced ? 0 : cleared.worldStatuses,
+          worldRead: replaced && cleared.worldRead?.state === 'failed' ? null : cleared.worldRead,
+        };
+        const world = e.message.world ?? e.message.snapshot.stop?.world;
+        return world === undefined ? next : withWorld(next, world);
+      }
+      // Failures keep the completed display; a failed read is not retried at its tick.
+      const tick = read?.tick ?? s.tick;
+      return {
+        ...cleared, error: e.message.error,
+        worldRead: e.request.type === 'world-snapshot' && tick !== null
+          ? { state: 'failed', worldId: s.worldId, tick } : cleared.worldRead,
+      };
     }
 
     case 'status': {
@@ -148,7 +170,12 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       }
       // A status never carries an error and never clears one: the error area is
       // governed by replies and fatals only (R5.8). Adopt the live values.
-      return { ...s, ...fromSnapshot(e.snapshot), world: e.snapshot.stop?.world ?? s.world };
+      const next = {
+        ...s, ...fromSnapshot(e.snapshot),
+        worldStatuses: e.snapshot.runState === 'running' && e.snapshot.stop === undefined
+          ? Math.min(s.worldStatuses + 1, 10) : s.worldStatuses,
+      };
+      return e.snapshot.stop === undefined ? next : withWorld(next, e.snapshot.stop.world);
     }
 
     case 'fatal':
@@ -163,7 +190,26 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       // leave the world, Run_State, tick and checksum untouched (R3.3).
       return { ...s, seedMessage: seedProblemMessage(e.problem) };
     }
+    case 'world-read-failed': {
+      const read = s.worldRead;
+      if (read?.state !== 'pending' || read.worldId !== e.worldId || read.tick !== e.tick) return s;
+      if (e.worldId !== s.worldId) return { ...s, worldRead: null };
+      return { ...s, error: e.error, worldRead: { state: 'failed', worldId: e.worldId, tick: e.tick } };
+    }
   }
+}
+
+/** The page asks for a read only from this reducer state (first-playable R9.9). */
+export function worldSnapshotNeeded(s: UiState): boolean {
+  if (s.worldId === 0 || s.tick === null || s.worldRead?.state === 'pending') return false;
+  if (s.worldRead?.state === 'failed' && s.worldRead.worldId === s.worldId && s.worldRead.tick === s.tick) return false;
+  if (s.runState === 'paused') return s.world === null || s.world.tick !== s.tick;
+  return s.runState === 'running' && s.worldStatuses === 10;
+}
+
+/** A World carrier is authoritative and starts a new running-status allowance. */
+function withWorld(s: UiState, world: WorldSnapshot): UiState {
+  return { ...s, world, worldStatuses: 0 };
 }
 
 /**

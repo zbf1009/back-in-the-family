@@ -28,6 +28,7 @@ import {
   initialUiState,
   reduce,
   controls,
+  worldSnapshotNeeded,
   type UiEvent,
   type UiState,
 } from '../../src/main/ui-state.ts';
@@ -380,4 +381,251 @@ test('R9.2: reducer adopts only completed World carriers and preserves them betw
   s = reduce(s, { type: 'reply', request: { type: 'create-world', id: 2, seed: '1', config: '{}' },
     message: { type: 'reply', id: 2, ok: true, snapshot: { ...snapshot, worldId: 2, tick: '0', checksum: null } } });
   assert.equal(s.world, null, 'replacement without a World never retains the old town');
+});
+
+test('R9.9: a manual pause adopts stop.world and reply.world takes precedence', () => {
+  const world: WorldSnapshot = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seed1-pairwise.snapshot-500.json', import.meta.url), 'utf8'));
+  const paused: Snapshot = { worldId: 1, runState: 'paused', tick: '500', checksum: 'a1b2c3d4e5f60718',
+    speed: 1, tps: null, playerNode: { pending: false }, stop: { reasons: ['user'], world } };
+  const running: UiState = { ...initialUiState(), worldId: 1, runState: 'running', tick: '400', world: { ...world, tick: '400' } };
+  const request: Request = { type: 'pause', id: 1 };
+  const stopped = reduce(running, { type: 'reply', request, message: { type: 'reply', id: 1, ok: true, snapshot: paused } });
+  assert.equal(stopped.world, world);
+  assert.equal(stopped.tick, world.tick);
+  assert.equal(worldSnapshotNeeded(stopped), false);
+  const preferred = { ...world };
+  const both = reduce(running, { type: 'reply', request, message: { type: 'reply', id: 1, ok: true, snapshot: paused, world: preferred } });
+  assert.equal(both.world, preferred);
+});
+
+const deliveryWorld: WorldSnapshot = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seed1-pairwise.snapshot-500.json', import.meta.url), 'utf8'));
+
+function deliveryState(tick = '0', runState: RunState = 'paused'): UiState {
+  return { ...initialUiState(), worldId: 1, tick, runState, world: { ...deliveryWorld, tick } };
+}
+
+function deliverySnapshot(s: UiState): Snapshot {
+  return { worldId: s.worldId, runState: s.runState, tick: s.tick, checksum: s.checksum,
+    tps: s.tps, speed: s.speed, playerNode: s.playerNode };
+}
+
+function deliveryReply(s: UiState, request: Request, snapshot: Snapshot, world?: WorldSnapshot): UiState {
+  return reduce(s, { type: 'reply', request, message: { type: 'reply', id: request.id, ok: true, snapshot, ...(world ? { world } : {}) } });
+}
+
+function startWorldRead(s: UiState): UiState {
+  assert.equal(worldSnapshotNeeded(s), true);
+  const next = reduce(s, { type: 'request-sent', request: { type: 'world-snapshot', id: 99 } });
+  assert.deepEqual(next.worldRead, { state: 'pending', worldId: s.worldId, tick: s.tick });
+  assert.equal(worldSnapshotNeeded(next), false);
+  return next;
+}
+
+function finishWorldRead(s: UiState, ok = true): UiState {
+  const read = s.worldRead!;
+  assert.equal(read.state, 'pending');
+  const tick = read.worldId === s.worldId ? s.tick! : read.tick;
+  const snapshot = { ...deliverySnapshot(s), worldId: read.worldId, tick };
+  const request: Request = { type: 'world-snapshot', id: 99 };
+  return ok
+    ? deliveryReply(s, request, snapshot, { ...deliveryWorld, tick })
+    : reduce(s, { type: 'reply', request, message: { type: 'reply', id: 99, ok: false, kind: 'sim-error', error: 'read failed', snapshot } });
+}
+
+function runningStatus(s: UiState, advance = true): UiState {
+  const tick = advance ? String(BigInt(s.tick!) + 1n) : s.tick;
+  return reduce(s, { type: 'status', snapshot: { ...deliverySnapshot(s), runState: 'running', tick } });
+}
+
+test('R9.9: create requests one World and a non-stop Step requests the new tick', () => {
+  const create: Request = { type: 'create-world', id: 1, seed: '1', config: '{}' };
+  let s = deliveryReply(initialUiState(), create, deliverySnapshot(deliveryState()));
+  assert.equal(s.world, null);
+  s = startWorldRead(s);
+  assert.equal(worldSnapshotNeeded(reduce(s, { type: 'seed-invalid', problem: 'empty' })), false);
+  s = finishWorldRead(s);
+  assert.equal(s.world!.tick, '0');
+  assert.equal(worldSnapshotNeeded(s), false);
+  s = deliveryReply(s, { type: 'step', id: 2 }, { ...deliverySnapshot(s), tick: '1' });
+  assert.equal(s.world!.tick, '0');
+  s = finishWorldRead(startWorldRead(s));
+  assert.equal(s.world!.tick, '1');
+  assert.equal(worldSnapshotNeeded(s), false);
+});
+
+test('R9.9: a stop Step takes its status World and its reply requests no second read', () => {
+  let s = deliveryState();
+  const world = { ...deliveryWorld, tick: '1' };
+  s = reduce(s, { type: 'status', snapshot: { ...deliverySnapshot(s), tick: '1', stop: { reasons: ['player_node'], world } } });
+  assert.equal(s.world, world);
+  s = deliveryReply(s, { type: 'step', id: 1 }, deliverySnapshot(s));
+  assert.equal(s.world, world);
+  assert.equal(worldSnapshotNeeded(s), false);
+});
+
+test('R9.9: only the tenth running status requests a World; a carrier resets the count', () => {
+  let s = deliveryState('0', 'running');
+  for (let index = 1; index <= 9; index++) {
+    s = runningStatus(s);
+    assert.equal(worldSnapshotNeeded(s), false);
+  }
+  s = startWorldRead(runningStatus(s));
+  assert.equal(s.worldStatuses, 0);
+  s = finishWorldRead(s);
+  assert.equal(s.world!.tick, '10');
+  for (let index = 0; index < 9; index++) s = runningStatus(s);
+  const carrier = { ...deliveryWorld, tick: s.tick! };
+  s = deliveryReply(s, { type: 'choose', id: 2, node: '1', option: 'repay_now' }, deliverySnapshot(s), carrier);
+  assert.equal(s.worldStatuses, 0);
+  assert.equal(worldSnapshotNeeded(s), false);
+});
+
+test('R9.9: no second read while one is outstanding, even across statuses and a pause', () => {
+  let s = { ...deliveryState('0', 'running'), worldStatuses: 10 };
+  s = startWorldRead(s);
+  const pending = s.worldRead;
+  for (let index = 0; index < 20; index++) {
+    s = runningStatus(s);
+    assert.equal(worldSnapshotNeeded(s), false);
+  }
+  s = deliveryReply(s, { type: 'pause', id: 1 }, { ...deliverySnapshot(s), runState: 'paused' });
+  assert.equal(s.worldRead, pending);
+  assert.equal(worldSnapshotNeeded(s), false);
+  s = finishWorldRead(s);
+  assert.equal(s.world!.tick, s.tick);
+  assert.equal(worldSnapshotNeeded(s), false);
+});
+
+test('R9.9: a failed running read consumes ten statuses before the next attempt', () => {
+  let s = deliveryState('0', 'running');
+  for (let index = 0; index < 10; index++) s = runningStatus(s);
+  s = finishWorldRead(startWorldRead(s), false);
+  assert.deepEqual(s.worldRead, { state: 'failed', worldId: 1, tick: '10' });
+  assert.equal(worldSnapshotNeeded(s), false);
+  for (let index = 1; index <= 9; index++) {
+    s = runningStatus(s);
+    assert.equal(worldSnapshotNeeded(s), false, `status ${index} after failure cannot retry`);
+  }
+  s = runningStatus(s);
+  assert.equal(s.tick, '20');
+  assert.equal(worldSnapshotNeeded(s), true, 'the tenth status after failure permits the next tick read');
+});
+
+test('R9.9: failed reads are not repeated at the same paused or running tick', () => {
+  let s = finishWorldRead(startWorldRead({ ...deliveryState('1'), world: null }), false);
+  for (let index = 0; index < 3; index++) {
+    s = reduce(s, { type: 'seed-invalid', problem: 'empty' });
+    assert.equal(worldSnapshotNeeded(s), false);
+  }
+  s = deliveryReply(s, { type: 'step', id: 2 }, { ...deliverySnapshot(s), tick: '2' });
+  assert.equal(worldSnapshotNeeded(s), true);
+  s = deliveryState('0', 'running');
+  for (let index = 0; index < 10; index++) s = runningStatus(s);
+  s = finishWorldRead(startWorldRead(s), false);
+  for (let index = 0; index < 10; index++) s = runningStatus(s, false);
+  assert.equal(worldSnapshotNeeded(s), false, 'a frozen tick is not retried even after ten statuses');
+  assert.equal(worldSnapshotNeeded(runningStatus(s)), true);
+});
+
+test('R9.9: replacement waits for the old read and ignores its World or rejection', () => {
+  for (const ok of [true, false]) {
+    let s = startWorldRead({ ...deliveryState('1'), world: null });
+    const read = s.worldRead;
+    s = deliveryReply(s, { type: 'create-world', id: 2, seed: '2', config: '{}' },
+      { ...deliverySnapshot(s), worldId: 2, tick: '0' });
+    assert.equal(s.world, null);
+    assert.equal(s.worldRead, read);
+    assert.equal(worldSnapshotNeeded(s), false);
+    s = finishWorldRead(s, ok);
+    assert.equal(s.worldId, 2);
+    assert.equal(s.tick, '0');
+    assert.equal(s.world, null);
+    assert.equal(s.error, null);
+    assert.equal(s.worldRead, null);
+    s = finishWorldRead(startWorldRead(s));
+    assert.equal(s.world!.tick, '0');
+    assert.equal(worldSnapshotNeeded(s), false);
+  }
+});
+
+test('R9.9: a transport failure marks its read tick and a stale failure cannot affect a new World', () => {
+  let s = startWorldRead({ ...deliveryState('1'), world: null });
+  s = reduce(s, { type: 'world-read-failed', worldId: 1, tick: '1', error: 'reply timeout' });
+  assert.equal(s.error, 'reply timeout');
+  assert.equal(worldSnapshotNeeded(s), false);
+  s = startWorldRead({ ...deliveryState('1'), world: null });
+  s = deliveryReply(s, { type: 'create-world', id: 2, seed: '2', config: '{}' }, { ...deliverySnapshot(s), worldId: 2, tick: '0' });
+  s = reduce(s, { type: 'world-read-failed', worldId: 1, tick: '1', error: 'old timeout' });
+  assert.equal(s.error, null);
+  assert.equal(worldSnapshotNeeded(s), true);
+});
+
+// Unnumbered R9.9 schedule property: no clock, simulation outcome or DOM is read.
+test('R9.9: generated event sequences keep reads single-flight, spaced and paused Worlds covered', () => {
+  const action = fc.oneof(
+    { weight: 8, arbitrary: fc.constant('status') },
+    { weight: 1, arbitrary: fc.constantFrom('run', 'pause', 'step', 'stop', 'create', 'read-ok', 'read-fail', 'transport-fail', 'stale-status') },
+  );
+  fc.assert(fc.property(fc.array(action, { maxLength: 120 }), actions => {
+    let s = deliveryState();
+    let outstanding: { worldId: number; tick: string } | null = null;
+    let statuses = 0;
+    let lastRunningRead = 0;
+    for (const next of actions) {
+      const snapshot = deliverySnapshot(s);
+      switch (next) {
+        case 'status':
+          if (s.runState === 'running') { s = runningStatus(s); statuses++; }
+          break;
+        case 'run':
+          s = deliveryReply(s, { type: 'run', id: 1 }, { ...snapshot, runState: 'running' });
+          break;
+        case 'pause':
+          s = deliveryReply(s, { type: 'pause', id: 1 }, { ...snapshot, runState: 'paused',
+            stop: { reasons: ['user'], world: { ...deliveryWorld, tick: s.tick! } } });
+          break;
+        case 'step':
+          if (s.runState === 'paused') s = deliveryReply(s, { type: 'step', id: 1 }, { ...snapshot, tick: String(BigInt(s.tick!) + 1n) });
+          break;
+        case 'stop':
+          s = reduce(s, { type: 'status', snapshot: { ...snapshot, runState: 'paused',
+            stop: { reasons: ['player_node'], world: { ...deliveryWorld, tick: s.tick! } } } });
+          break;
+        case 'create':
+          s = deliveryReply(s, { type: 'create-world', id: 1, seed: '1', config: '{}' },
+            { ...snapshot, worldId: s.worldId + 1, tick: '0', runState: 'paused' });
+          break;
+        case 'read-ok':
+        case 'read-fail':
+          if (outstanding !== null) { s = finishWorldRead(s, next === 'read-ok'); outstanding = null; }
+          break;
+        case 'transport-fail':
+          if (outstanding !== null) {
+            s = reduce(s, { type: 'world-read-failed', ...outstanding, error: 'reply timeout' });
+            outstanding = null;
+          }
+          break;
+        case 'stale-status': {
+          const before = s;
+          s = reduce(s, { type: 'status', snapshot: { ...snapshot, worldId: s.worldId + 100 } });
+          assert.equal(s, before);
+          break;
+        }
+      }
+      if (worldSnapshotNeeded(s)) {
+        assert.equal(outstanding, null, 'no request overlaps an outstanding read from any World');
+        if (s.runState === 'running') {
+          assert.ok(statuses - lastRunningRead >= 10, 'running reads are at least ten running statuses apart');
+          lastRunningRead = statuses;
+        }
+        outstanding = { worldId: s.worldId, tick: s.tick! };
+        s = startWorldRead(s);
+      }
+      assert.equal(s.worldRead?.state === 'pending', outstanding !== null);
+      if (s.runState === 'paused' && (s.world === null || s.world.tick !== s.tick)) {
+        assert.ok(outstanding !== null || (s.worldRead?.state === 'failed' && s.worldRead.worldId === s.worldId && s.worldRead.tick === s.tick),
+          'a stale paused World has an outstanding read or a failure at this tick');
+      }
+    }
+  }), { numRuns: RUNS });
 });

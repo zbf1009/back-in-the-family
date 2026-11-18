@@ -24,6 +24,7 @@
     initialUiState,
     reduce,
     controls,
+    worldSnapshotNeeded,
     formatTick,
     formatChecksum,
     formatTps,
@@ -62,18 +63,19 @@
   // Fold one event into the state. Assigning a fresh object keeps the rune reactive.
   function dispatch(event: UiEvent): void {
     ui = reduce(ui, event);
-    // Create replies carry no World. Read it once after creation; between stops
-    // the town keeps that latest World, with no polling or clock on the page.
-    if (event.type === 'reply' && event.message.ok && event.request.type === 'create-world') {
-      void refreshWorld();
-    }
+    if (worldSnapshotNeeded(ui)) void refreshWorld();
   }
 
   async function refreshWorld(): Promise<void> {
     const worldId = ui.worldId;
     const request: Request = { type: 'world-snapshot', id: 0 };
-    const reply = await client.request({ type: 'world-snapshot' });
-    if (ui.worldId === worldId) settle(request, reply);
+    const tick = ui.tick!;
+    dispatch({ type: 'request-sent', request });
+    try {
+      settle(request, await client.request({ type: 'world-snapshot' }));
+    } catch (error) {
+      dispatch({ type: 'world-read-failed', worldId, tick, error: String(error) });
+    }
   }
 
   async function onChoose(node: string, option: PlayerOption): Promise<void> {
