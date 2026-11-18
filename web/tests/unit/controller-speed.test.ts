@@ -36,7 +36,7 @@ import fc from 'fast-check';
 
 import { SimController, type SimHandle } from '../../src/worker/controller.ts';
 import type { Request, Snapshot, WorkerMessage } from '../../src/shared/protocol.ts';
-import { SPEEDS } from '../../src/shared/speeds.ts';
+import { PLAY_RATE, SPEEDS } from '../../src/shared/speeds.ts';
 import { createSim as realCreateSim, loadWasm } from './helpers/wasm.ts';
 import { FakeClock, FakeFrameScheduler, messageCollector } from './helpers/fakes.ts';
 import { configJsonArb, seedBigIntArb, payloadArb } from './helpers/gen.ts';
@@ -81,17 +81,17 @@ const validSpeedArb: fc.Arbitrary<number> = fc.constantFrom(...SPEEDS);
 
 /**
  * A pacing-command sequence whose worst-case tick total stays under TICK_BUDGET.
- * Each fired frame runs at most max(SPEEDS) = 365 ticks and each step runs one, so
- * we bound the number of fire-frames commands (each firing 1..8 frames) and the
- * number of steps. The mix deliberately includes set-speed between frames (varying
+ * Each fired frame runs at most the largest paced batch cap and each step one.
+ * We bound frame-command counts and sizes to keep the same tick budget.
+ * The mix deliberately includes set-speed between frames (varying
  * Speed mid-run) and standalone steps (single-step reaching a tick), so the same
  * tick is reached by both stepping and running at different speeds across cases.
  */
 const pacingArb: fc.Arbitrary<Pacing[]> = (() => {
-  const maxSpeed = Math.max(...SPEEDS); // 365
-  const maxFramesPerCommand = 8;
+  const maxBatch = Math.ceil(Math.max(...SPEEDS) * PLAY_RATE / 20);
   const maxFrameTicks = Math.floor(TICK_BUDGET * 0.9);
-  const maxFrameCommands = Math.max(1, Math.floor(maxFrameTicks / (maxSpeed * maxFramesPerCommand)));
+  const maxFramesPerCommand = Math.max(1, Math.min(8, Math.floor(maxFrameTicks / maxBatch)));
+  const maxFrameCommands = Math.floor(maxFrameTicks / (maxBatch * maxFramesPerCommand));
   const maxSteps = TICK_BUDGET - maxFrameTicks;
 
   const one = fc.oneof(
@@ -405,7 +405,7 @@ test('a tick reached by stepping, by Speed 1, and by Speed 365 reports one check
   const bySpeed1 = reportedChecksumAt(5, ({ controller, scheduler, clock, nextId }) => {
     controller.handle({ type: 'run', id: nextId() });
     for (let i = 0; i < 5; i++) {
-      clock.advance(16);
+      clock.advance(34);
       scheduler.flush();
     }
     controller.handle({ type: 'pause', id: nextId() });
@@ -415,27 +415,26 @@ test('a tick reached by stepping, by Speed 1, and by Speed 365 reports one check
   assert.equal(bySpeed1, refChecksum(5), 'running at Speed 1 to tick 5 matches the reference');
   assert.equal(byStep, bySpeed1, 'stepping and Speed 1 agree at tick 5');
 
-  // Reach tick 365 by running at Speed 365 (one batch of 365 ticks in one frame).
-  // Pause so an ok reply reports the snapshot at exactly tick 365.
-  const bySpeed365 = reportedChecksumAt(365, ({ controller, scheduler, clock, nextId }) => {
+  // At Speed 365, 20 ms is exactly 219 ticks, below the per-frame cap.
+  // Pause reports that same completed tick even if normal status is throttled.
+  const bySpeed365 = reportedChecksumAt(219, ({ controller, scheduler, clock, nextId }) => {
     controller.handle({ type: 'set-speed', id: nextId(), speed: 365 });
     controller.handle({ type: 'run', id: nextId() });
-    clock.advance(16);
+    clock.advance(20);
     scheduler.flush();
     controller.handle({ type: 'pause', id: nextId() });
   });
-  assert.equal(bySpeed365, refChecksum(365), 'running at Speed 365 to tick 365 matches the reference');
+  assert.equal(bySpeed365, refChecksum(219), 'running at Speed 365 to tick 219 matches the reference');
 
-  // Reach tick 365 by running at Speed 1 as well (365 one-tick frames), so a tick
-  // reached at two different speeds reports the same checksum. Pause to report it.
-  const tick365BySpeed1 = reportedChecksumAt(365, ({ controller, scheduler, clock, nextId }) => {
+  // Speed 1 reaches the same tick in individual capped frames.
+  const tick219BySpeed1 = reportedChecksumAt(219, ({ controller, scheduler, clock, nextId }) => {
     controller.handle({ type: 'set-speed', id: nextId(), speed: 1 });
     controller.handle({ type: 'run', id: nextId() });
     for (let i = 0; i < 365; i++) {
-      clock.advance(16);
+      clock.advance(20);
       scheduler.flush();
     }
     controller.handle({ type: 'pause', id: nextId() });
   });
-  assert.equal(tick365BySpeed1, bySpeed365, 'Speed 1 and Speed 365 agree at tick 365');
+  assert.equal(tick219BySpeed1, bySpeed365, 'Speed 1 and Speed 365 agree at tick 219');
 });

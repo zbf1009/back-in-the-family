@@ -57,8 +57,8 @@ export function loadWasm(): void {
 /**
  * A `createSim` backed by the real `WasmSim`, for the controller's `createSim`
  * dependency. Loads the module on first use. The returned handle is a real
- * `WasmSim`, which satisfies `SimHandle` structurally (R6.1): `submit`, `step`,
- * `run_ticks` and the read-only `tick`.
+ * `WasmSim`, which structurally supplies the controller's paced advancement,
+ * checked submission and read-only Snapshot/node/checksum seams.
  */
 export function createSim(seed: bigint, config: string): SimHandle {
   loadWasm();

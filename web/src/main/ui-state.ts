@@ -43,7 +43,7 @@ export interface UiState {
   checksum: string | null;
   /** Ticks per second, or `null` until the world has been running for 1,000 ms (R5.6). */
   tps: number | null;
-  /** The current Speed in ticks per Frame; carried across create, run and pause. */
+  /** The playback multiplier; carried across create, run and pause. */
   speed: number;
   /** Error area text; non-empty while the last reply-or-fatal event was a failure (R5.8). */
   error: string | null;

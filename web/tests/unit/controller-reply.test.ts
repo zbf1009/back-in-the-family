@@ -128,6 +128,8 @@ function toRequest(cmd: Exclude<Command, { kind: 'fire-frames' }>, id: number): 
       return { type: 'set-speed', id, speed: cmd.speed };
     case 'submit':
       return { type: 'submit', id, input: cmd.input };
+    case 'unsupported':
+      return { ...cmd.request, id };
   }
 }
 

@@ -1,17 +1,13 @@
 // Browser Smoke_Test for main-thread responsiveness and display cadence (task 5.3).
 //
-// Validates: Requirements 5.4, 5.5.
+// Validates: web-shell Requirements 5.4, 5.5 and first-playable R16.13.
 //
 // Drives the BUILT page (web/dist) served by Local_Preview in the system Chrome
 // and checks, while the simulation fast-forwards at every Speed, that:
 //
-//   - R5.5  no single Main_Thread task caused by the Web_App lasts longer than
-//     50 ms during a continuous running period of at least 10 s. The simulation
-//     runs in the Sim_Worker, so the Main_Thread should stay responsive; a long
-//     task over 50 ms on the main thread is a real responsiveness problem.
-//     Measured in-page with a PerformanceObserver for 'longtask' entries,
-//     installed BEFORE Run (its buffer lives on `window`) and read AFTER the
-//     running period.
+//   - R16.13 no Main_Thread task lasts longer than 50 ms from before Run until
+//     500 ms after the first automatic stop or the user pause at 10 s. Speed 1
+//     must run the full 10 s; higher Speeds may stop before a running sample.
 //   - R5.4  while the Run_State is `running`, the displayed tick advances at
 //     least once every 250 ms. Measured in-page by sampling the `tick` and
 //     `run-state` data-testids on a short interval across the running period and
@@ -30,11 +26,7 @@
 // display sampling run in page.evaluate; the control clicks are Playwright
 // locator actions between them.
 //
-// Budget (R9.13, whole Smoke_Test < 180 s; playwright.config globalTimeout
-// 170 s): running RUN_MS at each of SPEEDS (5 values) is ~50 s of running plus a
-// little per-speed setup; with fixture.spec (~a few s) this stays well under the
-// 120 s per-test timeout and the 170 s global timeout. All five speeds are
-// exercised.
+// All five Speeds are exercised inside the unchanged 120 s / 170 s bounds.
 //
 // Run directly by Node (type-stripping); covered by tsconfig.node.json (Node
 // lib, no DOM), so the browser globals the evaluate callbacks touch are declared
@@ -62,12 +54,17 @@ interface ObservedList {
 interface BrowserWindow {
   /** Long-task durations (ms) collected by the observer installed before Run. */
   __longTasks?: number[];
+  __longTaskObserver?: { disconnect(): void };
+  __runStartedAt?: number;
   performance: { now(): number };
   setTimeout(handler: () => void, timeout: number): number;
 }
 declare const window: BrowserWindow;
 declare const document: {
-  querySelector(selectors: string): { textContent: string | null } | null;
+  querySelector(selectors: string): {
+    textContent: string | null;
+    addEventListener(type: 'click', listener: () => void, options: { once: boolean; capture: boolean }): void;
+  } | null;
 };
 declare const PerformanceObserver: {
   new (callback: (list: ObservedList) => void): {
@@ -90,8 +87,7 @@ const CONFIG_JSON = JSON.stringify(fixture.config);
 
 // --- measurement parameters -------------------------------------------------
 
-// R5.5 requires a continuous running period of at least 10 s; measure exactly
-// that at each speed.
+// R16.13 measures to the first stop or 10 s; Speed 1 must reach the full limit.
 const RUN_MS = 10_000;
 // R5.5: fail on any main-thread long task over this many milliseconds.
 const LONGTASK_LIMIT_MS = 50;
@@ -110,27 +106,31 @@ interface CadenceResult {
    * end `running`. -1 if the tick advanced on every running sample.
    */
   worstCadenceGapMs: number;
-  /** How many samples observed Run_State `running` (sanity: the run did run). */
+  /** Diagnostics only: a high-Speed stop need not leave a running sample. */
   runningSamples: number;
   /** The last tick value seen while running (decimal string or null). */
   lastRunningTick: string | null;
+  endedBy: 'stop' | 'limit';
+  elapsedMs: number;
 }
 
-/**
- * Install a PerformanceObserver for 'longtask' entries whose durations collect
- * into `window.__longTasks`. Call BEFORE Run so the whole running period is
- * covered; `buffered: true` also surfaces any long task the browser buffered
- * just before observe(). Resets the buffer each call so each speed starts clean.
- */
+/** Observe only this run's tasks, including the post-stop Snapshot delivery. */
 async function installLongTaskObserver(page: Page): Promise<void> {
   await page.evaluate(() => {
+    window.__longTaskObserver?.disconnect();
+    delete window.__runStartedAt;
     window.__longTasks = [];
     const observer = new PerformanceObserver((list) => {
       for (const entry of list.getEntries()) {
         window.__longTasks!.push(entry.duration);
       }
     });
-    observer.observe({ type: 'longtask', buffered: true });
+    window.__longTaskObserver = observer;
+    observer.observe({ type: 'longtask', buffered: false });
+    const run = document.querySelector('[data-testid="run"]');
+    if (run === null) throw new Error('Run control is missing');
+    run.addEventListener('click', () => { window.__runStartedAt = window.performance.now(); },
+      { once: true, capture: true });
   });
 }
 
@@ -162,13 +162,18 @@ async function sampleCadence(
       // Whether the previous sample was running (so a window is running->running).
       let prevWasRunning = false;
 
-      const start = window.performance.now();
+      const start = window.__runStartedAt;
+      if (start === undefined) throw new Error('Run activation was not observed');
       for (;;) {
         const now = window.performance.now();
-        if (now - start >= runMs) break;
 
         const isRunning = readTestId('run-state') === 'running';
         const tickText = readTestId('tick');
+        const stopped = readTestId('run-state') === 'paused' && Number(tickText) > 0;
+        if (stopped || now - start >= runMs) {
+          return { worstCadenceGapMs, runningSamples, lastRunningTick,
+            endedBy: stopped ? 'stop' : 'limit', elapsedMs: now - start };
+        }
 
         if (isRunning) {
           runningSamples++;
@@ -193,7 +198,6 @@ async function sampleCadence(
         await new Promise<void>((resolve) => window.setTimeout(resolve, sampleMs));
       }
 
-      return { worstCadenceGapMs, runningSamples, lastRunningTick };
     },
     args,
   );
@@ -203,6 +207,7 @@ async function sampleCadence(
 async function readLongTasks(page: Page): Promise<number[]> {
   return page.evaluate(() => {
     const tasks = window.__longTasks ?? [];
+    window.__longTaskObserver?.disconnect();
     window.__longTasks = [];
     return tasks;
   });
@@ -257,20 +262,19 @@ async function openHarnessPage(
 // --- per-speed driver -------------------------------------------------------
 
 /**
- * Create a world through the page controls, select `speed`, install the
- * long-task observer, Run, sample the display for RUN_MS, Pause, and return the
- * measured long-task durations and cadence result. Each step uses the page's own
- * controls so the page UiState (and its `run-state`) is what is measured.
+ * Create at tick 0, Run to the first stop or 10 s, and observe through paused
+ * plus 500 ms. Only the time-limit branch activates the Pause control.
  */
 async function measureSpeed(
   page: Page,
   speed: number,
-): Promise<{ longTasks: number[]; cadence: CadenceResult }> {
+): Promise<{ longTasks: number[]; cadence: CadenceResult; pausedTick: number; runToPauseMs: number }> {
   // Create a fresh world from the page (seed + config + Create).
   await page.getByTestId('seed').fill(SEED);
   await page.getByTestId('config').fill(CONFIG_JSON);
   await page.getByTestId('create').click();
   await expect(page.getByTestId('run-state')).toHaveText('paused', { timeout: 5_000 });
+  await expect(page.getByTestId('tick')).toHaveText('0', { timeout: 5_000 });
 
   // Select the Speed from the fixed list (R4.4) before running.
   await page.getByTestId('speed').selectOption(String(speed));
@@ -279,18 +283,28 @@ async function measureSpeed(
   // covered (R5.5).
   await installLongTaskObserver(page);
 
-  // Run through the page control, then sample the display for RUN_MS.
+  // Do not await running: the stop may already be visible when click returns.
   await page.getByTestId('run').click();
-  await expect(page.getByTestId('run-state')).toHaveText('running', { timeout: 5_000 });
 
   const cadence = await sampleCadence(page, { runMs: RUN_MS, sampleMs: SAMPLE_INTERVAL_MS });
 
-  // Pause and read the long-task buffer.
-  await page.getByTestId('pause').click();
+  if (speed === 1) {
+    expect(cadence.endedBy, 'Speed 1 must run for the full 10 s').toBe('limit');
+    expect(cadence.elapsedMs).toBeGreaterThanOrEqual(RUN_MS);
+    await expect(page.getByTestId('run-state')).toHaveText('running');
+  }
+  if (cadence.endedBy === 'limit') await page.getByTestId('pause').click();
   await expect(page.getByTestId('run-state')).toHaveText('paused', { timeout: 5_000 });
+  const pausedTick = Number(await page.getByTestId('tick').textContent());
+  expect(pausedTick, 'paused at a positive tick proves Run advanced').toBeGreaterThan(0);
+  const runToPauseMs = await page.evaluate(() => {
+    if (window.__runStartedAt === undefined) throw new Error('Run activation was not observed');
+    return window.performance.now() - window.__runStartedAt;
+  });
+  await page.waitForTimeout(500);
   const longTasks = await readLongTasks(page);
 
-  return { longTasks, cadence };
+  return { longTasks, cadence, pausedTick, runToPauseMs };
 }
 
 // --- the test ---------------------------------------------------------------
@@ -299,26 +313,23 @@ test('main thread stays responsive and the display keeps cadence at every speed'
   page,
   baseURL,
 }) => {
+  const testStarted = Date.now();
   const { finish } = await openHarnessPage(page, baseURL);
 
   for (const speed of SPEEDS) {
-    const { longTasks, cadence } = await measureSpeed(page, speed);
+    const { longTasks, cadence, pausedTick, runToPauseMs } = await measureSpeed(page, speed);
     const maxLongTaskMs = longTasks.reduce((max, d) => (d > max ? d : max), 0);
     // Diagnostic line (not an assertion): the per-speed measurement summary.
     console.log(
       `[responsive] speed ${speed}: maxLongTask=${maxLongTaskMs.toFixed(1)}ms ` +
         `longTasks=${longTasks.length} worstCadenceGap=${cadence.worstCadenceGapMs.toFixed(1)}ms ` +
-        `runningSamples=${cadence.runningSamples} lastTick=${cadence.lastRunningTick ?? 'null'}`,
+        `runningSamples=${cadence.runningSamples} lastTick=${cadence.lastRunningTick ?? 'null'} ` +
+        `end=${cadence.endedBy === 'stop' ? 'automatic' : 'user'} pausedTick=${pausedTick} ` +
+        `runToPauseMs=${runToPauseMs.toFixed(1)}`,
     );
 
-    // The run actually ran: at least some samples saw Run_State `running`. If
-    // this is 0 the measurement below is meaningless, so fail loudly.
-    expect(
-      cadence.runningSamples,
-      `speed ${speed}: expected the Run_State to be running during the measurement`,
-    ).toBeGreaterThan(0);
 
-    // R5.5: no main-thread long task over 50 ms during the 10 s running period.
+    // R16.13: the bound includes the stop and its Snapshot plus 500 ms.
     // The simulation runs in the worker, so this should hold with margin; a
     // violation is a real responsiveness problem (do not weaken the bound).
     expect(
@@ -346,4 +357,5 @@ test('main thread stays responsive and the display keeps cadence at every speed'
   }
 
   finish();
+  console.log(`[responsive] totalMs=${Date.now() - testStarted}`);
 });

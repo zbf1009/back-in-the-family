@@ -339,46 +339,52 @@ test('built page matches the native fixture and the page controls advance it', a
   await expect(page.getByTestId('tick')).toHaveText('1', { timeout: 5_000 });
   await expect(page.getByTestId('checksum')).toHaveText(reference[0]!, { timeout: 5_000 });
 
-  // 6. R9.9 (+R4.6, R5.7): Speed 365, Run until tick >= 365 or 10 s, Pause, tick
-  //    > 1, unchanged 500 ms later, checksum equals the reference for that tick.
-  await page.getByTestId('speed').selectOption('365');
-  await page.getByTestId('run').click();
-  // Wait until the displayed tick is at least 365, or 10 s pass.
-  await page
-    .waitForFunction(
-      () => {
-        const el = document.querySelector('[data-testid="tick"]');
-        const text = el?.textContent ?? '';
-        const value = Number(text);
-        return Number.isFinite(value) && value >= 365;
-      },
-      undefined,
-      { timeout: 10_000 },
-    )
-    .catch(() => {
-      // 10 s elapsed without reaching 365; the pause check below still applies.
-    });
-  await page.getByTestId('pause').click();
-  await expect(page.getByTestId('run-state')).toHaveText('paused', { timeout: 5_000 });
+  // 6. R16.12 preserves both WS-R9.9 paths: a user pause at Speed 1 before
+  // tick 600, followed by the required automatic stop at Speed 365.
+  const checkPaused = async (label: string, runMs: number): Promise<number> => {
+    await expect(page.getByTestId('run-state')).toHaveText('paused', { timeout: 5_000 });
+    const tickAfterPause = Number(await page.getByTestId('tick').textContent());
+    const checksumAfterPause = (await page.getByTestId('checksum').textContent()) ?? '';
+    expect(tickAfterPause, `${label}: displayed tick after pause is greater than 1`).toBeGreaterThan(1);
 
-  const tickAfterPause = Number(await page.getByTestId('tick').textContent());
-  const checksumAfterPause = (await page.getByTestId('checksum').textContent()) ?? '';
-  expect(tickAfterPause, 'displayed tick after pause is greater than 1').toBeGreaterThan(1);
+    await page.waitForTimeout(500);
+    expect(Number(await page.getByTestId('tick').textContent())).toBe(tickAfterPause);
+    expect((await page.getByTestId('checksum').textContent()) ?? '').toBe(checksumAfterPause);
 
-  // Unchanged 500 ms later (R4.6, R5.7): paused means no further ticks.
-  await page.waitForTimeout(500);
-  expect(Number(await page.getByTestId('tick').textContent())).toBe(tickAfterPause);
-  expect((await page.getByTestId('checksum').textContent()) ?? '').toBe(checksumAfterPause);
+    const expectedAtPause = await referenceChecksumAt(page, reference, tickAfterPause);
+    expect(checksumAfterPause,
+      `${label}: paused at tick ${tickAfterPause}: expected ${expectedAtPause ?? 'null'}, displayed ${checksumAfterPause}`,
+    ).toBe(expectedAtPause);
+    console.log(`[fixture] ${label}: pausedTick=${tickAfterPause} runToPauseMs=${runMs}`);
+    return tickAfterPause;
+  };
 
-  // The displayed checksum equals the no-input reference for that tick (R9.9),
-  // extending the reference through the harness if the tick is past its end.
-  const expectedAtPause = await referenceChecksumAt(page, reference, tickAfterPause);
-  expect(
-    checksumAfterPause,
-    `paused at tick ${tickAfterPause}: expected reference checksum ${
-      expectedAtPause ?? 'null'
-    }, displayed ${checksumAfterPause}`,
-  ).toBe(expectedAtPause);
+  await test.step('Speed 1: pause through the page control before the first interrupt', async () => {
+    await page.getByTestId('speed').selectOption('1');
+    const started = Date.now();
+    await page.getByTestId('run').click();
+    await expect.poll(async () => Number(await page.getByTestId('tick').textContent()),
+      { timeout: 5_000 }).toBeGreaterThan(1);
+    await page.getByTestId('pause').click();
+    const tick = await checkPaused('Speed 1 user pause', Date.now() - started);
+    expect(tick, 'the user pause precedes first_interrupt_min').toBeLessThan(600);
+  });
+
+  await test.step('Speed 365: stop automatically with the Pause control disabled', async () => {
+    await page.getByTestId('speed').selectOption('365');
+    const started = Date.now();
+    await page.getByTestId('run').click();
+    await page.waitForFunction(() => {
+      const value = Number(document.querySelector('[data-testid="tick"]')?.textContent);
+      return Number.isFinite(value) && value >= 365;
+    }, undefined, { timeout: 10_000 });
+    await expect(page.getByTestId('run-state')).toHaveText('paused',
+      { timeout: Math.max(1, 10_000 - (Date.now() - started)) });
+    await expect(page.getByTestId('pause')).toBeDisabled();
+    const elapsed = Date.now() - started;
+    expect(elapsed, 'Speed 365 reaches its automatic stop within 10 seconds').toBeLessThanOrEqual(10_000);
+    await checkPaused('Speed 365 automatic stop', elapsed);
+  });
 
   // No off-origin request (R9.4) and no page console error (R9.10) occurred.
   finish();

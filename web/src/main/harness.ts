@@ -16,21 +16,11 @@
 // only types from the shared protocol and the client plus the SimClient value; the
 // `window` typing is a module augmentation declared here with `declare global`.
 
-import type { Request } from '../shared/protocol.ts';
+import type { RequestWithoutId } from '../shared/protocol.ts';
 import type { ReplyMessage, SimClient } from './sim-client.ts';
 
-/**
- * Distributive omit: applies `Omit` to each member of a union separately, so the
- * result stays a discriminated union rather than collapsing into one merged shape.
- */
-type DistributiveOmit<T, K extends keyof never> = T extends unknown ? Omit<T, K> : never;
-
-/**
- * The caller-supplied fields of a Request: the `id` the SimClient assigns itself
- * is omitted. Distributive, so each member keeps its own shape (and discriminant),
- * which lets the `switch` below narrow it to the matching SimClient method.
- */
-type HarnessRequest = DistributiveOmit<Request, 'id'>;
+/** Caller fields of the shared, discriminated protocol request. */
+type HarnessRequest = RequestWithoutId;
 
 /** The shape exposed on `window.__simHarness`, used by the Smoke_Test (DA-3). */
 export interface SimHarness {
@@ -57,20 +47,7 @@ declare global {
 export function installHarness(client: SimClient): void {
   window.__simHarness = {
     request(req: HarnessRequest): Promise<ReplyMessage> {
-      switch (req.type) {
-        case 'create-world':
-          return client.createWorld({ seed: req.seed, config: req.config });
-        case 'run':
-          return client.run();
-        case 'pause':
-          return client.pause();
-        case 'step':
-          return client.step();
-        case 'set-speed':
-          return client.setSpeed({ speed: req.speed });
-        case 'submit':
-          return client.submit({ input: req.input });
-      }
+      return client.request(req);
     },
   };
 }

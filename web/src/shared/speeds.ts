@@ -1,6 +1,6 @@
-// Speed: the number of ticks the Sim_Worker runs per Frame while running, chosen
-// from a fixed list (R4.4). The values are one day, week, month, quarter and
-// year. All are within u32, so they are legal tick counts for run_ticks (R6.3).
+// Speed is a playback multiplier; wall-time pacing is independent of refresh rate.
+
+export const PLAY_RATE = 30;
 
 export const SPEEDS = [1, 7, 30, 90, 365] as const;
 

@@ -9,11 +9,11 @@
 // before the request, the next snapshot equals it too, and a recording wrapper
 // around SimHandle shows no call for a rejected seed or Speed. Across all
 // requests, every recorded createSim seed is a bigint in [0, 2^64 - 1] and every
-// run_ticks argument is a member of SPEEDS.
+// run_until_stop argument is an integer within the largest paced batch cap.
 //
 // The controller runs the real WasmSim from target/wasm-pkg, wrapped so every
-// created world is a RecordingSimHandle (records submit/step/run_ticks/tick with
-// their arguments). A hand-driven FakeFrameScheduler and FakeClock plus a
+// created world is a RecordingSimHandle (records submitted bytes and tick budgets).
+// A hand-driven FakeFrameScheduler and FakeClock plus a
 // messageCollector make the run loop and snapshots observable (R6.6). A generated
 // command sequence (gen.ts commandsArb) drives it; it already mixes invalid
 // create-world (bad seed, bad config), set-speed with values outside SPEEDS,
@@ -25,15 +25,15 @@ import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
 import { SimController, type SimHandle } from '../../src/worker/controller.ts';
+import { PLAY_RATE, SPEEDS } from '../../src/shared/speeds.ts';
 import type { Request, Snapshot, WorkerMessage } from '../../src/shared/protocol.ts';
-import { SPEEDS } from '../../src/shared/speeds.ts';
 import { createSim as realCreateSim, loadWasm } from './helpers/wasm.ts';
 import { FakeClock, FakeFrameScheduler, messageCollector, RecordingSimHandle } from './helpers/fakes.ts';
 import { commandsArb, type Command, U64_MAX } from './helpers/gen.ts';
 
 const RUNS = 1000;
 
-/** The u32 upper bound for run_ticks arguments (R6.3). */
+/** The u32 upper bound for integer tick-count arguments (R6.3). */
 const U32_MAX = 4_294_967_295;
 
 /** A reply message (ok true or false), narrowed from WorkerMessage. */
@@ -44,6 +44,8 @@ interface Event {
   message: WorkerMessage;
   /** The request this message replied to, or null for a status/fatal message. */
   request: Request | null;
+  /** Actual state immediately before dispatch, not a potentially throttled status. */
+  before?: Snapshot;
 }
 
 /**
@@ -117,9 +119,9 @@ function runCommands(commands: readonly Command[]): Outcome {
   // Track where in `messages` we are so each request's reply can be attached.
   const events: Event[] = [];
   let consumed = 0;
-  const drain = (request: Request | null): void => {
+  const drain = (request: Request | null, before?: Snapshot): void => {
     for (; consumed < messages.length; consumed++) {
-      events.push({ message: messages[consumed], request });
+      events.push({ message: messages[consumed], request, before });
     }
   };
 
@@ -138,11 +140,28 @@ function runCommands(commands: readonly Command[]): Outcome {
     }
     const id = nextId++;
     const req = toRequest(cmd, id);
+    let last: Exclude<WorkerMessage, { type: 'fatal' }> | undefined;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i];
+      if (message.type !== 'fatal') { last = message; break; }
+    }
+    const sim = handles.at(-1);
+    const tick = sim?.tick() ?? null;
+    const checksum = tick === null || tick === 0n ? null : JSON.parse(sim!.checksums(tick - 1n, tick - 1n))[0];
+    const before: Snapshot = {
+      worldId: last?.snapshot.worldId ?? 0,
+      runState: last?.snapshot.runState ?? 'no-world',
+      tick: tick?.toString() ?? null, checksum, tps: null,
+      speed: last?.snapshot.speed ?? 1,
+    };
+    const mutatingBefore = totalMutatingCalls(handles);
     controller.handle(req);
-    // Every message posted while handling this request (the single reply, and any
-    // status from a frame is impossible here since no frame fired) is attached to
-    // this request.
-    drain(req);
+    const reply = messages.at(-1)!;
+    if (reply.type === 'reply' && !reply.ok &&
+      (reply.kind === 'invalid-seed' || reply.kind === 'invalid-speed' || cmd.kind === 'unsupported')) {
+      assert.equal(totalMutatingCalls(handles), mutatingBefore, 'invalid request must not reach a mutating seam');
+    }
+    drain(req, before);
   }
 
   return { events, handles, createCalls };
@@ -163,6 +182,8 @@ function toRequest(cmd: Exclude<Command, { kind: 'fire-frames' }>, id: number): 
       return { type: 'set-speed', id, speed: cmd.speed };
     case 'submit':
       return { type: 'submit', id, input: cmd.input };
+    case 'unsupported':
+      return { ...cmd.request, id };
   }
 }
 
@@ -181,16 +202,11 @@ test('controller rejects requests without changing state or reaching Sim_Wasm wi
     fc.property(commandsArb(), (commands) => {
       const { events, handles, createCalls } = runCommands(commands);
 
-      // Replay the event stream to track, just before each reply, the snapshot the
-      // controller last reported (the "snapshot before the request") and the total
-      // mutating-call count. A rejected request must leave both unchanged.
-      //
-      // `lastSnapshot` starts as the no-world snapshot the controller reports in its
-      // very first reply; before any reply there is nothing to compare, so we seed it
-      // from the first message's snapshot when we reach it.
+      // Throttled statuses may lag actual ticks. Each event captures the current
+      // handle tick/checksum before dispatch; rejection must preserve that state.
       let lastSnapshot: Snapshot | null = null;
 
-      for (const { message, request } of events) {
+      for (const { message, before } of events) {
         if (message.type === 'fatal') {
           continue; // carries no snapshot
         }
@@ -203,6 +219,7 @@ test('controller rejects requests without changing state or reaching Sim_Wasm wi
 
         // message.type === 'reply'
         const reply: ReplyMessage = message;
+        if (before !== undefined) lastSnapshot = before;
 
         if (reply.ok === false) {
           // A rejected request (R2.10, R2.11, R3.6, R4.11, R6.4).
@@ -241,15 +258,14 @@ test('controller rejects requests without changing state or reaching Sim_Wasm wi
         );
       }
 
-      // Every run_ticks argument is in [0, 2^32 - 1] and, more strongly, is a member
-      // of SPEEDS (the only Speed values the controller batches with; R6.3, R4.11).
+      // Every advancement budget is an integer in u32 and below the largest cap.
       for (const h of handles) {
-        for (const n of h.runTicksArgs) {
-          assert.ok(Number.isInteger(n), `run_ticks arg not an integer: ${n}`);
-          assert.ok(n >= 0 && n <= U32_MAX, `run_ticks arg out of u32 range: ${n}`);
+        for (const n of h.runUntilStopArgs) {
+          assert.ok(Number.isInteger(n), `run_until_stop arg not an integer: ${n}`);
+          assert.ok(n > 0 && n <= U32_MAX, `run_until_stop arg out of u32 range: ${n}`);
           assert.ok(
-            (SPEEDS as readonly number[]).includes(n),
-            `run_ticks arg not a member of SPEEDS: ${n}`,
+            n <= Math.ceil(Math.max(...SPEEDS) * PLAY_RATE / 20),
+            `run_until_stop arg exceeds the largest batch cap: ${n}`,
           );
         }
       }

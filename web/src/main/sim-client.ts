@@ -13,7 +13,7 @@
 // by sending Worker_Protocol messages to the Sim_Worker (R2.2, R2.3, R6.2). It
 // therefore belongs to tsconfig.app.json (lib DOM).
 
-import type { Request, Snapshot, WorkerMessage } from '../shared/protocol.ts';
+import type { Request, RequestWithoutId, Snapshot, WorkerMessage } from '../shared/protocol.ts';
 
 /** A `reply` message from the worker: the resolved value of every request Promise. */
 export type ReplyMessage = Extract<WorkerMessage, { type: 'reply' }>;
@@ -110,7 +110,7 @@ export class SimClient {
     return this.#send({ type: 'step' });
   }
 
-  /** Set the Speed in ticks per Frame (R4.5). */
+  /** Set the playback multiplier (first-playable R8.1). */
   setSpeed(args: RequestArgs<Extract<Request, { type: 'set-speed' }>>): Promise<ReplyMessage> {
     return this.#send({ type: 'set-speed', ...args });
   }
@@ -118,6 +118,11 @@ export class SimClient {
   /** Submit one input in the `input_json` shape `WasmSim.submit` accepts (R2.6). */
   submit(args: RequestArgs<Extract<Request, { type: 'submit' }>>): Promise<ReplyMessage> {
     return this.#send({ type: 'submit', ...args });
+  }
+
+  /** Forward a complete typed protocol request through the same Worker path. */
+  request(req: RequestWithoutId): Promise<ReplyMessage> {
+    return this.#send(req);
   }
 
   /** Terminate the worker and reject every still-pending request (page teardown). */
@@ -137,7 +142,7 @@ export class SimClient {
    * request to the worker, and return the Promise that settles on the reply
    * (R2.7, R9.13).
    */
-  #send(req: Omit<Request, 'id'>): Promise<ReplyMessage> {
+  #send(req: RequestWithoutId): Promise<ReplyMessage> {
     const id = this.#nextId++;
     const full = { ...req, id } as Request;
     const label = requestLabel(full);

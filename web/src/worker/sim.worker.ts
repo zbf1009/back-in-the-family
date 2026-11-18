@@ -10,8 +10,8 @@ import wasmUrl from 'sim-wasm/sim_wasm_bg.wasm?url';
 import type { Request } from '../shared/protocol.ts';
 import { SimController, type FrameScheduler } from './controller.ts';
 
-// A dedicated worker in Chrome exposes requestAnimationFrame, but the spec
-// (DedicatedWorkerGlobalScope) may lack it; fall back to a ~60 Hz setTimeout.
+// Frame frequency does not set simulation speed: the controller's pacer uses
+// performance.now() at Speed × 30 ticks/s. Fall back to a ~60 Hz timer if needed.
 const scheduler: FrameScheduler =
   typeof self.requestAnimationFrame === 'function'
     ? { request: (cb) => self.requestAnimationFrame(cb), cancel: (h) => self.cancelAnimationFrame(h) }

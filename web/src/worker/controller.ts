@@ -9,21 +9,24 @@
 // Ticks_Per_Second window; no clock value or random value is ever passed to a
 // SimHandle call (R6.5).
 
-import type { ErrorKind, Request, Snapshot, WorkerMessage } from '../shared/protocol.ts';
+import type { ErrorKind, Request, Snapshot, StopPayload, RunUntilStopResult, WorkerMessage } from '../shared/protocol.ts';
+import type { WorldSnapshot } from '../shared/world-snapshot.ts';
 import { parseSeed } from '../shared/seed.ts';
-import { isSpeed, SPEEDS } from '../shared/speeds.ts';
+import { isSpeed, SPEEDS, type Speed } from '../shared/speeds.ts';
 import { TpsWindow } from './tps.ts';
+import { ticksDue } from './pacer.ts';
 
-/**
- * The subset of the WasmSim API the controller is allowed to call (R6.1): the
- * three state-changing methods and the read-only `tick()`. `WasmSim` satisfies
- * this structurally, so the worker entry passes `(s, c) => new WasmSim(s, c)` as
- * `createSim` without an explicit implements clause.
- */
+/** WasmSim's API, injected so tests can drive pacing without a real clock. */
 export interface SimHandle {
   submit(input_json: string): void;
   step(): string;
   run_ticks(n: number): string;
+  run_until_stop(max: number): string;
+  snapshot(): string;
+  /** Returns JSON; malformed payload arrays throw a JsError, not a fatal panic. */
+  submit_checked(inputs_json: string): string;
+  checksums(from: bigint, to: bigint): string;
+  player_node_state(): string;
   tick(): bigint;
 }
 
@@ -68,13 +71,18 @@ export class SimController {
   /** `no-world` iff `#world === null`, unless a fatal error set it to `failed`. */
   #runState: Snapshot['runState'] = 'no-world';
   /** The current Speed; starts at 1 and is kept across create, run and pause (R4.5). */
-  #speed: number = SPEEDS[0];
+  #speed: Speed = SPEEDS[0];
   /** The checksum of the last completed tick, or null before the first tick (R2.5). Reset on create. */
   #lastChecksum: string | null = null;
   /** The one outstanding Frame request; non-null only while `running` (R4.3). */
   #frame: number | null = null;
   /** The Ticks_Per_Second window; reset on each run (R2.12, R5.6). */
   readonly #tps = new TpsWindow();
+  /** Pacing state and cached tick; no clock value reaches the handle. */
+  #anchorMs = 0;
+  #ranSinceAnchor = 0;
+  #lastTick = 0n;
+  #lastSnapshotMs = 0;
   /** The next worldId to assign; 0 means no world has ever been created. */
   #nextWorldId = 1;
 
@@ -190,7 +198,23 @@ export class SimController {
       case 'submit':
         this.#submit(req);
         return;
+      case 'world-snapshot':
+      case 'choose':
+      case 'choose-and-run':
+      case 'dream':
+      case 'claim':
+      case 'checksums':
+      case 'player_node_state':
+        this.#post({
+          type: 'reply', id: req.id, ok: false, kind: 'invalid-state',
+          error: `unsupported request: ${req.type}`,
+          snapshot: this.#snapshot(this.#lastSnapshotMs),
+        });
+        return;
     }
+    // Compile-time exhaustiveness, without adding a runtime malformed-message path.
+    const unhandled: never = req;
+    void unhandled;
   }
 
   #createWorld(req: Request & { type: 'create-world' }): void {
@@ -215,6 +239,7 @@ export class SimController {
     this.#world = { handle, worldId: this.#nextWorldId++ };
     this.#runState = 'paused';
     this.#lastChecksum = null; // no tick has run for the new world yet (R3.5)
+    this.#lastTick = handle.tick();
     this.#post(this.#okReply(req));
   }
 
@@ -229,7 +254,9 @@ export class SimController {
     }
     this.#runState = 'running';
     const now = this.#clock.now();
-    this.#tps.reset(now, this.#world.handle.tick());
+    this.#anchorMs = now;
+    this.#ranSinceAnchor = 0;
+    this.#tps.reset(now, this.#lastTick);
     this.#lastStatusTime = null;
     this.#requestFrame();
     this.#post(this.#okReply(req));
@@ -240,12 +267,19 @@ export class SimController {
       this.#post(this.#noWorldReply(req));
       return;
     }
+    let stop: StopPayload | undefined;
     if (this.#runState === 'running') {
       this.#stopLoop();
       this.#runState = 'paused';
+      try {
+        stop = { reasons: ['user'], world: JSON.parse(this.#world.handle.snapshot()) };
+      } catch (e) {
+        this.fail(errorText(e));
+        this.#post(this.#failReply(req, 'invalid-state', errorText(e)));
+        return;
+      }
     }
-    // In `paused` already: no change (R4 table).
-    this.#post(this.#okReply(req));
+    this.#post(this.#okReply(req, stop));
   }
 
   #step(req: Request & { type: 'step' }): void {
@@ -259,16 +293,19 @@ export class SimController {
     }
     // paused: run exactly one tick (R4.1).
     try {
-      this.#lastChecksum = this.#world.handle.step();
+      const result = this.#advance(1);
+      const stop = result.stops.length === 0 ? undefined : this.#stopPayload(result);
+      if (stop !== undefined) {
+        this.#post({ type: 'status', snapshot: { ...this.#snapshot(this.#clock.now()), stop } });
+      }
+      this.#post(this.#okReply(req));
     } catch (e) {
-      // A throw from step() is a Rust panic: the instance is unusable. Go fatal,
-      // then still answer this request so every request gets exactly one reply
-      // (R2.7, Property 2).
+      // A throw from run_until_stop() is a Rust panic: the instance is unusable.
+      // Still answer the step request exactly once after entering the fatal path.
       this.fail(errorText(e));
       this.#post(this.#failReply(req, 'invalid-state', errorText(e)));
       return;
     }
-    this.#post(this.#okReply(req));
   }
 
   #setSpeed(req: Request & { type: 'set-speed' }): void {
@@ -281,8 +318,12 @@ export class SimController {
       this.#post(this.#failReply(req, 'invalid-speed', `invalid speed: ${req.speed}`));
       return;
     }
-    // Only change the stored Speed. A batch in progress finishes at the old
-    // Speed and the next one uses the new Speed (R4.5).
+    // Re-anchor on a changed running multiplier: otherwise slowing down can
+    // stall while the wall clock catches up to the old, faster tick history.
+    if (this.#speed !== req.speed && this.#runState === 'running') {
+      this.#anchorMs = this.#clock.now();
+      this.#ranSinceAnchor = 0;
+    }
     this.#speed = req.speed;
     this.#post(this.#okReply(req));
   }
@@ -318,29 +359,47 @@ export class SimController {
     if (this.#runState !== 'running' || this.#world === null) {
       return; // a pause or create between request and fire cancels the batch
     }
-    // Capture the Speed current when the batch starts, so a set-speed that
-    // arrives mid-batch does not change this batch (R4.5, Property 5).
-    const speed = this.#speed;
+    const now = this.#clock.now();
+    const budget = ticksDue(this.#anchorMs, this.#ranSinceAnchor, now, this.#speed);
+    if (budget.reanchor) {
+      this.#anchorMs = now;
+      this.#ranSinceAnchor = 0;
+    }
     try {
-      // step() at Speed 1, else run_ticks(Speed). Both return the checksum of the
-      // last tick of the batch (R4.3).
-      this.#lastChecksum = speed === 1 ? this.#world.handle.step() : this.#world.handle.run_ticks(speed);
+      if (budget.run > 0) {
+        const result = this.#advance(budget.run);
+        this.#ranSinceAnchor += result.ran;
+        if (result.stops.length > 0) {
+          this.#runState = 'paused';
+          this.#stopLoop();
+          const stop = this.#stopPayload(result);
+          // A stop is exactly one status, even inside the normal throttle window.
+          this.#post({ type: 'status', snapshot: { ...this.#snapshot(now), stop } });
+          return;
+        }
+      }
     } catch (e) {
-      // A throw from step()/run_ticks() is a Rust panic: the instance is unusable.
       this.#toFatal(e);
       return;
     }
-    const now = this.#clock.now();
-    this.#tps.addSample(now, this.#world.handle.tick());
-    // Post a status at most every 100 ms (R2.12, R5.4). The first batch after a
-    // run (lastStatusTime null) always posts.
+    this.#tps.addSample(now, this.#lastTick);
     if (this.#lastStatusTime === null || now - this.#lastStatusTime >= 100) {
       this.#lastStatusTime = now;
       this.#post({ type: 'status', snapshot: this.#snapshot(now) });
     }
-    // Ask for the next Frame only now, so a slow batch delays the next one and
-    // never causes catch-up batches (R4.3).
     this.#requestFrame();
+  }
+
+  #advance(max: number): RunUntilStopResult {
+    const result: RunUntilStopResult = JSON.parse(this.#world!.handle.run_until_stop(max));
+    if (result.ran > 0) this.#lastChecksum = result.checksum;
+    this.#lastTick = this.#world!.handle.tick();
+    return result;
+  }
+
+  #stopPayload(result: RunUntilStopResult): StopPayload {
+    const world: WorldSnapshot = JSON.parse(this.#world!.handle.snapshot());
+    return { reasons: result.stops, world };
   }
 
   #stopLoop(): void {
@@ -363,7 +422,8 @@ export class SimController {
    */
   #snapshot(now: number): Snapshot {
     const world = this.#world;
-    const tick = world === null ? null : world.handle.tick().toString();
+    this.#lastSnapshotMs = now;
+    const tick = world === null ? null : this.#lastTick.toString();
     return {
       worldId: world === null ? 0 : world.worldId,
       runState: this.#runState,
@@ -374,8 +434,12 @@ export class SimController {
     };
   }
 
-  #okReply(req: Request): WorkerMessage {
-    return { type: 'reply', id: req.id, ok: true, snapshot: this.#snapshot(this.#clock.now()) };
+  #okReply(req: Request, stop?: StopPayload): WorkerMessage {
+    const snapshot = this.#snapshot(this.#clock.now());
+    return {
+      type: 'reply', id: req.id, ok: true,
+      snapshot: stop === undefined ? snapshot : { ...snapshot, stop },
+    };
   }
 
   #failReply(req: Request, kind: ErrorKind, error: string): WorkerMessage {

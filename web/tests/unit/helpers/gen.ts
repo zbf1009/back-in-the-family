@@ -19,8 +19,8 @@
 //     exact payload shape.
 
 import fc from 'fast-check';
-import type { Request } from '../../../src/shared/protocol.ts';
-import { SPEEDS } from '../../../src/shared/speeds.ts';
+import type { RequestWithoutId } from '../../../src/shared/protocol.ts';
+import { PLAY_RATE, SPEEDS } from '../../../src/shared/speeds.ts';
 import type { ReferenceInput } from './reference.ts';
 
 /** The maximum u64 value, for the seed generator. */
@@ -106,26 +106,23 @@ export type Command =
   | { kind: 'step' }
   | { kind: 'set-speed'; speed: number }
   | { kind: 'submit'; input: string }
+  | { kind: 'unsupported'; request: RequestWithoutId }
   | { kind: 'fire-frames'; count: number };
 
 /**
  * Build a command-sequence generator whose total possible ticks stay under
  * `tickBudget` (default 3,000, Property 4's cap). The budget is enforced by
- * bounding the worst case: each fired frame runs at most `maxSpeed` ticks and each
- * step runs one, so we cap `sum(fired frames) * maxSpeed + steps <= tickBudget`.
+ * bounding the worst case with the largest integer paced batch cap, plus steps.
  * We do this by limiting the number and size of `fire-frames` commands.
  */
 export function commandsArb(tickBudget = 3_000): fc.Arbitrary<Command[]> {
-  const maxSpeed = Math.max(...SPEEDS); // 365
+  const maxBatch = Math.ceil(Math.max(...SPEEDS) * PLAY_RATE / 20);
   // Keep a wide margin so even all-at-max-speed frames stay under budget: at most
   // `maxFrameTicks` ticks come from frames, leaving room for steps.
   const maxFrameTicks = Math.floor(tickBudget * 0.9);
-  // Each fire-frames command fires 1..8 frames; worst case maxSpeed ticks each.
-  const maxFramesPerCommand = 8;
-  const maxFrameCommands = Math.max(
-    0,
-    Math.floor(maxFrameTicks / (maxSpeed * maxFramesPerCommand)),
-  );
+  // Include real frame commands even with a small budget; each batch is bounded.
+  const maxFramesPerCommand = Math.max(1, Math.min(8, Math.floor(maxFrameTicks / maxBatch)));
+  const maxFrameCommands = Math.floor(maxFrameTicks / (maxBatch * maxFramesPerCommand));
 
   const createArb = fc
     .record({ seed: seedStringArb, config: configJsonArb })
@@ -166,6 +163,16 @@ export function commandsArb(tickBudget = 3_000): fc.Arbitrary<Command[]> {
     .integer({ min: 1, max: maxFramesPerCommand })
     .map((count): Command => ({ kind: 'fire-frames', count }));
 
+  const newRequestArb = fc.constantFrom<RequestWithoutId>(
+    { type: 'world-snapshot' },
+    { type: 'choose', node: '12', option: 'repay_now' },
+    { type: 'choose-and-run', node: '12', option: 'repay_now' },
+    { type: 'dream', dreamer: 9, intent: 'reassure' },
+    { type: 'claim', slot: 'imported_vessel', carryOver: null },
+    { type: 'checksums', from: '0', to: '10' },
+    { type: 'player_node_state' },
+  ).map((request): Command => ({ kind: 'unsupported', request }));
+
   const commandArb = fc.oneof(
     { arbitrary: createArb, weight: 2 },
     { arbitrary: badCreateArb, weight: 1 },
@@ -174,6 +181,7 @@ export function commandsArb(tickBudget = 3_000): fc.Arbitrary<Command[]> {
     { arbitrary: fc.constant<Command>({ kind: 'step' }), weight: 2 },
     { arbitrary: speedArb, weight: 2 },
     { arbitrary: submitArb, weight: 2 },
+    { arbitrary: newRequestArb, weight: 2 },
     { arbitrary: frameArb, weight: 4 },
   );
 

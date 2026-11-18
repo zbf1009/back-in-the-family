@@ -265,7 +265,7 @@ test('create-world while running with a bad config leaves the old world running'
   assert.ok(worldId > 0, 'the running world has a non-zero worldId');
 
   controller.handle({ type: 'run', id: 2 });
-  clock.advance(16);
+  clock.advance(34); // enough wall time for one Speed-1 tick
   assert.ok(scheduler.flush(), 'one frame ran for the running world');
 
   // A create-world with a valid seed but an invalid config: new WasmSim throws, so
@@ -285,7 +285,7 @@ test('create-world while running with a bad config leaves the old world running'
   // The loop is still live: another frame advances the old world further, and a
   // pause then reports a tick greater than the one before the failed create.
   const tickBeforeFailed = tickNum(failed.snapshot.tick);
-  clock.advance(16);
+  clock.advance(34);
   assert.ok(scheduler.flush(), 'the old world is still scheduling frames');
   controller.handle({ type: 'pause', id: 4 });
   const paused = replyFor(messages, 4);

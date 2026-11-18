@@ -92,3 +92,34 @@ export function stepReference(
 export function openReference(seed: bigint, config: string): SimHandle {
   return createSim(seed, config);
 }
+
+/**
+ * Independent total-count recurrence: unused earlier frame caps are not banked.
+ * This is the normative Clock pacing formula's reading of Property 21's
+ * "total allowed by the batch caps": total_k = min(target_k, total_(k-1)+cap).
+ */
+export class PacingReference {
+  anchor = 0;
+  total = 0;
+
+  reset(now: number): void {
+    this.anchor = now;
+    this.total = 0;
+  }
+
+  frame(now: number, speed: number): number {
+    const target = Math.floor((now - this.anchor) * speed * 30 / 1000);
+    if (target - this.total > speed * 30) {
+      this.reset(now);
+      return 0;
+    }
+    const next = Math.max(this.total, Math.min(target, this.total + Math.ceil(speed * 30 / 20)));
+    const run = next - this.total;
+    this.total = next;
+    return run;
+  }
+
+  recordActual(requested: number, actual: number): void {
+    this.total += actual - requested;
+  }
+}

@@ -80,15 +80,9 @@ export class FakeFrameScheduler implements FrameScheduler {
   }
 }
 
-/**
- * A `Clock` with a settable `now`, advanceable by the test. The controller reads
- * it only for Frame pacing and the Ticks_Per_Second window, never as a simulation
- * argument (R6.5), so Property 6 drives two runs with different clocks and checks
- * the recorded `SimHandle` calls are identical.
- */
+/** A settable wall clock; pacing may change counts, never per-tick results. */
 export class FakeClock implements Clock {
   #now: number;
-
   constructor(start = 0) {
     this.#now = start;
   }
@@ -113,17 +107,14 @@ export type RecordedCall =
   | { method: 'submit'; input: string }
   | { method: 'step' }
   | { method: 'run_ticks'; n: number }
+  | { method: 'run_until_stop'; n: number }
+  | { method: 'snapshot' }
+  | { method: 'submit_checked'; input: string }
+  | { method: 'checksums'; from: bigint; to: bigint }
+  | { method: 'player_node_state' }
   | { method: 'tick' };
 
-/**
- * A `SimHandle` wrapper that records every call (method and arguments) and
- * forwards to a real or fake inner handle. Used by the determinism and
- * frame-discipline properties: Property 3 checks no state-changing call is made
- * for a rejected request and that every forwarded argument is in range; Property
- * 6 compares the recorded sequences of two runs with different clocks; Property 5
- * reads `stepCalls`/`runTicksCalls` to check each frame advances by exactly the
- * Speed.
- */
+/** Records arguments and forwards to the real or fake injected SimHandle. */
 export class RecordingSimHandle implements SimHandle {
   readonly #inner: SimHandle;
   readonly #calls: RecordedCall[] = [];
@@ -137,14 +128,15 @@ export class RecordingSimHandle implements SimHandle {
     return this.#calls;
   }
 
-  /** Only the state-changing calls (submit, step, run_ticks), in order. */
+  /** Only state-changing calls, in order. */
   get mutatingCalls(): readonly RecordedCall[] {
-    return this.#calls.filter((c) => c.method !== 'tick');
+    return this.#calls.filter((c) => c.method === 'submit' || c.method === 'step' ||
+      c.method === 'run_ticks' || c.method === 'run_until_stop' || c.method === 'submit_checked');
   }
 
-  /** The `n` argument of every `run_ticks` call, in order. */
-  get runTicksArgs(): readonly number[] {
-    return this.#calls.flatMap((c) => (c.method === 'run_ticks' ? [c.n] : []));
+  /** Integer budgets requested through the paced advancement seam. */
+  get runUntilStopArgs(): readonly number[] {
+    return this.#calls.flatMap((c) => (c.method === 'run_until_stop' ? [c.n] : []));
   }
 
   submit(input_json: string): void {
@@ -160,6 +152,31 @@ export class RecordingSimHandle implements SimHandle {
   run_ticks(n: number): string {
     this.#calls.push({ method: 'run_ticks', n });
     return this.#inner.run_ticks(n);
+  }
+
+  run_until_stop(n: number): string {
+    this.#calls.push({ method: 'run_until_stop', n });
+    return this.#inner.run_until_stop(n);
+  }
+
+  snapshot(): string {
+    this.#calls.push({ method: 'snapshot' });
+    return this.#inner.snapshot();
+  }
+
+  submit_checked(input: string): string {
+    this.#calls.push({ method: 'submit_checked', input });
+    return this.#inner.submit_checked(input);
+  }
+
+  checksums(from: bigint, to: bigint): string {
+    this.#calls.push({ method: 'checksums', from, to });
+    return this.#inner.checksums(from, to);
+  }
+
+  player_node_state(): string {
+    this.#calls.push({ method: 'player_node_state' });
+    return this.#inner.player_node_state();
   }
 
   tick(): bigint {
