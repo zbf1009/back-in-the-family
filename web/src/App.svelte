@@ -233,8 +233,8 @@
   :global(::selection) { background: #d7d2bd; color: #111111; }
   :global(:focus-visible) { outline: 2px solid #252525; outline-offset: 3px; }
   :global(button), :global(input), :global(select), :global(textarea) { font: inherit; color: inherit; border: 1px solid #858585; border-radius: 4px; background: #fffefa; }
-  :global(button) { cursor: pointer; padding: 6px 10px; }
-  :global(button:hover:not(:disabled)) { background: #e2e0d9; }
+  :global(button) { cursor: pointer; padding: 6px 10px; font-weight: 600; border-color: #65645e; background: #e2e0d9; }
+  :global(button:hover:not(:disabled)) { background: #d0cdc0; }
   :global(button:disabled) { color: #65645e; background: #eeede6; cursor: not-allowed; }
   :global(input), :global(textarea), :global(select) { padding: 5px 7px; caret-color: #252525; }
   :global([role="region"]) { scrollbar-color: #858585 #eeede6; scrollbar-width: thin; }

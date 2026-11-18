@@ -9,7 +9,9 @@
 <section class="identity" aria-labelledby="identity-heading">
   <h2 id="identity-heading">Your soul</h2>
   <div class="current">
-    <span class="soul-marker" style:color={SOUL_COLOR} data-testid="soul-marker" role="img" aria-label="Your soul: gold ring">{SOUL_GLYPH}</span>
+    {#if view !== null}
+      <span class="soul-marker" style:color={SOUL_COLOR} data-testid="soul-marker" role="img" aria-label="Your soul: gold ring">{SOUL_GLYPH}</span>
+    {/if}
     {#if view?.body}
       <div>
         <strong data-testid="current-name">{view.body.name}</strong>

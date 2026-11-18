@@ -12,21 +12,31 @@ export interface SpriteSet {
   prop(ctx: CanvasRenderingContext2D, kind: 'coffin' | 'candle' | 'cradle' | 'cloud' | 'will', x: number, y: number): void;
 }
 
-const TINTS: Record<Tint, string> = {
-  self: '#252525', kin: '#454545', rememberer: '#656565', affected: '#111111', neutral: '#757575',
+export const TINTS: Readonly<Record<Tint, string>> = {
+  self: '#252525', kin: '#2563a6', rememberer: '#7851a9', affected: '#b23a48', neutral: '#757575',
 };
 
 export const placeholderSprites: SpriteSet = {
   id: 'placeholder',
   resident(ctx, x, y, tint) {
     ctx.fillStyle = TINTS[tint];
-    ctx.fillRect(x - 3, y - 3, 6, 6);
+    if (tint === 'affected') {
+      ctx.beginPath();
+      ctx.moveTo(x, y - 5);
+      ctx.lineTo(x + 5, y);
+      ctx.lineTo(x, y + 5);
+      ctx.lineTo(x - 5, y);
+      ctx.closePath();
+      ctx.fill();
+    } else {
+      ctx.fillRect(x - 4, y - 4, 8, 8);
+    }
   },
   soulMarker(ctx, x, y) {
     ctx.strokeStyle = SOUL_COLOR;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.arc(x, y, 6, 0, Math.PI * 2);
+    ctx.arc(x, y, 7, 0, Math.PI * 2);
     ctx.stroke();
   },
   house(ctx, x, y, w, h) {

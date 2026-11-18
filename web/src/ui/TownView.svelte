@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { UiState } from '../main/ui-state.ts';
   import { townDrawList } from '../main/town-layout.ts';
-  import { placeholderSprites } from '../art/sprites.ts';
+  import { placeholderSprites, TINTS, SOUL_COLOR } from '../art/sprites.ts';
 
   const { ui }: { ui: UiState } = $props();
   let canvas: HTMLCanvasElement;
@@ -49,13 +49,23 @@
   {#if drawing === null}
     <p class="empty">Create a World to meet the town.</p>
   {/if}
-  <p class="legend">One marker per living Resident. Gold ring: your soul.</p>
+  <div class="legend" aria-label="Town marker legend">
+    <span><i class="swatch" style:background={TINTS.neutral} aria-hidden="true"></i>Neutral</span>
+    <span><i class="swatch" style:background={TINTS.kin} aria-hidden="true"></i>Blood tie</span>
+    <span><i class="swatch" style:background={TINTS.rememberer} aria-hidden="true"></i>Rememberer</span>
+    <span><i class="swatch affected" style:background={TINTS.affected} aria-hidden="true"></i>Affected (diamond)</span>
+    <span><i class="soul-swatch" style:border-color={SOUL_COLOR} aria-hidden="true"></i>Your soul</span>
+  </div>
 </section>
 
 <style>
   .town { position: relative; }
   canvas { display: block; width: 620px; height: 460px; image-rendering: pixelated; }
   .empty { position: absolute; top: 190px; width: 100%; text-align: center; }
-  .legend { margin: 10px 16px; font-size: 12px; color: #454545; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: 10px 16px; font-size: 12px; color: #454545; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .swatch { width: 8px; height: 8px; display: inline-block; }
+  .affected { transform: rotate(45deg); }
+  .soul-swatch { width: 12px; height: 12px; border: 2px solid; border-radius: 50%; }
   @media (max-width: 1279px) { canvas { max-width: 100%; height: auto; } }
 </style>
