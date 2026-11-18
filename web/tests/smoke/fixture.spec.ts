@@ -7,24 +7,14 @@
 //   - R3.1  the World_Config field equals fixtures/configs/pairwise.json, and
 //     R9.11 no replay / verify / input control exists (only create/run/pause/
 //     step/speed).
-//   - R9.5, R9.6  protocol run: through window.__simHarness create a world from
-//     the fixture's seed and JSON.stringify(config), submit the 120 inputs in
-//     file order as {tick, payload} (no seq -- sim-core assigns it), step 2,000
-//     times, collect every tick's checksum, require exactly 2,000 and compare
-//     each with checksums[n-1]; on any mismatch fail naming the fixture, the
-//     first differing tick, expected and actual.
-//   - R9.7  reference run: a fresh world (same seed/config, NO inputs) stepped
-//     >= 2,000 times, giving the no-input checksums the page-control checks use.
-//   - R9.8  page controls: Create via seed input + config textarea + Create
-//     button, Step once, see tick 1 and the reference checksum for tick 1 within
-//     5 s.
-//   - R9.9 (+R4.6, R5.7)  page controls: Speed 365, Run until tick >= 365 or 10 s,
-//     Pause, tick > 1, tick+checksum unchanged 500 ms later, and the displayed
-//     checksum equals the reference run's checksum for that tick (the reference
-//     is extended through the harness if the tick reached is past its end).
+//   - R16.12 protocol/reference runs step to 2,000 or node_unanswered, require
+//     at least 600 ticks, compare every obtained checksum, and never answer nodes.
+//   - R9.8 page Create/Step displays tick 1 and its no-input reference checksum.
+//   - R9.9 page Speed 1 user pause and Speed 365 automatic stop preserve the
+//     displayed tick/checksum across 500 ms and match that same reference prefix.
 //
-// Shared setup (R9.4, R9.10): block and record any non-preview origin; fail the
-// test on any page console error or any harness reply with ok:false.
+// Shared setup (R9.4, R9.10): block and record any non-preview origin; fail on
+// page console errors and every failed harness reply except node_unanswered step.
 //
 // Budget (R9.13, <180 s): the two 2,000-step runs and the 120 submits are the
 // heavy parts. They are driven INSIDE the page with a single page.evaluate loop
@@ -54,7 +44,7 @@ import { readFixture } from './global-setup.ts';
 /** The Worker_Protocol reply, as the harness resolves it (subset used here). */
 type HarnessReply =
   | { ok: true; snapshot: { tick: string | null; checksum: string | null } }
-  | { ok: false; error: string; snapshot: { tick: string | null; checksum: string | null } };
+  | { ok: false; kind: string; error: string; snapshot: { tick: string | null; checksum: string | null } };
 
 /** window.__simHarness as installed with ?harness=1 (subset used here). */
 interface BrowserWindow {
@@ -80,8 +70,7 @@ interface ReplayFixture {
 }
 
 const fixture = readFixture() as ReplayFixture;
-// The fixture records exactly this many ticks; the protocol run must produce the
-// same number of checksums (R9.5, R9.6).
+// R16.12 permits only the unanswered-node refusal to end the parity prefix.
 const FIXTURE_TICKS = Number(fixture.ticks);
 // The World_Config passed to new WasmSim is the JSON string of fixture.config,
 // which equals {"entity_count":50,"workload":"Pairwise"} (design Data Models).
@@ -163,17 +152,15 @@ async function openHarnessPage(
 //
 // These run entirely inside the page in one page.evaluate each, so the 120
 // submits and the 2,000 steps cost one Playwright<->page round-trip per run, not
-// one per tick (budget, R9.13). Each helper throws inside the page on the first
-// ok:false reply, which Playwright surfaces as a test failure naming the step
-// (R9.10). The create/submit/step requests go through the same SimClient and
+// one per tick (budget, R9.13). Only node_unanswered ends a run early; every
+// other failed reply is surfaced as a test failure. Requests use the same client
 // Sim_Worker as the page controls (DA-3), one worker postMessage per request, so
 // the semantics equal a reference run that submits before the tick and steps once
 // per tick (R6.6).
 
 /**
- * Create a world, submit every input in file order, then step `tickCount` times,
- * collecting the checksum reported after each step. Runs in the page. Throws on
- * any ok:false reply. Returns the collected checksums in tick order.
+ * Create, submit every input in file order, and step to `tickCount` or the first
+ * node_unanswered refusal. Return every completed tick's checksum; never answer.
  */
 async function protocolRun(
   page: Page,
@@ -196,7 +183,10 @@ async function protocolRun(
     const checksums: (string | null)[] = [];
     for (let n = 0; n < tickCount; n++) {
       const reply = await harness.request({ type: 'step' });
-      if (!reply.ok) throw new Error(`harness reply ok:false for step #${n + 1}: ${reply.error}`);
+      if (!reply.ok) {
+        if (reply.kind === 'node_unanswered') break;
+        throw new Error(`harness reply ok:false for step #${n + 1}: ${reply.error}`);
+      }
       checksums.push(reply.snapshot.checksum);
     }
     return checksums;
@@ -204,8 +194,8 @@ async function protocolRun(
 }
 
 /**
- * Create a fresh world with NO inputs and step `tickCount` times, collecting the
- * no-input checksum after each step. Runs in the page. Throws on ok:false.
+ * Create a fresh world with NO inputs and step to `tickCount` or node_unanswered,
+ * collecting the no-input checksum of every completed tick.
  */
 async function referenceRun(
   page: Page,
@@ -224,6 +214,7 @@ async function referenceRun(
     for (let n = 0; n < tickCount; n++) {
       const reply = await harness.request({ type: 'step' });
       if (!reply.ok) {
+        if (reply.kind === 'node_unanswered') break;
         throw new Error(`harness reply ok:false for reference step #${n + 1}: ${reply.error}`);
       }
       checksums.push(reply.snapshot.checksum);
@@ -232,27 +223,6 @@ async function referenceRun(
   }, args);
 }
 
-/**
- * Extend a no-input reference run to at least `targetTicks` by creating a fresh
- * world and stepping that many times (R9.9). Simpler and still deterministic:
- * the no-input run is a pure function of seed+config, so stepping further from a
- * fresh world reproduces the same prefix and adds the needed suffix.
- */
-async function referenceChecksumAt(
-  page: Page,
-  reference: (string | null)[],
-  tick: number,
-): Promise<string | null> {
-  if (tick <= reference.length) {
-    return reference[tick - 1]!;
-  }
-  const extended = await referenceRun(page, {
-    seed: fixture.seed,
-    config: CONFIG_JSON,
-    tickCount: tick,
-  });
-  return extended[tick - 1]!;
-}
 
 // --- the test ---------------------------------------------------------------
 
@@ -293,14 +263,12 @@ test('built page matches the native fixture and the page controls advance it', a
     inputs: INPUT_STRINGS,
     tickCount: FIXTURE_TICKS,
   });
-  // Exactly as many checksums as the fixture records (R9.6: too few is a failure).
-  expect(
-    protocolChecksums.length,
-    `${FIXTURE_NAME}: expected ${FIXTURE_TICKS} checksums, got ${protocolChecksums.length}`,
-  ).toBe(FIXTURE_TICKS);
+  expect(protocolChecksums.length, `${FIXTURE_NAME}: protocol must reach first_interrupt_min`).toBeGreaterThanOrEqual(600);
+  expect(protocolChecksums.length).toBeLessThanOrEqual(FIXTURE_TICKS);
+  console.log(`[fixture] protocol: stoppedTick=${protocolChecksums.length} comparedChecksums=${protocolChecksums.length}`);
   // Compare every tick; report the first difference (R9.6).
   let firstDiff = -1;
-  for (let n = 1; n <= FIXTURE_TICKS; n++) {
+  for (let n = 1; n <= protocolChecksums.length; n++) {
     const expectedChecksum = fixture.checksums[n - 1]!;
     const actualChecksum = protocolChecksums[n - 1];
     if (actualChecksum !== expectedChecksum) {
@@ -316,13 +284,15 @@ test('built page matches the native fixture and the page controls advance it', a
   }
   expect(firstDiff, 'protocol run matched the native fixture at every tick').toBe(-1);
 
-  // 4. R9.7: no-input reference run of at least FIXTURE_TICKS steps.
+  // 4. R16.12: no-input reference reaches the fixture end or first refusal.
   const reference = await referenceRun(page, {
     seed: fixture.seed,
     config: CONFIG_JSON,
     tickCount: FIXTURE_TICKS,
   });
-  expect(reference.length).toBe(FIXTURE_TICKS);
+  expect(reference.length, 'reference must reach first_interrupt_min').toBeGreaterThanOrEqual(600);
+  expect(reference.length).toBeLessThanOrEqual(FIXTURE_TICKS);
+  console.log(`[fixture] reference: stoppedTick=${reference.length} collectedChecksums=${reference.length}`);
   expect(reference[0], 'reference run produced a tick-1 checksum').not.toBeNull();
 
   // 5. R9.8: page controls -- Create then Step once -> tick 1 and reference
@@ -351,7 +321,8 @@ test('built page matches the native fixture and the page controls advance it', a
     expect(Number(await page.getByTestId('tick').textContent())).toBe(tickAfterPause);
     expect((await page.getByTestId('checksum').textContent()) ?? '').toBe(checksumAfterPause);
 
-    const expectedAtPause = await referenceChecksumAt(page, reference, tickAfterPause);
+    expect(tickAfterPause, `${label}: pause must lie within the acquired reference`).toBeLessThanOrEqual(reference.length);
+    const expectedAtPause = reference[tickAfterPause - 1]!;
     expect(checksumAfterPause,
       `${label}: paused at tick ${tickAfterPause}: expected ${expectedAtPause ?? 'null'}, displayed ${checksumAfterPause}`,
     ).toBe(expectedAtPause);

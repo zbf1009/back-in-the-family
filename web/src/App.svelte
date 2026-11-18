@@ -51,6 +51,8 @@
   let seed = $state('');
   let config = $state(pairwiseConfig);
 
+  // Worker Snapshot.playerNode disables Run/Step until an accepted choice;
+  // the Worker enforces the same gate even for direct harness requests.
   const buttons = $derived(controls(ui));
 
   // Fold one event into the state. Assigning a fresh object keeps the rune reactive.

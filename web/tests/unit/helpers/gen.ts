@@ -106,7 +106,7 @@ export type Command =
   | { kind: 'step' }
   | { kind: 'set-speed'; speed: number }
   | { kind: 'submit'; input: string }
-  | { kind: 'unsupported'; request: RequestWithoutId }
+  | { kind: 'request'; request: RequestWithoutId }
   | { kind: 'fire-frames'; count: number };
 
 /**
@@ -171,7 +171,7 @@ export function commandsArb(tickBudget = 3_000): fc.Arbitrary<Command[]> {
     { type: 'claim', slot: 'imported_vessel', carryOver: null },
     { type: 'checksums', from: '0', to: '10' },
     { type: 'player_node_state' },
-  ).map((request): Command => ({ kind: 'unsupported', request }));
+  ).map((request): Command => ({ kind: 'request', request }));
 
   const commandArb = fc.oneof(
     { arbitrary: createArb, weight: 2 },

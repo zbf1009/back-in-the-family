@@ -40,6 +40,7 @@ export interface Snapshot {
   checksum: string | null;  // 16 lowercase hex; null before the first tick of a world
   tps: number | null;       // null unless running for at least 1,000 ms
   speed: number;
+  playerNode: PlayerNodeState; // input-stream-backed read; present on every reply/status
   stop?: StopPayload;       // present only on the message reporting that pause
 }
 
@@ -47,6 +48,7 @@ export type ErrorKind =
   | 'sim-error'       // WasmSim constructor or submit threw
   | 'invalid-seed'
   | 'invalid-speed'
+  | 'invalid-tick'    // checksum history index is not a decimal u64
   | 'no-world'
   | 'invalid-state'   // step while running
   | 'load-failed'     // WASM did not load
@@ -54,7 +56,7 @@ export type ErrorKind =
   | 'node_unanswered';
 
 export type Reply =
-  | { type: 'reply'; id: number; ok: true; snapshot: Snapshot; world?: WorldSnapshot }
+  | { type: 'reply'; id: number; ok: true; snapshot: Snapshot; world?: WorldSnapshot; checksums?: string[] }
   | { type: 'reply'; id: number; ok: false; kind: ErrorKind; error: string; snapshot: Snapshot; world?: WorldSnapshot };
 export interface Status { type: 'status'; snapshot: Snapshot }
 export type WorkerMessage = Reply | Status | { type: 'fatal'; error: string };

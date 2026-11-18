@@ -72,21 +72,27 @@ test('controller keeps one outstanding frame and advances by its bounded paced b
       } else {
         controller.handle({ type: cmd.kind, id: id++ });
         if (cmd.kind === 'run') {
-          if (!running) reference.reset(clock.now());
-          running = true;
+          const reply = messages.at(-1)!;
+          assert.ok(reply.type === 'reply');
+          if (reply.ok) {
+            if (!running) reference.reset(clock.now());
+            running = true;
+          } else assert.equal(reply.kind, 'node_unanswered');
           assert.equal(rec.tick(), before, 'run schedules but does not step');
         } else if (cmd.kind === 'pause') {
           running = false;
           assert.equal(rec.tick(), before);
           assert.equal(rec.mutatingCalls.length, callsBefore);
         } else {
-          assert.equal(rec.tick() - before, running ? 0n : 1n);
+          const reply = messages.at(-1)!;
+          assert.ok(reply.type === 'reply');
+          assert.equal(rec.tick() - before, reply.ok ? 1n : 0n);
+          if (!reply.ok) assert.equal(reply.kind, running ? 'invalid-state' : 'node_unanswered');
         }
       }
       assert.equal(scheduler.isPending, running);
     }
-    // A successful replacement cancels the loop; queued stale-callback stamps
-    // and cancellation of old-world requests are owned by task 8.1.
+    // Successful replacement cancels the outstanding scheduled callback.
     controller.handle({ type: 'create-world', id: id++, seed: seed.toString(), config });
     const atCreate = rec.tick();
     assert.equal(scheduler.isPending, false);

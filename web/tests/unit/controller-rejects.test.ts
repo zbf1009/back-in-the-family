@@ -66,7 +66,7 @@ function snapshotsEqual(a: Snapshot, b: Snapshot): boolean {
     a.runState === b.runState &&
     a.tick === b.tick &&
     a.checksum === b.checksum &&
-    a.speed === b.speed
+    a.speed === b.speed && JSON.stringify(a.playerNode) === JSON.stringify(b.playerNode)
   );
 }
 
@@ -153,12 +153,13 @@ function runCommands(commands: readonly Command[]): Outcome {
       runState: last?.snapshot.runState ?? 'no-world',
       tick: tick?.toString() ?? null, checksum, tps: null,
       speed: last?.snapshot.speed ?? 1,
+      playerNode: sim ? JSON.parse(sim.player_node_state()) : { pending: false },
     };
     const mutatingBefore = totalMutatingCalls(handles);
     controller.handle(req);
     const reply = messages.at(-1)!;
     if (reply.type === 'reply' && !reply.ok &&
-      (reply.kind === 'invalid-seed' || reply.kind === 'invalid-speed' || cmd.kind === 'unsupported')) {
+      (reply.kind === 'invalid-seed' || reply.kind === 'invalid-speed' || reply.kind === 'invalid-tick' || reply.kind === 'node_unanswered')) {
       assert.equal(totalMutatingCalls(handles), mutatingBefore, 'invalid request must not reach a mutating seam');
     }
     drain(req, before);
@@ -182,7 +183,7 @@ function toRequest(cmd: Exclude<Command, { kind: 'fire-frames' }>, id: number): 
       return { type: 'set-speed', id, speed: cmd.speed };
     case 'submit':
       return { type: 'submit', id, input: cmd.input };
-    case 'unsupported':
+    case 'request':
       return { ...cmd.request, id };
   }
 }

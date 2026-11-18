@@ -19,7 +19,7 @@ function request(cmd: Exclude<Command, { kind: 'fire-frames' }>, id: number): Re
     case 'create-world': return { type: cmd.kind, id, seed: cmd.seed, config: cmd.config };
     case 'set-speed': return { type: cmd.kind, id, speed: cmd.speed };
     case 'submit': return { type: cmd.kind, id, input: cmd.input };
-    case 'unsupported': return { ...cmd.request, id };
+    case 'request': return { ...cmd.request, id };
     case 'run': case 'pause': case 'step': return { type: cmd.kind, id };
   }
 }
@@ -85,6 +85,7 @@ function runWithClock(commands: readonly Command[], origin: number, jitter: read
     }
     const req = request(cmd, id++);
     const before = messages.length;
+    const callsBefore = handles.at(-1)?.mutatingCalls.length ?? 0;
     controller.handle(req);
     const replies = messages.slice(before).filter((m) => m.type === 'reply');
     assert.equal(replies.length, 1);
@@ -105,12 +106,21 @@ function runWithClock(commands: readonly Command[], origin: number, jitter: read
       // on the reference. Jitter may cause a past-tick submit rejection; that is
       // an input-stream difference, not a permitted checksum difference.
       if (cmd.kind === 'submit') references.at(-1)!.submit(cmd.input);
+      if (cmd.kind === 'request') {
+        const calls = handles.at(-1)!.mutatingCalls.slice(callsBefore);
+        for (const call of calls) if (call.method === 'submit_checked') {
+          assert.equal(JSON.parse(references.at(-1)!.submit_checked(call.input)).ok, true);
+        }
+      }
     }
     extendAndCheck();
   }
   const generatedInputs = new Set(commands.flatMap((c) => c.kind === 'submit' ? [c.input] : []));
   for (const rec of handles) for (const call of rec.mutatingCalls) {
     if (call.method === 'submit') assert.ok(generatedInputs.has(call.input));
+    else if (call.method === 'submit_checked') {
+      assert.ok(Array.isArray(JSON.parse(call.input)), 'checked calls contain v5 payload arrays, never clock values');
+    }
     else {
       assert.equal(call.method, 'run_until_stop', 'controller never calls legacy step/run_ticks');
       assert.ok(call.method === 'run_until_stop');

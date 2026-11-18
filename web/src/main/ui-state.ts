@@ -45,6 +45,8 @@ export interface UiState {
   tps: number | null;
   /** The playback multiplier; carried across create, run and pause. */
   speed: number;
+  /** Last Worker read of the pending node's accepted-choice state. */
+  playerNode: Snapshot['playerNode'];
   /** Error area text; non-empty while the last reply-or-fatal event was a failure (R5.8). */
   error: string | null;
   /** Seed validation message; set by a rejected seed, cleared by a sent create-world (R3.3). */
@@ -82,6 +84,7 @@ export function initialUiState(): UiState {
     checksum: null,
     tps: null,
     speed: 1,
+    playerNode: { pending: false },
     error: null,
     seedMessage: null,
     createPending: false,
@@ -161,8 +164,8 @@ export function reduce(s: UiState, e: UiEvent): UiState {
  *
  * - run, pause and step are all disabled in `no-world` and `failed` (R4.7).
  * - in `running`, only pause is enabled (R4.8).
- * - in `paused`, run and step are enabled and pause is disabled; step is also
- *   disabled while a step reply is outstanding (R4.9, R4.10).
+ * - in `paused`, run and step need no unanswered Player_Node; step is also
+ *   disabled while a step reply is outstanding (R4.10, first-playable R8.9).
  * - create is enabled except while a create-world is in flight or the worker has
  *   failed (R3.8); a failed worker is final for the page.
  */
@@ -174,11 +177,12 @@ export function controls(s: UiState): {
 } {
   const running = s.runState === 'running';
   const paused = s.runState === 'paused';
+  const unanswered = s.playerNode.pending && !s.playerNode.answered;
   return {
     create: !s.createPending && s.runState !== 'failed',
-    run: paused,
+    run: paused && !unanswered,
     pause: running,
-    step: paused && !s.stepPending,
+    step: paused && !unanswered && !s.stepPending,
   };
 }
 
@@ -215,7 +219,7 @@ export function formatRunState(s: UiState): RunState {
 /** Copy the display fields a snapshot carries. Error and pending flags are not snapshot fields. */
 function fromSnapshot(snap: Snapshot): Pick<
   UiState,
-  'worldId' | 'runState' | 'tick' | 'checksum' | 'tps' | 'speed'
+  'worldId' | 'runState' | 'tick' | 'checksum' | 'tps' | 'speed' | 'playerNode'
 > {
   return {
     worldId: snap.worldId,
@@ -224,6 +228,7 @@ function fromSnapshot(snap: Snapshot): Pick<
     checksum: snap.checksum,
     tps: snap.tps,
     speed: snap.speed,
+    playerNode: snap.playerNode,
   };
 }
 

@@ -70,6 +70,7 @@ function stateFor(runState: RunState, stepPending: boolean, createPending: boole
     checksum: 'a1b2c3d4e5f60718',
     tps: 123,
     speed: 365,
+    playerNode: { pending: false },
     error: null,
     seedMessage: null,
     createPending,

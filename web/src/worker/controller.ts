@@ -9,7 +9,7 @@
 // Ticks_Per_Second window; no clock value or random value is ever passed to a
 // SimHandle call (R6.5).
 
-import type { ErrorKind, Request, Snapshot, StopPayload, RunUntilStopResult, WorkerMessage } from '../shared/protocol.ts';
+import type { CheckedSubmission, ErrorKind, PlayerNodeState, Reply, Request, Snapshot, StopPayload, RunUntilStopResult, WorkerMessage } from '../shared/protocol.ts';
 import type { WorldSnapshot } from '../shared/world-snapshot.ts';
 import { parseSeed } from '../shared/seed.ts';
 import { isSpeed, SPEEDS, type Speed } from '../shared/speeds.ts';
@@ -82,6 +82,8 @@ export class SimController {
   #anchorMs = 0;
   #ranSinceAnchor = 0;
   #lastTick = 0n;
+  /** Last read of the input-stream-backed gate, not the World-only Snapshot. */
+  #pending: PlayerNodeState = { pending: false };
   #lastSnapshotMs = 0;
   /** The next worldId to assign; 0 means no world has ever been created. */
   #nextWorldId = 1;
@@ -199,17 +201,24 @@ export class SimController {
         this.#submit(req);
         return;
       case 'world-snapshot':
+        this.#worldSnapshot(req);
+        return;
       case 'choose':
       case 'choose-and-run':
       case 'dream':
       case 'claim':
+        this.#checkedSubmit(req);
+        return;
       case 'checksums':
+        this.#checksums(req);
+        return;
       case 'player_node_state':
-        this.#post({
-          type: 'reply', id: req.id, ok: false, kind: 'invalid-state',
-          error: `unsupported request: ${req.type}`,
-          snapshot: this.#snapshot(this.#lastSnapshotMs),
-        });
+        if (this.#world === null) {
+          this.#post(this.#noWorldReply(req));
+        } else {
+          this.#refreshPending();
+          this.#post(this.#okReply(req));
+        }
         return;
     }
     // Compile-time exhaustiveness, without adding a runtime malformed-message path.
@@ -237,13 +246,16 @@ export class SimController {
     }
     this.#stopLoop();
     this.#world = { handle, worldId: this.#nextWorldId++ };
+    // Synchronous serial dispatch has no old-World request backlog; startup FIFO must retain every reply.
     this.#runState = 'paused';
     this.#lastChecksum = null; // no tick has run for the new world yet (R3.5)
     this.#lastTick = handle.tick();
+    this.#refreshPending();
     this.#post(this.#okReply(req));
   }
 
   #run(req: Request & { type: 'run' }): void {
+    if (this.#unanswered(req)) return;
     if (this.#world === null) {
       this.#post(this.#noWorldReply(req));
       return;
@@ -283,6 +295,7 @@ export class SimController {
   }
 
   #step(req: Request & { type: 'step' }): void {
+    if (this.#unanswered(req)) return;
     if (this.#world === null) {
       this.#post(this.#noWorldReply(req));
       return;
@@ -293,11 +306,7 @@ export class SimController {
     }
     // paused: run exactly one tick (R4.1).
     try {
-      const result = this.#advance(1);
-      const stop = result.stops.length === 0 ? undefined : this.#stopPayload(result);
-      if (stop !== undefined) {
-        this.#post({ type: 'status', snapshot: { ...this.#snapshot(this.#clock.now()), stop } });
-      }
+      this.#stepTick();
       this.#post(this.#okReply(req));
     } catch (e) {
       // A throw from run_until_stop() is a Rust panic: the instance is unusable.
@@ -338,11 +347,108 @@ export class SimController {
     // unchanged (R2.10).
     try {
       this.#world.handle.submit(req.input);
+      this.#refreshPending();
     } catch (e) {
+      this.#refreshPending();
       this.#post(this.#failReply(req, 'sim-error', errorText(e)));
       return;
     }
     this.#post(this.#okReply(req));
+  }
+
+  #unanswered(req: Request): boolean {
+    if (!this.#pending.pending || this.#pending.answered) return false;
+    this.#post(this.#unchangedReply(req, 'node_unanswered', 'node_unanswered'));
+    return true;
+  }
+
+  #refreshPending(): void {
+    this.#pending = this.#world === null ? { pending: false } :
+      JSON.parse(this.#world.handle.player_node_state());
+  }
+
+  #worldSnapshot(req: Request): void {
+    if (this.#world === null) {
+      this.#post(this.#noWorldReply(req));
+      return;
+    }
+    this.#post({ ...this.#okReply(req), world: JSON.parse(this.#world.handle.snapshot()) });
+  }
+
+  #checkedSubmit(req: Extract<Request, { type: 'choose' | 'choose-and-run' | 'dream' | 'claim' }>): void {
+    if (this.#world === null) {
+      this.#post(this.#noWorldReply(req));
+      return;
+    }
+    if (req.type === 'choose-and-run' && this.#runState === 'running') {
+      this.#post(this.#failReply(req, 'invalid-state', 'cannot choose-and-run while running'));
+      return;
+    }
+    let payloads: unknown[];
+    switch (req.type) {
+      case 'choose':
+      case 'choose-and-run':
+        payloads = [{ ChoosePlayer: { node: req.node, option: req.option } }];
+        break;
+      case 'dream':
+        payloads = [{ Dream: { dreamer: String(req.dreamer), intent: req.intent } }];
+        break;
+      case 'claim': {
+        const slot = req.slot === 'imported_vessel' ? 'ImportedVessel' :
+          req.slot === 'rebuilt_body' ? 'RebuiltBody' : { Birth: req.slot.slice('birth:'.length) };
+        payloads = req.carryOver === null ? [] : [{ CarryOver: { trait_name: req.carryOver } }];
+        payloads.push({ ClaimSlot: { slot, ...(req.slot === 'rebuilt_body' ? { customization: req.customization } : {}) } });
+        break;
+      }
+    }
+    let result: CheckedSubmission;
+    try {
+      result = JSON.parse(this.#world.handle.submit_checked(JSON.stringify(payloads)));
+    } catch (e) {
+      this.#refreshPending();
+      this.#post(this.#failReply(req, 'sim-error', errorText(e)));
+      return;
+    }
+    this.#refreshPending();
+    if (!result.ok) {
+      this.#post(this.#failReply(req, 'rejected', result.reason));
+      return;
+    }
+    if (req.type === 'choose-and-run') {
+      try {
+        this.#stepTick();
+      } catch (e) {
+        this.fail(errorText(e));
+        this.#post(this.#failReply(req, 'invalid-state', errorText(e)));
+        return;
+      }
+    }
+    this.#worldSnapshot(req);
+  }
+
+  #checksums(req: Extract<Request, { type: 'checksums' }>): void {
+    const from = parseSeed(req.from);
+    const to = parseSeed(req.to);
+    if (!from.ok || !to.ok) {
+      this.#post(this.#unchangedReply(req, 'invalid-tick', 'invalid checksum index'));
+      return;
+    }
+    if (this.#world === null) {
+      this.#post(this.#noWorldReply(req));
+      return;
+    }
+    const checksums: string[] = JSON.parse(this.#world.handle.checksums(from.value, to.value));
+    this.#post({ ...this.#okReply(req), checksums });
+  }
+
+  #stepTick(): void {
+    const result = this.#advance(1);
+    if (result.stops.length > 0) {
+      this.#runState = 'paused';
+      this.#stopLoop();
+      const stop = this.#stopPayload(result);
+      this.#post({ type: 'status', snapshot: { ...this.#snapshot(this.#clock.now()), stop } });
+    }
   }
 
   // --- run loop -------------------------------------------------------------
@@ -350,10 +456,13 @@ export class SimController {
   #requestFrame(): void {
     // Only one Frame request is outstanding at a time (R4.3). A new one is asked
     // for only after the previous batch ended, in `#onFrame`.
-    this.#frame = this.#scheduler.request(() => this.#onFrame());
+    const worldId = this.#world!.worldId;
+    this.#frame = this.#scheduler.request(() => this.#onFrame(worldId));
   }
 
-  #onFrame(): void {
+  #onFrame(worldId: number): void {
+    // Check before clearing #frame: an obsolete callback must not lose the new world's handle.
+    if (this.#world?.worldId !== worldId) return;
     // The callback is no longer outstanding once it fires.
     this.#frame = null;
     if (this.#runState !== 'running' || this.#world === null) {
@@ -394,6 +503,7 @@ export class SimController {
     const result: RunUntilStopResult = JSON.parse(this.#world!.handle.run_until_stop(max));
     if (result.ran > 0) this.#lastChecksum = result.checksum;
     this.#lastTick = this.#world!.handle.tick();
+    this.#refreshPending();
     return result;
   }
 
@@ -431,10 +541,11 @@ export class SimController {
       checksum: this.#lastChecksum,
       tps: this.#runState === 'running' ? this.#tps.ticksPerSecond(now) : null,
       speed: this.#speed,
+      playerNode: this.#pending,
     };
   }
 
-  #okReply(req: Request, stop?: StopPayload): WorkerMessage {
+  #okReply(req: Request, stop?: StopPayload): Extract<Reply, { ok: true }> {
     const snapshot = this.#snapshot(this.#clock.now());
     return {
       type: 'reply', id: req.id, ok: true,
@@ -444,6 +555,10 @@ export class SimController {
 
   #failReply(req: Request, kind: ErrorKind, error: string): WorkerMessage {
     return { type: 'reply', id: req.id, ok: false, kind, error, snapshot: this.#snapshot(this.#clock.now()) };
+  }
+
+  #unchangedReply(req: Request, kind: ErrorKind, error: string): Reply {
+    return { type: 'reply', id: req.id, ok: false, kind, error, snapshot: this.#snapshot(this.#lastSnapshotMs) };
   }
 
   #noWorldReply(req: Request): WorkerMessage {

@@ -25,6 +25,7 @@ import fc from 'fast-check';
 import {
   initialUiState,
   reduce,
+  controls,
   type UiEvent,
   type UiState,
 } from '../../src/main/ui-state.ts';
@@ -71,6 +72,10 @@ function snapshotArb(): fc.Arbitrary<Snapshot> {
     checksum: checksumArb,
     tps: fc.oneof(fc.constant<number | null>(null), fc.nat({ max: 100000 })),
     speed: fc.constantFrom(1, 7, 30, 90, 365),
+    playerNode: fc.oneof(
+      fc.constant({ pending: false } as const),
+      fc.record({ pending: fc.constant(true as const), node: fc.nat().map(String), answered: fc.boolean() }),
+    ),
   });
 }
 
@@ -287,6 +292,7 @@ test('Property 7: example -- failure after success keeps the adopted tick/checks
     checksum: null,
     tps: null,
     speed: 1,
+    playerNode: { pending: false },
   };
   s = reduce(s, { type: 'reply', request: { type: 'create-world', id: 1, seed: '7', config: '{}' }, message: { type: 'reply', id: 1, ok: true, snapshot: snap } });
   assert.equal(s.error, null, 'success clears the error');
@@ -295,7 +301,7 @@ test('Property 7: example -- failure after success keeps the adopted tick/checks
   assert.equal(s.worldId, 1);
 
   // Step forward via a matching status to a real checksum.
-  const running: Snapshot = { worldId: 1, runState: 'running', tick: '5', checksum: 'a1b2c3d4e5f60718', tps: 3, speed: 1 };
+  const running: Snapshot = { worldId: 1, runState: 'running', tick: '5', checksum: 'a1b2c3d4e5f60718', tps: 3, speed: 1, playerNode: { pending: false } };
   s = reduce(s, { type: 'status', snapshot: running });
   assert.equal(s.tick, '5');
   assert.equal(s.checksum, 'a1b2c3d4e5f60718');
@@ -305,7 +311,7 @@ test('Property 7: example -- failure after success keeps the adopted tick/checks
   s = reduce(s, {
     type: 'reply',
     request: { type: 'step', id: 2 },
-    message: { type: 'reply', id: 2, ok: false, kind: 'invalid-state', error: 'cannot step while running', snapshot: { worldId: 9, runState: 'paused', tick: '999', checksum: '0000000000000000', tps: null, speed: 1 } },
+    message: { type: 'reply', id: 2, ok: false, kind: 'invalid-state', error: 'cannot step while running', snapshot: { worldId: 9, runState: 'paused', tick: '999', checksum: '0000000000000000', tps: null, speed: 1, playerNode: { pending: false } } },
   });
   assert.equal(s.tick, before.tick, 'failure keeps the tick');
   assert.equal(s.checksum, before.checksum, 'failure keeps the checksum');
@@ -314,6 +320,39 @@ test('Property 7: example -- failure after success keeps the adopted tick/checks
 
   // A status for a different world (worldId 2) is dropped entirely (R3.7).
   const stale = { ...s };
-  s = reduce(s, { type: 'status', snapshot: { worldId: 2, runState: 'running', tick: '42', checksum: 'ffffffffffffffff', tps: 10, speed: 7 } });
+  s = reduce(s, { type: 'status', snapshot: { worldId: 2, runState: 'running', tick: '42', checksum: 'ffffffffffffffff', tps: 10, speed: 7, playerNode: { pending: false } } });
   assert.deepEqual(s, stale, 'mismatched status changes nothing');
+});
+
+test('R8.9: run and step disable exactly for an unanswered node in otherwise enabled states', () => {
+  fc.assert(fc.property(snapshotArb(), fc.boolean(), fc.boolean(), (snap, stepPending, createPending) => {
+    const s = { ...initialUiState(), ...snap, stepPending, createPending };
+    const buttons = controls(s);
+    const unanswered = snap.playerNode.pending && !snap.playerNode.answered;
+    assert.equal(buttons.run, snap.runState === 'paused' && !unanswered);
+    assert.equal(buttons.step, snap.runState === 'paused' && !stepPending && !unanswered);
+    assert.equal(buttons.pause, snap.runState === 'running');
+    assert.equal(buttons.create, !createPending && snap.runState !== 'failed');
+  }), { numRuns: 1000 });
+});
+
+test('R8.9: stop, accepted choice, rejection and replacement keep UI gate in sync', () => {
+  let s: UiState = { ...initialUiState(), worldId: 1, runState: 'paused' };
+  const snap: Snapshot = { worldId: 1, runState: 'paused', tick: '641', checksum: '048d7b26bfabc97c',
+    speed: 1, tps: null, playerNode: { pending: true, node: '1', answered: false } };
+  s = reduce(s, { type: 'status', snapshot: snap });
+  assert.equal(controls(s).run, false);
+  assert.equal(controls(s).step, false);
+  s = reduce(s, { type: 'reply', request: { type: 'choose', id: 1, node: '1', option: 'repay_now' },
+    message: { type: 'reply', id: 1, ok: false, kind: 'rejected', error: 'option_not_in_set', snapshot: snap } });
+  assert.equal(controls(s).run, false);
+  s = reduce(s, { type: 'reply', request: { type: 'choose', id: 2, node: '1', option: 'repay_now' },
+    message: { type: 'reply', id: 2, ok: true, snapshot: { ...snap, playerNode: { pending: true, node: '1', answered: true } } } });
+  assert.equal(controls(s).run, true);
+  assert.equal(controls(s).step, true);
+  s = reduce(s, { type: 'reply', request: { type: 'create-world', id: 3, seed: '1', config: '{}' },
+    message: { type: 'reply', id: 3, ok: true, snapshot: { ...snap, worldId: 2, tick: '0', checksum: null, playerNode: { pending: false } } } });
+  s = reduce(s, { type: 'status', snapshot: snap });
+  assert.deepEqual(s.playerNode, { pending: false });
+  assert.equal(controls(s).run, true);
 });
