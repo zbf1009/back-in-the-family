@@ -755,6 +755,47 @@ mod tests {
         assert_eq!(sim.checksums().len(), 1);
     }
 
+    #[test]
+    fn rebirth_and_immediate_death_stop_on_the_same_tick() {
+        let (mut sim, previous_body, _) = waiting_sim();
+        let tick = Tick(1);
+        sim.world.tick = tick;
+        sim.world.params.mortality_ppm_by_age = [1_000_000; 120];
+        sim.world.params.mortality_floor_ppm = 1_000_000;
+        sim.world.player_wait.as_mut().unwrap().access_from = tick;
+        let seq = sim
+            .try_submit_all(&[InputPayload::ClaimSlot {
+                slot: crate::underworld::slots::SlotRef::ImportedVessel,
+                customization: None,
+            }])
+            .unwrap()[0];
+
+        let stopped = sim.run_until_stop(20);
+        assert_eq!(stopped.ran, 1);
+        assert_eq!(stopped.stops.labels(), ["player_died", "player_reborn"]);
+        assert_eq!(sim.world.tick(), Tick(2));
+        assert_eq!(sim.checksums().len(), 1);
+        assert_eq!(sim.last_stops(), stopped.stops);
+        assert_eq!(
+            sim.last_outcomes(),
+            &[InputOutcome {
+                seq,
+                result: Ok(()),
+            }]
+        );
+        let player = sim.world.souls.player;
+        assert_eq!(
+            sim.world.souls.places[&player],
+            crate::world::SoulPlace::Waiting { since: tick }
+        );
+        let new_body = sim.world.player_wait().unwrap().ghost;
+        assert_ne!(new_body, previous_body);
+        assert_eq!(
+            sim.world.persons[&new_body].life,
+            Life::Dead { death: tick }
+        );
+    }
+
     fn checked_payload(sim: &Sim, selector: u8, raw: u8) -> InputPayload {
         use crate::underworld::carry_over::TraitName;
         use crate::underworld::customization::Customization;

@@ -52,10 +52,9 @@ pub(crate) fn stops_for(
     previous_resolved: usize,
 ) -> StopSet {
     let after_place = after.souls().places.get(&after.souls().player).copied();
-    let player_died = matches!(before_place, Some(SoulPlace::Body(_)))
-        && matches!(after_place, Some(SoulPlace::Waiting { .. }));
+    let player_died = matches!(after_place, Some(SoulPlace::Waiting { since }) if since == tick);
     let player_reborn = matches!(before_place, Some(SoulPlace::Waiting { .. }))
-        && matches!(after_place, Some(SoulPlace::Body(_)));
+        && (matches!(after_place, Some(SoulPlace::Body(_))) || player_died);
     let dream_resolved = after.nodes().resolved[previous_resolved..]
         .iter()
         .any(|record| {
