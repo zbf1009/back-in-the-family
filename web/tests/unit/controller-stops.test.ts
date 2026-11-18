@@ -346,6 +346,52 @@ test('C3 real WASM: refusal at first stop, rejected choice stays shut, accepted 
   console.log(`[C3] stoppedTick=641 history=641 checksum=048d7b26bfabc97c run=node_unanswered clockReadsDelta=0 handleCallsDelta=0 rejected=option_not_in_set subsequentRun=node_unanswered resolvedTick=${entry.tick} displayedTick=${resolved.snapshot.tick} applied=${entry.applied} source=${entry.source}`);
 });
 
+test('C3 real WASM: run after an accepted choice advances Frames and resolves externally', () => {
+  const seed = '18446744073709551557';
+  const config = '{"opening_residents":50}';
+  const r = rig((actualSeed, actualConfig) => {
+    assert.equal(actualSeed, BigInt(seed));
+    assert.equal(actualConfig, config, 'constructor receives only the request seed/config');
+    return createSim(actualSeed, actualConfig);
+  }, 987_654_321);
+  r.send({ type: 'create-world', seed, config });
+  r.send({ type: 'set-speed', speed: 365 }); r.send({ type: 'run' });
+  while (r.scheduler.isPending) { r.clock.advance(50); r.scheduler.flush(); }
+  const stopped = r.send({ type: 'world-snapshot' }); assert.ok(stopped.ok && stopped.world);
+  assert.equal(stopped.snapshot.tick, '641');
+  const node = stopped.world.player_node!; assert.equal(node.id, '1');
+  const option = 'repay_now';
+  assert.ok(node.options.some((candidate) => candidate.id === option));
+  const chosen = r.send({ type: 'choose', node: node.id, option });
+  assert.ok(chosen.ok);
+  assert.deepEqual(chosen.snapshot.playerNode, { pending: true, node: '1', answered: true });
+  const resumed = r.send({ type: 'run' });
+  assert.ok(resumed.ok); assert.equal(resumed.snapshot.runState, 'running');
+  assert.equal(resumed.snapshot.tick, '641', 'run schedules rather than directly advancing');
+  r.clock.advance(50); assert.equal(r.scheduler.flush(), true);
+  const rec = r.handles[0]; assert.ok(rec.tick() > 641n);
+  const firstFrameTick = rec.tick();
+  const resolved = r.send({ type: 'world-snapshot' }); assert.ok(resolved.ok && resolved.world);
+  const entry = resolved.world.chronicle.find((e) => e.tick === '641' && e.family === node.family);
+  assert.ok(entry); assert.equal(entry.applied, option); assert.equal(entry.source, 'external');
+  while (r.scheduler.isPending) { r.clock.advance(50); r.scheduler.flush(); }
+  const nextStop = r.messages.filter((message) => message.type === 'status' && message.snapshot.stop).at(-1);
+  assert.ok(nextStop && nextStop.type === 'status');
+  for (const call of rec.calls) {
+    if (call.method === 'run_until_stop') {
+      assert.ok(Number.isInteger(call.n) && call.n > 0 && call.n <= 548, 'only bounded tick counts cross the paced seam');
+      assert.deepEqual(Object.keys(call).sort(), ['method', 'n']);
+    } else if (call.method === 'submit_checked') {
+      assert.deepEqual(call, { method: 'submit_checked', input: JSON.stringify([{ ChoosePlayer: { node: '1', option } }]) },
+        'checked payload contains exactly the Snapshot node and selected option, no clock/random value');
+    } else {
+      assert.ok(call.method === 'tick' || call.method === 'snapshot' || call.method === 'player_node_state');
+      assert.deepEqual(call, { method: call.method }, 'read seams receive no arguments');
+    }
+  }
+  console.log(`[C3-run] runReply=${resumed.ok} runState=${resumed.snapshot.runState} firstFrameTick=${firstFrameTick} resolvedTick=${entry.tick} applied=${entry.applied} source=${entry.source} nextPauseTick=${nextStop.snapshot.tick} nextPauseReasons=${nextStop.snapshot.stop!.reasons.join('+')}`);
+});
+
 test('real WASM choose-and-run rejection is atomic, acceptance runs exactly one tick; plain submit opens gate', () => {
   for (const plain of [false, true]) {
     const r = rig(createSim);
