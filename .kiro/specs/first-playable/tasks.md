@@ -142,8 +142,8 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - _Requirements: 8.6, 8.7, 8.8, 8.9, 16.12_
     - Acceptance: web typecheck, unit tests and the Smoke_Test pass; Rust gates and R15.6 pass. Commit `feat(web): refuse to advance an unanswered player node`. A second, test-only commit followed and is accepted: `test(web): cover run after an accepted choice with the real wasm`, the `run` example that C3 names.
 
-- [ ] 9. Town_View, identity and the Choice and Chronicle panels
-  - [ ] 9.1 Draw the town and show who the choice affects
+- [x] 9. Town_View, identity and the Choice and Chronicle panels
+  - [x] 9.1 Draw the town and show who the choice affects
     - Files: `web/src/main/view-model.ts` (new), `web/src/main/town-layout.ts` (new), `web/src/main/templates.ts` (new), `web/src/art/sprites.ts` (new), `web/src/ui/TownView.svelte` (new), `web/src/ui/IdentityPanel.svelte` (new), `web/src/ui/ChoicePanel.svelte` (new), `web/src/ui/ChroniclePanel.svelte` (new), `web/src/App.svelte`, `web/tests/unit/town-layout.test.ts` (new), `web/tests/unit/view-model.test.ts` (new), `web/tests/unit/templates.test.ts` (new), `web/tests/smoke/fixture.spec.ts` (step 2's control check only).
     - Follow design "Layout at 1280×720", "Town_View", "Sprite interface" and "Scenes".
     - The Town_View draws one marker per living Resident at positions from Household and Person IDs only, through the placeholder `SpriteSet` (R9.1, R12.1). The Soul_Marker is one glyph and one colour used nowhere else (R9.3).
@@ -153,7 +153,8 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - **`fixture.spec.ts` step 2 (R16.15; design "Page controls check"; ruled 2026-11-18).** Replace the exact set of four test-id buttons and the `replay|verify|submit|input` name pattern: assert that `create`, `run`, `pause` and `step` are each present, that no `button` or `link` has an accessible name matching `/replay|verif/i`, and that no `data-testid` matches it. Do not rely on the new panels rendering no control before a World exists.
     - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 10.3, 10.6, 10.7, 10.8, 12.1, 16.15_
     - Acceptance: web typecheck and unit tests pass, and `scripts/web-build.sh` and `pnpm --dir web run test:smoke` pass with the changed step 2. Commit `feat(web): add the town view and the choice and chronicle panels`.
-  - [ ] 9.2 Keep the page's World current
+    - Closure recorded at review (2026-11-19): `web/src/main/ui-state.ts` and `web/tests/unit/ui-state.test.ts` (the reducer keeps the World), `web/tsconfig.app.json` (includes `src/art/**/*.ts`), and `web/tests/unit/controls-table.test.ts` and `web/tests/unit/status-format.test.ts` (the new state field in literals). A second commit followed and is accepted: `fix(web): make choice effects legible in the town view and keep the pending choice visible`.
+  - [x] 9.2 Keep the page's World current
     - Files: `web/src/main/ui-state.ts`, `web/src/App.svelte`, `web/tests/unit/ui-state.test.ts`. No Worker, protocol or smoke file changes.
     - Follow design "World delivery to the page" (R9.9; ruled 2026-11-18). The single read after `create-world` that task 9.1 added stays and becomes one case of the paused rule.
     - The reducer takes the World from `snapshot.stop.world` on a reply as well as on a status, so a manual `pause` shows the World of the tick it stopped on. This is a defect of task 9.1 as committed, read in `ui-state.ts` and not run.
@@ -161,9 +162,10 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - The decision is a pure function of the reducer state, and `App.svelte` only sends what it asks for. Tests in `ui-state.test.ts`: the `pause` reply, a `step` with and without a stop, `create-world`, the tenth running status, no second read while one is outstanding, a failed read, and a World replaced while a read is outstanding; and one fast-check test over generated event sequences that reads are never concurrent, are at least ten running statuses apart, and that a paused state with a stale World has a read outstanding or a failed one. It is not a numbered property.
     - _Requirements: 9.2, 9.9_
     - Acceptance: web typecheck, unit tests, `scripts/web-build.sh` and `pnpm --dir web run test:smoke` pass, with `responsive.spec.ts` and `playwright.config.ts` unchanged. The log records, from one run of the built page at Speed 1, the status tick beside the World's tick at two moments while running and after a manual Pause. A long task in `responsive.spec.ts` is reported to the Author, not patched. Commit `feat(web): keep the page's world current`.
+    - Closure recorded at review (2026-11-19): `web/tests/unit/controls-table.test.ts` and `web/tests/unit/status-format.test.ts` gain the two new state fields in literals; no assertion changed.
 
-- [ ] 10. Scenes and the Underworld_Panel
-  - [ ] 10.1 Stage the four scenes and the rebirth panel
+- [x] 10. Scenes and the Underworld_Panel
+  - [x] 10.1 Stage the four scenes and the rebirth panel
     - Files, step 0: `crates/sim-core/src/snapshot.rs`, `crates/sim-core/tests/snapshot.rs`, `crates/sim-core/tests/underworld.rs`, `fixtures/customization/golden.json` (new), `web/src/shared/world-snapshot.ts`.
     - Files, web: `web/src/main/scene-queue.ts` (new), `web/src/main/customization.ts` (new), `web/src/ui/scenes/Funeral.svelte` (new), `web/src/ui/scenes/Inheritance.svelte` (new), `web/src/ui/scenes/Dream.svelte` (new), `web/src/ui/scenes/Birth.svelte` (new), `web/src/ui/UnderworldPanel.svelte` (new), `web/src/ui/ChoicePanel.svelte`, `web/src/App.svelte`, `web/src/main/templates.ts`, `web/src/main/view-model.ts`, `web/src/main/ui-state.ts`, `web/src/art/sprites.ts` (the placeholder's `prop`, only if it does not draw yet), `web/tests/unit/scene-queue.test.ts` (new), `web/tests/unit/underworld-controls.test.ts` (new), `web/tests/unit/customization.test.ts` (new), `web/tests/unit/templates.test.ts`, `web/tests/unit/ui-state.test.ts`.
     - Follow design "Scenes" and "Underworld_Panel".
@@ -178,9 +180,10 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - Tests: Property 25 (scene order, what ends an entry, when the option controls are enabled), Property 26 over the new scene lines, Property 27 (which controls are enabled, with the Snapshot's price), Property 28 (the preview against `fixtures/customization/golden.json` and generated cases). Examples: each scene's lines from a constructed Snapshot, the same-tick rebirth and death, five Birth_Slots, the recorded line appearing and clearing, and a rejected second dream shown as rejected.
     - _Requirements: 7.9, 9.8, 10.1, 10.2, 10.4, 10.5, 10.9, 10.10, 10.11, 10.12, 11.1, 11.2, 11.3, 11.4, 11.5, 11.6, 11.7, 11.8, 11.9, 11.10, 11.11, 11.12, 11.13_
     - Acceptance: step 0 as stated there; then web typecheck, unit tests, `scripts/web-build.sh` and `pnpm --dir web run test:smoke` pass. The log records, from the built page at 1280×720, the bounding boxes of the R9.8 waiting elements with the slot rows the run had. If the two Standing_Slot rows, four Birth_Slot rows and the open Customization form do not fit in 680 px, report it to the Author and do not shrink the list or the text. Commit `feat(web): add the scenes and the underworld panel`.
+    - Closure recorded at review (2026-11-19). Step 0: `crates/sim-core/src/testing.rs` (a test-only helper that prepares a wait), `crates/sim-core/src/tick.rs` (an existing test fixture reuses it), `crates/sim-core/tests/narrator.rs` (Property 15's reference gains the two fields), `web/tests/unit/view-model.test.ts` (the new price field). Web: `web/src/shared/protocol.ts` (the six dream intents as a runtime list), `web/tests/unit/controls-table.test.ts` and `web/tests/unit/status-format.test.ts` (new state fields in literals), `web/tests/unit/helpers/view.ts` (new, shared Snapshot helpers). No earlier assertion was removed or weakened.
 
-- [ ] 11. Art trial
-  - [ ] 11.1 Show the Kenney pack on one screen and stop for the decision
+- [x] 11. Art trial
+  - [x] 11.1 Show the Kenney pack on one screen and stop for the decision
     - Files: `docs/kiro-log.md` only. No pack file is added to the repository.
     - Follow design "Art_Trial".
     - Download the Kenney 1-Bit Pack outside the repository. Open the license file inside the download before anything else. Record its name and whether it permits use, modification and redistribution in a public web build without payment (R12.2). If it does not, or there is no license file, add nothing and record that (R12.5).
