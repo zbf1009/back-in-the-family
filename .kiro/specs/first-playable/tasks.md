@@ -215,15 +215,17 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
 
 - [ ] 14. The playthrough Smoke_Test
   - [ ] 14.1 Play the fixture through the page
-    - Files: `web/tests/smoke/playthrough.spec.ts` (new), `web/playwright.config.ts`, `docs/kiro-log.md`.
+    - Files: `web/tests/smoke/playthrough.spec.ts` (new), `web/playwright.config.ts`, `web/tests/unit/templates.test.ts` (only to add a literal example for a scene the playthrough shows, if one is missing), `docs/kiro-log.md`.
     - Follow design "Playthrough Smoke_Test" and "Smoke time bound".
     - The test plays the fixture's seed through the real controls: Speed 1 to the first stop, then Speed 365 and Run between stops, submitting each input by clicking or filling controls (R16.1, R16.2, R16.3). At the first `player_node` stop it sends one `run` through the Worker request path and asserts `node_unanswered` and that the tick did not advance (R8.9). It submits no input through the harness.
     - At each stage it asserts the Pause_Reason, the tick, the visible Soul_Marker and name, the two tie lists and, at a node, every Option_Preview (R16.4, R16.5). At the end it compares every worker Checksum from tick 1 to the fixture's last tick (R16.6).
     - At every stop it also asserts that no `button` or `link` name and no `data-testid` matches `/replay|verif/i`, with the panels on the page (R16.15; design "Page controls check").
     - At every stop it asserts the lines of the first scene of that stop. It closes the overlays that stand before a pending node, which the options need, and the funeral at the `player_died` stop through its close control; at the `dream_resolved` stop it leaves the dream overlay open, makes the claim and presses Run, and asserts at the next stop that only that stop's scene is shown (R10.12).
+    - **Selectors and expected values (ruled 2026-11-19; design "Playthrough Smoke_Test").** Every element is found by `data-testid`; the two denylist checks are the only queries by role. Expected values come from the stage file or from the World Snapshot the harness reads at that stop, never from a function of `web/src/main`. A scene is asserted by its kind and by the names and ticks the Snapshot gives it, not by the wording of its lines; where the bullet above says "the lines", this is what is meant. The wording stays pinned by literal examples in `templates.test.ts`, one for each scene kind the playthrough shows.
+    - **Customization form (R16.16; design "Customization form in the playthrough").** At the `player_died` stop, after the funeral is closed and before the dream is sent: open the form, set one unclamped Adjust, assert the two selects, the two preview rows and the price, cancel, and assert the tick and Checksum fields unchanged. Nothing is submitted.
     - The test timeout is `B` computed from the stage file, and `globalTimeout` becomes 170 s plus `B` (R16.8). The log records the measured wall time of the Speed 1 stage beside the 20 to 30 s target and `first_interrupt_min = 600` (R16.11). A time outside that range is reported to the Author rather than patched.
     - From before the first Run click to the fixture's last tick the test observes `longtask` entries, and before the harness reads the Checksums it attaches `long-task-count` and `longest-main-task-ms`; the log records both (R16.14; design "Playthrough long-task report"). Report only: no value fails the test, no fault injection is owed for it, and a reported task goes to the Author rather than being patched.
-    - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.5, 16.6, 16.7, 16.8, 16.11, 16.14, 16.15_
+    - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.5, 16.6, 16.7, 16.8, 16.11, 16.14, 16.15, 16.16_
     - Acceptance: the Smoke_Test passes, and `scripts/gates.sh` exits 0. Commit `test(web): add the playthrough smoke test`.
 
 - [ ] 15. Fault injections, the comparison document and steering
@@ -233,6 +235,7 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - For each row of the fault-injection table: inject the fault, run the gate, record the failing output, revert, run the gate again and record the pass. The advancement-gate row removes the controller's unanswered check and sends `run` through the Worker request path; it does not check the disabled button. After that revert, the Smoke_Test, the native and WASM parity tests and the fixture pass unchanged (R16.10).
     - `docs/rebuilt-body-comparison.md` from one seed of the Devoted batch that reaches a Rebuilt_Body-affordable wait, with the two branches, the shared Checksum at the claim tick, and no claim of overall superiority (R6.10).
     - `structure.md` gains the `narrator/` row and the spec 6 status line. `check-deploy.ts` gains the media-file check against `web/assets/ASSETS.json`; with placeholders the list is empty and the check passes (R12.7).
+    - The size comparison in `check-deploy.ts` is not changed (ruled 2026-11-19): a file of exactly 26,214,400 bytes is within the limit, as web-shell defines the Size_Limit and as its unit test pins, and R12.9 was corrected to say so. `web/assets/ASSETS.json` is an empty list (C4: change).
     - _Requirements: 6.10, 12.6, 12.7, 12.8, 12.9, 13.10, 16.9, 16.10_
     - Acceptance: every injection is logged with its failure and its revert; `scripts/gates.sh` exits 0 at the end. One commit `docs: record the first-playable gate injections and the rebuilt body comparison`.
 
