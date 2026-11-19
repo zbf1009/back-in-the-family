@@ -278,7 +278,7 @@ The Author decided P-1 execution scope on 2026-11-16 (Decisions section): the co
 
 #### Acceptance Criteria
 
-1. THE Web_App SHALL follow the art direction "monochrome pixel tiles plus limited state tinting"; until the Author decides under criterion 4, the Town_View and scenes MAY use minimal project-drawn placeholder shapes, and THE developer SHALL build no full project-drawn tile set.
+1. THE Web_App SHALL follow the art direction "monochrome pixel tiles plus limited state tinting"; until the Author decides under criterion 4, the Town_View and scenes MAY use minimal project-drawn placeholder shapes, and THE developer SHALL build no full project-drawn tile set. The Author decided `change` under criterion 4 on 2026-11-19: this spec ships the placeholder shapes and no third-party asset, the direction named here is the record of what was tried and binds nothing further in this spec, and a later spec sets the direction.
 2. WHEN a candidate asset pack (first the Kenney 1-Bit Pack) is downloaded, THE developer SHALL open the license file inside the download before any Art_Trial, confirm that it permits use, modification and redistribution in a public web build without payment, and record the license file's name and the finding in `docs/kiro-log.md`.
 3. WHEN the license of criterion 2 is confirmed, THE developer SHALL run an Art_Trial on one small representative screen (a Town_View with Households and Residents, the graveyard, one scene with its props, and the state glyphs including the Soul_Marker), and SHALL record in `docs/kiro-log.md` the coverage of people, buildings, graveyard, scene props and state glyphs, the legibility in the Town_View and the scene at 1280×720, and a screenshot path.
 4. WHEN the Art_Trial is recorded, THE Author SHALL decide one of: adopt the pack, adopt the pack plus a few project-drawn gaps, or change the asset or approach; THE developer SHALL record the decision in `docs/kiro-log.md` and SHALL commit no pack file before that decision.
@@ -407,7 +407,7 @@ Each former open question with its options kept for the record. "Chosen" marks t
   - A. Not in the UI this spec. **(chosen)**
   - B. Both, as plain buttons.
   - C. Haunting only.
-- **OQ-12 Art** (Requirement 12). **Replaced**: direction "monochrome pixel tiles plus limited state tinting". Kenney 1-Bit Pack is a candidate, not locked: license check inside the download, then an Art_Trial on one small representative screen, then the Author decides adopt, adopt plus a few drawn gaps, or change. No full self-drawn set first.
+- **OQ-12 Art** (Requirement 12). **Replaced**: direction "monochrome pixel tiles plus limited state tinting". Kenney 1-Bit Pack is a candidate, not locked: license check inside the download, then an Art_Trial on one small representative screen, then the Author decides adopt, adopt plus a few drawn gaps, or change. No full self-drawn set first. **Outcome (Author, 2026-11-19): change.** The pack is not adopted, spec 6 closes on the placeholder shapes, and the direction is left to a later spec.
   - A. Kenney 1-Bit Pack after the license file is confirmed.
   - B. Project-drawn Canvas shapes only.
   - C. B now, A as a later swap.

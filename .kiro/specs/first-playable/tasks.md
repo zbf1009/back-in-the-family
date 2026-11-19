@@ -39,7 +39,7 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
 - **C1, after task 4.** Headless only. A core/CLI run of the five Acceptance_Seeds runs past offset 900 and reports each first stop; the half-open band is `600 <= offset < 900` and offset 900 fails. It also reports IntroDebt Grace evidence. This checkpoint does not measure Worker wall time or apply the Worker unanswered-node gate; task 14 owns the Speed-1 measurement.
 - **C2, after task 6.** The regenerated fixtures pass native/WASM parity, and a replay stream resolves a Player_Node by Rules_Default. No web change yet.
 - **C3, after task 8.** The Worker gate: at the first node stop, a Worker-path `run` returns `node_unanswered` without advancing; after an accepted choice, `run` advances and resolves it; a rejected choice does not open the gate.
-- **C4, after task 11.** The Author judges the Art_Trial and records adopt, adopt plus drawn gaps, or change in `docs/kiro-log.md`; the checkpoint blocks proof/close tasks. No pack file is committed before the decision; late decisions keep placeholders but still require the recorded checkpoint.
+- **C4, after task 11.** The Author judges the Art_Trial and records adopt, adopt plus drawn gaps, or change in `docs/kiro-log.md`; the checkpoint blocks proof/close tasks. No pack file is committed before the decision; late decisions keep placeholders but still require the recorded checkpoint. **Decided 2026-11-19: change.** The Kenney 1-Bit Pack is not adopted, the placeholder sprites stay to the end of this spec, and task 12 may start.
 
 ## Tasks
 
@@ -187,6 +187,7 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - Render one representative screen in a scratch build: a Town_View with Households and Residents, the graveyard, the funeral scene with its props, and the state glyphs including the Soul_Marker. Record the coverage, the legibility at 1280×720 and a screenshot path (R12.3).
     - _Requirements: 12.2, 12.3, 12.4, 12.5_
     - Acceptance: one log entry `### Spec: first-playable — art trial (<date>)` with the license finding, the coverage and the screenshot path. No commit of any pack file. **STOP (checkpoint C4).** The Author decides adopt, adopt plus drawn gaps, or change (R12.4). If the decision is late, the slice keeps the placeholder sprites and this task closes on the log entry.
+    - **C4 outcome (Author, 2026-11-19): change.** No pack file enters the repository, and tasks 12 to 16 run on the placeholder `SpriteSet`. Task 15.1's `web/assets/ASSETS.json` stays an empty list and `README.md` gains no third-party row.
 
 - [ ] 12. Batch metrics and the first-stop gate
   - [ ] 12.1 Report the narrator, the paths and the kin decay, and gate the first stop
