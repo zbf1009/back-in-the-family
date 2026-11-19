@@ -1,5 +1,6 @@
 import type { UiState } from './ui-state.ts';
 import type { Needed, Preview, Stakes, WorldSnapshot } from '../shared/world-snapshot.ts';
+import { customizationInput } from './customization.ts';
 
 export function namesById(world: WorldSnapshot): ReadonlyMap<number, string> {
   return new Map([...world.person_names, ...world.player.earlier_bodies, ...world.residents]
@@ -63,5 +64,27 @@ export function viewModel(ui: UiState) {
     needed: world.underworld_view?.slots.map(slot => ({
       slot: slot.slot, lines: slot.status.needed.map(neededText),
     })) ?? [],
+  };
+}
+
+export function underworldView(ui: UiState) {
+  const world = ui.world;
+  if (world === null || world.underworld_view === null) return null;
+  const view = world.underworld_view;
+  const names = namesById(world);
+  const balance = world.joss.find(account => account.soul_id === world.player_soul)!.balance;
+  const low = BigInt(balance) < BigInt(view.dream_price);
+  const nobody = view.connected.length === 0;
+  return {
+    balance, dreamPrice: view.dream_price,
+    connected: view.connected.map(id => ({ id, name: names.get(id)! })),
+    ghostTraits: view.ghost_traits,
+    dreamEnabled: !low && !nobody,
+    dreamReasons: [...(low ? ['Not enough joss paper for a dream.'] : []), ...(nobody ? ['No connected people.'] : [])],
+    slots: view.slots.map(slot => ({
+      ...slot, needed: slot.status.needed.map(neededText),
+      claimEnabled: slot.status.claimable && slot.status.affordable
+        && (slot.slot !== 'rebuilt_body' || customizationInput(ui.underworldForm.customization) !== null),
+    })),
   };
 }

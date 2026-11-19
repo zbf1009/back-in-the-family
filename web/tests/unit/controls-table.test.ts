@@ -24,6 +24,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { controls, type UiState } from '../../src/main/ui-state.ts';
 import type { RunState } from '../../src/shared/protocol.ts';
+import { initialUnderworldForm } from '../../src/main/customization.ts';
 
 /** The four Run_States, the full domain of the first axis (R4.7-R4.9). */
 const RUN_STATES: readonly RunState[] = ['no-world', 'paused', 'running', 'failed'];
@@ -74,6 +75,9 @@ function stateFor(runState: RunState, stepPending: boolean, createPending: boole
     world: null,
     worldRead: null,
     worldStatuses: 0,
+    scene: null,
+    underworldRecorded: null,
+    underworldForm: initialUnderworldForm(),
     error: null,
     seedMessage: null,
     createPending,

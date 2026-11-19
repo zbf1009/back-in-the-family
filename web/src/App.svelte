@@ -19,7 +19,7 @@
 
   import type { SimClient, ReplyMessage } from './main/sim-client.ts';
   import type { EventBridge } from './main/bridge.ts';
-  import type { Request } from './shared/protocol.ts';
+  import type { Request, RequestWithoutId } from './shared/protocol.ts';
   import {
     initialUiState,
     reduce,
@@ -34,10 +34,16 @@
   } from './main/ui-state.ts';
   import { parseSeed } from './shared/seed.ts';
   import { SPEEDS } from './shared/speeds.ts';
-  import type { PlayerOption } from './shared/world-snapshot.ts';
+  import type { PlayerOption, Slot } from './shared/world-snapshot.ts';
   import TownView from './ui/TownView.svelte';
   import IdentityPanel from './ui/IdentityPanel.svelte';
   import ChoicePanel from './ui/ChoicePanel.svelte';
+  import UnderworldPanel from './ui/UnderworldPanel.svelte';
+  import Funeral from './ui/scenes/Funeral.svelte';
+  import Inheritance from './ui/scenes/Inheritance.svelte';
+  import Dream from './ui/scenes/Dream.svelte';
+  import Birth from './ui/scenes/Birth.svelte';
+  import { claimRequest, dreamRequest, type UnderworldForm } from './main/customization.ts';
   import ChroniclePanel from './ui/ChroniclePanel.svelte';
   // World_Config field is prefilled with text identical to the fixture file
   // (R3.1). Vite's `?raw` import yields the file's bytes verbatim, so the textarea
@@ -59,6 +65,7 @@
   // Worker Snapshot.playerNode disables Run/Step until an accepted choice;
   // the Worker enforces the same gate even for direct harness requests.
   const buttons = $derived(controls(ui));
+  const currentScene = $derived(ui.scene?.entries[0] ?? null);
 
   // Fold one event into the state. Assigning a fresh object keeps the rune reactive.
   function dispatch(event: UiEvent): void {
@@ -82,6 +89,22 @@
     const request: Request = { type: 'choose', id: 0, node, option };
     dispatch({ type: 'request-sent', request });
     settle(request, await client.request({ type: 'choose', node, option }));
+  }
+
+  async function sendUnderworld(requestWithoutId: RequestWithoutId | null): Promise<void> {
+    if (requestWithoutId === null) return;
+    const request: Request = { ...requestWithoutId, id: 0 };
+    dispatch({ type: 'request-sent', request });
+    settle(request, await client.request(requestWithoutId));
+  }
+
+  function onForm(form: UnderworldForm): void { dispatch({ type: 'underworld-form', form }); }
+  function onClose(): void { dispatch({ type: 'scene-close' }); }
+  async function onDream(): Promise<void> {
+    await sendUnderworld(dreamRequest(ui.world!, ui.underworldForm));
+  }
+  async function onClaim(slot: Slot): Promise<void> {
+    await sendUnderworld(claimRequest(ui.underworldForm, slot));
   }
 
   // The SimClient's worker-initiated events (status, fatal, worker error) were
@@ -175,7 +198,17 @@
     </label>
   </section>
 
-  <TownView {ui} />
+  <div class="town-stage">
+    <TownView {ui} />
+    {#if currentScene !== null && currentScene.kind !== 'choice'}
+      <div class="scene-slot">
+        {#if currentScene.kind === 'funeral'}<Funeral {ui} {onClose} />
+        {:else if currentScene.kind === 'inheritance'}<Inheritance {ui} {onClose} />
+        {:else if currentScene.kind === 'dream'}<Dream {ui} {onClose} />
+        {:else}<Birth {ui} {onClose} />{/if}
+      </div>
+    {/if}
+  </div>
 
   <section class="status">
     <div>
@@ -217,14 +250,18 @@
     {/if}
   </section>
 
-  {#if ui.error !== null}
+  {#if ui.error !== null && ui.world?.player.place !== 'waiting'}
     <p class="error" data-testid="error">{ui.error}</p>
   {:else}
     <p class="error" data-testid="error"></p>
   {/if}
     </div>
     <aside class="right-column">
-      <ChoicePanel {ui} onChoose={onChoose} />
+      {#if ui.world?.player.place === 'waiting'}
+        <UnderworldPanel {ui} {onForm} {onDream} {onClaim} />
+      {:else}
+        <ChoicePanel {ui} onChoose={onChoose} />
+      {/if}
     </aside>
   </div>
 </main>
@@ -246,6 +283,8 @@
   .left-column { display: grid; grid-template-rows: 390px 290px; min-height: 0; border-right: 1px solid #c6c3b9; }
   .centre-column { min-width: 0; }
   .right-column { border-left: 1px solid #c6c3b9; }
+  .town-stage { position: relative; }
+  .scene-slot { position: absolute; top: 12px; left: 24px; right: 24px; z-index: 1; }
   .controls { height: 40px; display: flex; align-items: center; gap: 8px; padding: 3px 12px; }
   .controls label { margin-left: auto; display: flex; align-items: center; gap: 6px; }
   .status { padding: 12px 16px 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }

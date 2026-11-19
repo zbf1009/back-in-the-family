@@ -1,10 +1,11 @@
 <script lang="ts">
-  import type { UiState } from '../main/ui-state.ts';
+  import { nodeOptionsEnabled, type UiState } from '../main/ui-state.ts';
   import type { PlayerOption } from '../shared/world-snapshot.ts';
   import { viewModel } from '../main/view-model.ts';
   const { ui, onChoose }: { ui: UiState; onChoose: (node: string, option: PlayerOption) => Promise<void> } = $props();
   const view = $derived(viewModel(ui));
   const answered = $derived(ui.playerNode.pending && ui.playerNode.answered);
+  const enabled = $derived(nodeOptionsEnabled(ui));
 </script>
 
 <section class="choice-panel" aria-labelledby="choice-heading" data-testid="choice-panel">
@@ -21,7 +22,7 @@
       {#each view.choice.options as option (option.id)}
         <div class="option" data-testid={`option-preview-${option.id}`}>
           <button type="button" data-testid={`option-${option.id}`}
-            disabled={answered || ui.runState !== 'paused'} onclick={() => onChoose(view!.choice!.id, option.id)}>{option.id}</button>
+            disabled={!enabled} onclick={() => onChoose(view!.choice!.id, option.id)}>{option.id}</button>
           <ul aria-label={`${option.id} preview`}>
             {#each option.preview as effect, index (index)}
               <li>{effect.person}: {effect.delta} {effect.unit}{effect.what.startsWith('trait:') ? ` (${effect.what})` : effect.what === 'debt' ? ' (debt)' : ''}</li>

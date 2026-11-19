@@ -35,6 +35,7 @@ import {
   type UiState,
 } from '../../src/main/ui-state.ts';
 import type { RunState } from '../../src/shared/protocol.ts';
+import { initialUnderworldForm } from '../../src/main/customization.ts';
 
 const RUNS = 1000;
 
@@ -84,6 +85,9 @@ const uiStateArb: fc.Arbitrary<UiState> = fc.record({
   world: fc.constant(null),
   worldRead: fc.constant(null),
   worldStatuses: fc.constant(0),
+  scene: fc.constant(null),
+  underworldRecorded: fc.constant(null),
+  underworldForm: fc.constant(initialUnderworldForm()),
   error: fc.oneof(fc.constant<string | null>(null), fc.string()),
   seedMessage: fc.oneof(fc.constant<string | null>(null), fc.string()),
   createPending: fc.boolean(),
@@ -158,6 +162,9 @@ test('Property 8: example -- new world shows tick 0 and a dash checksum; no-worl
     world: null,
     worldRead: null,
     worldStatuses: 0,
+    scene: null,
+    underworldRecorded: null,
+    underworldForm: initialUnderworldForm(),
     error: null,
     seedMessage: null,
     createPending: false,
@@ -191,6 +198,9 @@ test('Property 8: example -- a large u64 tick and a checksum are shown verbatim'
     world: null,
     worldRead: null,
     worldStatuses: 0,
+    scene: null,
+    underworldRecorded: null,
+    underworldForm: initialUnderworldForm(),
     error: null,
     seedMessage: null,
     createPending: false,

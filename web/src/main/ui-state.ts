@@ -16,6 +16,8 @@
 import type { Request, RunState, Snapshot, WorkerMessage } from '../shared/protocol.ts';
 import { type SeedProblem, seedProblemMessage } from '../shared/seed.ts';
 import type { WorldSnapshot } from '../shared/world-snapshot.ts';
+import { nextScene, sceneQueue, type SceneQueue } from './scene-queue.ts';
+import { initialUnderworldForm, type UnderworldForm } from './customization.ts';
 
 /**
  * A Worker_Protocol `reply` message, derived from the shared union. This is the
@@ -54,6 +56,9 @@ export interface UiState {
   worldRead: { state: 'pending' | 'failed'; worldId: number; tick: string } | null;
   /** Running statuses since a World carrier or the last read request, capped at ten. */
   worldStatuses: number;
+  scene: SceneQueue | null;
+  underworldRecorded: { worldId: number; tick: string } | null;
+  underworldForm: UnderworldForm;
   /** Error area text; non-empty while the last reply-or-fatal event was a failure (R5.8). */
   error: string | null;
   /** Seed validation message; set by a rejected seed, cleared by a sent create-world (R3.3). */
@@ -81,7 +86,9 @@ export type UiEvent =
   | { type: 'fatal' | 'worker-error'; error: string }
   | { type: 'seed-invalid'; problem: SeedProblem }
   | { type: 'request-sent'; request: Request }
-  | { type: 'world-read-failed'; worldId: number; tick: string; error: string };
+  | { type: 'world-read-failed'; worldId: number; tick: string; error: string }
+  | { type: 'scene-close' }
+  | { type: 'underworld-form'; form: UnderworldForm };
 
 /** The initial display state: no world, Speed 1 selected, everything else empty (R4.4, R5.2). */
 export function initialUiState(): UiState {
@@ -96,6 +103,9 @@ export function initialUiState(): UiState {
     world: null,
     worldRead: null,
     worldStatuses: 0,
+    scene: null,
+    underworldRecorded: null,
+    underworldForm: initialUnderworldForm(),
     error: null,
     seedMessage: null,
     createPending: false,
@@ -150,9 +160,17 @@ export function reduce(s: UiState, e: UiEvent): UiState {
           world: replaced ? null : s.world,
           worldStatuses: replaced ? 0 : cleared.worldStatuses,
           worldRead: replaced && cleared.worldRead?.state === 'failed' ? null : cleared.worldRead,
+          underworldForm: replaced ? initialUnderworldForm() : cleared.underworldForm,
         };
         const world = e.message.world ?? e.message.snapshot.stop?.world;
-        return world === undefined ? next : withWorld(next, world);
+        let adopted = expirePresentation(world === undefined ? next : withWorld(next, world));
+        if (e.request.type === 'choose' && adopted.scene?.entries[0]?.node === e.request.node) {
+          adopted = { ...adopted, scene: nextScene(adopted.scene) };
+        }
+        if ((e.request.type === 'dream' || e.request.type === 'claim') && adopted.tick !== null) {
+          adopted = { ...adopted, underworldRecorded: { worldId: adopted.worldId, tick: adopted.tick } };
+        }
+        return adopted;
       }
       // Failures keep the completed display; a failed read is not retried at its tick.
       const tick = read?.tick ?? s.tick;
@@ -175,7 +193,12 @@ export function reduce(s: UiState, e: UiEvent): UiState {
         worldStatuses: e.snapshot.runState === 'running' && e.snapshot.stop === undefined
           ? Math.min(s.worldStatuses + 1, 10) : s.worldStatuses,
       };
-      return e.snapshot.stop === undefined ? next : withWorld(next, e.snapshot.stop.world);
+      const adopted = expirePresentation(e.snapshot.stop === undefined ? next : withWorld(next, e.snapshot.stop.world));
+      if (e.snapshot.stop === undefined) return adopted;
+      const entries = sceneQueue(e.snapshot.stop.reasons, e.snapshot.stop.world);
+      return { ...adopted, scene: entries.length === 0 ? null : {
+        worldId: e.snapshot.worldId, tick: e.snapshot.tick!, world: e.snapshot.stop.world, reasons: e.snapshot.stop.reasons, entries,
+      } };
     }
 
     case 'fatal':
@@ -196,6 +219,10 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       if (e.worldId !== s.worldId) return { ...s, worldRead: null };
       return { ...s, error: e.error, worldRead: { state: 'failed', worldId: e.worldId, tick: e.tick } };
     }
+    case 'scene-close':
+      return s.scene?.entries[0]?.node === null ? { ...s, scene: nextScene(s.scene) } : s;
+    case 'underworld-form':
+      return { ...s, underworldForm: e.form };
   }
 }
 
@@ -209,7 +236,27 @@ export function worldSnapshotNeeded(s: UiState): boolean {
 
 /** A World carrier is authoritative and starts a new running-status allowance. */
 function withWorld(s: UiState, world: WorldSnapshot): UiState {
-  return { ...s, world, worldStatuses: 0 };
+  let form = s.underworldForm;
+  if (s.world?.player_wait?.ghost !== world.player_wait?.ghost) {
+    form = { ...initialUnderworldForm(), carryOver: world.player_wait?.carry_over ?? null };
+  }
+  const connected = world.underworld_view?.connected ?? [];
+  if (form.dreamer === null || !connected.includes(form.dreamer)) {
+    form = { ...form, dreamer: connected[0] ?? null };
+  }
+  return { ...s, world, worldStatuses: 0, underworldForm: form };
+}
+
+function expirePresentation(s: UiState): UiState {
+  const scene = s.scene !== null && (s.scene.worldId !== s.worldId || s.scene.tick !== s.tick) ? null : s.scene;
+  const recorded = s.underworldRecorded !== null
+    && (s.underworldRecorded.worldId !== s.worldId || s.underworldRecorded.tick !== s.tick) ? null : s.underworldRecorded;
+  return scene === s.scene && recorded === s.underworldRecorded ? s : { ...s, scene, underworldRecorded: recorded };
+}
+
+export function nodeOptionsEnabled(s: UiState): boolean {
+  return s.world?.player_node !== null && s.world?.player_node !== undefined
+    && s.scene?.entries[0]?.node === s.world.player_node.id && s.playerNode.pending && !s.playerNode.answered;
 }
 
 /**

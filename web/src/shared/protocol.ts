@@ -9,7 +9,8 @@ export interface StopPayload { reasons: PauseReason[]; world: WorldSnapshot }
 export interface RunUntilStopResult { ran: number; checksum: string; stops: Exclude<PauseReason, 'user'>[] }
 export type PlayerNodeState = { pending: false } | { pending: true; node: string; answered: boolean };
 export type CheckedSubmission = { ok: true } | { ok: false; index: number; reason: string };
-export type DreamIntent = 'warn' | 'reassure' | 'urge' | 'reveal' | 'request_offering' | 'forbid';
+export const DREAM_INTENTS = ['warn', 'reassure', 'urge', 'reveal', 'request_offering', 'forbid'] as const;
+export type DreamIntent = typeof DREAM_INTENTS[number];
 // Customization retains the v5 payload's shape; only the controller builds JSON.
 export type Customization =
   | { Set: { trait_name: TraitName; value: number } }

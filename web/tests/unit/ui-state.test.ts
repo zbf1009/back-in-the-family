@@ -29,10 +29,12 @@ import {
   reduce,
   controls,
   worldSnapshotNeeded,
+  nodeOptionsEnabled,
   type UiEvent,
   type UiState,
 } from '../../src/main/ui-state.ts';
 import type { Request, RunState, Snapshot, WorkerMessage } from '../../src/shared/protocol.ts';
+import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
 
 // The reply message type, derived from the shared Worker_Protocol union rather
 // than imported from `src/main/sim-client.ts`. `sim-client.ts` is DOM-only
@@ -628,4 +630,38 @@ test('R9.9: generated event sequences keep reads single-flight, spaced and pause
       }
     }
   }), { numRuns: RUNS });
+});
+
+test('R10.9: earlier scenes hold options back but do not hold Run or Step', () => {
+  const world = { ...waitingSnapshot(), player_node: pendingSnapshot('inheritance').player_node };
+  let ui = uiFor(world);
+  const snapshot: Snapshot = { worldId: 1, runState: 'paused', tick: world.tick, checksum: null, speed: 1, tps: null, playerNode: ui.playerNode };
+  ui = reduce(ui, { type: 'status', snapshot: { ...snapshot, stop: { reasons: ['player_died', 'dream_resolved', 'player_reborn', 'player_node'], world } } });
+  assert.equal(nodeOptionsEnabled(ui), false);
+  const shell = controls(ui);
+  for (let index = 0; index < 3; index++) {
+    ui = reduce(ui, { type: 'scene-close' });
+    assert.deepEqual(controls(ui), shell);
+  }
+  assert.equal(nodeOptionsEnabled(ui), true);
+  const before = ui.scene;
+  ui = reduce(ui, { type: 'scene-close' });
+  assert.equal(ui.scene, before, 'a node scene has no independent close');
+});
+
+test('R11.13: an accepted claim records its tick, rejection keeps it, and replacement clears it', () => {
+  const world = waitingSnapshot();
+  let ui = uiFor(world);
+  const snapshot: Snapshot = { worldId: 1, runState: 'paused', tick: world.tick, checksum: null, speed: 1, tps: null, playerNode: { pending: false } };
+  const request: Request = { type: 'claim', id: 1, slot: 'imported_vessel', carryOver: null };
+  ui = reduce(ui, { type: 'reply', request, message: { type: 'reply', id: 1, ok: true, snapshot, world } });
+  assert.deepEqual(ui.underworldRecorded, { worldId: 1, tick: world.tick });
+  assert.equal(ui.world, world);
+  ui = reduce(ui, { type: 'reply', request, message: { type: 'reply', id: 1, ok: false, kind: 'rejected', error: 'claim_held', snapshot } });
+  assert.deepEqual(ui.underworldRecorded, { worldId: 1, tick: world.tick });
+  assert.equal(ui.world, world);
+  ui = reduce(ui, { type: 'reply', request: { type: 'create-world', id: 2, seed: '2', config: '{}' }, message: {
+    type: 'reply', id: 2, ok: true, snapshot: { ...snapshot, worldId: 2, tick: '0' },
+  } });
+  assert.equal(ui.underworldRecorded, null);
 });
