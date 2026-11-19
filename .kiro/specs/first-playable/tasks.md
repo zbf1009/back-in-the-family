@@ -13,7 +13,7 @@ The plan has six phases and four checkpoints. A checkpoint is a STOP: the execut
 5. **Proof (tasks 12 to 14).** Batch metrics and the `first_stop_band` gate, the Playthrough_Fixture and its seed search, the playthrough Smoke_Test.
 6. **Close (tasks 15 to 16).** Fault injections, the comparison document, steering, the final check and Kiro's audit.
 
-Window: 2026-11-16 to 2026-11-21 at the latest (3 to 5 days). The phases are the order of work; the dates are not allocated per task, because the checkpoint reports decide what the next day is spent on.
+Window: 2026-11-16 to 2026-11-21 at the latest (3 to 5 days). The phases are the order of work; the dates are not allocated per task, because the checkpoint reports decide what the next day is spent on. Extended by the Author on 2026-11-19: tasks 12.1 to 16.1 finish by 2026-11-22 at the latest.
 
 ## Rules for the executing agent
 
@@ -239,6 +239,7 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - `docs/rebuilt-body-comparison.md` from one seed of the Devoted batch that reaches a Rebuilt_Body-affordable wait, with the two branches, the shared Checksum at the claim tick, and no claim of overall superiority (R6.10).
     - `structure.md` gains the `narrator/` row and the spec 6 status line. `check-deploy.ts` gains the media-file check against `web/assets/ASSETS.json`; with placeholders the list is empty and the check passes (R12.7).
     - The size comparison in `check-deploy.ts` is not changed (ruled 2026-11-19): a file of exactly 26,214,400 bytes is within the limit, as web-shell defines the Size_Limit and as its unit test pins, and R12.9 was corrected to say so. `web/assets/ASSETS.json` is an empty list (C4: change).
+    - `structure.md`'s spec 6 status line gives the window as extended to 2026-11-22 (Author, 2026-11-19). Its planned order after spec 6 and its next steps are not edited in this task; they wait for the Author's ruling on what is done before the deadline.
     - _Requirements: 6.10, 12.6, 12.7, 12.8, 12.9, 13.10, 16.9, 16.10_
     - Acceptance: every injection is logged with its failure and its revert; `scripts/gates.sh` exits 0 at the end. One commit `docs: record the first-playable gate injections and the rebuilt body comparison`.
 
