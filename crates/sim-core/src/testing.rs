@@ -118,6 +118,15 @@ pub fn set_person_birth_day(world: &mut World, person: PersonId, birth_day: i64)
         .birth_day = birth_day;
 }
 
+/// Sets all card traits on a test body to a known interior vector.
+pub fn set_person_traits(world: &mut World, person: PersonId, traits: crate::values::Traits) {
+    world
+        .persons
+        .get_mut(&person)
+        .expect("test body exists")
+        .traits = traits;
+}
+
 /// Set a constructed directed Relation to a known threshold value for feud tests.
 pub fn set_relation_affinity(world: &mut World, from: PersonId, to: PersonId, affinity: i8) {
     let relation = world

@@ -17,7 +17,7 @@ use sim_core::narrator::{
 };
 use sim_core::params::Params;
 use sim_core::testing::{self, Mutation};
-use sim_core::values::{Intensity, SocialKind};
+use sim_core::values::{Intensity, SocialKind, Trait, Traits};
 use sim_core::world::{Life, SoulPlace, World, WorldConfig};
 
 fn narrator_params() -> Params {
@@ -756,6 +756,19 @@ proptest! {
         let chooser = body(&world);
         testing::set_person_birth_day(&mut world, chooser, 0);
         testing::set_player_life(&mut world, PlayerLife { body: chooser, start: Tick(0), first_fire: None, last_fire: None });
+        testing::set_person_traits(
+            &mut world,
+            chooser,
+            Traits {
+                greed: Trait::clamped(0),
+                loyalty: Trait::clamped(0),
+                pride: Trait::clamped(0),
+                warmth: Trait::clamped(0),
+                temper: Trait::clamped(0),
+                vindictiveness: Trait::clamped(0),
+                piety: Trait::clamped(0),
+            },
+        );
         testing::set_tick(&mut world, Tick(2_190));
         let before = world.persons()[&chooser].traits.clone();
         world.step(&[]);
