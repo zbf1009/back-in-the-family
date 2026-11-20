@@ -16,6 +16,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import fc from 'fast-check';
 import {
   SIZE_LIMIT,
@@ -23,6 +26,8 @@ import {
   classifyBundle,
   tokenReferenceOffenders,
   cardResultsMarkerOffenders,
+  assetInventoryOffenders,
+  walkDir,
   type ByteFile,
   type FileEntry,
   type JsFile,
@@ -119,6 +124,95 @@ test('sizeOffenders handles the exact boundary values and the empty case', () =>
   assert.deepEqual(sizeOffenders([{ path: 'at', size: SIZE_LIMIT }]), []);
   assert.deepEqual(sizeOffenders([{ path: 'over', size: SIZE_LIMIT + 1 }]), [
     { path: 'over', size: SIZE_LIMIT + 1 },
+  ]);
+});
+
+// first-playable R12.7: recursive deployed media inventory and source attribution.
+test('asset inventory accepts an empty list when no media ships', () => {
+  assert.deepEqual(assetInventoryOffenders([], [], ''), []);
+  assert.deepEqual(assetInventoryOffenders([
+    { path: 'index.html', size: 10 },
+    { path: 'assets/main.js', size: 20 },
+    { path: 'assets/sim.wasm', size: 30 },
+  ], [], ''), []);
+});
+
+test('asset inventory names every unlisted media extension at its exact path', () => {
+  const paths = ['png', 'gif', 'webp', 'jpg', 'svg', 'ttf', 'otf', 'woff', 'woff2',
+    'mp3', 'ogg', 'wav', 'PNG'].map((ext) => `a/b/c/asset.${ext}`);
+  const entries = paths.map((path) => ({ path, size: 1 }));
+  assert.deepEqual(assetInventoryOffenders(entries, [], ''),
+    paths.map((path) => `unlisted media: ${path}`));
+  assert.deepEqual(assetInventoryOffenders(entries,
+    paths.map((path) => ({ path, source: 'project' })), ''), []);
+});
+
+test('asset inventory uses the recursive walk rather than only top-level media', (t) => {
+  const root = mkdtempSync(join(tmpdir(), 'bitf-assets-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  mkdirSync(join(root, 'a', 'b'), { recursive: true });
+  writeFileSync(join(root, 'x.png'), 'image');
+  writeFileSync(join(root, 'a', 'b', 'font.woff2'), 'font');
+  writeFileSync(join(root, 'a', 'main.js'), 'script');
+  assert.deepEqual(assetInventoryOffenders(walkDir(root), [], ''), [
+    'unlisted media: a/b/font.woff2',
+    'unlisted media: x.png',
+  ]);
+});
+
+const assetReadme = [
+  '## Third-party libraries and assets',
+  '',
+  'Prose Pack is mentioned but not credited in a table.',
+  '',
+  '| Name | Source URL | License | Files |',
+  '|---|---|---|---|',
+  '| [`Example Pack`](https://example.invalid/pack) | source | CC0-1.0 | sprites |',
+  '',
+  '## Other material',
+  '',
+  '| Name | Source URL | License | Files |',
+  '|---|---|---|---|',
+  '| Outside Pack | source | CC0-1.0 | fonts |',
+].join('\n');
+
+test('asset inventory accepts project media and pack names credited in the README table', () => {
+  assert.deepEqual(assetInventoryOffenders([
+    { path: 'own.svg', size: 1 },
+    { path: 'assets/sprite.png', size: 1 },
+  ], [
+    { path: 'own.svg', source: 'project' },
+    { path: 'assets/sprite.png', source: 'Example Pack' },
+  ], assetReadme), []);
+});
+
+test('asset inventory rejects sources absent from the third-party table, even if unused', () => {
+  for (const source of ['Unknown Pack', 'Prose Pack', 'Outside Pack']) {
+    assert.deepEqual(assetInventoryOffenders([{ path: 'font.ttf', size: 1 }], [
+      { path: 'font.ttf', source },
+      { path: 'unused.png', source },
+    ], assetReadme), [
+      `font.ttf: source ${JSON.stringify(source)} is not in a README third-party table`,
+      `unused.png: source ${JSON.stringify(source)} is not in a README third-party table`,
+      'unlisted media: font.ttf',
+    ]);
+  }
+});
+
+test('asset inventory requires exact deployed paths and rejects malformed entries', () => {
+  assert.deepEqual(assetInventoryOffenders([{ path: 'a/b/icon.svg', size: 1 }], [
+    { path: 'icon.svg', source: 'project' },
+  ], ''), ['unlisted media: a/b/icon.svg']);
+  assert.deepEqual(assetInventoryOffenders([], {}, ''), [
+    'ASSETS.json must be a list of { path, source } entries',
+  ]);
+  assert.deepEqual(assetInventoryOffenders([{ path: 'x.png', size: 1 }], [
+    null, { path: 'x.png' }, { path: '', source: 'project' },
+  ], ''), [
+    'ASSETS.json entry 0: expected nonempty path and source',
+    'ASSETS.json entry 1: expected nonempty path and source',
+    'ASSETS.json entry 2: expected nonempty path and source',
+    'unlisted media: x.png',
   ]);
 });
 

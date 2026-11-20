@@ -1,10 +1,10 @@
-// Deploy_Directory checks (R2.3, R7.3, R7.4, R7.5, R7.9), run by
+// Deploy_Directory checks (web-shell R2.3, R7.3, R7.4, R7.5, R7.9;
+// first-playable R12.7), run by
 // `pnpm --dir web run check-deploy` and from `scripts/web-build.sh`.
 //
-// Three checks run over `web/dist`, IN THIS ORDER. Each check prints ALL of its
+// Six checks run over `web/dist`, IN THIS ORDER. Each check prints ALL of its
 // offenders (not just the first), then the script exits 1 if ANY check failed,
-// and exits 0 only when all five pass (checks 4 and 5, the llm-probe leak
-// checks, are described below the pure functions that implement them):
+// and exits 0 only when all six pass:
 //
 //   1. Size (R7.4, R7.5): every file at any subdirectory depth must be at or
 //      below the Size_Limit of 26,214,400 bytes. A file of exactly 26,214,400
@@ -17,6 +17,10 @@
 //      contains BOTH the wasm-bindgen marker `__wbindgen` AND the hashed `.wasm`
 //      file name. Every other `.js` file must contain NEITHER marker, so the
 //      Main_Thread bundle never imports Sim_Wasm or requests the `.wasm` file.
+//   4–5. Token and Card/Results leak checks, described below their pure helpers.
+//   6. Media inventory: every deployed image/font/audio path must be listed in
+//      `web/assets/ASSETS.json`, with source `project` or a name in a README
+//      third-party table. Inventory paths are exact, relative to `dist`.
 //
 // Run directly by Node 26 (type-stripping); no compile step. The pure functions
 // `sizeOffenders` and `classifyBundle` are exported so the Property 10 unit test
@@ -24,7 +28,7 @@
 
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative, sep } from 'node:path';
+import { extname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Size_Limit: 25 MiB. A file of exactly this many bytes is within the limit;
@@ -182,6 +186,69 @@ export function cardResultsMarkerOffenders(files: readonly ByteFile[]): string[]
   return filesContaining(files, CARD_RESULTS_MARKERS);
 }
 
+const MEDIA_EXTENSIONS: Readonly<Record<string, true>> = {
+  '.png': true, '.gif': true, '.webp': true, '.jpg': true, '.svg': true,
+  '.ttf': true, '.otf': true, '.woff': true, '.woff2': true,
+  '.mp3': true, '.ogg': true, '.wav': true,
+};
+
+/** Names in the README's third-party tables, not in prose or other sections. */
+function thirdPartyNames(readme: string): Set<string> {
+  const section = readme.split(/^## Third-party libraries and assets\s*$/m)[1]
+    ?.split(/^## /m)[0] ?? '';
+  const names = new Set<string>();
+  let inNameTable = false;
+  for (const line of section.split(/\r?\n/)) {
+    if (!line.startsWith('|')) {
+      inNameTable = false;
+      continue;
+    }
+    const first = line.split('|')[1]?.trim() ?? '';
+    if (first === 'Name') {
+      inNameTable = true;
+      continue;
+    }
+    if (!inNameTable || /^:?-+:?$/.test(first)) continue;
+    const name = first.match(/^\[([^\]]+)\]\([^)]*\)(?:\s.*)?$/)?.[1] ?? first;
+    if (name) names.add(name.replaceAll('`', ''));
+  }
+  return names;
+}
+
+/** PURE check 6 (R12.7): validate { path, source } entries and name all unlisted media. */
+export function assetInventoryOffenders(
+  entries: readonly FileEntry[],
+  inventory: unknown,
+  readme: string,
+): string[] {
+  const offenders: string[] = [];
+  const listed = new Set<string>();
+  const packs = thirdPartyNames(readme);
+  if (!Array.isArray(inventory)) {
+    offenders.push('ASSETS.json must be a list of { path, source } entries');
+  } else {
+    for (const [index, asset] of inventory.entries()) {
+      if (typeof asset !== 'object' || asset === null ||
+          typeof asset.path !== 'string' || asset.path.length === 0 ||
+          typeof asset.source !== 'string' || asset.source.length === 0) {
+        offenders.push(`ASSETS.json entry ${index}: expected nonempty path and source`);
+        continue;
+      }
+      if (asset.source !== 'project' && !packs.has(asset.source)) {
+        offenders.push(`${asset.path}: source ${JSON.stringify(asset.source)} is not in a README third-party table`);
+        continue;
+      }
+      listed.add(asset.path);
+    }
+  }
+  for (const entry of entries) {
+    if (MEDIA_EXTENSIONS[extname(entry.path).toLowerCase()] && !listed.has(entry.path)) {
+      offenders.push(`unlisted media: ${entry.path}`);
+    }
+  }
+  return offenders;
+}
+
 // ---------------------------------------------------------------------------
 // Directory walk and real-dist run below. Everything above is pure and tested
 // by task 4.3; everything below reads the filesystem and prints/exits.
@@ -294,6 +361,22 @@ function main(): void {
     console.error(`card/results marker (check 5): ${path}`);
   }
   if (markerHits.length > 0) {
+    failed = true;
+  }
+
+  // --- Check 6: media inventory and README third-party attribution (R12.7). ---
+  try {
+    const inventory: unknown = JSON.parse(readFileSync(
+      new URL('../assets/ASSETS.json', import.meta.url), 'utf8',
+    ));
+    const readme = readFileSync(new URL('../../README.md', import.meta.url), 'utf8');
+    const assetOffenders = assetInventoryOffenders(entries, inventory, readme);
+    for (const offender of assetOffenders) {
+      console.error(`asset inventory (check 6): ${offender}`);
+    }
+    if (assetOffenders.length > 0) failed = true;
+  } catch (error) {
+    console.error(`asset inventory (check 6): ${error instanceof Error ? error.message : String(error)}`);
     failed = true;
   }
 
