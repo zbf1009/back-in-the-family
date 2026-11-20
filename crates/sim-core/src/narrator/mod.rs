@@ -589,6 +589,27 @@ mod ordering_tests {
         }
     }
 
+    #[test]
+    fn ordinary_sort_puts_defensible_competitor_before_intro_debt() {
+        let loan = EventId(2);
+        let intro = candidate(PlayerFamily::DebtDue, loan.0, None, 40);
+        let competitor = candidate(PlayerFamily::Inheritance, 3, Some(EventId(3)), 80);
+        assert_ne!(intro.options[0].preview, intro.options[1].preview);
+        assert_ne!(competitor.options[0].preview, competitor.options[1].preview);
+
+        let mut ordinary = vec![intro, competitor];
+        order_candidates(&mut ordinary, None);
+        assert_eq!(ordinary[0].family, PlayerFamily::Inheritance);
+
+        let mut prioritized = vec![
+            candidate(PlayerFamily::DebtDue, loan.0, None, 40),
+            candidate(PlayerFamily::Inheritance, 3, Some(EventId(3)), 80),
+        ];
+        order_candidates(&mut prioritized, Some(loan));
+        assert_eq!(prioritized[0].family, PlayerFamily::DebtDue);
+        assert_eq!(prioritized[0].key, loan.0);
+    }
+
     // Feature: first-playable, Property 6: Ordering and selection follow the budget rule
     proptest! {
         #![proptest_config(ProptestConfig::with_cases(100))]
