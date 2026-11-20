@@ -580,8 +580,13 @@ fn batch_small_healthy_run_exits_zero_with_one_line_per_seed() {
     assert!(stderr(&o).is_empty(), "{}", stderr(&o));
     let out = stdout(&o);
     let lines: Vec<&str> = out.lines().collect();
-    assert_eq!(lines.len(), 5, "{out}");
-    for (line, seed) in lines.iter().zip(1..=3) {
+    let seed_lines: Vec<&str> = lines
+        .iter()
+        .copied()
+        .filter(|line| line.contains(" ok ticks=50 final="))
+        .collect();
+    assert_eq!(seed_lines.len(), 3, "{out}");
+    for (line, seed) in seed_lines.iter().zip(1..=3) {
         assert!(
             line.starts_with(&format!("seed {seed} ok ticks=50 final=")),
             "{out}"
@@ -641,11 +646,19 @@ fn batch_small_healthy_run_exits_zero_with_one_line_per_seed() {
             previous = at;
         }
     }
+    let totals = lines
+        .iter()
+        .find(|line| line.starts_with("batch: totals "))
+        .expect("the batch totals line is reported");
     assert_eq!(
-        lines[3],
+        *totals,
         "batch: totals dreams=0 hauntings=0 bribes=0 birth_claims=0 imported_claims=0 rebuilt_claims=0 carry_overs=0 nodes_dream_interpretation=0 nodes_magistrate_ruling=0"
     );
-    assert_eq!(lines[4], "batch: 3/3 seeds ok");
+    let summary = lines
+        .iter()
+        .find(|line| line.starts_with("batch: ") && line.ends_with("seeds ok"))
+        .expect("the batch summary line is reported");
+    assert_eq!(*summary, "batch: 3/3 seeds ok");
 }
 
 #[test]

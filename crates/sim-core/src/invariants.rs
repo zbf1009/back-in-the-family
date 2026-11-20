@@ -23,7 +23,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use crate::events::{EventKind, fold_digest};
-use crate::ids::{EventId, HouseholdId, PersonId, SoulId};
+use crate::ids::{EventId, HouseholdId, NodeId, PersonId, SoulId, Tick};
+use crate::intro::IntroDebt;
+use crate::narrator::{EntrySource, PlayerLife};
 use crate::underworld::magistrate::Magistrate;
 use crate::world::{Life, SoulPlace, World};
 
@@ -67,6 +69,11 @@ pub struct InvariantChecker {
     capped_spent_by_year: BTreeMap<(SoulId, u64), u64>,
     /// The Magistrate as Opening_World generation created it (R15.1).
     magistrate: Magistrate,
+    previous_intro: IntroDebt,
+    previous_intro_open: Option<u64>,
+    previous_player_life: Option<PlayerLife>,
+    previous_player_node: Option<NodeId>,
+    intro_first_node: Option<NodeId>,
 }
 
 impl InvariantChecker {
@@ -88,7 +95,8 @@ impl InvariantChecker {
             &mut credited_by_year,
             &mut capped_spent_by_year,
         )?;
-        Ok(Self {
+        check_intro_designation(world)?;
+        let mut checker = Self {
             previous_total_money: total_money(world),
             previous_log_len: world.log().len(),
             previous_digest: world.log().digest(),
@@ -96,13 +104,22 @@ impl InvariantChecker {
             previous_joss: previous_joss(world),
             credited_by_year,
             capped_spent_by_year,
+            previous_intro: world.intro_debt(),
+            previous_intro_open: intro_loan(world.intro_debt())
+                .and_then(|loan| world.debts().get(&loan).map(|debt| debt.open)),
+            previous_player_life: None,
+            previous_player_node: None,
+            intro_first_node: None,
             magistrate: world.magistrate().clone(),
-        })
+        };
+        checker.check_narrator_invariants(world)?;
+        Ok(checker)
     }
 
     /// Checks every invariant at the end of a tick.
     pub fn after_tick(&mut self, world: &World) -> Result<(), Violation> {
         check_world(world)?;
+        self.check_narrator_invariants(world)?;
 
         // R5.2: the log only grows; R5.10: the digest commits to every stored Event.
         // Only the Events appended since the last call are folded and inspected.
@@ -155,6 +172,256 @@ impl InvariantChecker {
         self.previous_joss = previous_joss(world);
         Ok(())
     }
+
+    // N1 is guaranteed by Narrator.pending: Option<PlayerNode> (at most one by type).
+    fn check_narrator_invariants(&mut self, world: &World) -> Result<(), Violation> {
+        let narrator = world.narrator();
+        if let Some(node) = &narrator.pending {
+            let tick = completed_tick(world);
+            if node.fired.0 != tick || node.fired.0.checked_add(1) != Some(world.tick().0) {
+                return Err(violation(
+                    "N2",
+                    world,
+                    format!(
+                        "pending node fired={} at tick={tick}; resolution must be next tick",
+                        node.fired.0
+                    ),
+                ));
+            }
+            if let (Some(previous), Some(life)) = (&self.previous_player_life, &narrator.life)
+                && (previous.body, previous.start) == (life.body, life.start)
+                && self.previous_player_node != Some(node.id)
+                && let Some(last) = previous.last_fire
+                && node.fired.0.saturating_sub(last.0) < world.params().interrupt_gap_min
+            {
+                return Err(violation(
+                    "N3",
+                    world,
+                    format!(
+                        "firing gap {} in life body={} start={} is below {}",
+                        node.fired.0.saturating_sub(last.0),
+                        life.body.0,
+                        life.start.0,
+                        world.params().interrupt_gap_min
+                    ),
+                ));
+            }
+            let defensible = node.options.iter().enumerate().any(|(index, left)| {
+                node.options[index.saturating_add(1)..]
+                    .iter()
+                    .any(|right| left.preview != right.preview)
+            });
+            if !defensible {
+                return Err(violation(
+                    "N4",
+                    world,
+                    "pending Player_Node is not defensible".to_owned(),
+                ));
+            }
+        }
+
+        let intro = world.intro_debt();
+        if intro_loan(intro).is_none()
+            || intro_loan(intro) != intro_loan(self.previous_intro)
+            || matches!((self.previous_intro, intro),
+                (IntroDebt::Grace { body: old, .. }, IntroDebt::Grace { body: new, .. }) if old != new)
+        {
+            return Err(violation(
+                "N5",
+                world,
+                "Intro_Debt designation is missing or changed".to_owned(),
+            ));
+        }
+        if matches!(
+            (self.previous_intro, intro),
+            (IntroDebt::Ended { .. }, IntroDebt::Grace { .. })
+        ) {
+            return Err(violation(
+                "N6",
+                world,
+                "Intro_Grace resumed after Ended".to_owned(),
+            ));
+        }
+        if let IntroDebt::Grace { loan, body } = self.previous_intro {
+            let life = narrator
+                .life
+                .as_ref()
+                .filter(|life| life.body == body && life.start == Tick(0));
+            let first_life_ongoing = world
+                .persons()
+                .get(&body)
+                .is_some_and(|person| matches!(person.life, Life::Alive { .. }))
+                && (life.is_some() || narrator.life.is_none());
+            if let Some(node) = &narrator.pending
+                && life.is_some_and(|life| life.first_fire == Some(node.fired))
+            {
+                self.intro_first_node.get_or_insert(node.id);
+            }
+            // Only resolved Player_Nodes have node: Some. There is at most one per tick,
+            // and it resolves at fired + 1; Auto_Resolved and underworld entries cannot
+            // masquerade as this resolution. When observed, also match the exact NodeId.
+            let first_fire = life
+                .or_else(|| {
+                    self.previous_player_life
+                        .as_ref()
+                        .filter(|life| life.body == body && life.start == Tick(0))
+                })
+                .and_then(|life| life.first_fire);
+            let first_resolution = first_fire.and_then(|fired| {
+                let resolution = fired.0.checked_add(1)?;
+                narrator
+                    .chronicle
+                    .entries()
+                    .iter()
+                    .rev()
+                    .take_while(|entry| entry.tick.0 >= resolution)
+                    .find(|entry| {
+                        entry.tick.0 == resolution
+                            && entry.node.is_some()
+                            && entry.source != EntrySource::AutoResolved
+                            && self
+                                .intro_first_node
+                                .is_none_or(|id| entry.node == Some(id))
+                    })
+            });
+            let open = world.debts().get(&loan).map(|debt| debt.open);
+            let must_end = !first_life_ongoing || first_resolution.is_some() || open.is_none();
+            if matches!(intro, IntroDebt::Grace { .. }) == must_end {
+                return Err(violation("N6", world, "Intro_Grace must end exactly on debt closure, first-life end or actual first-node resolution".to_owned()));
+            }
+
+            // Before resolution or first-body death, only death settlement may forgive
+            // the loan. A death ends Grace before ordinary repayments later in that tick.
+            // Account for those Events exactly so silent balance changes still fail.
+            if first_resolution.is_none() {
+                let mut death_forgiven = false;
+                let mut first_body_death = None;
+                let mut expected_open = self.previous_intro_open;
+                for event in world
+                    .log()
+                    .events()
+                    .get(self.previous_log_len..)
+                    .unwrap_or(&[])
+                {
+                    if matches!(event.kind, EventKind::Death { person } if person == body)
+                        && event.tick.0 == completed_tick(world)
+                        && world.persons().get(&body).is_some_and(|person| {
+                            matches!(person.life, Life::Dead { death } if death == event.tick)
+                        })
+                    {
+                        first_body_death = Some(event.tick);
+                    }
+                    if !event.caused_by.as_slice().contains(&loan) {
+                        continue;
+                    }
+                    match event.kind {
+                        EventKind::Repayment { amount, .. } => {
+                            if first_body_death != Some(event.tick) {
+                                return Err(violation(
+                                    "N6",
+                                    world,
+                                    "Intro_Debt repaid before first-node resolution or first-life death"
+                                        .to_owned(),
+                                ));
+                            }
+                            let Some(remaining) =
+                                expected_open.and_then(|balance| balance.checked_sub(amount))
+                            else {
+                                return Err(violation(
+                                    "N6",
+                                    world,
+                                    "Intro_Debt repayment exceeds the previously open balance"
+                                        .to_owned(),
+                                ));
+                            };
+                            expected_open = (remaining > 0).then_some(remaining);
+                        }
+                        EventKind::DebtForgiven {
+                            creditor, debtor, ..
+                        } => {
+                            let by_death = event.caused_by.iter().any(|cause| {
+                                world.log().events().binary_search_by_key(&cause, |event| event.id).ok()
+                                    .map(|index| &world.log().events()[index])
+                                    .is_some_and(|cause| cause.tick == event.tick
+                                        && matches!(cause.kind, EventKind::Death { person } if person == creditor || person == debtor))
+                            });
+                            if !by_death {
+                                return Err(violation("N6", world, "Intro_Debt forgiven outside death settlement or first-node resolution".to_owned()));
+                            }
+                            death_forgiven = true;
+                        }
+                        _ => {}
+                    }
+                }
+                if expected_open != open && !(death_forgiven && open.is_none()) {
+                    return Err(violation("N6", world, "Intro_Debt balance changed without an allowed resolution or death settlement".to_owned()));
+                }
+            }
+        }
+        self.previous_intro = intro;
+        self.previous_intro_open =
+            intro_loan(intro).and_then(|loan| world.debts().get(&loan).map(|debt| debt.open));
+        self.previous_player_life = narrator.life.clone();
+        self.previous_player_node = narrator.pending.as_ref().map(|node| node.id);
+        Ok(())
+    }
+}
+
+fn intro_loan(intro: IntroDebt) -> Option<EventId> {
+    match intro {
+        IntroDebt::Grace { loan, .. } | IntroDebt::Ended { loan } => Some(loan),
+        IntroDebt::Undesignated => None,
+    }
+}
+
+/// Validate the opening designation even when the checker starts after Grace ended.
+fn check_intro_designation(world: &World) -> Result<(), Violation> {
+    let intro = world.intro_debt();
+    let loan = intro_loan(intro).and_then(|loan| {
+        world
+            .log()
+            .events()
+            .binary_search_by_key(&loan, |event| event.id)
+            .ok()
+            .map(|index| &world.log().events()[index])
+    });
+    let valid = loan.is_some_and(|event| {
+        event.tick == Tick(0)
+            && match (intro, &event.kind) {
+                (
+                    IntroDebt::Grace { body, .. },
+                    EventKind::Loan {
+                        lender, borrower, ..
+                    },
+                ) => {
+                    (body == *lender || body == *borrower)
+                        && world
+                            .narrator()
+                            .life
+                            .as_ref()
+                            .filter(|life| life.start == Tick(0))
+                            .map_or_else(
+                                || {
+                                    world.tick() != Tick(0)
+                                        || world.souls().places.get(&world.souls().player)
+                                            == Some(&SoulPlace::Body(body))
+                                },
+                                |life| life.body == body,
+                            )
+                }
+                (IntroDebt::Ended { .. }, EventKind::Loan { .. }) => true,
+                _ => false,
+            }
+    });
+    if !valid {
+        return Err(violation(
+            "N5",
+            world,
+            "Intro_Debt must name an opening loan designated for the first Player_Life's body"
+                .to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 /// Every Soul's Joss_Balance, in Soul ID order (R1.1).
@@ -1401,6 +1668,448 @@ mod tests {
 
     fn world() -> World {
         World::new(3, WorldConfig::try_new(40).unwrap()).unwrap()
+    }
+
+    fn fire_node(w: &mut World, fired: u64, id: u64) {
+        use crate::narrator::{
+            EffectPart, PlannedOption, PlayerFamily, PlayerNode, PlayerOption, PreviewEntry,
+            PreviewWhat, StakeUnit, Stakes,
+        };
+        use crate::underworld::carry_over::TraitName;
+        let IntroDebt::Grace { body, .. } = w.intro_debt else {
+            panic!("test starts during Grace");
+        };
+        let delta = if w.persons[&body].traits.warmth.get() < 3 {
+            1
+        } else {
+            -1
+        };
+        w.tick = Tick(fired.checked_add(1).unwrap());
+        let life = w.narrator.life.get_or_insert(PlayerLife {
+            body,
+            start: Tick(0),
+            first_fire: None,
+            last_fire: None,
+        });
+        life.first_fire.get_or_insert(Tick(fired));
+        life.last_fire = Some(Tick(fired));
+        w.narrator.pending = Some(PlayerNode {
+            id: NodeId(id),
+            family: PlayerFamily::LifeStage,
+            chooser: body,
+            fired: Tick(fired),
+            stakes: Stakes {
+                who: vec![body],
+                amount: 1,
+                unit: StakeUnit::TraitPoints,
+                by: Tick(fired.checked_add(1).unwrap()),
+            },
+            options: vec![
+                PlannedOption {
+                    id: PlayerOption::HelpAtHome,
+                    parts: vec![EffectPart::Trait {
+                        person: body,
+                        name: TraitName::Warmth,
+                        delta,
+                    }],
+                    preview: vec![PreviewEntry {
+                        person: body,
+                        what: PreviewWhat::Trait(TraitName::Warmth),
+                        delta: i64::from(delta),
+                    }],
+                },
+                PlannedOption {
+                    id: PlayerOption::GetAJob,
+                    parts: vec![],
+                    preview: vec![],
+                },
+            ],
+            rules_default: PlayerOption::GetAJob,
+            external: None,
+            trigger: None,
+        });
+    }
+
+    fn resolve_node(w: &mut World) {
+        // fire_node leaves World at the choice tick; step 2c resolves there.
+        crate::narrator::resolve(w);
+        w.tick.0 = w.tick.0.checked_add(1).unwrap();
+    }
+
+    fn intro_debtor_world() -> (World, InvariantChecker, EventId) {
+        let mut w = world();
+        let loan = intro_loan(w.intro_debt).unwrap();
+        // Either party may be the opening player; these cases need the debtor's life.
+        let body = w.debts[&loan].debtor;
+        w.intro_debt = IntroDebt::Grace { loan, body };
+        w.souls.player = w.persons[&body].soul;
+        w.narrator.life = Some(PlayerLife {
+            body,
+            start: Tick(0),
+            first_fire: None,
+            last_fire: None,
+        });
+        let checker = InvariantChecker::new(&w).unwrap();
+        w.tick = Tick(1);
+        (w, checker, loan)
+    }
+
+    fn transfer_intro_debt(w: &mut World, end_life: bool) {
+        use crate::events::{CausedBy, EventTags};
+        let IntroDebt::Grace { loan, body } = w.intro_debt else {
+            panic!("test starts during Grace");
+        };
+        let debt = w.debts[&loan].clone();
+        let heir = *w
+            .persons
+            .keys()
+            .find(|&&id| id != body && id != debt.creditor)
+            .unwrap();
+        let mut causes = vec![loan];
+        if end_life {
+            causes.push(
+                w.append(
+                    EventKind::Death { person: body },
+                    CausedBy::default(),
+                    EventTags::empty(),
+                )
+                .unwrap(),
+            );
+        }
+        w.append(
+            EventKind::DebtTransfer {
+                from: body,
+                to: heir,
+                amount: debt.open,
+            },
+            CausedBy::new(causes),
+            EventTags::empty(),
+        )
+        .unwrap();
+        w.debts.get_mut(&loan).unwrap().debtor = heir;
+        if end_life {
+            w.persons.get_mut(&body).unwrap().life = Life::Dead { death: w.tick };
+            w.souls
+                .places
+                .insert(w.souls.player, SoulPlace::Waiting { since: w.tick });
+        }
+        crate::intro::update(w);
+    }
+
+    #[test]
+    fn an_old_pending_node_is_caught_as_n2() {
+        let mut w = world();
+        let mut checker = InvariantChecker::new(&w).unwrap();
+        fire_node(&mut w, 600, 100);
+        w.tick = Tick(602);
+        assert_eq!(checker.after_tick(&w).unwrap_err().criterion, "N2");
+    }
+
+    #[test]
+    fn close_firings_in_the_same_life_are_caught_as_n3_even_with_a_different_chooser() {
+        let mut w = world();
+        let mut checker = InvariantChecker::new(&w).unwrap();
+        fire_node(&mut w, 600, 100);
+        checker.check_narrator_invariants(&w).unwrap();
+        let other = *w
+            .persons
+            .keys()
+            .find(|&&id| id != w.narrator.life.as_ref().unwrap().body)
+            .unwrap();
+        fire_node(&mut w, 601, 101);
+        w.narrator.pending.as_mut().unwrap().chooser = other;
+        assert_eq!(checker.after_tick(&w).unwrap_err().criterion, "N3");
+    }
+
+    #[test]
+    fn a_new_life_resets_the_firing_gap_even_for_the_same_body() {
+        let mut w = world();
+        let mut checker = InvariantChecker::new(&w).unwrap();
+        fire_node(&mut w, 600, 100);
+        checker.check_narrator_invariants(&w).unwrap();
+        let mut pending = w.narrator.pending.as_ref().unwrap().clone();
+        resolve_node(&mut w);
+        crate::intro::update(&mut w);
+        checker.check_narrator_invariants(&w).unwrap();
+        // A constructed new budget isolates life identity from the chooser ID.
+        let pending_body = w.narrator.life.as_ref().unwrap().body;
+        pending.id = NodeId(101);
+        pending.fired = Tick(602);
+        w.narrator.pending = Some(pending);
+        w.narrator.life = Some(PlayerLife {
+            body: pending_body,
+            start: Tick(602),
+            first_fire: Some(Tick(602)),
+            last_fire: Some(Tick(602)),
+        });
+        w.tick = Tick(603);
+        checker.check_narrator_invariants(&w).unwrap();
+    }
+
+    #[test]
+    fn identical_previews_are_caught_as_n4() {
+        let mut w = world();
+        let mut checker = InvariantChecker::new(&w).unwrap();
+        fire_node(&mut w, 600, 100);
+        let node = w.narrator.pending.as_mut().unwrap();
+        node.options[0].preview.clear();
+        assert_eq!(checker.after_tick(&w).unwrap_err().criterion, "N4");
+    }
+
+    #[test]
+    fn an_opening_designation_for_the_counterparty_is_caught_as_n5() {
+        let mut w = world();
+        let IntroDebt::Grace { loan, body } = w.intro_debt else {
+            panic!("opening Grace")
+        };
+        let debt = &w.debts[&loan];
+        let other = if debt.debtor == body {
+            debt.creditor
+        } else {
+            debt.debtor
+        };
+        w.intro_debt = IntroDebt::Grace { loan, body: other };
+        assert_eq!(InvariantChecker::new(&w).unwrap_err().criterion, "N5");
+    }
+
+    #[test]
+    fn a_changed_or_missing_designation_is_caught_as_n5() {
+        let mut w = world();
+        let mut checker = InvariantChecker::new(&w).unwrap();
+        let IntroDebt::Grace { body, .. } = w.intro_debt else {
+            panic!("opening Grace")
+        };
+        w.intro_debt = IntroDebt::Grace {
+            loan: EventId(u64::MAX),
+            body,
+        };
+        assert_eq!(checker.after_tick(&w).unwrap_err().criterion, "N5");
+        w.intro_debt = IntroDebt::Undesignated;
+        assert_eq!(checker.after_tick(&w).unwrap_err().criterion, "N5");
+    }
+
+    #[test]
+    fn grace_after_actual_first_node_resolution_is_caught_as_n6() {
+        let mut w = world();
+        let mut checker = InvariantChecker::new(&w).unwrap();
+        fire_node(&mut w, 600, 100);
+        checker.check_narrator_invariants(&w).unwrap();
+        resolve_node(&mut w);
+        assert_eq!(checker.after_tick(&w).unwrap_err().criterion, "N6");
+        crate::intro::update(&mut w);
+        checker.check_narrator_invariants(&w).unwrap();
+        InvariantChecker::new(&w).expect("a checker may start after first-node resolution");
+    }
+
+    #[test]
+    fn unrelated_chronicle_entries_do_not_count_as_the_first_resolution() {
+        let mut w = world();
+        let mut checker = InvariantChecker::new(&w).unwrap();
+        fire_node(&mut w, 600, 100);
+        checker.check_narrator_invariants(&w).unwrap();
+        resolve_node(&mut w);
+        let mut entry = w.narrator.chronicle.entries()[0].clone();
+        w.narrator.chronicle = Default::default();
+        entry.node = None;
+        entry.source = EntrySource::AutoResolved;
+        w.narrator.chronicle.push(entry.clone());
+        entry.node = Some(NodeId(101));
+        entry.source = EntrySource::RulesDefault;
+        w.narrator.chronicle.push(entry);
+        checker
+            .check_narrator_invariants(&w)
+            .expect("neither entry resolved the observed first NodeId");
+    }
+
+    #[test]
+    fn an_open_transfer_preserves_grace_and_premature_end_is_caught_as_n6() {
+        let mut w = world();
+        let mut checker = InvariantChecker::new(&w).unwrap();
+        let IntroDebt::Grace { loan, body } = w.intro_debt else {
+            panic!("opening Grace")
+        };
+        let other = *w
+            .persons
+            .keys()
+            .find(|&&id| id != body && id != w.debts[&loan].creditor)
+            .unwrap();
+        w.debts.get_mut(&loan).unwrap().debtor = other;
+        checker
+            .check_narrator_invariants(&w)
+            .expect("an open transfer is not closure");
+        w.intro_debt = IntroDebt::Ended { loan };
+        assert_eq!(checker.after_tick(&w).unwrap_err().criterion, "N6");
+    }
+
+    #[test]
+    fn closed_debt_dead_first_body_and_resumed_grace_are_caught_as_n6() {
+        let mut w = world();
+        let mut checker = InvariantChecker::new(&w).unwrap();
+        let IntroDebt::Grace { loan, body } = w.intro_debt else {
+            panic!("opening Grace")
+        };
+        let debt = w.debts.remove(&loan).unwrap();
+        assert_eq!(
+            checker.check_narrator_invariants(&w).unwrap_err().criterion,
+            "N6"
+        );
+        w.debts.insert(loan, debt);
+        let alive = w.persons[&body].life.clone();
+        w.persons.get_mut(&body).unwrap().life = Life::Dead { death: Tick(0) };
+        assert_eq!(
+            checker.check_narrator_invariants(&w).unwrap_err().criterion,
+            "N6"
+        );
+        w.intro_debt = IntroDebt::Ended { loan };
+        checker
+            .check_narrator_invariants(&w)
+            .expect("death ends Grace even with an open transferred debt");
+        w.persons.get_mut(&body).unwrap().life = alive;
+        w.intro_debt = IntroDebt::Grace { loan, body };
+        assert_eq!(
+            checker.check_narrator_invariants(&w).unwrap_err().criterion,
+            "N6"
+        );
+    }
+
+    #[test]
+    fn unauthorized_intro_repayment_and_silent_closure_are_caught_as_n6() {
+        let mut w = world();
+        let mut checker = InvariantChecker::new(&w).unwrap();
+        let loan = intro_loan(w.intro_debt).unwrap();
+        let debt = w.debts.get_mut(&loan).unwrap();
+        debt.open = debt.open.checked_sub(1).unwrap();
+        assert_eq!(checker.after_tick(&w).unwrap_err().criterion, "N6");
+        w.debts.remove(&loan);
+        w.intro_debt = IntroDebt::Ended { loan };
+        assert_eq!(checker.after_tick(&w).unwrap_err().criterion, "N6");
+    }
+
+    #[test]
+    fn first_body_death_allows_same_tick_partial_or_full_transferred_debt_repayment() {
+        for full in [false, true] {
+            let (mut w, mut checker, loan) = intro_debtor_world();
+            let previous_open = w.debts[&loan].open;
+            transfer_intro_debt(&mut w, true);
+            assert_eq!(w.intro_debt, IntroDebt::Ended { loan });
+            assert_eq!(w.debts[&loan].open, previous_open);
+            let payer = w.debts[&loan].debtor;
+            assert!(flow(&mut w, Flow::Wage { to: payer }, previous_open));
+            let amount = if full { previous_open } else { 1 };
+            crate::economy::repay(&mut w, loan, amount, None).unwrap();
+            w.tick = Tick(2);
+            checker
+                .check_narrator_invariants(&w)
+                .expect("first-life death ends protection before ordinary repayment");
+        }
+    }
+
+    #[test]
+    fn repayment_before_first_body_death_is_still_caught_as_n6() {
+        let (mut w, mut checker, loan) = intro_debtor_world();
+        let payer = w.debts[&loan].debtor;
+        assert!(flow(&mut w, Flow::Wage { to: payer }, 1));
+        crate::economy::repay(&mut w, loan, 1, None).unwrap();
+        transfer_intro_debt(&mut w, true);
+        w.tick = Tick(2);
+        assert_eq!(
+            checker.check_narrator_invariants(&w).unwrap_err().criterion,
+            "N6"
+        );
+    }
+
+    #[test]
+    fn an_open_transfer_with_ongoing_first_life_does_not_allow_repayment() {
+        let (mut w, mut checker, loan) = intro_debtor_world();
+        transfer_intro_debt(&mut w, false);
+        assert!(matches!(w.intro_debt, IntroDebt::Grace { .. }));
+        let payer = w.debts[&loan].debtor;
+        assert!(flow(&mut w, Flow::Wage { to: payer }, 1));
+        crate::economy::repay(&mut w, loan, 1, None).unwrap();
+        w.tick = Tick(2);
+        assert_eq!(
+            checker.check_narrator_invariants(&w).unwrap_err().criterion,
+            "N6"
+        );
+        w.intro_debt = IntroDebt::Ended { loan };
+        assert_eq!(
+            checker.check_narrator_invariants(&w).unwrap_err().criterion,
+            "N6"
+        );
+    }
+
+    #[test]
+    fn first_body_death_does_not_allow_unlogged_balance_changes() {
+        let (mut w, mut checker, loan) = intro_debtor_world();
+        transfer_intro_debt(&mut w, true);
+        let debt = w.debts.get_mut(&loan).unwrap();
+        debt.open = debt.open.checked_sub(1).unwrap();
+        w.tick = Tick(2);
+        assert_eq!(
+            checker.check_narrator_invariants(&w).unwrap_err().criterion,
+            "N6"
+        );
+    }
+
+    #[test]
+    fn death_settlement_may_close_intro_debt_but_ordinary_forgiveness_may_not() {
+        use crate::events::{CausedBy, EventTags};
+        let mut w = world();
+        let mut checker = InvariantChecker::new(&w).unwrap();
+        let loan = intro_loan(w.intro_debt).unwrap();
+        let creditor = w.debts[&loan].creditor;
+        let mut forbidden = w.clone();
+        crate::death::forgive_debt(&mut forbidden, loan, CausedBy::new(vec![loan])).unwrap();
+        crate::intro::update(&mut forbidden);
+        assert_eq!(
+            checker
+                .check_narrator_invariants(&forbidden)
+                .unwrap_err()
+                .criterion,
+            "N6"
+        );
+        let death = w
+            .append(
+                EventKind::Death { person: creditor },
+                CausedBy::default(),
+                EventTags::empty(),
+            )
+            .unwrap();
+        crate::death::forgive_debt(&mut w, loan, CausedBy::new(vec![loan, death])).unwrap();
+        crate::intro::update(&mut w);
+        checker
+            .check_narrator_invariants(&w)
+            .expect("unchanged death settlement is allowed");
+    }
+
+    #[test]
+    fn a_completed_world_may_already_be_ended_when_the_checker_starts() {
+        let mut w = world();
+        let loan = intro_loan(w.intro_debt).unwrap();
+        w.intro_debt = IntroDebt::Ended { loan };
+        let mut checker = InvariantChecker::new(&w).unwrap();
+        checker.after_tick(&w).unwrap();
+    }
+
+    #[test]
+    fn soul_place_alone_does_not_end_an_explicit_ongoing_first_life() {
+        let mut w = world();
+        let mut checker = InvariantChecker::new(&w).unwrap();
+        let IntroDebt::Grace { body, .. } = w.intro_debt else {
+            panic!("opening Grace")
+        };
+        w.narrator.life = Some(PlayerLife {
+            body,
+            start: Tick(0),
+            first_fire: None,
+            last_fire: None,
+        });
+        w.souls
+            .places
+            .insert(w.souls.player, SoulPlace::Waiting { since: Tick(0) });
+        checker
+            .check_narrator_invariants(&w)
+            .expect("the life budget and body, not SoulPlace alone, define the first life");
     }
 
     #[test]

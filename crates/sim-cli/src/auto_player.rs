@@ -2,6 +2,7 @@
 
 use sim_core::ids::{PersonId, Tick};
 use sim_core::input::InputPayload;
+use sim_core::narrator::PreviewWhat;
 use sim_core::rng::{StreamTag, below, draw};
 use sim_core::tick::Sim;
 use sim_core::underworld::carry_over::TraitName;
@@ -43,6 +44,16 @@ struct WaitPlan {
 pub struct AutoPlayer {
     waits_seen: u64,
     per_wait: Option<WaitPlan>,
+    playthrough_customization: bool,
+}
+
+impl AutoPlayer {
+    pub fn playthrough() -> Self {
+        Self {
+            playthrough_customization: true,
+            ..Self::default()
+        }
+    }
 }
 
 /// The 9.5 H4 living social-act budget, reset for each Player body.
@@ -53,6 +64,51 @@ pub struct DevotedLiving {
     next_kind: usize,
     kin_cursor: usize,
     applied_in_life: u64,
+}
+
+/// Answers pending Player_Nodes using the acceptance-only kin-affinity strategy.
+#[derive(Default)]
+pub struct PlayerAnswerer;
+
+impl PlayerAnswerer {
+    /// Selects the option with the greatest previewed affinity gain from kin toward the body.
+    pub fn plan(&self, sim: &Sim) -> Option<InputPayload> {
+        let world = sim.world();
+        let node = world.narrator().pending.as_ref()?;
+        let option = choose_player_option(node, world)?;
+        Some(InputPayload::ChoosePlayer {
+            node: node.id,
+            option,
+        })
+    }
+}
+
+fn choose_player_option(
+    node: &sim_core::narrator::PlayerNode,
+    world: &sim_core::world::World,
+) -> Option<sim_core::narrator::PlayerOption> {
+    node.options
+        .iter()
+        .max_by_key(|option| {
+            let gain = option
+                .preview
+                .iter()
+                .filter(|entry| {
+                    entry.what == PreviewWhat::Affinity
+                        && world
+                            .relations()
+                            .get(&(entry.person, node.chooser))
+                            .is_some_and(|relation| relation.tags.has_kinship())
+                })
+                .map(|entry| entry.delta)
+                .sum::<i64>();
+            (
+                gain,
+                option.id == node.rules_default,
+                std::cmp::Reverse(option.id),
+            )
+        })
+        .map(|option| option.id)
 }
 
 impl DevotedLiving {
@@ -317,12 +373,107 @@ impl AutoPlayer {
         if let Some(slot) = slot {
             payloads.push(InputPayload::ClaimSlot {
                 slot,
-                customization: (slot == SlotRef::RebuiltBody).then_some(Customization::Set {
-                    trait_name: TraitName::Piety,
-                    value: 3,
-                }),
+                customization: if slot != SlotRef::RebuiltBody {
+                    None
+                } else if self.playthrough_customization {
+                    Some(Customization::Adjust {
+                        first: (TraitName::Warmth, 1),
+                        second: (TraitName::Loyalty, 1),
+                    })
+                } else {
+                    Some(Customization::Set {
+                        trait_name: TraitName::Piety,
+                        value: 3,
+                    })
+                },
             });
         }
         payloads
+    }
+}
+#[cfg(test)]
+mod answerer_tests {
+    use super::*;
+    use sim_core::ids::{EventId, NodeId};
+    use sim_core::narrator::{
+        PlannedOption, PlayerFamily, PlayerNode, PlayerOption, PreviewEntry, StakeUnit, Stakes,
+    };
+
+    fn node_and_world(default: PlayerOption) -> (sim_core::world::World, PlayerNode) {
+        let world =
+            sim_core::world::World::new(1, sim_core::world::WorldConfig::default()).unwrap();
+        let chooser = match world.souls().places[&world.souls().player] {
+            SoulPlace::Body(body) => body,
+            _ => panic!("player body"),
+        };
+        let kin = world
+            .relations()
+            .iter()
+            .find(|((_, to), relation)| *to == chooser && relation.tags.has_kinship())
+            .map(|(&(from, _), _)| from)
+            .expect("opening kin relation");
+        let preview = |delta| {
+            vec![PreviewEntry {
+                person: kin,
+                what: PreviewWhat::Affinity,
+                delta,
+            }]
+        };
+        let node = PlayerNode {
+            id: NodeId(999),
+            family: PlayerFamily::DebtDue,
+            chooser,
+            fired: Tick(10),
+            stakes: Stakes {
+                who: vec![kin],
+                amount: 0,
+                unit: StakeUnit::Money,
+                by: Tick(11),
+            },
+            options: vec![
+                PlannedOption {
+                    id: PlayerOption::ComfortMourner,
+                    parts: vec![],
+                    preview: preview(3),
+                },
+                PlannedOption {
+                    id: PlayerOption::SendFlowers,
+                    parts: vec![],
+                    preview: preview(5),
+                },
+                PlannedOption {
+                    id: PlayerOption::StayAway,
+                    parts: vec![],
+                    preview: preview(5),
+                },
+            ],
+            rules_default: default,
+            external: None,
+            trigger: Some(EventId(1)),
+        };
+        (world, node)
+    }
+
+    #[test]
+    fn equal_kin_gains_choose_rules_default_before_lower_id() {
+        let (world, node) = node_and_world(PlayerOption::StayAway);
+        assert_eq!(
+            choose_player_option(&node, &world),
+            Some(PlayerOption::StayAway)
+        );
+    }
+
+    #[test]
+    fn equal_nondefault_gains_choose_lowest_option_id() {
+        let (world, mut node) = node_and_world(PlayerOption::ComfortMourner);
+        node.options[2].preview = vec![PreviewEntry {
+            person: node.stakes.who[0],
+            what: PreviewWhat::Affinity,
+            delta: 2,
+        }];
+        assert_eq!(
+            choose_player_option(&node, &world),
+            Some(PlayerOption::SendFlowers)
+        );
     }
 }

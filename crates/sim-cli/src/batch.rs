@@ -46,7 +46,7 @@ use std::fmt::Write as _;
 use std::io::Write;
 
 use crate::args::{self, Parsed};
-use crate::auto_player::DevotedLiving;
+use crate::auto_player::{DevotedLiving, PlayerAnswerer};
 use crate::commands::{
     EXIT_FAILED, EXIT_OK, EXIT_USAGE_OR_MALFORMED, MAX_RANDOM_INPUTS, MAX_TICKS, default_config,
     load_config,
@@ -79,13 +79,14 @@ const POP_MAX: u64 = 65;
 const BAND_MIN: u64 = 40;
 const BAND_MAX: u64 = 60;
 
-pub const BATCH_USAGE: &str = "usage: sim-cli batch --seeds A..=B --ticks N \
-[--random-inputs K] [--config FILE] [--require-targets] [--devoted] [--require-reachability]\n\
---seeds is an inclusive range (or a single seed A), at most 10000 seeds; \
---random-inputs defaults to 60; without --config: {\"opening_residents\":50}; \
---require-targets fails a passive seed whose R17.1, R17.8 or R17.9 target does not pass; \
---devoted adds H4 living acts and reports LS-R17 targets without gating them; \
---require-reachability requires --devoted and gates applied Devoted counts; \
+pub const BATCH_USAGE: &str = "usage: sim-cli batch --seeds A..=B --ticks N \\
+[--random-inputs K] [--config FILE] [--require-targets] [--devoted] [--playthrough] [--require-reachability]\n\
+--seeds is an inclusive range (or a single seed A), at most 10000 seeds; \\
+--random-inputs defaults to 60; without --config: {\"opening_residents\":50}; \\
+--require-targets fails a passive seed whose R17 targets or first_stop_band miss; \\
+--devoted adds H4 living acts and reports LS-R17 targets without gating them; \\
+--playthrough answers Player_Nodes and uses the acceptance branch; \\
+--require-reachability requires --devoted and gates applied Devoted counts; \\
 --devoted and --require-targets cannot be combined; outsiders_le_births_third is reported only";
 
 /// Parses `--seeds`: `A..=B` (inclusive) or a single `A`. Rejects descending ranges,
@@ -126,6 +127,7 @@ struct Targets {
     band_95: bool,
     outsiders_le_births: bool,
     outsiders_le_births_third: bool,
+    first_stop_band: bool,
 }
 
 impl Targets {
@@ -136,6 +138,9 @@ impl Targets {
         let mut failing = Vec::new();
         if !self.pop_35_65 {
             failing.push("pop_35_65");
+        }
+        if !self.first_stop_band {
+            failing.push("first_stop_band");
         }
         if !self.band_95 {
             failing.push("band_95");
@@ -186,6 +191,14 @@ struct SeedStats {
     player_lives: String,
     targets: Targets,
     devoted: Option<DevotedReport>,
+    kin: KinSummary,
+    first_stop_offset: Option<u64>,
+    first_stop_cause: String,
+    first_stop_min: u64,
+    first_stop_max: u64,
+    waits: Vec<WaitReport>,
+    customized_rebuilt_claims: u64,
+    narrator_lines: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -459,7 +472,277 @@ enum SeedOutcome {
     Setup(String),
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct KinRecord {
+    created: Tick,
+    nonpositive: Option<Tick>,
+    zero: Option<Tick>,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+struct KinSummary {
+    created: u64,
+    nonpositive_reached: u64,
+    nonpositive_censored: u64,
+    nonpositive_days: Vec<u64>,
+    zero_reached: u64,
+    zero_censored: u64,
+    zero_days: Vec<u64>,
+}
+
+impl KinSummary {
+    fn median(values: &mut [u64]) -> Option<u64> {
+        if values.is_empty() {
+            return None;
+        }
+        values.sort_unstable();
+        Some(values[(values.len().saturating_sub(1)) / 2])
+    }
+    fn line(&self, seed: u64, branch: &str) -> String {
+        let mut nonpositive = self.nonpositive_days.clone();
+        let mut zero = self.zero_days.clone();
+        format!(
+            "seed {seed} kin {branch} created={} nonpos=reached:{},censored:{},median:{} zero=reached:{},censored:{},median:{}",
+            self.created,
+            self.nonpositive_reached,
+            self.nonpositive_censored,
+            Self::median(&mut nonpositive).map_or_else(|| "none".to_owned(), |v| v.to_string()),
+            self.zero_reached,
+            self.zero_censored,
+            Self::median(&mut zero).map_or_else(|| "none".to_owned(), |v| v.to_string()),
+        )
+    }
+    fn add(&mut self, other: &Self) {
+        self.created = self.created.saturating_add(other.created);
+        self.nonpositive_reached = self
+            .nonpositive_reached
+            .saturating_add(other.nonpositive_reached);
+        self.nonpositive_censored = self
+            .nonpositive_censored
+            .saturating_add(other.nonpositive_censored);
+        self.nonpositive_days
+            .extend_from_slice(&other.nonpositive_days);
+        self.zero_reached = self.zero_reached.saturating_add(other.zero_reached);
+        self.zero_censored = self.zero_censored.saturating_add(other.zero_censored);
+        self.zero_days.extend_from_slice(&other.zero_days);
+    }
+}
+
+#[derive(Clone, Default)]
+struct KinObserver {
+    records:
+        std::collections::BTreeMap<(sim_core::ids::PersonId, sim_core::ids::PersonId), KinRecord>,
+    seen: std::collections::BTreeSet<(sim_core::ids::PersonId, sim_core::ids::PersonId)>,
+    completed: Vec<KinRecord>,
+}
+
+impl KinObserver {
+    fn observe_value(
+        &mut self,
+        key: (sim_core::ids::PersonId, sim_core::ids::PersonId),
+        tick: Tick,
+        kin: bool,
+        value: Option<i8>,
+    ) {
+        if !kin {
+            return;
+        }
+        let Some(value) = value else {
+            return;
+        };
+        if self.seen.insert(key) && value > 0 {
+            self.records.insert(
+                key,
+                KinRecord {
+                    created: tick,
+                    nonpositive: None,
+                    zero: None,
+                },
+            );
+        }
+        if let Some(record) = self.records.get_mut(&key) {
+            if record.nonpositive.is_none() && value <= 0 {
+                record.nonpositive = Some(tick);
+            }
+            if record.zero.is_none() && value == 0 {
+                record.zero = Some(tick);
+            }
+        }
+    }
+
+    fn observe(&mut self, world: &World, tick: Tick) {
+        let mut seen = std::mem::take(&mut self.seen);
+        seen.retain(|key| {
+            world
+                .relations()
+                .get(key)
+                .is_some_and(|relation| relation.tags.has_kinship())
+        });
+        let mut completed = std::mem::take(&mut self.completed);
+        self.records.retain(|key, record| {
+            if seen.contains(key) {
+                true
+            } else {
+                completed.push(record.clone());
+                false
+            }
+        });
+        self.seen = seen;
+        for (&key, relation) in world.relations() {
+            self.observe_value(
+                key,
+                tick,
+                relation.tags.has_kinship(),
+                Some(relation.affinity.get()),
+            );
+        }
+        self.records.retain(|_, record| {
+            if record.nonpositive.is_some() && record.zero.is_some() {
+                completed.push(record.clone());
+                false
+            } else {
+                true
+            }
+        });
+        self.completed = completed;
+    }
+
+    fn finish(self) -> KinSummary {
+        let mut summary = KinSummary::default();
+        for record in self.completed.iter().chain(self.records.values()) {
+            summary.created = summary.created.saturating_add(1);
+            match record.nonpositive {
+                Some(t) => {
+                    summary.nonpositive_reached += 1;
+                    summary
+                        .nonpositive_days
+                        .push(t.0.saturating_sub(record.created.0));
+                }
+                None => summary.nonpositive_censored += 1,
+            }
+            match record.zero {
+                Some(t) => {
+                    summary.zero_reached += 1;
+                    summary.zero_days.push(t.0.saturating_sub(record.created.0));
+                }
+                None => summary.zero_censored += 1,
+            }
+        }
+        summary
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct WaitReport {
+    death_tick: Tick,
+    announced: u64,
+    claimable: u64,
+    affordable: u64,
+    executable: u64,
+    two_exec: Option<Tick>,
+    rebuilt_affordable: bool,
+    customized: bool,
+}
+
+impl WaitReport {
+    fn line(&self, seed: u64) -> String {
+        format!(
+            "seed {seed} deaths={}:announced={},claimable={},affordable={},executable={},two_exec={}",
+            self.death_tick.0,
+            self.announced,
+            self.claimable,
+            self.affordable,
+            self.executable,
+            self.two_exec
+                .map_or_else(|| "none".to_owned(), |tick| tick.0.to_string())
+        )
+    }
+}
+
 /// Statistics collected after every tick.
+#[derive(Default)]
+struct WaitTally {
+    completed: Vec<WaitReport>,
+    active: Option<WaitReport>,
+    customized_rebuilt_claims: u64,
+}
+
+impl WaitTally {
+    fn observe(&mut self, world: &World) {
+        let soul = world.souls().player;
+        let Some(SoulPlace::Waiting { since }) = world.souls().places.get(&soul) else {
+            if let Some(active) = self.active.take() {
+                self.completed.push(active);
+            }
+            return;
+        };
+        if self
+            .active
+            .as_ref()
+            .is_none_or(|wait| wait.death_tick != *since)
+        {
+            if let Some(active) = self.active.take() {
+                self.completed.push(active);
+            }
+            let slots = world
+                .slots()
+                .keys()
+                .copied()
+                .map(SlotRef::Birth)
+                .chain([SlotRef::ImportedVessel, SlotRef::RebuiltBody]);
+            let statuses: Vec<_> = slots
+                .map(|slot| sim_core::underworld::slots::path_status(world, slot))
+                .collect();
+            self.active = Some(WaitReport {
+                death_tick: *since,
+                announced: statuses.iter().filter(|status| status.announced).count() as u64,
+                claimable: statuses.iter().filter(|status| status.claimable).count() as u64,
+                affordable: statuses.iter().filter(|status| status.affordable).count() as u64,
+                executable: statuses.iter().filter(|status| status.executable()).count() as u64,
+                two_exec: (statuses.iter().filter(|status| status.executable()).count() >= 2)
+                    .then_some(world.tick()),
+                rebuilt_affordable: statuses.last().is_some_and(|status| status.affordable),
+                customized: false,
+            });
+        }
+        let slots = world
+            .slots()
+            .keys()
+            .copied()
+            .map(SlotRef::Birth)
+            .chain([SlotRef::ImportedVessel, SlotRef::RebuiltBody]);
+        let executable = slots
+            .filter(|slot| sim_core::underworld::slots::path_status(world, *slot).executable())
+            .count();
+        if let Some(active) = self.active.as_mut() {
+            active.rebuilt_affordable |=
+                sim_core::underworld::slots::path_status(world, SlotRef::RebuiltBody).affordable;
+            if executable >= 2 {
+                active.two_exec.get_or_insert(world.tick());
+            }
+        }
+    }
+
+    fn applied_claim(&mut self, payload: &InputPayload) {
+        if let InputPayload::ClaimSlot {
+            slot: SlotRef::RebuiltBody,
+            customization: Some(_),
+        } = payload
+        {
+            self.customized_rebuilt_claims = self.customized_rebuilt_claims.saturating_add(1);
+            if let Some(wait) = self.active.as_mut() {
+                wait.customized = true;
+            } else if let Some(wait) = self.completed.last_mut() {
+                wait.customized = true;
+            }
+        }
+    }
+
+    fn reports(&self) -> impl Iterator<Item = &WaitReport> {
+        self.completed.iter().chain(self.active.iter())
+    }
+}
+
 struct Tally {
     residents_min: u64,
     residents_max: u64,
@@ -473,11 +756,15 @@ struct Tally {
     nodes: [[u64; 2]; 2],
     node_count: usize,
     event_count: usize,
+    kin: KinObserver,
+    waits: WaitTally,
 }
 
 impl Tally {
     fn new(world: &World) -> Self {
         let residents = resident_count(world);
+        let mut kin = KinObserver::default();
+        kin.observe(world, Tick(0));
         Self {
             residents_min: u64::MAX,
             residents_max: 0,
@@ -491,10 +778,14 @@ impl Tally {
             nodes: [[0, 0], [0, 0]],
             node_count: 0,
             event_count: world.log().len(),
+            kin,
+            waits: WaitTally::default(),
         }
     }
 
     fn after_tick(&mut self, world: &World, player_wait_before: Option<Tick>) {
+        self.kin
+            .observe(world, Tick(world.tick().0.saturating_sub(1)));
         let residents = resident_count(world);
         self.residents_min = self.residents_min.min(residents);
         self.residents_max = self.residents_max.max(residents);
@@ -523,6 +814,7 @@ impl Tally {
         if let Some(since) = player_wait_before {
             self.max_wait_player = self.max_wait_player.max(tick.saturating_sub(since.0));
         }
+        self.waits.observe(world);
     }
     fn count_underworld(&mut self, sim: &Sim) -> Result<(), String> {
         let world = sim.world();
@@ -538,6 +830,7 @@ impl Tally {
                 return Err("input outcomes differ from submitted inputs".to_owned());
             }
             if outcome.result.is_ok() {
+                self.waits.applied_claim(&input.payload);
                 match input.payload {
                     InputPayload::ClaimSlot {
                         slot: SlotRef::Birth(_),
@@ -722,6 +1015,230 @@ fn player_lives(world: &World) -> String {
         .join(";")
 }
 
+fn first_life_stop(world: &World) -> (Option<u64>, String, bool) {
+    let Some(body) = world
+        .persons()
+        .values()
+        .find(|person| person.soul == world.souls().player)
+    else {
+        return (None, "no_fire".to_owned(), false);
+    };
+    let death = match body.life {
+        Life::Dead { death } => Some(death.0),
+        Life::Alive { .. } => None,
+    };
+    let first_node = world
+        .narrator()
+        .chronicle
+        .entries()
+        .iter()
+        .filter(|entry| entry.node.is_some())
+        .map(|entry| (entry.tick.0.saturating_sub(1), entry.family))
+        .filter(|(fired, _)| death.is_none_or(|d| *fired < d))
+        .min_by_key(|(fired, _)| *fired);
+    let min = world.params().first_interrupt_min;
+    let max = world.params().first_interrupt_max;
+    if let Some((fired, family)) = first_node {
+        let failed = !(min..max).contains(&fired);
+        let cause = if failed {
+            format!("first_node family={} tick={fired}", family.label())
+        } else {
+            "first_node_in_band".to_owned()
+        };
+        return (Some(fired), cause, failed);
+    }
+    if let Some(death_tick) = death {
+        return (None, format!("first_life_ended tick={death_tick}"), true);
+    }
+    if world.tick().0 >= max {
+        let loan = match world.intro_debt() {
+            sim_core::intro::IntroDebt::Grace { loan, .. }
+            | sim_core::intro::IntroDebt::Ended { loan } => Some(loan),
+            sim_core::intro::IntroDebt::Undesignated => None,
+        };
+        if let Some(loan) = loan
+            && let Some(opening) = world.log().events().iter().find(|event| event.id == loan)
+            && let EventKind::Loan {
+                lender, borrower, ..
+            } = opening.kind
+        {
+            if let Some(event) = world.log().events().iter().find(|event| matches!(event.kind, EventKind::DebtTransfer { from, .. } if from == body.id)) {
+                return (None, format!("intro_debt_transferred_away tick={}", event.tick.0), true);
+            }
+            if let Some(event) = world.log().events().iter().rev().find(|event| {
+                event.id > loan
+                    && matches!(event.kind, EventKind::DebtForgiven { creditor, debtor, .. }
+                        if (creditor == lender && debtor == borrower)
+                            || (creditor == borrower && debtor == lender))
+            }) {
+                let by_death = world.log().events().iter().any(|death| {
+                    death.tick == event.tick
+                        && matches!(death.kind, EventKind::Death { person } if person == lender || person == borrower)
+                });
+                let cause = if by_death {
+                    "intro_debt_closed_by_death"
+                } else {
+                    "intro_debt_closed"
+                };
+                return (None, format!("{cause} tick={}", event.tick.0), true);
+            }
+        }
+        return (None, "no_fire".to_owned(), true);
+    }
+    (None, "not_yet_due".to_owned(), false)
+}
+fn narrator_report(world: &World, ticks: u64) -> Vec<String> {
+    let player = world.souls().player;
+    let mut bodies: Vec<_> = world
+        .persons()
+        .values()
+        .filter(|person| person.soul == player)
+        .collect();
+    bodies.sort_by_key(|person| {
+        world
+            .log()
+            .events()
+            .iter()
+            .find_map(|event| match event.kind {
+                EventKind::Birth { person: id }
+                | EventKind::Possession { person: id, .. }
+                | EventKind::Rebuild { person: id, .. }
+                    if id == person.id =>
+                {
+                    Some(event.tick.0)
+                }
+                _ => None,
+            })
+            .unwrap_or(0)
+    });
+    let entries = world.narrator().chronicle.entries();
+    let mut lives = Vec::with_capacity(bodies.len());
+    for (index, body) in bodies.iter().enumerate() {
+        let start = world
+            .log()
+            .events()
+            .iter()
+            .find_map(|event| match event.kind {
+                EventKind::Birth { person }
+                | EventKind::Possession { person, .. }
+                | EventKind::Rebuild { person, .. }
+                    if person == body.id =>
+                {
+                    Some(event.tick.0)
+                }
+                _ => None,
+            })
+            .unwrap_or(0);
+        let end = match body.life {
+            Life::Dead { death } => death.0,
+            Life::Alive { .. } => ticks.saturating_sub(1),
+        };
+        let nodes: Vec<_> = entries
+            .iter()
+            .filter(|entry| entry.node.is_some())
+            .map(|entry| (entry.tick.0.saturating_sub(1), entry.family))
+            .filter(|(fired, _)| *fired >= start && *fired <= end)
+            .collect();
+        let auto = entries
+            .iter()
+            .filter(|entry| {
+                entry.node.is_none()
+                    && entry.source == sim_core::narrator::EntrySource::AutoResolved
+                    && entry.tick.0 >= start
+                    && entry.tick.0 <= end
+            })
+            .count();
+        let first = nodes
+            .first()
+            .map(|(tick, _)| tick.saturating_sub(start).to_string())
+            .unwrap_or_else(|| "none".to_owned());
+        let family = nodes.first().map_or("none", |(_, family)| family.label());
+        let mut gaps: Vec<_> = nodes
+            .windows(2)
+            .map(|pair| pair[1].0.saturating_sub(pair[0].0))
+            .collect();
+        gaps.sort_unstable();
+        let min = gaps
+            .first()
+            .map_or_else(|| "none".to_owned(), |value| value.to_string());
+        let median = gaps
+            .get(gaps.len().saturating_sub(1) / 2)
+            .map_or_else(|| "none".to_owned(), |value| value.to_string());
+        let cut = matches!(body.life, Life::Alive { .. });
+        lives.push(format!("{}:start={},origin={},len={},cut={},first={},first_family={},nodes={},auto={},gap_min={},gap_med={}", index + 1, start, body.origin.as_str(), end.saturating_sub(start), cut, first, family, nodes.len(), auto, min, median));
+    }
+    let mut result = vec![format!("seed {} lives={}", world.seed(), lives.join(";"))];
+    let (loan, grace_end, end_cause) = match world.intro_debt() {
+        sim_core::intro::IntroDebt::Grace { loan, .. } => {
+            (loan.0, "none".to_owned(), "none".to_owned())
+        }
+        sim_core::intro::IntroDebt::Ended { loan } => {
+            let closure = world.log().events().iter().rev().find(|event| {
+                let EventKind::DebtForgiven {
+                    creditor, debtor, ..
+                } = event.kind
+                else {
+                    return false;
+                };
+                let Some(opening) = world
+                    .log()
+                    .events()
+                    .iter()
+                    .find(|candidate| candidate.id == loan)
+                else {
+                    return false;
+                };
+                let EventKind::Loan {
+                    lender, borrower, ..
+                } = opening.kind
+                else {
+                    return false;
+                };
+                (creditor == lender && debtor == borrower)
+                    || (creditor == borrower && debtor == lender)
+            });
+            let first_death = world
+                .persons()
+                .values()
+                .find(|person| person.soul == player)
+                .and_then(|person| match person.life {
+                    Life::Dead { death } => Some(death.0),
+                    Life::Alive { .. } => None,
+                });
+            let node = entries.iter().find(|entry| {
+                entry.node.is_some() && first_death.is_none_or(|death| entry.tick.0 <= death)
+            });
+            let death = world.log().events().iter().find(|event| matches!(event.kind, EventKind::Death { person } if world.persons().get(&person).is_some_and(|p| p.soul == player)));
+            if let Some(entry) = node {
+                (
+                    loan.0,
+                    entry.tick.0.to_string(),
+                    "first_node_resolved".to_owned(),
+                )
+            } else if let Some(event) = closure {
+                (loan.0, event.tick.0.to_string(), "debt_closed".to_owned())
+            } else if let Some(event) = death {
+                (
+                    loan.0,
+                    event.tick.0.to_string(),
+                    "first_life_ended".to_owned(),
+                )
+            } else {
+                (loan.0, "none".to_owned(), "none".to_owned())
+            }
+        }
+        sim_core::intro::IntroDebt::Undesignated => (0, "none".to_owned(), "none".to_owned()),
+    };
+    result.push(format!(
+        "seed {} intro loan={} grace_end={} end_cause={}",
+        world.seed(),
+        loan,
+        grace_end,
+        end_cause
+    ));
+    result
+}
+
 fn stats_of(world: &World, ticks: u64, tally: &Tally, final_checksum: String) -> SeedStats {
     let births = event_count(world, &|kind| matches!(kind, EventKind::Birth { .. }));
     let deaths = event_count(world, &|kind| matches!(kind, EventKind::Death { .. }));
@@ -732,13 +1249,16 @@ fn stats_of(world: &World, ticks: u64, tally: &Tally, final_checksum: String) ->
     let imported = arrivals[1];
     let rebuilt = arrivals[2];
     let band_95 = tally.band_40_60_ticks.saturating_mul(100) >= ticks.saturating_mul(95);
+    let (first_stop_offset, first_stop_cause, first_stop_failed) = first_life_stop(world);
+    let first_stop_min = world.params().first_interrupt_min;
+    let first_stop_max = world.params().first_interrupt_max;
+    let first_stop_band = !first_stop_failed;
     let targets = Targets {
         pop_35_65: tally.pop_ok,
         band_95,
         outsiders_le_births: imported + rebuilt <= births,
-        // The calibrated tighter ratio: outsider arrivals <= births / 3, in integer
-        // arithmetic (3 x arrivals <= births).
         outsiders_le_births_third: (imported + rebuilt).saturating_mul(3) <= births,
+        first_stop_band,
     };
     SeedStats {
         final_checksum,
@@ -779,7 +1299,53 @@ fn stats_of(world: &World, ticks: u64, tally: &Tally, final_checksum: String) ->
             .collect(),
         targets,
         devoted: None,
+        kin: tally.kin.clone().finish(),
+        first_stop_offset,
+        first_stop_cause,
+        first_stop_min,
+        first_stop_max,
+        waits: tally.waits.reports().cloned().collect(),
+        customized_rebuilt_claims: tally.waits.customized_rebuilt_claims,
+        narrator_lines: narrator_report(world, ticks),
     }
+}
+fn write_extended_report(out: &mut dyn Write, seed: u64, stats: &SeedStats, playthrough: bool) {
+    for line in &stats.narrator_lines {
+        let _ = writeln!(out, "{line}");
+    }
+    for wait in &stats.waits {
+        let _ = writeln!(out, "{}", wait.line(seed));
+    }
+    let branch = if playthrough {
+        "playthrough"
+    } else {
+        "passive"
+    };
+    let _ = writeln!(out, "{}", stats.kin.line(seed, branch));
+    let waits = stats
+        .waits
+        .iter()
+        .enumerate()
+        .map(|(index, wait)| {
+            format!(
+                "{}:rebuilt_affordable={},customized={}",
+                index + 1,
+                wait.rebuilt_affordable,
+                wait.customized
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(";");
+    let _ = writeln!(
+        out,
+        "seed {seed} customization waits={}{}",
+        stats.waits.len(),
+        if waits.is_empty() {
+            String::new()
+        } else {
+            format!(" {waits}")
+        }
+    );
 }
 
 /// The exact `ok` line of the design.
@@ -791,7 +1357,7 @@ fn ok_line(seed: u64, ticks: u64, s: &SeedStats) -> String {
         .collect::<Vec<_>>()
         .join(",");
     format!(
-        "seed {seed} ok ticks={ticks} final={} residents_min={} residents_max={} band_40_60_ticks={} queue_final={} max_wait_npc={} births={} deaths={} imported={} rebuilt={} origin_final=native:{},possessed:{},rebuilt:{} arrivals=native:{},possessed:{},rebuilt:{} events={} relations_max={} rejections={} offerings={} dreams={} hauntings={} bribes={} claims=birth:{},imported:{},rebuilt:{} auto_placed={} carry_overs={} nodes=dream_interpretation:external:{},rules:{};magistrate_ruling:external:{},rules:{} max_wait_player={} player_lives={} invariants=pass pop_35_65={} band_95={} outsiders_le_births={} outsiders_le_births_third={}",
+        "seed {seed} ok ticks={ticks} final={} residents_min={} residents_max={} band_40_60_ticks={} queue_final={} max_wait_npc={} births={} deaths={} imported={} rebuilt={} origin_final=native:{},possessed:{},rebuilt:{} arrivals=native:{},possessed:{},rebuilt:{} events={} relations_max={} rejections={} offerings={} dreams={} hauntings={} bribes={} claims=birth:{},imported:{},rebuilt:{} auto_placed={} carry_overs={} nodes=dream_interpretation:external:{},rules:{};magistrate_ruling:external:{},rules:{} max_wait_player={} player_lives={} invariants=pass pop_35_65={} band_95={} outsiders_le_births={} outsiders_le_births_third={} first_stop_band={} first_stop_offset={}",
         s.final_checksum,
         s.residents_min,
         s.residents_max,
@@ -830,6 +1396,9 @@ fn ok_line(seed: u64, ticks: u64, s: &SeedStats) -> String {
         Targets::label(s.targets.band_95),
         Targets::label(s.targets.outsiders_le_births),
         Targets::label(s.targets.outsiders_le_births_third),
+        Targets::label(s.targets.first_stop_band),
+        s.first_stop_offset
+            .map_or_else(|| "none".to_owned(), |value| value.to_string()),
     )
 }
 
@@ -898,11 +1467,17 @@ fn drive_sim(
     check: &dyn Fn(&World) -> Result<(), Violation>,
     mut observe: TickObserver<'_>,
     devoted: bool,
+    playthrough: bool,
 ) -> Result<(Tally, Option<DevotedReport>), DriveError> {
     let mut checker = InvariantChecker::new(sim.world())
         .map_err(|violation| DriveError::Invariant { tick: 0, violation })?;
     let mut tally = Tally::new(sim.world());
-    let mut auto_player = crate::auto_player::AutoPlayer::default();
+    let mut auto_player = if playthrough {
+        crate::auto_player::AutoPlayer::playthrough()
+    } else {
+        crate::auto_player::AutoPlayer::default()
+    };
+    let answerer = PlayerAnswerer;
     let mut devoted_report = devoted.then(DevotedReport::default);
     let mut living = DevotedLiving::default();
     for _ in 0..ticks {
@@ -920,6 +1495,10 @@ fn drive_sim(
         for payload in auto_player.plan(sim) {
             sim.submit(tick, payload)
                 .map_err(|e| DriveError::Setup(format!("auto-player input refused: {e}")))?;
+        }
+        if playthrough && let Some(payload) = answerer.plan(sim) {
+            sim.submit(tick, payload)
+                .map_err(|e| DriveError::Setup(format!("PlayerAnswerer input refused: {e}")))?;
         }
         let first_event = sim.world().log().len();
         let act_seq = if devoted {
@@ -984,8 +1563,15 @@ pub fn report_sim(
     ticks: u64,
     mut observe: impl FnMut(&Sim, bool),
 ) -> Result<String, String> {
-    let (tally, _) = drive_sim(&mut sim, ticks, &|_| Ok(()), Some(&mut observe), false)
-        .map_err(|failure| format!("{failure:?}"))?;
+    let (tally, _) = drive_sim(
+        &mut sim,
+        ticks,
+        &|_| Ok(()),
+        Some(&mut observe),
+        false,
+        false,
+    )
+    .map_err(|failure| format!("{failure:?}"))?;
     let stats = checked_stats(&sim, ticks, &tally)?;
     Ok(ok_line(sim.world().seed(), ticks, &stats))
 }
@@ -997,8 +1583,15 @@ pub fn report_devoted_sim(
     ticks: u64,
     mut observe: impl FnMut(&Sim, bool),
 ) -> Result<String, String> {
-    let (tally, devoted) = drive_sim(&mut sim, ticks, &|_| Ok(()), Some(&mut observe), true)
-        .map_err(|failure| format!("{failure:?}"))?;
+    let (tally, devoted) = drive_sim(
+        &mut sim,
+        ticks,
+        &|_| Ok(()),
+        Some(&mut observe),
+        true,
+        false,
+    )
+    .map_err(|failure| format!("{failure:?}"))?;
     checked_stats(&sim, ticks, &tally)?;
     Ok(devoted.expect("devoted report").line(sim.world().seed()))
 }
@@ -1006,6 +1599,7 @@ pub fn report_devoted_sim(
 /// Runs one seed. `check` runs after every tick on top of the built-in
 /// [`InvariantChecker`]; `batch` passes a closure that never fails, tests pass one that
 /// can fail on demand.
+#[allow(clippy::too_many_arguments)]
 fn run_seed(
     seed: u64,
     config: WorldConfig,
@@ -1013,6 +1607,7 @@ fn run_seed(
     random_inputs: u64,
     require_targets: bool,
     devoted: bool,
+    playthrough: bool,
     check: &dyn Fn(&World) -> Result<(), Violation>,
 ) -> SeedOutcome {
     let inputs = generate_inputs(
@@ -1031,7 +1626,14 @@ fn run_seed(
             return SeedOutcome::Setup(format!("input refused: {e}"));
         }
     }
-    let (tally, devoted_report) = match drive_sim(&mut sim, ticks, check, None, devoted) {
+    let (tally, devoted_report) = match drive_sim(
+        &mut sim,
+        ticks,
+        check,
+        None,
+        devoted || playthrough,
+        playthrough,
+    ) {
         Ok(result) => result,
         Err(outcome) => return outcome.into(),
     };
@@ -1075,6 +1677,7 @@ fn run_batch(
     random_inputs: u64,
     require_targets: bool,
     devoted: bool,
+    playthrough: bool,
     require_reachability: bool,
     check: &dyn Fn(&World) -> Result<(), Violation>,
     out: &mut dyn Write,
@@ -1083,6 +1686,8 @@ fn run_batch(
     let (mut total, mut ok) = (0u64, 0u64);
     let mut totals = Totals::default();
     let mut candidate_totals = [0u64; 5];
+    let mut kin_pooled = KinSummary::default();
+    let mut customized_total = 0u64;
     for seed in first..=last {
         total += 1;
         let line = match run_seed(
@@ -1092,12 +1697,16 @@ fn run_batch(
             random_inputs,
             require_targets,
             devoted,
+            playthrough,
             check,
         ) {
             SeedOutcome::Ok(stats) => {
                 ok += 1;
                 totals.add(&stats);
+                kin_pooled.add(&stats.kin);
+                customized_total = customized_total.saturating_add(stats.customized_rebuilt_claims);
                 let _ = writeln!(out, "{}", ok_line(seed, ticks, &stats));
+                write_extended_report(out, seed, &stats, playthrough);
                 if let Some(report) = stats.devoted.as_ref() {
                     let _ = writeln!(out, "{}", report.line(seed));
                     for (sum, count) in candidate_totals.iter_mut().zip(report.candidate_counts()) {
@@ -1107,8 +1716,23 @@ fn run_batch(
                 continue;
             }
             SeedOutcome::Targets { failing, stats } => {
+                kin_pooled.add(&stats.kin);
                 totals.add(&stats);
-                targets_line(seed, &failing)
+                customized_total = customized_total.saturating_add(stats.customized_rebuilt_claims);
+                write_extended_report(out, seed, &stats, playthrough);
+                let mut line = targets_line(seed, &failing);
+                if !stats.targets.first_stop_band {
+                    let offset = stats
+                        .first_stop_offset
+                        .map_or_else(|| "none".to_owned(), |value| value.to_string());
+                    line.push_str(&format!(
+                        " offset={offset} band={}..={} cause={}",
+                        stats.first_stop_min,
+                        stats.first_stop_max.saturating_sub(1),
+                        stats.first_stop_cause
+                    ));
+                }
+                line
             }
             SeedOutcome::Invariant { tick, violation } => format!(
                 "seed {seed} FAIL tick={tick} criterion={} detail: {}",
@@ -1120,6 +1744,20 @@ fn run_batch(
         let _ = writeln!(out, "{line}");
         let _ = writeln!(err, "{line}");
     }
+    let pooled = kin_pooled.line(
+        0,
+        if playthrough {
+            "playthrough"
+        } else {
+            "passive"
+        },
+    );
+    let _ = writeln!(
+        out,
+        "batch: kin pooled {}",
+        pooled.strip_prefix("seed 0 kin ").unwrap_or(&pooled)
+    );
+    let _ = writeln!(out, "batch: customized_rebuilt_claims={customized_total}");
     if devoted {
         let _ = writeln!(
             out,
@@ -1178,7 +1816,12 @@ pub fn batch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let parsed = match args::parse_with_switches(
         args,
         &["seeds", "ticks", "random-inputs", "config"],
-        &["require-targets", "devoted", "require-reachability"],
+        &[
+            "require-targets",
+            "devoted",
+            "playthrough",
+            "require-reachability",
+        ],
     ) {
         Ok(p) => p,
         Err(e) => {
@@ -1194,6 +1837,7 @@ pub fn batch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
             random_inputs,
             require_targets,
             devoted,
+            playthrough,
             require_reachability,
         )) => run_batch(
             range,
@@ -1202,6 +1846,7 @@ pub fn batch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
             random_inputs,
             require_targets,
             devoted,
+            playthrough,
             require_reachability,
             &|_| Ok(()),
             out,
@@ -1214,7 +1859,7 @@ pub fn batch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     }
 }
 
-type BatchSetup = ((u64, u64), WorldConfig, u64, u64, bool, bool, bool);
+type BatchSetup = ((u64, u64), WorldConfig, u64, u64, bool, bool, bool, bool);
 
 fn setup(parsed: &Parsed) -> Result<BatchSetup, String> {
     if let Some(stray) = parsed.positionals().first() {
@@ -1243,8 +1888,9 @@ fn setup(parsed: &Parsed) -> Result<BatchSetup, String> {
         None => default_config(),
     };
     let devoted = parsed.get("devoted").is_some();
-    let require_targets = parsed.get("require-targets").is_some();
     let require_reachability = parsed.get("require-reachability").is_some();
+    let playthrough = parsed.get("playthrough").is_some();
+    let require_targets = parsed.get("require-targets").is_some();
     if devoted && require_targets {
         return Err("--devoted cannot be combined with --require-targets".to_owned());
     }
@@ -1258,6 +1904,7 @@ fn setup(parsed: &Parsed) -> Result<BatchSetup, String> {
         random_inputs,
         require_targets,
         devoted,
+        playthrough,
         require_reachability,
     ))
 }
@@ -1319,6 +1966,7 @@ mod tests {
             30,
             20,
             require_targets,
+            false,
             false,
             false,
             check,
@@ -1414,8 +2062,13 @@ mod tests {
         assert_eq!(code, 0, "{err}");
         assert!(err.is_empty(), "{err}");
         let lines: Vec<&str> = out.lines().collect();
-        assert_eq!(lines.len(), 4, "{out}");
-        for (line, seed) in lines.iter().zip(1..=2) {
+        let seed_lines: Vec<&str> = lines
+            .iter()
+            .copied()
+            .filter(|line| line.contains(" ok ticks=30 final="))
+            .collect();
+        assert_eq!(seed_lines.len(), 2, "{out}");
+        for (line, seed) in seed_lines.iter().zip(1..=2) {
             assert!(
                 line.starts_with(&format!("seed {seed} ok ticks=30 final=")),
                 "{line}"
@@ -1455,7 +2108,7 @@ outsiders_le_births_third=pass"
                 "{line}"
             );
         }
-        assert_eq!(lines[3], "batch: 2/2 seeds ok");
+        assert_eq!(lines[13], "batch: 2/2 seeds ok");
     }
 
     #[test]
@@ -1495,10 +2148,10 @@ rebuilt_claims=0 carry_overs=0 nodes_dream_interpretation=0 nodes_magistrate_rul
         let lines: Vec<&str> = out.lines().collect();
         assert!(lines[0].starts_with("seed 1 ok"), "{out}");
         assert_eq!(
-            lines[1],
+            lines[5],
             "seed 2 FAIL tick=5 criterion=9.3 detail: injected soul fault"
         );
-        assert_eq!(lines[3], "batch: 1/2 seeds ok");
+        assert_eq!(lines[9], "batch: 1/2 seeds ok");
         assert!(err.contains("seed 2 FAIL"), "{err}");
     }
 
@@ -1534,6 +2187,7 @@ rebuilt_claims=0 carry_overs=0 nodes_dream_interpretation=0 nodes_magistrate_rul
             outsiders_le_births: true,
             // The report-only ratio is not part of the enforced list.
             outsiders_le_births_third: false,
+            first_stop_band: true,
         };
         assert_eq!(targets.failing(), ["pop_35_65", "band_95"]);
         assert!(!targets.pass());
@@ -1546,6 +2200,7 @@ rebuilt_claims=0 carry_overs=0 nodes_dream_interpretation=0 nodes_magistrate_rul
             band_95: false,
             outsiders_le_births: true,
             outsiders_le_births_third: true,
+            first_stop_band: true,
         };
         assert_eq!(
             targets_line(5, &lone.failing()),
@@ -1556,7 +2211,7 @@ rebuilt_claims=0 carry_overs=0 nodes_dream_interpretation=0 nodes_magistrate_rul
     /// A `SeedStats` from a real 30-tick seed 1 run with the targets replaced.
     fn stats_with(targets: Targets) -> SeedStats {
         let SeedOutcome::Ok(mut stats) =
-            run_seed(1, small_config(), 30, 20, false, false, &|_| Ok(()))
+            run_seed(1, small_config(), 30, 20, false, false, false, &|_| Ok(()))
         else {
             panic!("seed 1 runs");
         };
@@ -1571,6 +2226,7 @@ rebuilt_claims=0 carry_overs=0 nodes_dream_interpretation=0 nodes_magistrate_rul
             band_95: true,
             outsiders_le_births: true,
             outsiders_le_births_third: false,
+            first_stop_band: true,
         };
         // `run_seed` reads `pass()` under --require-targets, so this seed stays `ok` and
         // `run_batch` returns EXIT_OK (0).
@@ -1580,7 +2236,7 @@ rebuilt_claims=0 carry_overs=0 nodes_dream_interpretation=0 nodes_magistrate_rul
         assert!(
             line.ends_with(
                 "pop_35_65=pass band_95=pass outsiders_le_births=pass \
-outsiders_le_births_third=fail"
+outsiders_le_births_third=fail first_stop_band=pass first_stop_offset=none"
             ),
             "{line}"
         );
@@ -1593,6 +2249,7 @@ outsiders_le_births_third=fail"
             band_95: true,
             outsiders_le_births: false,
             outsiders_le_births_third: true,
+            first_stop_band: true,
         };
         // `run_seed` returns `SeedOutcome::Targets` when `pass()` is false, so `run_batch`
         // counts the seed as failed and returns EXIT_FAILED (1).
@@ -1644,6 +2301,8 @@ outsiders_le_births_third=fail"
             "band_95=",
             "outsiders_le_births=",
             "outsiders_le_births_third=",
+            "first_stop_band=",
+            "first_stop_offset=",
         ];
         assert_eq!(fields.len(), expected.len(), "{line}");
         for (field, prefix) in fields.iter().zip(expected) {
@@ -1738,6 +2397,94 @@ outsiders_le_births_third=fail"
                 ]
                 .contains(&name),
                 "unknown Totals count field: {name}"
+            );
+        }
+    }
+    // Feature: first-playable, Property 18: Kin decay figures match direct computation and observe only
+    #[test]
+    fn property_18_kin_observer_matches_reference_and_does_not_mutate_world() {
+        use proptest::prelude::*;
+        proptest!(|(histories in prop::collection::vec(
+            prop::collection::vec(-3i8..=3, 1..40),
+            2..6,
+        ))| {
+            let mut observer = KinObserver::default();
+            let mut expected_nonpositive = Vec::new();
+            let mut expected_zero = Vec::new();
+            let mut expected_created = 0;
+            for (index, history) in histories.iter().enumerate() {
+                let key = (sim_core::ids::PersonId(index as u64 + 10), sim_core::ids::PersonId(20));
+                // Opening_World relations are created at tick 0; only positive affinity at
+                // that creation tick enters the observation population.
+                for (offset, value) in history.iter().copied().enumerate() {
+                    observer.observe_value(key, Tick(offset as u64 + 1), true, Some(value));
+                }
+                if history.first().is_some_and(|value| *value > 0) {
+                    expected_created += 1;
+                    if let Some(tick) = history.iter().position(|value| *value <= 0) {
+                        expected_nonpositive.push(tick as u64);
+                    }
+                    if let Some(tick) = history.iter().position(|value| *value == 0) {
+                        expected_zero.push(tick as u64);
+                    }
+                }
+
+            }
+            let summary = observer.finish();
+            expected_nonpositive.sort_unstable();
+            expected_zero.sort_unstable();
+            let mut actual_nonpositive = summary.nonpositive_days.clone();
+            let mut actual_zero = summary.zero_days.clone();
+            actual_nonpositive.sort_unstable();
+            actual_zero.sort_unstable();
+            prop_assert_eq!(summary.created, expected_created);
+            prop_assert_eq!(summary.nonpositive_reached, expected_nonpositive.len() as u64);
+            prop_assert_eq!(summary.nonpositive_censored, summary.created - summary.nonpositive_reached);
+            prop_assert_eq!(summary.zero_reached, expected_zero.len() as u64);
+            prop_assert_eq!(summary.zero_censored, summary.created - summary.zero_reached);
+            prop_assert_eq!(actual_nonpositive, expected_nonpositive);
+            prop_assert_eq!(actual_zero, expected_zero);
+        });
+        let opening_key = (sim_core::ids::PersonId(12), sim_core::ids::PersonId(20));
+        let mut opening_observer = KinObserver::default();
+        opening_observer.observe_value(opening_key, Tick(0), true, Some(1));
+        opening_observer.observe_value(opening_key, Tick(1), true, Some(0));
+        let opening_summary = opening_observer.finish();
+        assert_eq!(opening_summary.created, 1);
+        assert_eq!(opening_summary.nonpositive_days, vec![1]);
+        assert_eq!(opening_summary.zero_days, vec![1]);
+
+        let key_a = (sim_core::ids::PersonId(10), sim_core::ids::PersonId(20));
+        let key_b = (sim_core::ids::PersonId(11), sim_core::ids::PersonId(20));
+        let mut observer = KinObserver::default();
+        observer.observe_value(key_a, Tick(1), true, Some(2));
+        observer.observe_value(key_b, Tick(1), true, Some(2));
+        observer.observe_value(key_a, Tick(2), true, Some(0));
+        observer.seen.remove(&key_a);
+        if let Some(record) = observer.records.remove(&key_a) {
+            observer.completed.push(record);
+        }
+        observer.observe_value(key_a, Tick(5), true, Some(1));
+        let summary = observer.finish();
+        assert_eq!(summary.created, 3);
+        assert_eq!(summary.nonpositive_reached, 1);
+        assert_eq!(summary.nonpositive_censored, 2);
+        assert_eq!(summary.zero_reached, 1);
+        assert_eq!(summary.zero_censored, 2);
+        assert_eq!(summary.nonpositive_days, vec![1]);
+        assert_eq!(summary.zero_days, vec![1]);
+
+        let mut observed = Sim::new(3, small_config()).unwrap();
+        let mut control = Sim::new(3, small_config()).unwrap();
+        let mut observer = KinObserver::default();
+        for tick in 0..40 {
+            observer.observe(observed.world(), observed.world().tick());
+            observed.step();
+            control.step();
+            assert_eq!(
+                observed.checksums().last(),
+                control.checksums().last(),
+                "observer changed checksum at tick {tick}"
             );
         }
     }

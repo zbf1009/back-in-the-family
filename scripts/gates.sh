@@ -40,6 +40,8 @@ run cargo run -q --release -p sim-cli -- batch --seeds 1..=20 --ticks 2000
 run cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --require-targets
 # R11.16: Devoted applied-success reachability; LS-R17 stays report-only here.
 run cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --devoted --require-reachability
+# Acceptance-only branch, report-only; Devoted's gate and hard counts above stay unchanged.
+run cargo run -q --release -p sim-cli -- batch --seeds 1..=5 --ticks 29200 --playthrough
 run cargo test -p sim-wasm --features bench --test bench
 run cargo test -p sim-wasm --target wasm32-unknown-unknown
 run scripts/wasm-build.sh
