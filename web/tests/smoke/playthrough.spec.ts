@@ -259,6 +259,7 @@ test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel r
       expect(reply.ok, 'stage World Snapshot request succeeds').toBe(true);
       expect(reply.snapshot.tick).toBe(stage.tick);
       expect(reply.world?.tick).toBe(stage.tick);
+      expect(reply.snapshot.speed).toBe(index === 0 ? 1 : 365);
       const world = reply.world!;
       const expectedChecksum = fixture.checksums[Number(stage.tick) - 1]!;
       const displayedChecksum = await page.getByTestId('checksum').innerText();
