@@ -1,27 +1,34 @@
-//! Subcommand implementations: `record`, `replay`, `check-size`.
+//! Subcommand implementations for replay files and fixture tooling.
 //!
 //! Each function returns the process exit code (never panics on user-controlled data)
 //! and writes its own output to the `out`/`err` writers passed in, so tests can capture
 //! output without touching real stdio.
 
+use std::cmp::Reverse;
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use sim_core::ids::Tick;
+use sim_core::input::InputPayload;
+use sim_core::narrator::chronicle::EntrySource;
 use sim_core::replay::{ReplayConfig, ReplayError, ReplayFile, record as core_record, verify};
 use sim_core::tick::Sim;
-use sim_core::world::WorldConfig;
+use sim_core::underworld::carry_over::TraitName;
+use sim_core::underworld::dreams::DreamIntent;
+use sim_core::underworld::ghosts::connected;
+use sim_core::underworld::slots::{SlotRef, path_status};
+use sim_core::values::Origin;
+use sim_core::world::{Life, SoulPlace, WorldConfig};
 
 use crate::args::{self, Parsed};
-use crate::auto_player::AutoPlayer;
-use crate::batch::replay_of;
+use crate::auto_player::{AutoPlayer, PlayerAnswerer};
+use crate::batch::{parse_seed_range, replay_of};
 use crate::inputs::generate_inputs;
 
-/// Exit code for a usage error, a malformed input, or any other problem that is not a
-/// reported divergence or a `check-size` violation.
+/// Exit code for invalid arguments, malformed files and I/O errors.
 pub const EXIT_USAGE_OR_MALFORMED: i32 = 2;
-/// Exit code for a reported divergence or a `check-size` violation.
+/// Exit code for a failed check or an unqualified playthrough recording.
 pub const EXIT_FAILED: i32 = 1;
 pub const EXIT_OK: i32 = 0;
 
@@ -50,13 +57,15 @@ pub fn default_config() -> WorldConfig {
 
 pub const RECORD_USAGE: &str = "usage: sim-cli record --seed S --ticks N [--config FILE] \
 [--random-inputs K] [--auto-player] --out FILE\n\
+       sim-cli record --seed S --ticks N --playthrough --stages FILE --out FILE \
+[--config FILE] [--step-fallback]\n\
 without --config: {\"opening_residents\":50}";
 
 pub fn record(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     let parsed = match args::parse_with_switches(
         args,
-        &["seed", "ticks", "config", "random-inputs", "out"],
-        &["auto-player"],
+        &["seed", "ticks", "config", "random-inputs", "out", "stages"],
+        &["auto-player", "playthrough", "step-fallback"],
     ) {
         Ok(p) => p,
         Err(e) => {
@@ -73,18 +82,17 @@ pub fn record(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 
             let _ = writeln!(err, "error: {e}");
             EXIT_USAGE_OR_MALFORMED
         }
-        Err(RecordError::Diverged(e)) => {
+        Err(RecordError::Failed(e)) => {
             let _ = writeln!(err, "error: {e}");
             EXIT_FAILED
         }
     }
 }
 
-/// Why `record` failed. A fresh replay that does not verify is a determinism failure
-/// (exit 1, like `replay`); everything else is exit 2.
+/// A verification failure or an unqualified playthrough exits 1; usage and I/O exit 2.
 enum RecordError {
     Other(String),
-    Diverged(String),
+    Failed(String),
 }
 
 impl From<String> for RecordError {
@@ -116,6 +124,55 @@ fn run_record(parsed: &Parsed) -> Result<String, RecordError> {
         Some(path) => load_config(path)?,
         None => default_config(),
     };
+    if parsed.get("playthrough").is_some() {
+        if parsed.get("random-inputs").is_some() || parsed.get("auto-player").is_some() {
+            return Err(
+                "--playthrough cannot be combined with --random-inputs or --auto-player"
+                    .to_owned()
+                    .into(),
+            );
+        }
+        let stages_path = parsed
+            .get("stages")
+            .ok_or_else(|| "--playthrough requires --stages FILE".to_owned())?;
+        if Path::new(out_path) == Path::new(stages_path) {
+            return Err("--out and --stages must name different files"
+                .to_owned()
+                .into());
+        }
+        let run = run_playthrough(seed, config, ticks, parsed.get("step-fallback").is_some())?
+            .ok_or_else(|| {
+                RecordError::Failed(format!(
+                    "seed {seed}: no qualifying playthrough within {ticks} ticks"
+                ))
+            })?;
+        let file = replay_of(
+            seed,
+            config,
+            run.sim.world().tick().0,
+            run.sim.inputs().all(),
+            run.sim.checksums(),
+        );
+        let stages = serde_json::json!({
+            "last_tick": file.ticks.to_string(),
+            "step_clicks": run.step_clicks,
+            "stages": run.stages.iter().map(|(tick, reasons)| serde_json::json!({
+                "tick": tick.0.to_string(),
+                "reasons": reasons,
+            })).collect::<Vec<_>>(),
+        });
+        let text = serde_json::to_string_pretty(&stages).map_err(|e| e.to_string())?;
+        let summary = write_record(&file, out_path)?;
+        write_json_line(stages_path, text)?;
+        return Ok(format!("{summary}\n{} -> {stages_path}", run.summary()));
+    }
+    if parsed.get("stages").is_some() || parsed.get("step-fallback").is_some() {
+        return Err(
+            "--stages and --step-fallback require --playthrough when recording"
+                .to_owned()
+                .into(),
+        );
+    }
     let inputs = generate_inputs(
         seed,
         random_inputs,
@@ -140,24 +197,19 @@ fn run_record(parsed: &Parsed) -> Result<String, RecordError> {
     } else {
         core_record(seed, config, &inputs, ticks).map_err(|e| e.to_string())?
     };
+    write_record(&file, out_path)
+}
+
+fn write_record(file: &ReplayFile, out_path: &str) -> Result<String, RecordError> {
     // Safety net: verify the freshly produced replay in-process before writing it.
-    verify(&file).map_err(|e| {
-        RecordError::Diverged(format!(
+    verify(file).map_err(|e| {
+        RecordError::Failed(format!(
             "record produced a replay that fails to verify: {e}"
         ))
     })?;
-    let json = file.to_json_string().map_err(|e| e.to_string())?;
+    write_json_line(out_path, file.to_json_string().map_err(|e| e.to_string())?)?;
 
-    if let Some(parent) = Path::new(out_path).parent()
-        && !parent.as_os_str().is_empty()
-    {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("cannot create directory for {out_path}: {e}"))?;
-    }
-    let mut text = json;
-    text.push('\n');
-    fs::write(out_path, &text).map_err(|e| format!("cannot write {out_path}: {e}"))?;
-
+    let ReplayFile { seed, ticks, .. } = file;
     let final_checksum = file
         .checksums
         .last()
@@ -167,6 +219,269 @@ fn run_record(parsed: &Parsed) -> Result<String, RecordError> {
         "recorded seed={seed} ticks={ticks} inputs={} final_checksum={final_checksum} -> {out_path}",
         file.inputs.len()
     ))
+}
+
+fn write_json_line(out_path: &str, mut text: String) -> Result<(), String> {
+    if let Some(parent) = Path::new(out_path).parent()
+        && !parent.as_os_str().is_empty()
+    {
+        fs::create_dir_all(parent)
+            .map_err(|e| format!("cannot create directory for {out_path}: {e}"))?;
+    }
+    text.push('\n');
+    fs::write(out_path, &text).map_err(|e| format!("cannot write {out_path}: {e}"))
+}
+
+const FALLBACK_MAX_STEPS: u64 = 200;
+const IMPORTED: SlotRef = SlotRef::ImportedVessel;
+
+struct Playthrough {
+    sim: Sim,
+    stages: Vec<(Tick, Vec<&'static str>)>,
+    first_life_choices: usize,
+    death_stop: Tick,
+    dream_stop: Tick,
+    claim_tick: Tick,
+    reborn_stop: Tick,
+    funeral_joss: u64,
+    step_clicks: u64,
+}
+
+impl Playthrough {
+    fn summary(&self) -> String {
+        format!(
+            "seed={} first_life_choices={} death_stop={} funeral_joss={} dream_stop={} claim_tick={} reborn_stop={} last_tick={} step_clicks={}",
+            self.sim.world().seed(),
+            self.first_life_choices,
+            self.death_stop.0,
+            self.funeral_joss,
+            self.dream_stop.0,
+            self.claim_tick.0,
+            self.reborn_stop.0,
+            self.sim.world().tick().0,
+            self.step_clicks,
+        )
+    }
+}
+
+/// The same script drives search and recording. An unsuccessful seed never produces a fixture.
+fn run_playthrough(
+    seed: u64,
+    config: WorldConfig,
+    max_ticks: u64,
+    fallback: bool,
+) -> Result<Option<Playthrough>, String> {
+    let mut sim = Sim::new(seed, config).map_err(|e| e.to_string())?;
+    let souls = sim.world().souls();
+    let SoulPlace::Body(first_body) = souls.places[&souls.player] else {
+        return Err("player has no opening body".to_owned());
+    };
+    let mut stages = Vec::new();
+    let mut death_stop = None;
+    let mut dream_stop = None;
+    let mut claim_tick = None;
+    let mut reborn_stop = None;
+    let mut first_life_choices = 0;
+    let mut funeral_joss = 0;
+
+    loop {
+        let world = sim.world();
+        let tick = world.tick();
+        let stops = sim.last_stops();
+        if stops.any() {
+            stages.push((tick, stops.labels()));
+        }
+        if stops.player_reborn {
+            let Some(life) = world.narrator().life.as_ref() else {
+                return Ok(None);
+            };
+            if claim_tick.is_none()
+                || life.body == first_body
+                || world.persons()[&life.body].origin != Origin::Possessed
+            {
+                return Ok(None);
+            }
+            reborn_stop = Some(tick);
+        }
+        if let Some(reborn_stop) = reborn_stop
+            && tick > reborn_stop
+        {
+            let death_stop = death_stop.expect("claim follows death");
+            let dream_stop = dream_stop.expect("claim follows dream");
+            let claim_tick = claim_tick.expect("qualifying rebirth follows a claim");
+            return Ok(Some(Playthrough {
+                sim,
+                stages,
+                first_life_choices,
+                death_stop,
+                dream_stop,
+                claim_tick,
+                reborn_stop,
+                funeral_joss,
+                step_clicks: claim_tick.0 - dream_stop.0,
+            }));
+        }
+        if tick.0 >= max_ticks {
+            return Ok(None);
+        }
+
+        let mut dream = None;
+        let mut carry_over = None;
+        if stops.player_died {
+            let Some(wait) = world.player_wait() else {
+                return Ok(None);
+            };
+            let Life::Dead { death } = world.persons()[&first_body].life else {
+                return Ok(None);
+            };
+            if death_stop.is_some() || wait.ghost != first_body || death.0 + 1 != tick.0 {
+                return Ok(None);
+            }
+            first_life_choices = world
+                .narrator()
+                .chronicle
+                .entries()
+                .iter()
+                .filter(|entry| entry.source == EntrySource::External && !entry.chooser_absent)
+                .count();
+            if first_life_choices < 2 {
+                return Ok(None);
+            }
+            funeral_joss = world.joss()[&world.souls().player].balance;
+            let params = world.params();
+            if funeral_joss < params.dream_price
+                || (!fallback && funeral_joss < params.dream_price + params.imported_price)
+            {
+                return Ok(None);
+            }
+            let Some(dreamer) = connected(world, wait.ghost).into_iter().max_by_key(|&id| {
+                (
+                    world.relations()[&(id, wait.ghost)].affinity.get(),
+                    Reverse(id),
+                )
+            }) else {
+                return Ok(None);
+            };
+            dream = Some(InputPayload::Dream {
+                dreamer,
+                intent: DreamIntent::Reassure,
+            });
+            death_stop = Some(tick);
+        }
+        if stops.dream_resolved {
+            dream_stop = Some(tick);
+        }
+        if let Some(dream_stop) = dream_stop
+            && claim_tick.is_none()
+        {
+            if path_status(world, IMPORTED).executable() {
+                // The claim tick and one subsequent tick must both fit in the recording.
+                if tick.0 + 2 > max_ticks {
+                    return Ok(None);
+                }
+                carry_over = Some(InputPayload::CarryOver {
+                    trait_name: strongest_trait(world, first_body),
+                });
+                claim_tick = Some(tick);
+            } else if !fallback || tick.0 - dream_stop.0 >= FALLBACK_MAX_STEPS {
+                return Ok(None);
+            }
+        }
+        let choice = PlayerAnswerer.plan(&sim);
+        for payload in [
+            choice,
+            dream,
+            carry_over,
+            carry_over.map(|_| InputPayload::ClaimSlot {
+                slot: IMPORTED,
+                customization: None,
+            }),
+        ]
+        .into_iter()
+        .flatten()
+        {
+            sim.submit(tick, payload).map_err(|e| e.to_string())?;
+        }
+        sim.step();
+        if sim
+            .last_outcomes()
+            .iter()
+            .any(|outcome| outcome.result.is_err())
+        {
+            return Ok(None);
+        }
+        if (dream.is_some() && !sim.last_stops().dream_resolved)
+            || (carry_over.is_some() && !sim.last_stops().player_reborn)
+        {
+            return Ok(None);
+        }
+    }
+}
+
+fn strongest_trait(world: &sim_core::world::World, body: sim_core::ids::PersonId) -> TraitName {
+    // Match the CLI's carry-over policy: greatest absolute magnitude, then card order.
+    let t = &world.persons()[&body].traits;
+    let values = [
+        t.greed,
+        t.loyalty,
+        t.pride,
+        t.warmth,
+        t.temper,
+        t.vindictiveness,
+        t.piety,
+    ];
+    TraitName::ALL
+        .into_iter()
+        .zip(values)
+        .max_by_key(|(name, value)| (value.get().unsigned_abs(), Reverse(*name)))
+        .expect("non-empty trait list")
+        .0
+}
+
+pub const PLAYTHROUGH_SEARCH_USAGE: &str =
+    "usage: sim-cli playthrough-search --seeds A..=B --max-ticks N [--step-fallback]";
+
+pub fn playthrough_search(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    match run_playthrough_search(args, out) {
+        Ok(()) => EXIT_OK,
+        Err(e) => {
+            let _ = writeln!(err, "error: {e}\n{PLAYTHROUGH_SEARCH_USAGE}");
+            EXIT_USAGE_OR_MALFORMED
+        }
+    }
+}
+
+fn run_playthrough_search(args: &[String], out: &mut dyn Write) -> Result<(), String> {
+    let parsed = args::parse_with_switches(args, &["seeds", "max-ticks"], &["step-fallback"])?;
+    if let Some(stray) = parsed.positionals().first() {
+        return Err(format!("unexpected argument {stray:?}"));
+    }
+    let (first, last) =
+        parse_seed_range(parsed.get("seeds").ok_or("missing required flag --seeds")?)?;
+    let ticks = parsed.require_u64("max-ticks")?;
+    if !(1..=MAX_TICKS).contains(&ticks) {
+        return Err(format!(
+            "--max-ticks must be between 1 and {MAX_TICKS}, got {ticks}"
+        ));
+    }
+    let fallback = parsed.get("step-fallback").is_some();
+    let mut qualifying = 0;
+    let mut tested = 0;
+    for seed in first..=last {
+        tested += 1;
+        if let Some(run) = run_playthrough(seed, default_config(), ticks, fallback)? {
+            writeln!(out, "{}", run.summary()).map_err(|e| e.to_string())?;
+            qualifying += 1;
+            if fallback {
+                break;
+            }
+        }
+    }
+    writeln!(
+        out,
+        "playthrough-search: {qualifying} qualifying seeds ({tested} tested)"
+    )
+    .map_err(|e| e.to_string())
 }
 
 pub const REPLAY_USAGE: &str = "usage: sim-cli replay FILE...";

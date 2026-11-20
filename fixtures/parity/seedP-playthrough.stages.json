@@ -1,0 +1,42 @@
+{
+  "last_tick": "5376",
+  "stages": [
+    {
+      "reasons": [
+        "player_node"
+      ],
+      "tick": "734"
+    },
+    {
+      "reasons": [
+        "player_node"
+      ],
+      "tick": "2328"
+    },
+    {
+      "reasons": [
+        "player_node"
+      ],
+      "tick": "3866"
+    },
+    {
+      "reasons": [
+        "player_died"
+      ],
+      "tick": "5373"
+    },
+    {
+      "reasons": [
+        "dream_resolved"
+      ],
+      "tick": "5374"
+    },
+    {
+      "reasons": [
+        "player_reborn"
+      ],
+      "tick": "5375"
+    }
+  ],
+  "step_clicks": 0
+}

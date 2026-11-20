@@ -24,6 +24,8 @@ sim-cli: native headless runner for sim-core
 
 USAGE:
   sim-cli record --seed S --ticks N --out FILE [--config FILE] [--random-inputs K] [--auto-player]
+  sim-cli record --seed S --ticks N --out FILE --playthrough --stages FILE [--config FILE] [--step-fallback]
+  sim-cli playthrough-search --seeds A..=B --max-ticks N [--step-fallback]
   sim-cli replay FILE...
   sim-cli snapshot --replay FILE --at TICK --out FILE
   sim-cli check-size DIR [--max-bytes N]
@@ -44,6 +46,11 @@ record       Run N ticks from seed S and write a replay file (parent directories
              --random-inputs K adds K inputs generated from the seed (about a quarter are
              invalid on purpose). --auto-player additionally submits seeded underworld
              choices every tick. The same command line always writes identical bytes.
+             --playthrough uses only scripted player inputs, stops one tick after rebirth
+             (at most N ticks), and writes the stop list to --stages FILE.
+playthrough-search  List qualifying default-config playthrough seeds in ascending order.
+             --step-fallback (also usable when recording) permits an Imported_Vessel
+             claim within 200 Step clicks of dream resolution and lists the first match.
 replay       Re-run each replay file from its seed, config and inputs and compare every
              tick's checksum. Prints `ok FILE` on stdout per verified file; problems go to
              stderr.
@@ -92,7 +99,8 @@ grading-perm-avg-golden  Run llm_aggregate_perm_avg on those inputs and write th
 EXIT CODES:
   0  success
   1  replay: a checksum diverged (first divergent tick is printed); record: the fresh
-     replay failed its own verification; check-size: a file is at or above the limit;
+     replay failed its own verification or the playthrough did not qualify;
+     check-size: a file is at or above the limit;
      batch: an invariant or replay failed, a passive required target failed, or a
      devoted required applied count was zero
   2  usage error, unreadable or malformed file, invalid config, I/O error
@@ -119,6 +127,7 @@ fn dispatch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
     }
     match command.as_str() {
         "record" => commands::record(rest, out, err),
+        "playthrough-search" => commands::playthrough_search(rest, out, err),
         "replay" => commands::replay(rest, out, err),
         "snapshot" => commands::snapshot(rest, out, err),
         "check-size" => commands::check_size(rest, out, err),

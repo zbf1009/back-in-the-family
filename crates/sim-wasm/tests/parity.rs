@@ -128,6 +128,248 @@ fn underworld_fixture_applies_an_external_choice() {
     );
 }
 
+/// R15.5/R15.7: verify both the golden replay and the applied playthrough, including
+/// the stop Snapshots the browser smoke test will use as its display oracle.
+#[wasm_bindgen_test(unsupported = test)]
+fn playthrough_fixture_matches_every_tick_and_stage() {
+    use sim_core::ids::Tick;
+    use sim_core::input::InputPayload;
+    use sim_core::narrator::chronicle::EntrySource;
+    use sim_core::replay::ReplayFile;
+    use sim_core::snapshot::snapshot_json;
+    use sim_core::tick::Sim;
+    use sim_core::underworld::slots::{SlotRef, path_status};
+    use sim_core::values::Origin;
+    use sim_core::world::{Life, SoulPlace, WorldConfig};
+
+    let file = ReplayFile::from_json_str(include_str!(
+        "../../../fixtures/parity/seedP-playthrough.replay.json"
+    ))
+    .expect("seedP-playthrough replay format");
+    assert_eq!(
+        file.ticks,
+        file.checksums.len() as u64,
+        "seedP-playthrough: expected one checksum per tick"
+    );
+    let sidecar: Value = serde_json::from_str(include_str!(
+        "../../../fixtures/parity/seedP-playthrough.stages.json"
+    ))
+    .expect("seedP-playthrough stage format");
+    let mut core = Sim::new(file.seed, WorldConfig::try_from(file.config).unwrap()).unwrap();
+    let mut wasm =
+        WasmSim::create(file.seed, &serde_json::to_string(&file.config).unwrap()).unwrap();
+    let souls = core.world().souls();
+    let SoulPlace::Body(first_body) = souls.places[&souls.player] else {
+        panic!("seedP-playthrough: missing opening body");
+    };
+    let mut inputs = file.inputs.iter().peekable();
+    let mut stages = Vec::new();
+    let mut death_stop = None;
+    let mut dream_stop = None;
+    let mut claim_tick = None;
+    let mut carry_tick = None;
+    let mut first_divergence = None;
+    for (tick, expected) in (0..file.ticks).zip(&file.checksums) {
+        let before = core.last_stops();
+        let mut sent_dream = false;
+        let mut sent_claim = false;
+        let mut payloads = Vec::new();
+        while let Some(input) = inputs.next_if(|input| input.tick == tick) {
+            let payload = InputPayload::from(input.payload);
+            match payload {
+                InputPayload::ChoosePlayer { node, .. } => assert!(
+                    before.player_node && core.player_node_state() == Some((node, false)),
+                    "seedP-playthrough: no unanswered Player_Node {node:?} at tick {tick}"
+                ),
+                InputPayload::Dream { .. } => {
+                    assert_eq!(
+                        death_stop,
+                        Some(tick),
+                        "seedP-playthrough: Dream not sent at real death stop"
+                    );
+                    assert!(
+                        dream_stop.is_none() && !sent_dream,
+                        "seedP-playthrough: extra Dream"
+                    );
+                    sent_dream = true;
+                }
+                InputPayload::CarryOver { .. } => {
+                    assert_eq!(
+                        carry_tick.replace(tick),
+                        None,
+                        "seedP-playthrough: extra CarryOver"
+                    );
+                }
+                InputPayload::ClaimSlot {
+                    slot: SlotRef::ImportedVessel,
+                    customization: None,
+                } => {
+                    assert_eq!(
+                        carry_tick,
+                        Some(tick),
+                        "seedP-playthrough: CarryOver must precede claim on the same tick"
+                    );
+                    assert!(
+                        claim_tick.is_none() && !sent_claim,
+                        "seedP-playthrough: extra Imported_Vessel claim"
+                    );
+                    assert!(
+                        path_status(core.world(), SlotRef::ImportedVessel).executable(),
+                        "seedP-playthrough: Imported_Vessel not executable at tick {tick}"
+                    );
+                    sent_claim = true;
+                }
+                _ => panic!("seedP-playthrough: unexpected input at tick {tick}: {payload:?}"),
+            }
+            let seq = core.submit(Tick(tick), payload).unwrap();
+            assert_eq!(
+                seq.0, input.seq,
+                "seedP-playthrough: input sequence at tick {tick}"
+            );
+            payloads.push(input.payload);
+        }
+        if !payloads.is_empty() {
+            let reply = wasm
+                .submit_checked_json(&serde_json::to_string(&payloads).unwrap())
+                .unwrap();
+            assert_eq!(
+                reply, r#"{"ok":true}"#,
+                "seedP-playthrough: checked submit at tick {tick}"
+            );
+        }
+        assert!(
+            !matches!(core.player_node_state(), Some((_, false))),
+            "seedP-playthrough: missing Player_Node choice at tick {tick}"
+        );
+        let checksum = core.step();
+        let after = core.last_stops();
+        for outcome in core.last_outcomes() {
+            assert_eq!(
+                outcome.result,
+                Ok(()),
+                "seedP-playthrough: rejected input {outcome:?} at tick {tick}"
+            );
+        }
+        assert!(
+            !sent_dream || after.dream_resolved,
+            "seedP-playthrough: Dream not resolved at tick {tick}"
+        );
+        assert!(
+            !sent_claim || after.player_reborn,
+            "seedP-playthrough: Imported_Vessel claim did not result in rebirth at tick {tick}"
+        );
+        let post_tick = core.world().tick().0;
+        if after.player_died && death_stop.is_none() {
+            assert_eq!(
+                core.world().persons()[&first_body].life,
+                Life::Dead { death: Tick(tick) },
+                "seedP-playthrough: player_died without real first-body death"
+            );
+            death_stop = Some(post_tick);
+        }
+        if sent_dream {
+            dream_stop = Some(post_tick);
+        }
+        if sent_claim {
+            claim_tick = Some(tick);
+        }
+
+        let reasons = after.labels();
+        let native_reply =
+            serde_json::json!({"ran": 1, "checksum": checksum.to_hex_string(), "stops": reasons});
+        let reply: Value = serde_json::from_str(&wasm.run_until_stop(1)).unwrap();
+        assert_eq!(
+            wasm.tick(),
+            post_tick,
+            "seedP-playthrough: WASM tick after {tick}"
+        );
+        assert_eq!(
+            reply, native_reply,
+            "seedP-playthrough: checksum/stop reply at tick {post_tick}"
+        );
+        if after.any() {
+            assert_eq!(
+                wasm.snapshot(),
+                snapshot_json(core.world()),
+                "seedP-playthrough: stage Snapshot at tick {post_tick}"
+            );
+            stages.push(serde_json::json!({"tick": post_tick.to_string(), "reasons": reasons}));
+        }
+        if checksum != *expected {
+            // Report missing behavior before the golden mismatch if an input was removed.
+            first_divergence.get_or_insert((post_tick, *expected, checksum));
+        }
+    }
+    assert!(
+        inputs.next().is_none(),
+        "seedP-playthrough: input outside recording or out of tick order"
+    );
+    let death_stop = death_stop.expect("seedP-playthrough: missing real first-body death");
+    let choices = core
+        .world()
+        .narrator()
+        .chronicle
+        .entries()
+        .iter()
+        .filter(|entry| {
+            entry.tick.0 < death_stop
+                && entry.source == EntrySource::External
+                && !entry.chooser_absent
+        })
+        .count();
+    assert!(
+        choices >= 2,
+        "seedP-playthrough: needs two applied first-life Player_Node choices, got {choices}"
+    );
+    let dream_stop = dream_stop.expect("seedP-playthrough: missing applied Dream");
+    let claim_tick = claim_tick.expect("seedP-playthrough: missing applied Imported_Vessel claim");
+    let life = core
+        .world()
+        .narrator()
+        .life
+        .as_ref()
+        .expect("seedP-playthrough: missing second body");
+    assert!(
+        life.body != first_body
+            && life.start.0 == claim_tick
+            && core.world().persons()[&life.body].origin == Origin::Possessed,
+        "seedP-playthrough: missing second body from the Imported_Vessel claim"
+    );
+    assert!(
+        file.ticks >= life.start.0 + 2,
+        "seedP-playthrough: missing tick after second body begins (start {}, end {})",
+        life.start.0,
+        file.ticks
+    );
+
+    let step_clicks = claim_tick
+        .checked_sub(dream_stop)
+        .expect("seedP-playthrough: claim was before dream resolution");
+    assert!(
+        step_clicks <= 200,
+        "seedP-playthrough: fallback exceeds 200 Step clicks"
+    );
+    assert_eq!(
+        sidecar["step_clicks"], step_clicks,
+        "seedP-playthrough: Step click count"
+    );
+    assert_eq!(
+        sidecar["last_tick"],
+        file.ticks.to_string(),
+        "seedP-playthrough: final world tick"
+    );
+    assert_eq!(
+        sidecar["stages"],
+        serde_json::json!(stages),
+        "seedP-playthrough: ordered stage ticks and reasons"
+    );
+    if let Some((tick, expected, actual)) = first_divergence {
+        panic!(
+            "seedP-playthrough: checksum mismatch at tick {tick}: expected {expected}, actual {actual}"
+        );
+    }
+}
+
 /// R18.3 and R18.2: the Snapshot at tick 500 of `seed1-pairwise` is byte-identical to
 /// the committed native file, and taking a Snapshot does not change the run.
 #[wasm_bindgen_test(unsupported = test)]
