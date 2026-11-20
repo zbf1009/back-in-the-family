@@ -308,6 +308,8 @@ The Author decided P-1 execution scope on 2026-11-16 (Decisions section): the co
 12. WHEN the Gates_Script runs, THE Gates_Script SHALL keep the Devoted reachability gate of UW-R11.16 with its current arguments and its current hard-checked counts (Requirement 6.12).
 13. WHEN the Playthrough_Branch answers a Player_Node, THE Sim_Cli SHALL choose the option in the node's option set whose Option_Preview has the largest sum of affinity effects on Relations from Blood_Tie Residents toward the body, breaking ties in favour of the Rules_Default and then by the lowest option ID; this strategy SHALL change no Player_Node, External_Choice or Rules_Default rule of the Life_Sim.
 
+**Author-approved close-out exception to R13.10 and R16.10.** For the first-node-resolution case of N6 only, the same-tick runtime regression and the checker regression, including its fail–restore–pass result with the checker predicate removed, substitute for C2 evidence from the production update omission. The omission did not produce a violation because a later update ended Grace in the same tick; it is not a passing C2 result. R5.10, R13.8 and every other fault-evidence obligation remain unchanged. See the design's “Fault injections for new gates” and the [final audit](../../../docs/first-playable-audit.md).
+
 ### Requirement 14: Kin Relation decay observation
 
 **User Story:** As the Author, I want the kin decay watch item measured in play with clear definitions, so that I can decide later whether decay is too fast.

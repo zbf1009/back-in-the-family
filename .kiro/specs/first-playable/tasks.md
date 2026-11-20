@@ -192,8 +192,8 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - Acceptance: one log entry `### Spec: first-playable — art trial (<date>)` with the license finding, the coverage and the screenshot path. No commit of any pack file. **STOP (checkpoint C4).** The Author decides adopt, adopt plus drawn gaps, or change (R12.4). If the decision is late, the slice keeps the placeholder sprites and this task closes on the log entry.
     - **C4 outcome (Author, 2026-11-19): change.** No pack file enters the repository, and tasks 12 to 16 run on the placeholder `SpriteSet`. Task 15.1's `web/assets/ASSETS.json` stays an empty list and `README.md` gains no third-party row.
 
-- [ ] 12. Batch metrics and the first-stop gate
-  - [ ] 12.1 Report the narrator, the paths and the kin decay, and gate the first stop
+- [x] 12. Batch metrics and the first-stop gate
+  - [x] 12.1 Report the narrator, the paths and the kin decay, and gate the first stop
     - Files: `crates/sim-cli/src/batch.rs`, `crates/sim-cli/src/auto_player.rs`, `crates/sim-core/src/invariants.rs`, `scripts/gates.sh`, `docs/kiro-log.md`.
     - Follow design "sim-cli" and "Batch report additions".
     - The `batch` report gains, per seed, the per-life narrator line, the `intro` line, the per-death Path_Status line, the kin decay lines and the Customization line, in the fixed text of the design block, so two runs with the same arguments are byte-identical (R13.1, R13.2, R13.3, R14.1, R14.2, R14.3).
@@ -205,8 +205,8 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - _Requirements: 6.11, 8.10, 13.1, 13.2, 13.3, 13.4, 13.5, 13.6, 13.7, 13.8, 13.9, 13.10, 13.11, 13.12, 13.13, 14.1, 14.2, 14.3, 14.4, 14.5, 14.6, 14.7_
     - Acceptance: Rust gates pass; `scripts/gates.sh` exits 0 with the new batch in it. The log entry records the Playthrough_Branch wall time, the change in total gate time against the 377 s baseline, and the pooled kin figures beside the underworld H1 baseline with the sampling difference stated (R13.4, R14.6). Commit `feat(sim-cli): report the narrator and gate the first stop`.
 
-- [ ] 13. The Playthrough_Fixture
-  - [ ] 13.1 Search for the seed and record the fixture
+- [x] 13. The Playthrough_Fixture
+  - [x] 13.1 Search for the seed and record the fixture
     - Files: `crates/sim-cli/src/commands.rs`, `fixtures/parity/seedP-playthrough.replay.json` (new), `fixtures/parity/seedP-playthrough.stages.json` (new), `crates/sim-wasm/tests/parity.rs`, `docs/kiro-log.md`.
     - Follow design "Fixture seed search" and "Fixtures and parity".
     - `playthrough-search --seeds 1..=5000 --max-ticks 8000` runs the fixture script in ascending seed order with `Params::DEFAULT` and no balance edit, and lists the qualifying seeds (R15.8). The first is frozen into the fixture. The command and its full output go into the log.
@@ -216,8 +216,8 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - _Requirements: 15.5, 15.7, 15.8, 15.9_
     - Acceptance: the wasm32 parity test passes on the new fixture; the log holds the search output. Commit `test: add the playthrough parity fixture`.
 
-- [ ] 14. The playthrough Smoke_Test
-  - [ ] 14.1 Play the fixture through the page
+- [x] 14. The playthrough Smoke_Test
+  - [x] 14.1 Play the fixture through the page
     - Files: `web/tests/smoke/playthrough.spec.ts` (new), `web/playwright.config.ts`, `web/tests/unit/templates.test.ts` (only to add a literal example for a scene the playthrough shows, if one is missing), `docs/kiro-log.md`.
     - Follow design "Playthrough Smoke_Test" and "Smoke time bound".
     - The test plays the fixture's seed through the real controls: Speed 1 to the first stop, then Speed 365 and Run between stops, submitting each input by clicking or filling controls (R16.1, R16.2, R16.3). At the first `player_node` stop it sends one `run` through the Worker request path and asserts `node_unanswered` and that the tick did not advance (R8.9). It submits no input through the harness.
@@ -231,8 +231,8 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.5, 16.6, 16.7, 16.8, 16.11, 16.14, 16.15, 16.16_
     - Acceptance: the Smoke_Test passes, and `scripts/gates.sh` exits 0. Commit `test(web): add the playthrough smoke test`.
 
-- [ ] 15. Fault injections, the comparison document and steering
-  - [ ] 15.1 Inject each new gate's fault once, write the comparison, update steering
+- [x] 15. Fault injections, the comparison document and steering
+  - [x] 15.1 Inject each new gate's fault once, write the comparison, update steering
     - Files: `docs/kiro-log.md`, `docs/rebuilt-body-comparison.md` (new), `.kiro/steering/structure.md`, `README.md`, `web/scripts/check-deploy.ts`, `web/assets/ASSETS.json` (new, empty list).
     - Follow design "Fault injections for new gates", "Comparison document" and "Asset gate".
     - For each row of the fault-injection table: inject the fault, run the gate, record the failing output, revert, run the gate again and record the pass. Cite any evidence already recorded in task 12.1 that meets these conditions rather than repeating the injection. The advancement-gate row removes the controller's unanswered check and sends `run` through the Worker request path; it does not check the disabled button. After that revert, the Smoke_Test, the native and WASM parity tests and the fixture pass unchanged (R16.10).
@@ -242,14 +242,16 @@ Each checkpoint is the proof that one phase works, and the point where the Autho
     - `structure.md`'s spec 6 status line gives the window as extended to 2026-11-22 (Author, 2026-11-19). Its planned order after spec 6 and its next steps are not edited in this task; they wait for the Author's ruling on what is done before the deadline.
     - _Requirements: 6.10, 12.6, 12.7, 12.8, 12.9, 13.10, 16.9, 16.10_
     - Acceptance: every injection is logged with its failure and its revert; `scripts/gates.sh` exits 0 at the end. One commit `docs: record the first-playable gate injections and the rebuilt body comparison`.
+    - Close-out (2026-11-20): the Author accepted alternate evidence for N6 first-node resolution only (R13.10, R16.10), as recorded in [design: Fault injections for new gates](design.md#fault-injections-for-new-gates-requirement-1310-1610) and the [final audit](../../../docs/first-playable-audit.md). The runtime regression `first_node_resolution_ends_grace_only_on_the_choice_tick` verifies that Intro_Grace ends on the resolution tick. The checker regression `grace_after_actual_first_node_resolution_is_caught_as_n6` failed when `first_resolution.is_some()` was removed and passed after restoration. Another update in the same tick masked the prescribed production omission of `intro::update` at step 2c, so production-path C2 was not demonstrated for this case. The invariant and separate transfer evidence are unchanged.
 
-- [ ] 16. Final check and audit
-  - [ ] 16.1 Confirm the gates and hand over
+- [x] 16. Final check and audit
+  - [x] 16.1 Confirm the gates and hand over
     - Files: `docs/kiro-log.md` only.
     - Run `scripts/gates.sh` from a clean build and record the wall time against the 377 s baseline, the `first_stop_band` line, the Playthrough_Branch time, the Speed 1 first-stop measurement and the playthrough's two long-task figures (R16.9, R13.4, R16.11, R16.14).
     - Confirm the R15.6 check exits 0 and that no file under `crates/sim-core/src/llm/` or the System One template changed.
     - _Requirements: 15.6, 16.9_
     - Acceptance: one log entry `### Spec: first-playable — final check (<date>)` with the commands and the figures. **STOP.** Report the commit history and the figures to OMP for the audit. Do not push.
+    - Close-out: accepted locally in the [final audit](../../../docs/first-playable-audit.md). No push or deployment.
 
 ## Notes
 
