@@ -14,26 +14,32 @@
 //     serving web/dist on http://localhost:4173. reuseExistingServer is false so
 //     the test never attaches to an unrelated server, and the server must start
 //     within 30 s (R9.4, R9.13). baseURL points at the same origin.
-//   - bounded timeouts so the whole run stays under 180 s (R9.13): a per-test
-//     `timeout` and an overall `globalTimeout`, both under 180_000 ms.
+//   - existing specs keep 120 s; playthrough derives B from its stage sidecar.
+//     The whole suite has the existing 170 s plus B (first-playable R16.8).
 //
 // Run directly by Node (type-stripping); no compile step. Covered by
 // tsconfig.node.json (playwright.config.ts).
 
 import { defineConfig } from '@playwright/test';
+import { readFileSync } from 'node:fs';
 
 // R9.4: the preview origin. Local_Preview serves web/dist here with --strictPort,
 // so this is the only origin the page is allowed to reach.
 const PREVIEW_PORT = 4173;
 const BASE_URL = `http://localhost:${PREVIEW_PORT}`;
 
-// R9.13: the whole Smoke_Test must finish well under 180 s. The webServer start
-// bound is 30 s; the two specs (fixture + responsive) each run under their own
-// per-test timeout. globalTimeout caps the entire run at 170 s, leaving margin
-// below the 180 s requirement.
+// Existing fixture/responsive bounds stay unchanged. Task 14 adds the design's
+// stage-derived playthrough allowance B to the overall suite budget only.
 const PREVIEW_START_TIMEOUT_MS = 30_000;
 const PER_TEST_TIMEOUT_MS = 120_000;
-const GLOBAL_TIMEOUT_MS = 170_000;
+const playthrough = JSON.parse(readFileSync(new URL('../fixtures/parity/seedP-playthrough.stages.json', import.meta.url), 'utf8')) as {
+  last_tick: string; stages: { tick: string }[]; step_clicks: number;
+};
+const firstTick = Number(playthrough.stages[0]!.tick);
+const PLAYTHROUGH_TIMEOUT_MS = 30_000 + Math.ceil(firstTick / 30) * 1000
+  + Math.ceil((Number(playthrough.last_tick) - firstTick) / (30 * 365)) * 1000
+  + 5000 * playthrough.stages.length + 100 * playthrough.step_clicks;
+const GLOBAL_TIMEOUT_MS = 170_000 + PLAYTHROUGH_TIMEOUT_MS;
 
 export default defineConfig({
   testDir: 'tests/smoke',
@@ -47,7 +53,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: 0,
   reporter: 'list',
-  // R9.13: per-test and whole-run bounds, both under 180 s.
+  // Existing per-test bound; playthrough overrides it with B in its spec.
   timeout: PER_TEST_TIMEOUT_MS,
   globalTimeout: GLOBAL_TIMEOUT_MS,
   use: {
