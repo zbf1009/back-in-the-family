@@ -430,7 +430,7 @@ proptest! {
             // R3.4: an applied External_Choice is recorded as the applied option with
             // the External source.
             for entry in &planned {
-                let InputPayload::Choose { node, option } = entry.payload else {
+                let InputPayload::Choose { node, option, .. } = entry.payload else {
                     continue;
                 };
                 if entry.result.is_err() {

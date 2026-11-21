@@ -917,6 +917,7 @@ mod tests {
                     InputPayload::Choose {
                         node: nodes::NodeRef::Trigger { seq: InputSeq(0) },
                         option,
+                        fingerprint: None,
                     },
                 ],
             );
@@ -941,6 +942,7 @@ mod tests {
                 InputPayload::Choose {
                     node: nodes::NodeRef::Trigger { seq: InputSeq(0) },
                     option: NodeOption::GrantLaterSlot,
+                    fingerprint: None,
                 },
             ],
         );

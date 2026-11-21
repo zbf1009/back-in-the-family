@@ -87,6 +87,13 @@ impl WasmSim {
         sim_core::snapshot::snapshot_json(self.inner.world())
     }
 
+    /// Plain-Rust body of [`WasmSim::export_replay`].
+    pub fn export_replay_json(&self) -> Result<String, String> {
+        ReplayFile::from_sim(&self.inner)
+            .and_then(|replay| replay.to_json_string())
+            .map_err(|e| e.to_string())
+    }
+
     /// Plain-Rust body of `run_until_stop`; the JSON field order is part of its reply.
     pub fn run_until_stop_json(&mut self, max: u32) -> String {
         let result = self.inner.run_until_stop(max);
@@ -175,6 +182,11 @@ impl WasmSim {
     /// The Snapshot JSON of the current World (R18), compact and read-only.
     pub fn snapshot(&self) -> String {
         self.snapshot_string()
+    }
+
+    /// Audit-only v5 JSON from the live run, including inputs still queued.
+    pub fn export_replay(&self) -> Result<String, JsError> {
+        self.export_replay_json().map_err(|e| JsError::new(&e))
     }
 
     /// Up to `max` core ticks; pauses on the first stop tick, without a Worker gate.

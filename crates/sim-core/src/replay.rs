@@ -44,6 +44,8 @@
 //! - Small integers (`opening_residents`, `intensity`, `version`) are JSON numbers. No
 //!   field is a float; `1.5` anywhere an integer is expected is an error.
 //! - Checksums are 16 lowercase hex characters ([`Checksum`]'s `Display`).
+//! - A `Choose` may have a `fingerprint`: 64 lowercase hex characters. The field is
+//!   omitted when absent; replay accepts historical digests by format alone.
 //! - Unknown fields are rejected, so a typo or a newer format cannot be silently
 //!   ignored. [`ReplayConfig`] rejects a `workload` field with serde's `unknown field
 //!   \`workload\`` and no World is created (R1.3).
@@ -72,6 +74,7 @@ use std::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::checksum::Checksum;
+use crate::decision_fingerprint::DecisionFingerprint;
 use crate::ids::{BirthSlotId, NodeId, PersonId, Tick};
 use crate::input::{InputPayload, SubmitError};
 use crate::narrator::PlayerOption;
@@ -131,6 +134,46 @@ mod u64_string {
 
     pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<u64, D::Error> {
         d.deserialize_str(U64Visitor)
+    }
+}
+
+/// Wire encoding for an optional fingerprint: absent or a hex string, never null.
+mod fingerprint_string {
+    use std::fmt;
+
+    use serde::de::{Error, Visitor};
+    use serde::{Deserializer, Serializer};
+
+    use crate::decision_fingerprint::DecisionFingerprint;
+
+    struct FingerprintVisitor;
+
+    impl Visitor<'_> for FingerprintVisitor {
+        type Value = DecisionFingerprint;
+
+        fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str("a decision fingerprint as 64 lowercase hex characters")
+        }
+
+        fn visit_str<E: Error>(self, text: &str) -> Result<Self::Value, E> {
+            text.parse().map_err(E::custom)
+        }
+    }
+
+    pub fn serialize<S: Serializer>(
+        value: &Option<DecisionFingerprint>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        match value {
+            Some(value) => serializer.collect_str(value),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<DecisionFingerprint>, D::Error> {
+        deserializer.deserialize_str(FingerprintVisitor).map(Some)
     }
 }
 
@@ -627,6 +670,12 @@ pub enum ReplayPayload {
     Choose {
         node: ReplayNodeRef,
         option: ReplayNodeOption,
+        #[serde(
+            default,
+            skip_serializing_if = "Option::is_none",
+            with = "fingerprint_string"
+        )]
+        fingerprint: Option<DecisionFingerprint>,
     },
     ChoosePlayer {
         #[serde(with = "u64_string")]
@@ -665,9 +714,14 @@ impl From<InputPayload> for ReplayPayload {
             },
             InputPayload::Haunt { target } => Self::Haunt { target: target.0 },
             InputPayload::Bribe { amount } => Self::Bribe { amount },
-            InputPayload::Choose { node, option } => Self::Choose {
+            InputPayload::Choose {
+                node,
+                option,
+                fingerprint,
+            } => Self::Choose {
                 node: node.into(),
                 option: option.into(),
+                fingerprint,
             },
             InputPayload::ChoosePlayer { node, option } => Self::ChoosePlayer {
                 node: node.0,
@@ -709,9 +763,14 @@ impl From<ReplayPayload> for InputPayload {
                 target: PersonId(target),
             },
             ReplayPayload::Bribe { amount } => Self::Bribe { amount },
-            ReplayPayload::Choose { node, option } => Self::Choose {
+            ReplayPayload::Choose {
+                node,
+                option,
+                fingerprint,
+            } => Self::Choose {
                 node: node.into(),
                 option: option.into(),
+                fingerprint,
             },
             ReplayPayload::ChoosePlayer { node, option } => Self::ChoosePlayer {
                 node: NodeId(node),
@@ -816,6 +875,8 @@ pub enum ReplayError {
     },
     /// The config is outside the valid ranges.
     Config(ConfigError),
+    /// Test-only custom Params cannot be represented by a v5 file.
+    UnsupportedParams,
     /// The input stream refused a recorded input.
     Submit(SubmitError),
     /// The re-run disagrees with a recorded checksum.
@@ -852,6 +913,7 @@ impl fmt::Display for ReplayError {
                 "input {index} has seq {found}, expected {expected} (inputs must be listed in seq order starting at 0)"
             ),
             Self::Config(e) => write!(f, "invalid config in replay: {e}"),
+            Self::UnsupportedParams => f.write_str("replay v5 requires default simulation params"),
             Self::Submit(e) => write!(f, "recorded input refused: {e}"),
             Self::Diverged(d) => d.fmt(f),
         }
@@ -895,6 +957,41 @@ struct Header {
 }
 
 impl ReplayFile {
+    /// Captures the accepted input stream and completed checksum history of the live run.
+    ///
+    /// This is a read-only export, not a re-simulation. Inputs at or beyond `ticks`
+    /// remain in the file and are not applied by [`verify`]. V5 cannot represent
+    /// non-default test-only Params.
+    pub fn from_sim(sim: &Sim) -> Result<Self, ReplayError> {
+        let world = sim.world();
+        #[cfg(any(test, feature = "test-support"))]
+        if world.params() != &crate::params::Params::DEFAULT {
+            return Err(ReplayError::UnsupportedParams);
+        }
+        let mut inputs: Vec<_> = sim
+            .inputs()
+            .all()
+            .iter()
+            .map(|input| ReplayInput {
+                tick: input.tick.0,
+                seq: input.seq.0,
+                payload: input.payload.into(),
+            })
+            .collect();
+        // The live stream is ordered for application, but v5 stores submission order.
+        inputs.sort_unstable_by_key(|input| input.seq);
+        Ok(Self {
+            format: REPLAY_FORMAT.to_owned(),
+            version: REPLAY_VERSION,
+            // World retains these immutable creation values throughout the run.
+            seed: world.seed(),
+            config: (*world.config()).into(),
+            ticks: world.tick().0,
+            inputs,
+            checksums: sim.checksums().to_vec(),
+        })
+    }
+
     fn check_header(&self) -> Result<(), ReplayError> {
         check_header(&self.format, self.version)
     }
@@ -1178,6 +1275,7 @@ mod tests {
                         seq: crate::ids::InputSeq(64),
                     },
                     option: NodeOption::HeedWarning,
+                    fingerprint: None,
                 },
                 r#"{"Choose":{"node":{"Trigger":{"seq":"64"}},"option":"heed_warning"}}"#,
             ),
@@ -1203,6 +1301,7 @@ mod tests {
                     seq: crate::ids::InputSeq(7),
                 },
                 option,
+                fingerprint: None,
             };
             let text = serde_json::to_string(&ReplayPayload::from(payload)).unwrap();
             let back: ReplayPayload = serde_json::from_str(&text).unwrap();

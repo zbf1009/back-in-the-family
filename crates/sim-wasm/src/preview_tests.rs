@@ -3,16 +3,18 @@
 use proptest::prelude::*;
 use proptest::test_runner::{RngAlgorithm, TestRng, TestRunner};
 use serde_json::{Value, json};
+use sim_core::canon::encode_to_vec;
+use sim_core::decision_fingerprint::DecisionFingerprint;
 use sim_core::ids::{InputSeq, Tick};
 use sim_core::input::InputPayload;
-use sim_core::replay::{ReplayFile, ReplayPayload};
+use sim_core::replay::{ReplayError, ReplayFile, ReplayNodeOption, ReplayPayload, verify};
 use sim_core::tick::Sim;
 use sim_core::underworld::dreams::DreamIntent;
 use sim_core::underworld::nodes::{ChoiceSource, NodeFamily, NodeOption, NodeRef};
 use sim_core::world::Life;
 use wasm_bindgen_test::wasm_bindgen_test;
 
-use super::{WasmSim, llm};
+use super::{WasmSim, llm, verify_replay};
 
 const DREAM: &str = r#"{"Dream":{"dreamer":"31","intent":"urge"}}"#;
 const BRIBE: &str = r#"{"Bribe":{"amount":"1"}}"#;
@@ -59,10 +61,14 @@ fn before_triggers() -> (WasmSim, ReplayFile) {
 // Preserve the exact export bytes; do not parse and reserialize the evidence.
 // Run this test on both targets with --nocapture and compare PREVIEW_PARITY lines.
 fn emit(label: &str, reply: &str) {
+    emit_json("PREVIEW_PARITY", label, reply);
+}
+
+fn emit_json(marker: &str, label: &str, reply: &str) {
     #[cfg(not(target_arch = "wasm32"))]
-    println!("PREVIEW_PARITY {label}\t{reply}");
+    println!("{marker} {label}\t{reply}");
     #[cfg(target_arch = "wasm32")]
-    wasm_bindgen_test::console_log!("PREVIEW_PARITY {label}\t{reply}");
+    wasm_bindgen_test::console_log!("{marker} {label}\t{reply}");
 }
 
 fn assert_node_shape(node: &Value, family: &str, seq: InputSeq, option_ids: [&str; 3]) {
@@ -230,6 +236,7 @@ fn preview_native_wasm_json_trace() {
     let choose = InputPayload::Choose {
         node: NodeRef::Trigger { seq },
         option: NodeOption::Deny,
+        fingerprint: None,
     };
     assert_eq!(
         sim.inner.try_submit_all(&[payload, choose]),
@@ -285,6 +292,7 @@ fn same_live_run(left: &Sim, right: &Sim) -> Result<(), TestCaseError> {
     prop_assert_eq!(left.inputs().all(), right.inputs().all());
     prop_assert_eq!(left.checksums(), right.checksums());
     prop_assert_eq!(left.world(), right.world());
+    prop_assert_eq!(left.last_stops(), right.last_stops());
     prop_assert_eq!(left.last_outcomes(), right.last_outcomes());
     Ok(())
 }
@@ -362,6 +370,188 @@ fn preview_is_read_only_and_predicts_keyed_choices() {
                     prop_assert_eq!(probed.inner.step(), plain.step());
                     same_live_run(&probed.inner, &plain)?;
                 }
+                Ok(())
+            },
+        )
+        .unwrap();
+}
+
+#[wasm_bindgen_test(unsupported = test)]
+fn replay_export_native_wasm_json_trace() {
+    let (mut sim, fixture) = before_triggers();
+    let future_tick = FIRING_TICK.0 + 10;
+    let future = format!(r#"{{"tick":"{future_tick}","payload":{{"Bribe":{{"amount":"0"}}}}}}"#);
+    assert!(sim.submit(&future).is_ok());
+    let spec = sim
+        .inner
+        .preview_node(InputPayload::Bribe { amount: 1 })
+        .unwrap();
+    assert_eq!(spec.trigger, BRIBE_SEQ);
+    let option = spec.rules_default.id();
+    let seq = spec.trigger.0;
+    let historical = "ab".repeat(32);
+    let batch = |fingerprint: &str| {
+        format!(
+            r#"[{BRIBE},{{"Choose":{{"node":{{"Trigger":{{"seq":"{seq}"}}}},"option":"{option}","fingerprint":{fingerprint}}}}}]"#,
+        )
+    };
+    let mut fallback = WasmSim {
+        inner: sim.inner.clone(),
+    };
+    assert_eq!(
+        fallback.submit_checked_json(&format!("[{BRIBE}]")),
+        Ok(r#"{"ok":true}"#.into())
+    );
+    let before_submit = sim.inner.clone();
+    for malformed in ["null", r#""f00""#] {
+        assert!(sim.submit_checked_json(&batch(malformed)).is_err());
+        same_live_run(&sim.inner, &before_submit).unwrap();
+    }
+    assert_eq!(
+        sim.submit_checked_json(&batch(&format!(r#""{historical}""#))),
+        Ok(r#"{"ok":true}"#.into())
+    );
+
+    let mut unexported = sim.inner.clone();
+    let Ok(queued_json) = sim.export_replay() else {
+        panic!("queued audit export failed");
+    };
+    same_live_run(&sim.inner, &unexported).unwrap();
+    let queued = ReplayFile::from_json_str(&queued_json).unwrap();
+    assert_eq!(queued.seed, fixture.seed);
+    assert_eq!(queued.config, fixture.config);
+    assert_eq!(queued.ticks, FIRING_TICK.0);
+    assert_eq!(
+        queued.checksums,
+        fixture.checksums[..FIRING_TICK.0 as usize]
+    );
+    assert_eq!(
+        queued.inputs[seq as usize - 1..]
+            .iter()
+            .map(|input| (input.seq, input.tick))
+            .collect::<Vec<_>>(),
+        [
+            (seq - 1, future_tick),
+            (seq, FIRING_TICK.0),
+            (seq + 1, FIRING_TICK.0),
+        ]
+    );
+    assert!(matches!(
+        queued.inputs.last().unwrap().payload,
+        ReplayPayload::Choose { fingerprint: Some(value), .. }
+            if value == DecisionFingerprint::from_bytes([0xab; 32])
+    ));
+    assert!(sim.inner.world().nodes().resolved.is_empty());
+    assert!(verify_replay(&queued_json).is_ok());
+
+    let checksum = sim.step();
+    assert_eq!(checksum, unexported.step().to_hex_string());
+    fallback.step();
+    let external = &sim.inner.world().nodes().resolved[0];
+    let rules = &fallback.inner.world().nodes().resolved[0];
+    assert_eq!(external.applied, spec.rules_default);
+    assert_eq!(rules.applied, external.applied);
+    assert_eq!(external.source, ChoiceSource::External);
+    assert_eq!(rules.source, ChoiceSource::RulesDefault);
+
+    let Ok(completed_json) = sim.export_replay() else {
+        panic!("completed audit export failed");
+    };
+    same_live_run(&sim.inner, &unexported).unwrap();
+    let completed = ReplayFile::from_json_str(&completed_json).unwrap();
+    assert_eq!(completed.ticks, queued.ticks + 1);
+    assert_eq!(completed.inputs, queued.inputs);
+    assert_eq!(
+        completed.checksums.last().unwrap().to_hex_string(),
+        checksum
+    );
+    assert_eq!(completed.to_json_string().unwrap(), completed_json);
+    assert!(verify_replay(&completed_json).is_ok());
+    let mut tampered = completed;
+    let ReplayPayload::Choose { option, .. } = &mut tampered.inputs[seq as usize + 1].payload
+    else {
+        panic!("expected the accepted Choose");
+    };
+    *option = ReplayNodeOption::HeedWarning; // A Dream option on a Magistrate node.
+    assert!(matches!(
+        verify(&tampered),
+        Err(ReplayError::Diverged(d)) if d.tick == FIRING_TICK
+    ));
+
+    // Keep the raw line in redirected logs; compare only marker count/digest in summaries.
+    emit_json("REPLAY_EXPORT_PARITY", "completed", &completed_json);
+}
+
+#[wasm_bindgen_test(unsupported = test)]
+fn replay_export_fingerprint_neutrality_and_round_trip() {
+    let (base, _) = before_triggers();
+    let config = ProptestConfig {
+        cases: 100,
+        failure_persistence: None,
+        ..ProptestConfig::default()
+    };
+    let rng = TestRng::from_seed(RngAlgorithm::ChaCha, &[29; 32]);
+    let mut runner = TestRunner::new_with_rng(config, rng);
+    runner
+        .run(
+            &(any::<bool>(), 0..3_usize, any::<[u8; 32]>()),
+            |(bribe, pick, bytes)| {
+                let trigger =
+                    serde_json::from_str::<ReplayPayload>(if bribe { BRIBE } else { DREAM })
+                        .unwrap()
+                        .into();
+                let spec = base.inner.preview_node(trigger).unwrap();
+                let option = spec.options[pick];
+                let node = NodeRef::Trigger { seq: spec.trigger };
+                let mut other = bytes;
+                other[0] ^= 1;
+                let fingerprints = [
+                    None,
+                    Some(DecisionFingerprint::from_bytes(bytes)),
+                    Some(DecisionFingerprint::from_bytes(other)),
+                ];
+                let mut runs = fingerprints.map(|fingerprint| {
+                    let mut sim = base.inner.clone();
+                    let choose = InputPayload::Choose {
+                        node,
+                        option,
+                        fingerprint,
+                    };
+                    assert_eq!(
+                        sim.try_submit_all(&[trigger, choose]).unwrap()[0],
+                        spec.trigger
+                    );
+                    sim
+                });
+                for sim in &mut runs {
+                    sim.step();
+                    let record = sim.world().nodes().resolved.last().unwrap();
+                    prop_assert_eq!(record.applied, option);
+                    prop_assert_eq!(record.source, ChoiceSource::External);
+                    sim.step();
+                }
+                let canonical = encode_to_vec(runs[0].world());
+                let mut exports = Vec::new();
+                for (sim, fingerprint) in runs.iter().zip(fingerprints) {
+                    let world_bytes = encode_to_vec(sim.world());
+                    prop_assert_eq!(&world_bytes, &canonical);
+                    prop_assert_eq!(sim.checksums(), runs[0].checksums());
+                    let text = ReplayFile::from_sim(sim).unwrap().to_json_string().unwrap();
+                    let decoded = ReplayFile::from_json_str(&text).unwrap();
+                    prop_assert_eq!(&decoded.to_json_string().unwrap(), &text);
+                    prop_assert_eq!(
+                        InputPayload::from(decoded.inputs.last().unwrap().payload),
+                        InputPayload::Choose {
+                            node,
+                            option,
+                            fingerprint
+                        }
+                    );
+                    exports.push(text);
+                }
+                prop_assert_ne!(&exports[0], &exports[1]);
+                prop_assert_ne!(&exports[0], &exports[2]);
+                prop_assert_ne!(&exports[1], &exports[2]);
                 Ok(())
             },
         )

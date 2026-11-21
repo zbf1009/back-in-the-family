@@ -715,6 +715,7 @@ mod tests {
                 InputPayload::Choose {
                     node: nodes::NodeRef::Trigger { seq: InputSeq(0) },
                     option: NodeOption::HeedWarning,
+                    fingerprint: None,
                 },
             ],
         );
@@ -734,6 +735,7 @@ mod tests {
                 InputPayload::Choose {
                     node: nodes::NodeRef::Trigger { seq: InputSeq(1) },
                     option: NodeOption::HeedWarning,
+                    fingerprint: None,
                 },
                 InputPayload::Dream {
                     dreamer,
@@ -742,10 +744,12 @@ mod tests {
                 InputPayload::Choose {
                     node: nodes::NodeRef::Trigger { seq: InputSeq(1) },
                     option: NodeOption::DismissDream,
+                    fingerprint: None,
                 },
                 InputPayload::Choose {
                     node: nodes::NodeRef::Trigger { seq: InputSeq(1) },
                     option: NodeOption::BurnOffering,
+                    fingerprint: None,
                 },
             ],
         );
@@ -780,6 +784,7 @@ mod tests {
                 InputPayload::Choose {
                     node: nodes::NodeRef::Trigger { seq: InputSeq(0) },
                     option: NodeOption::BurnSmall,
+                    fingerprint: None,
                 },
             ],
         );
@@ -933,6 +938,7 @@ mod tests {
                 InputPayload::Choose {
                     node: nodes::NodeRef::Trigger { seq: InputSeq(0) },
                     option: NodeOption::BurnOffering,
+                    fingerprint: None,
                 },
             ],
         );
@@ -977,6 +983,7 @@ mod tests {
                 InputPayload::Choose {
                     node: nodes::NodeRef::Trigger { seq: InputSeq(0) },
                     option: NodeOption::DismissDream,
+                    fingerprint: None,
                 },
             ],
         );

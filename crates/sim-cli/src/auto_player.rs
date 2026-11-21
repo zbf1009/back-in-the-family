@@ -283,6 +283,7 @@ impl AutoPlayer {
                 payloads.push(InputPayload::Choose {
                     node: NodeRef::Trigger { seq: spec.trigger },
                     option,
+                    fingerprint: None,
                 });
             } else {
                 payloads.push(payload);
@@ -307,6 +308,7 @@ impl AutoPlayer {
                 payloads.push(InputPayload::Choose {
                     node: NodeRef::Trigger { seq: spec.trigger },
                     option,
+                    fingerprint: None,
                 });
             } else {
                 payloads.push(payload);

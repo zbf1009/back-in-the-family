@@ -318,6 +318,7 @@ fn plan_dream(
         InputPayload::Choose {
             node: NodeRef::Trigger { seq },
             option,
+            fingerprint: None,
         },
     );
 }
@@ -375,6 +376,7 @@ fn plan_bribe(sim: &mut Sim, planned: &mut Vec<Submitted>, d: &dyn Fn(u64) -> u6
         InputPayload::Choose {
             node: NodeRef::Trigger { seq },
             option,
+            fingerprint: None,
         },
     );
 }
@@ -401,6 +403,7 @@ fn plan_invalid_choose(sim: &mut Sim, planned: &mut Vec<Submitted>, d: &dyn Fn(u
         InputPayload::Choose {
             node: NodeRef::Trigger { seq },
             option,
+            fingerprint: None,
         },
     );
 }

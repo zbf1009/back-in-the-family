@@ -7,12 +7,13 @@
 
 use proptest::prelude::*;
 use sim_core::checksum::Checksum;
-use sim_core::ids::{PersonId, Tick};
+use sim_core::ids::{InputSeq, PersonId, Tick};
 use sim_core::input::InputPayload;
 use sim_core::replay::{
     Divergence, REPLAY_FORMAT, REPLAY_VERSION, ReplayConfig, ReplayError, ReplayFile, record,
     verify,
 };
+use sim_core::tick::Sim;
 use sim_core::values::SocialKind;
 use sim_core::world::{RejectReason, WorldConfig};
 
@@ -126,6 +127,113 @@ fn json_round_trip_is_exact_and_verifies() {
         assert_eq!(verify(&back), Ok(()));
         assert_eq!(back.to_json_string().unwrap(), json);
     }
+}
+
+#[test]
+fn historical_v5_choice_fixture_keeps_its_canonical_bytes() {
+    let text = include_str!("../../../fixtures/parity/seedU-underworld.replay.json").trim_end();
+    let file = ReplayFile::from_json_str(text).unwrap();
+    assert_eq!(file.to_json_string().unwrap(), text);
+}
+
+#[test]
+fn fingerprint_is_strictly_optional_and_historical_v5_hex_is_canonical() {
+    let old = concat!(
+        r#"{"format":"back-in-the-family/replay","version":5,"seed":"42","config":{"opening_residents":45},"#,
+        r#""ticks":"0","inputs":[{"tick":"0","seq":"0","payload":{"Choose":{"node":{"Trigger":{"seq":"7"}},"option":"deny"}}}],"checksums":[]}"#,
+    );
+    let historical = "0123456789abcdef".repeat(4);
+    let field = format!(r#""fingerprint":"{historical}""#);
+    let with_field = |field: &str| {
+        old.replacen(
+            r#""option":"deny""#,
+            &format!(r#""option":"deny",{field}"#),
+            1,
+        )
+    };
+    let migrated = with_field(&field);
+    let before = ReplayFile::from_json_str(old).unwrap();
+    let after = ReplayFile::from_json_str(&migrated).unwrap();
+    assert_ne!(before.inputs, after.inputs);
+    assert_eq!(before.to_json_string().unwrap(), old);
+    assert_eq!(after.to_json_string().unwrap(), migrated);
+    assert_eq!(verify(&after), Ok(())); // queued, not yet applied
+
+    for wrong in [
+        r#""fingerprint":null"#.to_owned(),
+        r#""fingerprint":123"#.to_owned(),
+        r#""fingerprint":[0]"#.to_owned(),
+        r#""fingerprint":{}"#.to_owned(),
+        r#""fingerprint":"""#.to_owned(),
+        format!(r#""fingerprint":"{}""#, &historical[..63]),
+        format!(r#""fingerprint":"{historical}a""#),
+        format!(r#""fingerprint":"{}""#, historical.to_ascii_uppercase()),
+        format!(r#""fingerprint":"g{}""#, &historical[1..]),
+        format!(r#""fingerprint":"é{}""#, &historical[2..]),
+        format!(r#""fingerprint":" {}""#, &historical[1..]),
+        format!(r#"{field},"extra":true"#),
+        format!("{field},{field}"),
+    ] {
+        assert!(
+            matches!(
+                ReplayFile::from_json_str(&with_field(&wrong)),
+                Err(ReplayError::Malformed(_))
+            ),
+            "{wrong} should be rejected"
+        );
+    }
+}
+
+#[test]
+fn live_export_preserves_sequence_order_and_leaves_the_run_unchanged() {
+    let seed = u64::MAX;
+    let config = WorldConfig::try_new(45).unwrap();
+    let mut sim = Sim::new(seed, config).unwrap();
+    let gift = act(SocialKind::Gift, 1, 2, 40);
+    let help = act(SocialKind::Help, 3, 4, 40);
+    let future = Tick(1 << 54);
+    assert_eq!(sim.submit(future, gift), Ok(InputSeq(0)));
+    assert_eq!(sim.submit(Tick(0), help), Ok(InputSeq(1)));
+    let first = sim.step();
+    assert!(sim.submit(Tick(0), help).is_err());
+    assert_eq!(sim.submit(Tick(1), gift), Ok(InputSeq(2)));
+    let mut untouched = sim.clone();
+    let file = ReplayFile::from_sim(&sim).unwrap();
+    assert_eq!(file.seed, seed);
+    assert_eq!(file.config, ReplayConfig::from(config));
+    assert_eq!(file.ticks, 1);
+    assert_eq!(file.checksums, [first]);
+    assert_eq!(
+        file.inputs
+            .iter()
+            .map(|i| (i.seq, i.tick, InputPayload::from(i.payload)))
+            .collect::<Vec<_>>(),
+        [(0, future.0, gift), (1, 0, help), (2, 1, gift)]
+    );
+    assert_eq!(verify(&file), Ok(()));
+    assert_eq!(sim.world(), untouched.world());
+    assert_eq!(sim.checksums(), untouched.checksums());
+    assert_eq!(sim.inputs(), untouched.inputs());
+    assert_eq!(sim.last_stops(), untouched.last_stops());
+    assert_eq!(sim.last_outcomes(), untouched.last_outcomes());
+    let next = sim.step();
+    assert_eq!(next, untouched.step());
+    let after = ReplayFile::from_sim(&sim).unwrap();
+    assert_eq!(after.ticks, 2);
+    assert_eq!(after.inputs, file.inputs);
+    assert_eq!(after.checksums, [first, next]);
+    assert_eq!(verify(&after), Ok(()));
+}
+
+#[test]
+fn live_export_rejects_non_default_test_params_not_representable_in_v5() {
+    let mut params = sim_core::params::Params::DEFAULT;
+    params.register_wait = 1;
+    let sim = Sim::new_with_params(1, config(), params).unwrap();
+    assert_eq!(
+        ReplayFile::from_sim(&sim),
+        Err(ReplayError::UnsupportedParams)
+    );
 }
 
 #[test]

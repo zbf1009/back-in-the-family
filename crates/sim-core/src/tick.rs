@@ -213,9 +213,11 @@ impl World {
             InputPayload::Bribe { amount } => {
                 crate::underworld::magistrate::apply(self, seq, amount)
             }
-            InputPayload::Choose { node, option } => {
-                crate::underworld::nodes::attach_choice(self, node, option)
-            }
+            InputPayload::Choose {
+                node,
+                option,
+                fingerprint: _, // Input provenance never participates in resolution.
+            } => crate::underworld::nodes::attach_choice(self, node, option),
             InputPayload::ChoosePlayer { node, option } => {
                 crate::narrator::attach_choice(self, node, option)
             }
@@ -858,6 +860,7 @@ mod tests {
                     seq: sim.inputs.next_seq(),
                 },
                 option: NodeOption::TakeComfort,
+                fingerprint: None,
             },
         }
     }

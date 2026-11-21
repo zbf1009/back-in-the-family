@@ -1241,7 +1241,11 @@ proptest! {
             InputPayload::Bribe { amount: id },
             InputPayload::CarryOver { trait_name: TraitName::Piety },
             InputPayload::Dream { dreamer: PersonId(id), intent: DreamIntent::Warn },
-            InputPayload::Choose { node: NodeRef::Trigger { seq: InputSeq(id) }, option: NodeOption::HeedWarning },
+            InputPayload::Choose {
+                node: NodeRef::Trigger { seq: InputSeq(id) },
+                option: NodeOption::HeedWarning,
+                fingerprint: None,
+            },
             InputPayload::ChoosePlayer { node: NodeId(id), option: PlayerOption::ALL[option] },
         ];
         inputs.extend(payloads.map(|payload| (Tick(0), payload)));

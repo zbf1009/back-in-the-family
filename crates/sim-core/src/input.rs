@@ -12,6 +12,7 @@
 use std::fmt;
 
 use crate::canon::{Canon, CanonWriter};
+use crate::decision_fingerprint::DecisionFingerprint;
 use crate::ids::{IdCounter, InputSeq, NodeId, PersonId, Tick};
 use crate::narrator::PlayerOption;
 use crate::underworld::carry_over::TraitName;
@@ -73,6 +74,8 @@ pub enum InputPayload {
         node: NodeRef,
         /// The option to apply; an option outside the node's set is rejected.
         option: NodeOption,
+        /// Optional model provenance; never used to apply the choice or encode the World.
+        fingerprint: Option<DecisionFingerprint>,
     },
     /// Answer the Player_Node fired on the preceding tick by its shared Node ID (replay v5).
     ChoosePlayer { node: NodeId, option: PlayerOption },

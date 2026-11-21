@@ -16,6 +16,7 @@ pub mod canon;
 pub mod checksum;
 pub mod context_builder;
 pub mod death;
+pub mod decision_fingerprint;
 pub mod economy;
 pub mod events;
 pub mod ids;
