@@ -13,6 +13,7 @@ use sim_core::ids::Tick;
 use sim_core::input::InputPayload;
 use sim_core::narrator::chronicle::EntrySource;
 use sim_core::replay::{ReplayConfig, ReplayError, ReplayFile, record as core_record, verify};
+use sim_core::replay_audit::audit;
 use sim_core::tick::Sim;
 use sim_core::underworld::carry_over::TraitName;
 use sim_core::underworld::dreams::DreamIntent;
@@ -534,6 +535,59 @@ pub fn replay(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 
         EXIT_FAILED
     } else {
         EXIT_OK
+    }
+}
+
+pub const AUDIT_REPLAY_USAGE: &str = "usage: sim-cli audit-replay FILE";
+
+/// Verifies and audits one replay in one forward traversal; writes versioned JSON
+/// only after all completed checksums match. Uses replay's exit-code convention.
+pub fn audit_replay(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
+    let parsed = match args::parse(args, &[]) {
+        Ok(parsed) if parsed.positionals().len() == 1 => parsed,
+        Ok(_) => {
+            let _ = writeln!(
+                err,
+                "error: exactly one replay file is required\n{AUDIT_REPLAY_USAGE}"
+            );
+            return EXIT_USAGE_OR_MALFORMED;
+        }
+        Err(error) => {
+            let _ = writeln!(err, "error: {error}\n{AUDIT_REPLAY_USAGE}");
+            return EXIT_USAGE_OR_MALFORMED;
+        }
+    };
+    let path = &parsed.positionals()[0];
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) => {
+            let _ = writeln!(err, "{path}: cannot read file: {error}");
+            return EXIT_USAGE_OR_MALFORMED;
+        }
+    };
+    let report = match ReplayFile::from_json_str(&text).and_then(|file| audit(&file)) {
+        Ok(report) => report,
+        Err(ReplayError::Diverged(divergence)) => {
+            let _ = writeln!(err, "{path}: {divergence}");
+            return EXIT_FAILED;
+        }
+        Err(error) => {
+            let _ = writeln!(err, "{path}: {error}");
+            return EXIT_USAGE_OR_MALFORMED;
+        }
+    };
+    match serde_json::to_string(&report) {
+        Ok(json) => match writeln!(out, "{json}") {
+            Ok(()) => EXIT_OK,
+            Err(error) => {
+                let _ = writeln!(err, "cannot write audit report: {error}");
+                EXIT_USAGE_OR_MALFORMED
+            }
+        },
+        Err(error) => {
+            let _ = writeln!(err, "cannot serialize audit report: {error}");
+            EXIT_USAGE_OR_MALFORMED
+        }
     }
 }
 

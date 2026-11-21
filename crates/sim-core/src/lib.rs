@@ -31,6 +31,7 @@ pub mod opening;
 pub mod outsiders;
 pub mod params;
 pub mod replay;
+pub mod replay_audit;
 pub mod rng;
 pub mod snapshot;
 pub mod social;

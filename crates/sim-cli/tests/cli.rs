@@ -880,3 +880,172 @@ fn grading_generators_are_deterministic_and_match_the_committed_fixtures() {
         );
     }
 }
+
+/// Generate live state with default Params; never load target evidence or reconstruct
+/// a replay in JavaScript. Pending decisions and their fingerprints are real inputs.
+fn audit_pair_sim() -> sim_core::tick::Sim {
+    use sim_core::decision_fingerprint::DecisionFingerprint;
+    use sim_core::input::InputPayload;
+    use sim_core::underworld::dreams::DreamIntent;
+    use sim_core::underworld::ghosts::connected;
+    use sim_core::underworld::nodes::NodeRef;
+
+    let mut sim = sim_core::tick::Sim::new(185, sim_core::world::WorldConfig::default()).unwrap();
+    for _ in 0..5000 {
+        if let Some(wait) = sim.world().player_wait()
+            && sim.world().joss()[&sim.world().souls().player].balance
+                > sim.world().params().dream_price
+            && let Some(dreamer) = connected(sim.world(), wait.ghost).first().copied()
+        {
+            let tick = sim.world().tick();
+            for (payload, fingerprint) in [
+                (
+                    InputPayload::Dream {
+                        dreamer,
+                        intent: DreamIntent::Warn,
+                    },
+                    None,
+                ),
+                (
+                    InputPayload::Bribe { amount: 1 },
+                    Some(DecisionFingerprint::from_bytes([137; 32])),
+                ),
+            ] {
+                let spec = sim.preview_node(payload).unwrap();
+                sim.submit(tick, payload).unwrap();
+                sim.submit(
+                    tick,
+                    InputPayload::Choose {
+                        node: NodeRef::Trigger { seq: spec.trigger },
+                        option: spec.rules_default,
+                        fingerprint,
+                    },
+                )
+                .unwrap();
+            }
+            return sim;
+        }
+        if let Some(payload) = sim_cli::auto_player::PlayerAnswerer.plan(&sim) {
+            sim.submit(sim.world().tick(), payload).unwrap();
+        }
+        sim.step();
+    }
+    panic!("generated audit seed must reach a funded connected Player_Wait");
+}
+
+#[test]
+fn audit_replay_reports_real_source_counts_and_excludes_queued_choices() {
+    let dir = TempDir::new("audit-replay");
+    let path = dir.path("actual-v5.json");
+    let mut sim = audit_pair_sim();
+    let queued = ReplayFile::from_sim(&sim).unwrap();
+    fs::write(&path, queued.to_json_string().unwrap()).unwrap();
+    let output = sim_cli(&["audit-replay", s(&path)]);
+    assert_eq!(code(&output), 0, "{}", stderr(&output));
+    assert!(stderr(&output).is_empty());
+    let pending: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(pending["totals"]["resolved"], 0);
+    assert_eq!(pending["totals"]["model_applied"], 0);
+    sim.step();
+    let file = ReplayFile::from_sim(&sim).unwrap();
+    fs::write(&path, file.to_json_string().unwrap()).unwrap();
+    let first = sim_cli(&["audit-replay", s(&path)]);
+    let second = sim_cli(&["audit-replay", s(&path)]);
+    assert_eq!(code(&first), 0, "{}", stderr(&first));
+    assert_eq!(code(&second), 0);
+    assert_eq!(first.stdout, second.stdout);
+    assert!(first.stdout.ends_with(b"\n"));
+    let report: serde_json::Value = serde_json::from_slice(&first.stdout).unwrap();
+    assert_eq!(report["format"], "back-in-the-family/replay-audit");
+    assert_eq!(report["version"], 1);
+    assert_eq!(report["replay_version"], 5);
+    assert_eq!(report["completed_ticks"], file.ticks);
+    assert_eq!(report["verified_checksums"], file.ticks);
+    assert_eq!(report["totals"]["resolved"], 2);
+    assert_eq!(report["totals"]["resolved_rules_default"], 0);
+    assert_eq!(report["totals"]["other_external_without_fingerprint"], 1);
+    assert_eq!(report["totals"]["model_applied"], 1);
+    assert_eq!(report["totals"]["model_comparison_denominator"], 1);
+    assert_eq!(report["totals"]["model_agreement"], 1);
+    assert_eq!(report["totals"]["model_divergence"], 0);
+    assert_eq!(report["per_family"][0]["family"], "dream_interpretation");
+    assert_eq!(
+        report["per_family"][0]["counts"]["other_external_without_fingerprint"],
+        1
+    );
+    assert_eq!(report["per_family"][0]["counts"]["model_applied"], 0);
+    assert_eq!(report["per_family"][1]["family"], "magistrate_ruling");
+    assert_eq!(report["per_family"][1]["counts"]["model_applied"], 1);
+    assert!(
+        report["totals"]
+            .as_object()
+            .unwrap()
+            .values()
+            .all(|value| value.is_u64())
+    );
+    for forbidden in [
+        "attempts",
+        "fallback_reason",
+        "prompt",
+        "response",
+        "fingerprint",
+    ] {
+        assert!(report.get(forbidden).is_none());
+    }
+    assert_eq!(
+        fs::read_to_string(&path).unwrap(),
+        file.to_json_string().unwrap()
+    );
+}
+
+#[test]
+fn audit_replay_rejects_usage_malformed_and_tampered_files_without_json_output() {
+    for args in [
+        &["audit-replay"][..],
+        &["audit-replay", "a.json", "b.json"],
+        &["audit-replay", "--unknown=1"],
+        &["audit-replay", "/nonexistent/audit-replay.json"],
+    ] {
+        let output = sim_cli(args);
+        assert_eq!(code(&output), 2);
+        assert!(output.stdout.is_empty());
+        assert!(!output.stderr.is_empty());
+    }
+    let dir = TempDir::new("audit-negatives");
+    let path = dir.path("bad.json");
+    let mut sim = audit_pair_sim();
+    sim.step();
+    let file = ReplayFile::from_sim(&sim).unwrap();
+    let mut tampered = file.clone();
+    let last = tampered.checksums.last_mut().unwrap();
+    last.0 ^= 1;
+    fs::write(&path, tampered.to_json_string().unwrap()).unwrap();
+    let output = sim_cli(&["audit-replay", s(&path)]);
+    assert_eq!(code(&output), 1);
+    assert!(output.stdout.is_empty());
+    assert!(stderr(&output).contains(&format!("diverged at tick {}", file.ticks - 1)));
+    let mut gapped = file.clone();
+    gapped.inputs[0].seq = 1;
+    fs::write(&path, gapped.to_json_string().unwrap()).unwrap();
+    let output = sim_cli(&["audit-replay", s(&path)]);
+    assert_eq!(code(&output), 2);
+    assert!(output.stdout.is_empty());
+    assert!(stderr(&output).contains("expected 0"));
+    let json = file.to_json_string().unwrap();
+    let fingerprint = sim_core::decision_fingerprint::DecisionFingerprint::from_bytes([137; 32]);
+    for malformed in [
+        "{".to_owned(),
+        json.replacen("\"version\":5", "\"version\":4", 1),
+        json.replacen(
+            &format!("\"fingerprint\":\"{fingerprint}\""),
+            "\"fingerprint\":null",
+            1,
+        ),
+        json.replacen("\"ticks\":", "\"unknown\":true,\"ticks\":", 1),
+    ] {
+        fs::write(&path, malformed).unwrap();
+        let output = sim_cli(&["audit-replay", s(&path)]);
+        assert_eq!(code(&output), 2, "{}", stderr(&output));
+        assert!(output.stdout.is_empty());
+    }
+}

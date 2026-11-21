@@ -27,6 +27,7 @@ USAGE:
   sim-cli record --seed S --ticks N --out FILE --playthrough --stages FILE [--config FILE] [--step-fallback]
   sim-cli playthrough-search --seeds A..=B --max-ticks N [--step-fallback]
   sim-cli replay FILE...
+  sim-cli audit-replay FILE
   sim-cli snapshot --replay FILE --at TICK --out FILE
   sim-cli check-size DIR [--max-bytes N]
   sim-cli batch --seeds A..=B --ticks N [--random-inputs K] [--config FILE] [--require-targets] [--devoted] [--require-reachability]
@@ -54,6 +55,11 @@ playthrough-search  List qualifying default-config playthrough seeds in ascendin
 replay       Re-run each replay file from its seed, config and inputs and compare every
              tick's checksum. Prints `ok FILE` on stdout per verified file; problems go to
              stderr.
+audit-replay  Verify every completed checksum and print one versioned JSON report of
+             resolved decisions per family. Fingerprint-bearing applied External choices
+             are model_applied; other External choices and Rules_Default are separate.
+             Agreement compares the frozen rules default, not decision quality. Queued
+             choices are excluded; absent choices imply no model attempt/failure reason.
 snapshot     Replay FILE up to TICK (checking every recorded checksum) and write the
              Snapshot JSON of that World to --out. The committed native snapshot fixture
              fixtures/parity/seed1-pairwise.snapshot-500.json is produced this way.
@@ -98,7 +104,7 @@ grading-perm-avg-golden  Run llm_aggregate_perm_avg on those inputs and write th
 
 EXIT CODES:
   0  success
-  1  replay: a checksum diverged (first divergent tick is printed); record: the fresh
+  1  replay/audit-replay: a checksum diverged (first divergent tick is printed); record: the fresh
      replay failed its own verification or the playthrough did not qualify;
      check-size: a file is at or above the limit;
      batch: an invariant or replay failed, a passive required target failed, or a
@@ -129,6 +135,7 @@ fn dispatch(args: &[String], out: &mut dyn Write, err: &mut dyn Write) -> i32 {
         "record" => commands::record(rest, out, err),
         "playthrough-search" => commands::playthrough_search(rest, out, err),
         "replay" => commands::replay(rest, out, err),
+        "audit-replay" => commands::audit_replay(rest, out, err),
         "snapshot" => commands::snapshot(rest, out, err),
         "check-size" => commands::check_size(rest, out, err),
         "batch" => batch::batch(rest, out, err),

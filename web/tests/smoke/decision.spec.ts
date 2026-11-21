@@ -23,7 +23,9 @@ declare const window: {
   readonly scrollY: number;
 };
 
-async function offlineFake(context: BrowserContext, options: { enabled?: boolean; cap?: number; holdConfig?: boolean } = {}) {
+async function offlineFake(context: BrowserContext, options: {
+  enabled?: boolean; cap?: number; holdConfig?: boolean; families?: readonly DecisionRequest['family'][];
+} = {}) {
   const attempts: { route: Route; request: DecisionRequest }[] = [];
   const cap = options.cap ?? 40;
   let configRoute: Route | undefined;
@@ -42,7 +44,8 @@ async function offlineFake(context: BrowserContext, options: { enabled?: boolean
       // Reuse the sole closed wire schema and pinned production contract.
       expect(isDecisionRequest(value)).toBe(true);
       if (!isDecisionRequest(value)) throw Error('offline fake received invalid request');
-      expect(value.family).toBe('dream_interpretation'); attempts.push({ route, request: value }); return;
+      expect(options.families ?? ['dream_interpretation']).toContain(value.family);
+      attempts.push({ route, request: value }); return;
     }
     if (url.pathname.startsWith('/api/')) { await route.abort('blockedbyclient'); return; }
     await route.continue();
@@ -299,4 +302,112 @@ test('offline fake running Dream holds the native clock and resumes only to the 
   await expect(page.getByTestId('tick')).toHaveText(String(Number(tick) + 1));
   await expect(page.getByTestId('scene-dream')).toBeVisible();
   await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'fallback');
+});
+
+test('offline fake both families share one completed tick with trigger-sequence attribution in the live v5 export', async ({ page, context }, info) => {
+  const fake = await offlineFake(context, { families: ['dream_interpretation', 'magistrate_ruling'] });
+  await open(page); await waiting(page);
+  const before = await start(page);
+  await expect.poll(() => fake.attempts.length).toBe(1);
+  const dreamStatus = await request(page, { type: 'decision-status' });
+  const dreamTrigger = dreamStatus.snapshot.decision?.pending?.trigger;
+  expect(dreamTrigger).not.toBeNull(); expect(dreamTrigger).toBeDefined();
+  expect(fake.attempts[0]!.request.family).toBe('dream_interpretation');
+  await fake.accept(); await recorded(page, 'model', before);
+
+  // No Step between these operations. The second Rust preview must account for
+  // the queued CarryOver and the earlier Dream/Choose, not just the tick number.
+  // Bribe stays internal: this is the typed SimClient/Worker_Protocol seam.
+  const bribe = request(page, { type: 'bribe', amount: '1' });
+  await expect.poll(() => fake.attempts.length).toBe(2);
+  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'pending');
+  const bribeStatus = await request(page, { type: 'decision-status' });
+  const bribeTrigger = bribeStatus.snapshot.decision?.pending?.trigger;
+  expect(bribeTrigger).not.toBeNull(); expect(bribeTrigger).toBeDefined();
+  expect(bribeStatus.snapshot.tick).toBe(before.tick);
+  expect(bribeStatus.snapshot.checksum).toBe(before.checksum);
+  expect(BigInt(bribeTrigger!)).toBe(BigInt(dreamTrigger!) + 2n);
+  expect(fake.attempts[1]!.request.family).toBe('magistrate_ruling');
+  await fake.accept(1);
+  const bribeReply = await bribe;
+  expect(bribeReply.ok).toBe(true);
+  const bribeOutcome = bribeReply.snapshot.decision?.outcome;
+  expect(bribeOutcome?.kind).toBe('model');
+  if (bribeOutcome?.kind !== 'model') throw Error('internal Bribe model terminal reply is missing');
+  expect(bribeOutcome.requestId).toBe(bribeReply.id);
+  expect(bribeOutcome.worldId).toBe(bribeReply.snapshot.worldId);
+  expect(bribeOutcome.option).toBe(fake.attempts[1]!.request.criteria[0]!.id);
+  expect(bribeReply.snapshot.decision?.pending).toBeNull();
+  const terminal = await request(page, { type: 'decision-status' });
+  expect(terminal.ok).toBe(true);
+  expect(terminal.snapshot.decision?.pending).toBeNull();
+  expect(terminal.snapshot.decision?.outcome).toEqual(bribeOutcome);
+  expect(terminal.snapshot.decision?.spent).toBe(2);
+  expect(terminal.snapshot.tick).toBe(before.tick);
+  expect(terminal.snapshot.checksum).toBe(before.checksum);
+  expect(terminal.snapshot.runState).toBe('paused');
+  expect((await readWorld(page)).tick).toBe(before.tick);
+  // The harness receives the internal Bribe reply, not App.onDream's settle
+  // callback. Do not require a Dream UI completion notice for that internal
+  // operation. Advance through the same controller's real typed Step instead;
+  // its worker-initiated resolution status still renders the actual Dream scene.
+  const completed = await request(page, { type: 'step' });
+  expect(completed.ok).toBe(true);
+  expect(completed.snapshot.tick).toBe(String(WAITING_TICK + 1));
+  await expect(page.getByTestId('tick')).toHaveText(String(WAITING_TICK + 1));
+  await expect(page.getByTestId('scene-dream')).toBeVisible();
+  const resolved = await readWorld(page);
+  expect(resolved.last_dream?.dreamer).toBe(31);
+  expect(resolved.last_dream?.tick).toBe(before.tick);
+
+  const exported = await page.evaluate(async () => {
+    if (!window.__simHarness) throw Error('read-only export hook is missing');
+    return window.__simHarness.exportReplay();
+  });
+  expect(exported.ok).toBe(true);
+  if (!exported.ok || exported.replay === undefined) throw Error('live WASM export is missing');
+  const replay = JSON.parse(exported.replay) as {
+    version: number; ticks: string; checksums: string[];
+    inputs: { seq: string; tick: string; payload: Record<string, unknown> }[];
+  };
+  expect(replay.version).toBe(5); expect(replay.ticks).toBe(String(WAITING_TICK + 1));
+  expect(replay.checksums).toHaveLength(WAITING_TICK + 1);
+  expect(replay.checksums[WAITING_TICK]).toBe(completed.snapshot.checksum);
+  const carryOver = replay.inputs.find(input => input.tick === before.tick && 'CarryOver' in input.payload);
+  expect(carryOver).toBeDefined(); expect(BigInt(carryOver!.seq)).toBeLessThan(BigInt(dreamTrigger!));
+  const paired = replay.inputs.filter(input => BigInt(input.seq) >= BigInt(dreamTrigger!));
+  expect(paired.map(input => Object.keys(input.payload)[0])).toEqual(['Dream', 'Choose', 'Bribe', 'Choose']);
+  expect(paired.every(input => input.tick === before.tick && BigInt(input.tick) < BigInt(replay.ticks))).toBe(true);
+  expect(paired[0]!.seq).toBe(dreamTrigger); expect(paired[2]!.seq).toBe(bribeTrigger);
+  for (const [offset, trigger] of [[1, dreamTrigger], [3, bribeTrigger]] as const) {
+    const choose = paired[offset]!.payload.Choose as { node: { Trigger: { seq: string } }; option: string; fingerprint: string };
+    expect(choose.node.Trigger.seq).toBe(trigger);
+    expect(choose.fingerprint).toBe(DECISION_CONTRACT.fingerprint);
+    expect(choose.option).toBe(fake.attempts[(offset - 1) / 2]!.request.criteria[0]!.id);
+  }
+  expect(exported.replay).not.toMatch(/input_tokens|output_tokens|mapping_hash|instructions|criteria|telemetry/);
+  await mkdir(EVIDENCE_DIRECTORY, { recursive: true });
+  const path = `${EVIDENCE_DIRECTORY}both-families.replay.json`;
+  await writeFile(path, exported.replay); // Exact completed live WASM bytes, not reconstructed inputs.
+  const manifest = {
+    version: 1, corpus: 'scope-4.1-built-browser-same-tick', mode: 'offline-fake-not-live-ai',
+    replay: 'target/slow-think-evidence/browser/both-families.replay.json',
+    sha256: createHash('sha256').update(exported.replay).digest('hex'),
+    completed_ticks: replay.ticks, trigger_tick: before.tick,
+    decisions: [
+      { family: 'dream_interpretation', trigger_seq: dreamTrigger, outcome: 'offline-fake-model-accepted' },
+      { family: 'magistrate_ruling', trigger_seq: bribeTrigger, outcome: 'offline-fake-model-accepted' },
+    ],
+    provenance: {
+      fixture: 'fixtures/parity/seedU-underworld.replay.json', prefix_seq_exclusive: '61', seed: fixture.seed,
+      earlier_same_tick_carry_over_seq: carryOver!.seq,
+      progression: 'Worker_Protocol submit/step and checked Rust Player_Node defaults; no Step between Dream and Bribe; typed Step completes their shared firing tick',
+      controls: ['Create', 'Dreamer 31', 'urge', 'Send dream', 'Step'],
+      internal_operation: 'typed bribe amount 1 and resolution step through existing harness -> SimClient -> Sim_Worker',
+      export: 'SimClient.exportReplay -> Sim_Worker -> WasmSim.export_replay',
+    },
+    limits: 'Offline fake choice acceptance only; native replay audit supplies resolved source/default comparisons, not request-attempt or error rates.',
+  };
+  await writeFile(`${EVIDENCE_DIRECTORY}both-families.manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
+  await info.attach('offline-fake-both-families-v5', { path, contentType: 'application/json' });
 });

@@ -72,10 +72,18 @@ impl World {
     /// The vector is a return value, not World state: it is never encoded, never
     /// checksummed and never stored in the World (LS-R16.5).
     pub fn step_with_outcomes(&mut self, inputs: &[TickInput]) -> (Checksum, Vec<InputOutcome>) {
+        self.step_observing_inputs(inputs, &mut |_, _| {})
+    }
+
+    fn step_observing_inputs(
+        &mut self,
+        inputs: &[TickInput],
+        observer: &mut impl FnMut(&World, &TickInput),
+    ) -> (Checksum, Vec<InputOutcome>) {
         // 1. Reset flows.
         self.flows = crate::economy::FlowTotals::default();
         // 2a. Apply inputs.
-        let outcomes = self.apply_inputs(inputs);
+        let outcomes = self.apply_inputs_observing(inputs, observer);
         // 2b. Resolve same-tick underworld nodes; 2c. Resolve yesterday's Player_Node.
         crate::underworld::resolve_pending(self);
         crate::narrator::resolve(self);
@@ -160,12 +168,25 @@ impl World {
         (world, outcomes)
     }
 
+    #[cfg(any(test, feature = "test-support"))]
     fn apply_inputs(&mut self, inputs: &[TickInput]) -> Vec<InputOutcome> {
+        self.apply_inputs_observing(inputs, &mut |_, _| {})
+    }
+
+    fn apply_inputs_observing(
+        &mut self,
+        inputs: &[TickInput],
+        observer: &mut impl FnMut(&World, &TickInput),
+    ) -> Vec<InputOutcome> {
         let mut outcomes = Vec::with_capacity(inputs.len());
         for input in inputs {
             let result = self.apply_one(input.seq, input.payload);
             if let Err(reason) = result {
                 self.rejections.record(self.tick, input.seq, reason);
+            } else {
+                // Observe the exact applied prefix, including the frozen node, without
+                // storing provenance in World or re-running legality/default logic.
+                observer(self, input);
             }
             outcomes.push(InputOutcome {
                 seq: input.seq,
@@ -319,6 +340,15 @@ impl Sim {
 
     /// Runs the current tick, returning and recording its checksum and stop reasons.
     pub fn step(&mut self) -> Checksum {
+        self.step_observing_inputs(&mut |_, _| {})
+    }
+
+    /// Replay tooling observes successful inputs immediately after their application.
+    /// The observer is read-only and never changes counters, draws or canonical state.
+    pub(crate) fn step_observing_inputs(
+        &mut self,
+        observer: &mut impl FnMut(&World, &TickInput),
+    ) -> Checksum {
         let before_place = self
             .world
             .souls()
@@ -327,7 +357,9 @@ impl Sim {
             .copied();
         let resolved = self.world.nodes().resolved.len();
         let tick = self.world.tick();
-        let (checksum, outcomes) = self.world.step_with_outcomes(self.inputs.for_tick(tick));
+        let (checksum, outcomes) = self
+            .world
+            .step_observing_inputs(self.inputs.for_tick(tick), observer);
         self.last_outcomes = outcomes;
         self.last_stops = crate::stops::stops_for(before_place, &self.world, tick, resolved);
         self.checksums.push(checksum);
@@ -1268,6 +1300,67 @@ mod tests {
             }),
             Err(PreviewError::Rejected(RejectReason::RateLimited))
         );
+    }
+
+    #[test]
+    fn input_observer_sees_exact_frozen_prefix_without_changing_the_tick() {
+        use crate::decision_fingerprint::DecisionFingerprint;
+        use crate::underworld::nodes::{NodeRef, NodeSpec};
+
+        for digest in 0..100u8 {
+            let (mut sim, _, dreamer) = waiting_sim();
+            let tick = sim.world().tick();
+            sim.submit(Tick(100), InputPayload::Bribe { amount: 1 })
+                .unwrap();
+            let mut specs = Vec::new();
+            for payload in [
+                InputPayload::Dream {
+                    dreamer,
+                    intent: DreamIntent::Warn,
+                },
+                InputPayload::Bribe { amount: 1 },
+            ] {
+                let spec = sim.preview_node(payload).unwrap();
+                assert_eq!(sim.submit(tick, payload).unwrap(), spec.trigger);
+                specs.push(spec);
+            }
+            for spec in &specs {
+                sim.submit(
+                    tick,
+                    InputPayload::Choose {
+                        node: NodeRef::Trigger { seq: spec.trigger },
+                        option: spec.rules_default,
+                        fingerprint: Some(DecisionFingerprint::from_bytes([digest; 32])),
+                    },
+                )
+                .unwrap();
+            }
+            let mut plain = sim.clone();
+            let mut observed = Vec::new();
+            let checksum = sim.step_observing_inputs(&mut |world, input| {
+                if let Some(node) = world
+                    .nodes()
+                    .pending
+                    .values()
+                    .find(|node| node.trigger == input.seq)
+                {
+                    observed.push(NodeSpec {
+                        family: node.family,
+                        trigger: node.trigger,
+                        context: node.context.clone(),
+                        options: node.options.clone(),
+                        rules_default: node.rules_default,
+                    });
+                }
+            });
+            assert_eq!(observed, specs);
+            assert_eq!(checksum, plain.step());
+            assert_eq!(sim.world(), plain.world());
+            assert_eq!(sim.inputs().all(), plain.inputs().all());
+            assert_eq!(sim.checksums(), plain.checksums());
+            assert_eq!(sim.last_outcomes(), plain.last_outcomes());
+            assert_eq!(sim.last_stops(), plain.last_stops());
+        }
     }
 
     #[test]

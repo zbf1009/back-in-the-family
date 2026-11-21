@@ -1067,6 +1067,15 @@ pub fn record(
 /// (header, checksum count, input `seq` numbering, config) are distinct errors, checked
 /// before any tick runs.
 pub fn verify(file: &ReplayFile) -> Result<(), ReplayError> {
+    let mut sim = verified_sim(file)?;
+    for (n, &expected) in (0u64..).zip(&file.checksums) {
+        check_checksum(Tick(n), expected, sim.step())?;
+    }
+    Ok(())
+}
+
+/// Shared structural guards and input submission for one forward replay traversal.
+pub(crate) fn verified_sim(file: &ReplayFile) -> Result<Sim, ReplayError> {
     file.check_header()?;
     let found = u64::try_from(file.checksums.len()).unwrap_or(u64::MAX);
     if found != file.ticks {
@@ -1088,16 +1097,21 @@ pub fn verify(file: &ReplayFile) -> Result<(), ReplayError> {
         let seq = sim.submit(Tick(input.tick), input.payload.into())?;
         debug_assert_eq!(seq.0, index);
     }
-    for (n, &expected) in (0u64..).zip(&file.checksums) {
-        let actual = sim.step();
-        if actual != expected {
-            return Err(Divergence {
-                tick: Tick(n),
-                expected,
-                actual,
-            }
-            .into());
+    Ok(sim)
+}
+
+pub(crate) fn check_checksum(
+    tick: Tick,
+    expected: Checksum,
+    actual: Checksum,
+) -> Result<(), ReplayError> {
+    if actual != expected {
+        return Err(Divergence {
+            tick,
+            expected,
+            actual,
         }
+        .into());
     }
     Ok(())
 }
