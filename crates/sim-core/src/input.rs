@@ -262,6 +262,15 @@ impl InputStream {
         }
     }
 
+    /// Starts an empty test stream at an arbitrary sequence boundary.
+    #[cfg(test)]
+    pub(crate) const fn with_next_seq(next: u64) -> Self {
+        Self {
+            inputs: Vec::new(),
+            next_seq: IdCounter::starting_at(next),
+        }
+    }
+
     /// Accepts `payload` for `tick` and returns its `seq`.
     ///
     /// Rejects `tick < current_tick` with [`SubmitError::PastTick`]. On any rejection

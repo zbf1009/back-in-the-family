@@ -25,6 +25,10 @@
 
 pub mod llm;
 
+mod preview;
+#[cfg(test)]
+mod preview_tests;
+
 use sim_core::ids::Tick;
 use sim_core::replay::{ReplayConfig, ReplayFile, SubmitInput, verify};
 use sim_core::tick::Sim;
@@ -54,6 +58,11 @@ impl WasmSim {
             .submit(Tick(input.tick), input.payload.into())
             .map(|_| ())
             .map_err(|e| e.to_string())
+    }
+
+    /// Plain-Rust body of [`WasmSim::preview_node`].
+    pub fn preview_node_json(&self, payload_json: &str) -> String {
+        preview::preview_json(&self.inner, payload_json)
     }
 
     /// Plain-Rust body of [`WasmSim::step`].
@@ -177,6 +186,24 @@ impl WasmSim {
     pub fn submit_checked(&mut self, inputs_json: &str) -> Result<String, JsError> {
         self.submit_checked_json(inputs_json)
             .map_err(|e| JsError::new(&e))
+    }
+
+    /// Read-only preview of a current-tick payload, e.g.
+    /// `{"Dream":{"dreamer":"39","intent":"reassure"}}` or `{"Bribe":{"amount":"1"}}`.
+    /// This takes the same payload shape as an entry in `submit_checked`, with
+    /// canonical decimal strings for replay `u64` fields. There is no tick or seq
+    /// wrapper. Only Dream and Bribe fire decision nodes.
+    ///
+    /// Success: `ok: true`, `family`, `trigger` (decimal-string sequence),
+    /// `frozen_context`, `option_ids`, `option_defs` (id/label pairs), `rules_default`
+    /// (an option ID). The context uses the pinned LLM JSON shape unchanged, including
+    /// its numeric person IDs, so it passes directly to the renderer and validator.
+    /// There is no World or predicted Node ID in the reply.
+    ///
+    /// Failure: `ok: false`, `error.kind` is `malformed`, `rejected` (with the core
+    /// rejection label in `error.reason`), or `no_node` (accepted, but no node fired).
+    pub fn preview_node(&self, payload_json: &str) -> String {
+        self.preview_node_json(payload_json)
     }
 
     /// Read already-computed per-tick checksum strings, inclusive range.

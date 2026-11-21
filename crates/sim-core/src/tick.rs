@@ -372,12 +372,17 @@ impl Sim {
     ) -> Result<crate::underworld::nodes::NodeSpec, crate::underworld::nodes::PreviewError> {
         use crate::underworld::nodes::{NodeSpec, PreviewError};
 
+        let seq = self.inputs.next_seq();
+        // The counter must be able to advance for this sequence to be assigned.
+        if seq.0 == u64::MAX {
+            return Err(PreviewError::Rejected(RejectReason::IdExhausted));
+        }
+
         let mut world = self.world.clone();
         world.flows = crate::economy::FlowTotals::default();
         for input in self.inputs.for_tick(world.tick) {
             let _ = world.apply_one(input.seq, input.payload);
         }
-        let seq = self.inputs.next_seq();
         world
             .apply_one(seq, payload)
             .map_err(PreviewError::Rejected)?;
@@ -1263,6 +1268,38 @@ mod tests {
     }
 
     #[test]
+    fn queued_previews_match_both_nodes_at_firing() {
+        let (mut sim, _, dreamer) = waiting_sim();
+        let payloads = [
+            InputPayload::Dream {
+                dreamer,
+                intent: DreamIntent::Warn,
+            },
+            InputPayload::Bribe { amount: 1 },
+        ];
+        let mut specs = Vec::new();
+        for payload in payloads {
+            let spec = sim.preview_node(payload).unwrap();
+            assert_eq!(sim.try_submit_all(&[payload]), Ok(vec![spec.trigger]));
+            specs.push(spec);
+        }
+
+        // Observe the real step 2a before 2b consumes the pending nodes.
+        let mut world = sim.world.clone();
+        world.flows = crate::economy::FlowTotals::default();
+        let outcomes = world.apply_inputs(sim.inputs().for_tick(world.tick()));
+        assert!(outcomes.iter().all(|outcome| outcome.result.is_ok()));
+        assert_eq!(world.nodes().pending.len(), specs.len());
+        for (node, spec) in world.nodes().pending.values().zip(specs) {
+            assert_eq!(node.trigger, spec.trigger);
+            assert_eq!(node.family, spec.family);
+            assert_eq!(node.context, spec.context);
+            assert_eq!(node.options, spec.options);
+            assert_eq!(node.rules_default, spec.rules_default);
+        }
+    }
+
+    #[test]
     fn preview_node_reports_a_rejected_payload_with_its_reason() {
         let (s, _ghost, _dreamer) = waiting_sim();
         let magistrate = s.world().magistrate().id;
@@ -1273,6 +1310,28 @@ mod tests {
             }),
             Err(PreviewError::Rejected(RejectReason::OfficialPerson))
         );
+    }
+
+    #[test]
+    fn preview_rejects_an_exhausted_input_sequence() {
+        use crate::underworld::nodes::PreviewError;
+
+        let (mut sim, _, dreamer) = waiting_sim();
+        let payload = InputPayload::Dream {
+            dreamer,
+            intent: DreamIntent::Warn,
+        };
+        sim.inputs = InputStream::with_next_seq(u64::MAX);
+        assert_eq!(
+            sim.try_submit_all(&[payload]),
+            Err((0, RejectReason::IdExhausted))
+        );
+        assert_eq!(
+            sim.preview_node(payload),
+            Err(PreviewError::Rejected(RejectReason::IdExhausted))
+        );
+        assert_eq!(sim.inputs.next_seq(), InputSeq(u64::MAX));
+        assert!(sim.inputs.all().is_empty());
     }
 
     #[test]
