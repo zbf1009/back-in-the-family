@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2024"],
+    "types": [],
+    "typeRoots": ["../web/node_modules/@types"],
+    "strict": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "paths": {
+      "worker-tools/miniflare": ["../web/node_modules/.pnpm/miniflare@5.20261103.0-beta_@types+node@26.6.6/node_modules/miniflare"],
+      "worker-tools/esbuild": ["../web/node_modules/.pnpm/esbuild@0.28.2/node_modules/esbuild"]
+    }
+  },
+  "include": ["worker-configuration.d.ts", "src/**/*.ts"]
+}

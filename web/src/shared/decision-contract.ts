@@ -12,9 +12,11 @@ export const DECISION_CONTRACT = Object.freeze({
 /** Fixed UTF-8 fields, four NUL separators, and no trailing NUL. */
 export function decisionFingerprintInput(): Uint8Array<ArrayBuffer> {
   const { provider, model, mappingVersion, mappingHash, responseSchema } = DECISION_CONTRACT;
-  return new TextEncoder().encode(
-    [provider, model, mappingVersion, mappingHash, responseSchema].join('\0'),
-  );
+  const text = [provider, model, mappingVersion, mappingHash, responseSchema].join('\0');
+  // The fixed contract fields and NUL separators are ASCII: one byte each.
+  const bytes = new Uint8Array(text.length);
+  new TextEncoder().encodeInto(text, bytes);
+  return bytes;
 }
 
 /** Recompute the fixed contract with the platform SHA-256 implementation. */
