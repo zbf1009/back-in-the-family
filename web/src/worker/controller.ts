@@ -9,12 +9,14 @@
 // Ticks_Per_Second window; no clock value or random value is ever passed to a
 // SimHandle call (R6.5).
 
-import type { CheckedSubmission, ErrorKind, PlayerNodeState, Reply, Request, Snapshot, StopPayload, RunUntilStopResult, WorkerMessage } from '../shared/protocol.ts';
+import type { CheckedSubmission, DecisionNotice, DecisionPreviewError, ErrorKind, PlayerNodeState, Reply, Request, Snapshot, StopPayload, RunUntilStopResult, WorkerMessage } from '../shared/protocol.ts';
 import type { WorldSnapshot } from '../shared/world-snapshot.ts';
 import { parseSeed } from '../shared/seed.ts';
 import { isSpeed, SPEEDS, type Speed } from '../shared/speeds.ts';
 import { TpsWindow } from './tps.ts';
 import { ticksDue } from './pacer.ts';
+import type { DecisionBridge, DecisionPreview, DecisionTiming } from './decision-bridge.ts';
+import type { DecisionOutcome } from '../shared/decision.ts';
 
 /** WasmSim's API, injected so tests can drive pacing without a real clock. */
 export interface SimHandle {
@@ -52,12 +54,29 @@ interface Deps {
   scheduler: FrameScheduler;
   clock: Clock;
   post: (m: WorkerMessage) => void;
+  /** Pure WASM adapters; the controller remains the sole owner of the handle. */
+  decision?: {
+    bridge: DecisionBridge;
+    timing: DecisionTiming;
+    previewNode: (sim: SimHandle, payload: string) => string;
+    exportReplay: (sim: SimHandle) => string;
+  };
 }
 
 /** The one live world and the id that moves with it (Data Models: `sim`). */
 interface World {
   handle: SimHandle;
   worldId: number;
+}
+
+interface PendingDecision {
+  request: Extract<Request, { type: 'dream' | 'bribe' }>;
+  world: World;
+  tick: bigint;
+  trigger: string | null;
+  payload: unknown;
+  abort: AbortController;
+  attempted: boolean;
 }
 
 export class SimController {
@@ -76,6 +95,11 @@ export class SimController {
   #lastChecksum: string | null = null;
   /** The one outstanding Frame request; non-null only while `running` (R4.3). */
   #frame: number | null = null;
+  #frameEpoch = 0;
+  readonly #decision: Deps['decision'];
+  #decisionPending: PendingDecision | null = null;
+  #decisionOutcome: DecisionNotice | null = null;
+  #cancelDecisionStatus: (() => void) | null = null;
   /** The Ticks_Per_Second window; reset on each run (R2.12, R5.6). */
   readonly #tps = new TpsWindow();
   /** Pacing state and cached tick; no clock value reaches the handle. */
@@ -112,6 +136,7 @@ export class SimController {
     this.#scheduler = deps.scheduler;
     this.#clock = deps.clock;
     this.#post = deps.post;
+    this.#decision = deps.decision;
   }
 
   /**
@@ -168,6 +193,11 @@ export class SimController {
     // `invalid-state`.
     this.#failKind = wasLoaded ? 'invalid-state' : 'load-failed';
     this.#failError = error;
+    this.#decisionPending?.abort.abort();
+    this.#decisionPending = null;
+    this.#cancelDecisionStatus?.();
+    this.#cancelDecisionStatus = null;
+    this.#decision?.bridge.dispose();
     this.#stopLoop();
     this.#runState = 'failed';
     this.#post({ type: 'fatal', error });
@@ -181,6 +211,13 @@ export class SimController {
   // --- request dispatch -----------------------------------------------------
 
   #dispatch(req: Request): void {
+    if (this.#decisionPending !== null && ![
+      'create-world', 'world-snapshot', 'checksums', 'player_node_state',
+      'decision-status', 'set-decision-wait', 'use-rules-now', 'export-replay',
+    ].includes(req.type)) {
+      this.#post(this.#unchangedReply(req, 'decision_pending', 'decision_pending'));
+      return;
+    }
     switch (req.type) {
       case 'create-world':
         this.#createWorld(req);
@@ -205,9 +242,40 @@ export class SimController {
         return;
       case 'choose':
       case 'choose-and-run':
-      case 'dream':
+      case 'carry-over':
       case 'claim':
         this.#checkedSubmit(req);
+        return;
+      case 'dream':
+      case 'bribe':
+        this.#startDecision(req);
+        return;
+      case 'decision-status':
+        this.#post(this.#okReply(req));
+        return;
+      case 'set-decision-wait':
+        if (typeof req.seconds !== 'number' || !Number.isFinite(req.seconds)) {
+          this.#post(this.#unchangedReply(req, 'invalid-wait', 'invalid decision wait'));
+        } else {
+          this.#decision?.bridge.setWaitSeconds(req.seconds);
+          this.#post(this.#okReply(req));
+        }
+        return;
+      case 'use-rules-now': {
+        const pending = this.#decisionPending;
+        if (pending === null || req.requestId !== pending.request.id || req.worldId !== pending.world.worldId) {
+          this.#post(this.#unchangedReply(req, 'invalid-state', 'no matching pending decision'));
+          return;
+        }
+        pending.abort.abort();
+        this.#finishDecision(pending, { kind: 'fallback', reason: 'cancelled' }, true);
+        if (!this.#failed) this.#post(this.#okReply(req));
+        return;
+      }
+      case 'export-replay':
+        if (this.#world === null) this.#post(this.#noWorldReply(req));
+        else if (this.#decision === undefined) this.#post(this.#failReply(req, 'invalid-state', 'replay adapter unavailable'));
+        else this.#post({ ...this.#okReply(req), replay: this.#decision.exportReplay(this.#world.handle) });
         return;
       case 'checksums':
         this.#checksums(req);
@@ -244,11 +312,18 @@ export class SimController {
       this.#post(this.#failReply(req, 'sim-error', errorText(e)));
       return;
     }
+    const pending = this.#decisionPending;
+    if (pending !== null) {
+      this.#closeDecision(pending, false);
+      this.#decisionOutcome = { requestId: pending.request.id, worldId: pending.world.worldId, kind: 'cancelled' };
+      this.#post(this.#failReply(pending.request, 'cancelled', 'cancelled'));
+    }
     this.#stopLoop();
     this.#world = { handle, worldId: this.#nextWorldId++ };
     // Synchronous serial dispatch has no old-World request backlog; startup FIFO must retain every reply.
     this.#runState = 'paused';
     this.#lastChecksum = null; // no tick has run for the new world yet (R3.5)
+    this.#decisionOutcome = null;
     this.#lastTick = handle.tick();
     this.#refreshPending();
     this.#post(this.#okReply(req));
@@ -375,7 +450,135 @@ export class SimController {
     this.#post({ ...this.#okReply(req), world: JSON.parse(this.#world.handle.snapshot()) });
   }
 
-  #checkedSubmit(req: Extract<Request, { type: 'choose' | 'choose-and-run' | 'dream' | 'claim' }>): void {
+  #startDecision(req: Extract<Request, { type: 'dream' | 'bribe' }>): void {
+    if (this.#world === null) {
+      this.#post(this.#noWorldReply(req));
+      return;
+    }
+    const payload = req.type === 'dream'
+      ? { Dream: { dreamer: String(req.dreamer), intent: req.intent } }
+      : { Bribe: { amount: req.amount } };
+    const decision = this.#decision;
+    const reason = decision?.bridge.fallbackReason() ?? (decision === undefined ? 'unavailable' : null);
+    // An unavailable adapter never previews, locks, cancels a Frame or reanchors.
+    if (decision === undefined || reason !== null) {
+      this.#submitDecision(req, [payload], { requestId: req.id, worldId: this.#world.worldId, kind: 'fallback', reason: reason ?? 'unavailable' });
+      return;
+    }
+    const pending: PendingDecision = {
+      request: req, world: this.#world, tick: this.#lastTick, trigger: null, payload, abort: new AbortController(), attempted: false,
+    };
+    this.#decisionPending = pending;
+    this.#stopLoop();
+    try {
+      const preview: DecisionPreview | { ok: false; error: DecisionPreviewError } =
+        JSON.parse(decision.previewNode(pending.world.handle, JSON.stringify(payload)));
+      if (!preview.ok) {
+        this.#closeDecision(pending, true);
+        this.#post({ ...this.#unchangedReply(req, preview.error.kind === 'rejected' ? 'rejected' : 'preview-error',
+          preview.error.kind === 'rejected' ? preview.error.reason : preview.error.kind), previewError: preview.error });
+        return;
+      }
+      pending.trigger = preview.trigger;
+      const spent = decision.bridge.status().spent;
+      const operation = decision.bridge.decide(preview, pending.abort.signal);
+      pending.attempted = decision.bridge.status().spent > spent;
+      if (pending.attempted) {
+        this.#decisionOutcome = null;
+        this.#lastStatusTime = this.#clock.now();
+        this.#post({ type: 'status', snapshot: this.#snapshot(this.#lastStatusTime) });
+        this.#scheduleDecisionStatus(pending);
+      }
+      void operation.then(
+        outcome => this.#finishDecision(pending, outcome),
+        error => { if (this.#decisionPending === pending) this.fail(errorText(error)); },
+      );
+    } catch (error) {
+      this.fail(errorText(error));
+    }
+  }
+
+  #scheduleDecisionStatus(pending: PendingDecision): void {
+    if (this.#runState !== 'running') return;
+    this.#cancelDecisionStatus = this.#decision!.timing.schedule(() => {
+      if (this.#decisionPending !== pending || this.#failed) return;
+      this.#cancelDecisionStatus = null;
+      this.#lastStatusTime = this.#clock.now();
+      this.#post({ type: 'status', snapshot: this.#snapshot(this.#lastStatusTime) });
+      this.#scheduleDecisionStatus(pending);
+    }, 100);
+  }
+
+  #finishDecision(pending: PendingDecision, outcome: DecisionOutcome, manual = false): void {
+    // Identity also distinguishes successive decisions in the same World/tick.
+    if (this.#failed || this.#decisionPending !== pending || this.#world !== pending.world) return;
+    try {
+      if (pending.world.handle.tick() !== pending.tick || this.#lastTick !== pending.tick) {
+        this.#closeDecision(pending, true);
+        this.#post(this.#failReply(pending.request, 'invalid-state', 'decision tick changed'));
+        return;
+      }
+      let payloads = [pending.payload];
+      let notice: DecisionNotice = { requestId: pending.request.id, worldId: pending.world.worldId,
+        kind: 'fallback', reason: manual ? 'manual' : outcome.kind === 'fallback' ? outcome.reason : 'invalid_response' };
+      if (outcome.kind === 'model') {
+        // Rust rechecks the predicted assignment immediately before checked commit.
+        const current: DecisionPreview | { ok: false; error: DecisionPreviewError } = JSON.parse(
+          this.#decision!.previewNode(pending.world.handle, JSON.stringify(pending.payload)));
+        if (!current.ok || current.trigger !== pending.trigger) {
+          this.#closeDecision(pending, true);
+          this.#post(this.#failReply(pending.request, 'invalid-state', 'decision trigger changed'));
+          return;
+        }
+        payloads = [pending.payload, { Choose: { node: { Trigger: { seq: pending.trigger } },
+          option: outcome.decision.choice, fingerprint: outcome.decision.fingerprint } }];
+        notice = { requestId: pending.request.id, worldId: pending.world.worldId, kind: 'model',
+          option: outcome.decision.choice, usage: outcome.decision.usage };
+      }
+      this.#submitDecision(pending.request, payloads, notice, pending);
+    } catch (error) {
+      this.fail(errorText(error));
+    }
+  }
+
+  #submitDecision(req: Request, payloads: unknown[], notice: DecisionNotice, pending?: PendingDecision): void {
+    try {
+      let result: CheckedSubmission = JSON.parse(this.#world!.handle.submit_checked(JSON.stringify(payloads)));
+      if (!result.ok && payloads.length === 2) {
+        result = JSON.parse(this.#world!.handle.submit_checked(JSON.stringify([payloads[0]])));
+        notice = { requestId: req.id, worldId: this.#world!.worldId, kind: 'fallback', reason: 'invalid_response' };
+      }
+      this.#refreshPending();
+      this.#decisionOutcome = notice;
+      if (pending !== undefined) this.#closeDecision(pending, true);
+      if (!result.ok) {
+        this.#post(this.#failReply(req, 'rejected', result.reason));
+        return;
+      }
+      this.#worldSnapshot(req);
+    } catch (error) {
+      this.fail(errorText(error));
+    }
+  }
+
+  #closeDecision(pending: PendingDecision, resume: boolean): void {
+    if (this.#decisionPending !== pending) return;
+    pending.abort.abort();
+    this.#decisionPending = null;
+    this.#cancelDecisionStatus?.();
+    this.#cancelDecisionStatus = null;
+    if (resume && this.#world === pending.world && this.#runState === 'running' && !this.#failed) {
+      const now = this.#clock.now();
+      if (pending.attempted) {
+        this.#anchorMs = now;
+        this.#ranSinceAnchor = 0;
+        this.#tps.reset(now, this.#lastTick);
+      }
+      this.#requestFrame();
+    }
+  }
+
+  #checkedSubmit(req: Extract<Request, { type: 'choose' | 'choose-and-run' | 'claim' | 'carry-over' }>): void {
     if (this.#world === null) {
       this.#post(this.#noWorldReply(req));
       return;
@@ -390,8 +593,8 @@ export class SimController {
       case 'choose-and-run':
         payloads = [{ ChoosePlayer: { node: req.node, option: req.option } }];
         break;
-      case 'dream':
-        payloads = [{ Dream: { dreamer: String(req.dreamer), intent: req.intent } }];
+      case 'carry-over':
+        payloads = [{ CarryOver: { trait_name: req.trait } }];
         break;
       case 'claim': {
         const slot = req.slot === 'imported_vessel' ? 'ImportedVessel' :
@@ -457,12 +660,13 @@ export class SimController {
     // Only one Frame request is outstanding at a time (R4.3). A new one is asked
     // for only after the previous batch ended, in `#onFrame`.
     const worldId = this.#world!.worldId;
-    this.#frame = this.#scheduler.request(() => this.#onFrame(worldId));
+    const epoch = this.#frameEpoch;
+    this.#frame = this.#scheduler.request(() => this.#onFrame(worldId, epoch));
   }
 
-  #onFrame(worldId: number): void {
-    // Check before clearing #frame: an obsolete callback must not lose the new world's handle.
-    if (this.#world?.worldId !== worldId) return;
+  #onFrame(worldId: number, epoch: number): void {
+    // Check before clearing: same-World callbacks queued before a hold are stale too.
+    if (this.#world?.worldId !== worldId || epoch !== this.#frameEpoch || this.#decisionPending !== null) return;
     // The callback is no longer outstanding once it fires.
     this.#frame = null;
     if (this.#runState !== 'running' || this.#world === null) {
@@ -513,6 +717,7 @@ export class SimController {
   }
 
   #stopLoop(): void {
+    this.#frameEpoch++;
     if (this.#frame !== null) {
       this.#scheduler.cancel(this.#frame);
       this.#frame = null;
@@ -539,9 +744,17 @@ export class SimController {
       runState: this.#runState,
       tick,
       checksum: this.#lastChecksum,
-      tps: this.#runState === 'running' ? this.#tps.ticksPerSecond(now) : null,
+      tps: this.#runState === 'running' && this.#decisionPending === null ? this.#tps.ticksPerSecond(now) : null,
       speed: this.#speed,
       playerNode: this.#pending,
+      ...(this.#decision === undefined ? {} : { decision: {
+        ...this.#decision.bridge.status(),
+        pending: this.#decisionPending === null ? null : {
+          requestId: this.#decisionPending.request.id, worldId: this.#decisionPending.world.worldId,
+          tick: this.#decisionPending.tick.toString(), trigger: this.#decisionPending.trigger,
+        },
+        outcome: this.#decisionOutcome,
+      } }),
     };
   }
 
@@ -557,7 +770,7 @@ export class SimController {
     return { type: 'reply', id: req.id, ok: false, kind, error, snapshot: this.#snapshot(this.#clock.now()) };
   }
 
-  #unchangedReply(req: Request, kind: ErrorKind, error: string): Reply {
+  #unchangedReply(req: Request, kind: ErrorKind, error: string): Extract<Reply, { ok: false }> {
     return { type: 'reply', id: req.id, ok: false, kind, error, snapshot: this.#snapshot(this.#lastSnapshotMs) };
   }
 

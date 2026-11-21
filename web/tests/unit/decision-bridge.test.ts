@@ -177,7 +177,7 @@ test('invalid public results and Rust validator errors always fall back without 
   assert.equal(client.attempts.length, 5);
   assert.equal(bridge.status().spent, 5);
   bridge.dispose();
-  const broken = await ready(1, { ...wasm, llm_validate: () => { throw Error('private validator detail'); } });
+  const broken = await ready(1, { ...wasm, llm_validate: () => '{"ok":false,"error":{"kind":"illegal_option"}}' });
   const operation = broken.bridge.decide(preview, new AbortController().signal);
   broken.client.attempts[0]!.response.resolve(modelDecision(preview.option_ids[0]!));
   assert.deepEqual(await operation, { kind: 'fallback', reason: 'invalid_response' });
@@ -326,3 +326,33 @@ test('late model completion after timeout/cancel is ignored before invoking Rust
     bridge.dispose();
   }
 });
+
+test('a response past the deadline cannot invoke Rust validation while its timer callback is still queued', async () => {
+  let validations = 0;
+  const { bridge, clock, client } = await ready(1, { ...wasm, llm_validate: input => {
+    validations++;
+    return wasm.llm_validate(input);
+  } });
+  const operation = bridge.decide(realPreviews()[0]!, new AbortController().signal);
+  clock.milliseconds = 10000;
+  client.attempts[0]!.response.resolve(modelDecision(realPreviews()[0]!.option_ids[0]!));
+  assert.deepEqual(await operation, { kind: 'fallback', reason: 'timeout' });
+  assert.equal(validations, 0);
+  assert.equal(client.attempts[0]!.signal.aborted, true);
+  assert.equal(bridge.status().spent, 1);
+  bridge.dispose();
+});
+
+test('typed WASM failures fall back but thrown renderer or validator panics remain fatal to the owner', async () => {
+  const preview = realPreviews()[0]!;
+  for (const method of ['llm_render_system_one', 'llm_validate'] as const) {
+    const { bridge, client } = await ready(1, { ...wasm, [method]: () => { throw new WebAssembly.RuntimeError('WASM panic'); } });
+    const operation = bridge.decide(preview, new AbortController().signal);
+    const rejected = assert.rejects(operation, /WASM panic/);
+    if (client.attempts.length > 0) client.attempts[0]!.response.resolve(modelDecision(preview.option_ids[0]!));
+    await rejected;
+    assert.equal(client.attempts.length, method === 'llm_render_system_one' ? 0 : 1);
+    bridge.dispose();
+  }
+});
+

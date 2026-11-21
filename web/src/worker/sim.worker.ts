@@ -5,10 +5,22 @@
 // failures and uncaught worker errors to `fail()`. All request handling lives in
 // SimController; this file holds no simulation state.
 
-import init, { WasmSim } from 'sim-wasm/sim_wasm.js';
+import init, { WasmSim, llm_render_system_one, llm_validate } from 'sim-wasm/sim_wasm.js';
 import wasmUrl from 'sim-wasm/sim_wasm_bg.wasm?url';
 import type { Request } from '../shared/protocol.ts';
 import { SimController, type FrameScheduler } from './controller.ts';
+import { createSameOriginDecisionClient, DecisionBridge, type DecisionTiming } from './decision-bridge.ts';
+import mapping from '../shared/system-one-v1.txt?raw';
+
+const timing: DecisionTiming = {
+  now: () => performance.now(),
+  schedule: (callback, milliseconds) => {
+    const handle = self.setTimeout(callback, milliseconds);
+    return () => self.clearTimeout(handle);
+  },
+};
+const decisionBridge = new DecisionBridge(createSameOriginDecisionClient(self.location.origin),
+  { llm_render_system_one, llm_validate }, mapping, timing);
 
 // Frame frequency does not set simulation speed: the controller's pacer uses
 // performance.now() at Speed × 30 ticks/s. Fall back to a ~60 Hz timer if needed.
@@ -22,6 +34,11 @@ const controller = new SimController({
   scheduler,
   clock: { now: () => performance.now() },
   post: (m) => self.postMessage(m),
+  decision: {
+    bridge: decisionBridge, timing,
+    previewNode: (sim, payload) => (sim as WasmSim).preview_node(payload),
+    exportReplay: sim => (sim as WasmSim).export_replay(),
+  },
 });
 
 self.onmessage = (ev: MessageEvent<Request>) => controller.handle(ev.data);

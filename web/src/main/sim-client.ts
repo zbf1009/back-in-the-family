@@ -52,6 +52,7 @@ interface Pending {
   timeout: ReturnType<typeof setTimeout>;
   /** A human-readable label for the request, used in the timeout message. */
   label: string;
+  type: Request['type'];
 }
 
 /**
@@ -67,12 +68,16 @@ export class SimClient {
   readonly #pending = new Map<number, Pending>();
   readonly #handlers: SimClientHandlers;
   #nextId = 1;
+  readonly #replies = new Map<number, ReplyMessage>();
+  #decision: { requestId: number; worldId: number } | null = null;
+  #worldId = 0;
+  #failure: string | null = null;
 
-  constructor(handlers: SimClientHandlers = {}) {
+  constructor(handlers: SimClientHandlers = {}, worker?: Worker) {
     this.#handlers = handlers;
     // Module worker with a relative URL resolved against this module, so the
     // bundler (Vite) can find and build the worker entry (design D-open-6).
-    this.#worker = new Worker(new URL('../worker/sim.worker.ts', import.meta.url), {
+    this.#worker = worker ?? new Worker(new URL('../worker/sim.worker.ts', import.meta.url), {
       type: 'module',
     });
     this.#worker.addEventListener('message', (ev: MessageEvent<WorkerMessage>) => {
@@ -80,10 +85,14 @@ export class SimClient {
     });
     // An uncaught error inside the worker surfaces here as an ErrorEvent.
     this.#worker.addEventListener('error', (ev: ErrorEvent) => {
+      if (this.#failure !== null) return;
+      this.#settleFailure(ev.message || 'worker error');
       this.#handlers.onError?.(ev.message || 'worker error');
     });
     // A message the structured-clone layer could not deserialize.
     this.#worker.addEventListener('messageerror', () => {
+      if (this.#failure !== null) return;
+      this.#settleFailure('worker message could not be deserialized');
       this.#handlers.onError?.('worker message could not be deserialized');
     });
   }
@@ -125,13 +134,18 @@ export class SimClient {
     return this.#send(req);
   }
 
+  /** Read-only status and future-operation wait preference for the Dream UI. */
+  decisionStatus(): Promise<ReplyMessage> { return this.#send({ type: 'decision-status' }); }
+  setDecisionWait(seconds: number): Promise<ReplyMessage> { return this.#send({ type: 'set-decision-wait', seconds }); }
+  useRulesNow(requestId: number, worldId: number): Promise<ReplyMessage> {
+    return this.#send({ type: 'use-rules-now', requestId, worldId });
+  }
+  /** Actual live v5 export for local evidence, not a reconstructed replay. */
+  exportReplay(): Promise<ReplyMessage> { return this.#send({ type: 'export-replay' }); }
+
   /** Terminate the worker and reject every still-pending request (page teardown). */
   dispose(): void {
-    for (const [, pending] of this.#pending) {
-      clearTimeout(pending.timeout);
-      pending.reject(new Error('sim client disposed'));
-    }
-    this.#pending.clear();
+    this.#settleFailure('sim client disposed');
     this.#worker.terminate();
   }
 
@@ -143,6 +157,7 @@ export class SimClient {
    * (R2.7, R9.13).
    */
   #send(req: RequestWithoutId): Promise<ReplyMessage> {
+    if (this.#failure !== null) return Promise.reject(new Error(this.#failure));
     const id = this.#nextId++;
     const full = { ...req, id } as Request;
     const label = requestLabel(full);
@@ -150,11 +165,70 @@ export class SimClient {
       const timeout = setTimeout(() => {
         // The caller never got a reply; drop the entry so a late reply is ignored.
         this.#pending.delete(id);
+        this.#replies.delete(id);
+        if (this.#decision?.requestId === id) this.#decision = null;
+        this.#flushReplies();
         reject(new Error(`sim worker did not reply to ${label} within ${REPLY_TIMEOUT_MS} ms`));
       }, REPLY_TIMEOUT_MS);
-      this.#pending.set(id, { resolve, reject, timeout, label });
+      this.#pending.set(id, { resolve, reject, timeout, label, type: full.type });
       this.#worker.postMessage(full);
     });
+  }
+
+  #settleFailure(error: string): void {
+    if (this.#failure !== null) return;
+    this.#failure = error;
+    for (const pending of this.#pending.values()) {
+      clearTimeout(pending.timeout);
+      pending.reject(new Error(error));
+    }
+    this.#pending.clear();
+    this.#replies.clear();
+    this.#decision = null;
+  }
+
+  #observeDecision(snapshot: Snapshot): boolean {
+    const pending = snapshot.decision?.pending;
+    if (pending == null) return true;
+    const request = this.#pending.get(pending.requestId);
+    if (pending.worldId !== snapshot.worldId || this.#replies.has(pending.requestId)
+      || (request?.type !== 'dream' && request?.type !== 'bribe')
+      || (this.#decision !== null && (this.#decision.requestId !== pending.requestId || this.#decision.worldId !== pending.worldId))) return false;
+    this.#decision = { requestId: pending.requestId, worldId: pending.worldId };
+    return true;
+  }
+
+  #flushReplies(): void {
+    while (this.#pending.size > 0) {
+      const first = this.#pending.keys().next().value!;
+      let id = first;
+      let reply = this.#replies.get(first);
+      if (reply === undefined && this.#decision?.requestId === first) {
+        // Only the outstanding decision may be overtaken, and only by a reply
+        // carrying that same live request/World binding. Normal requests stay FIFO.
+        for (const [candidateId, candidate] of this.#replies) {
+          const pending = candidate.snapshot.decision?.pending;
+          const type = this.#pending.get(candidateId)!.type;
+          const allowed = ['world-snapshot', 'checksums', 'player_node_state', 'decision-status',
+            'set-decision-wait', 'use-rules-now', 'create-world', 'export-replay'].includes(type)
+            || (!candidate.ok && candidate.kind === 'decision_pending');
+          if (allowed && pending?.requestId === first && pending.worldId === this.#decision.worldId
+            && candidate.snapshot.worldId === this.#decision.worldId) {
+            id = candidateId;
+            reply = candidate;
+            break;
+          }
+        }
+      }
+      if (reply === undefined) return;
+      const pending = this.#pending.get(id)!;
+      this.#pending.delete(id);
+      this.#replies.delete(id);
+      if (this.#decision?.requestId === id) this.#decision = null;
+      clearTimeout(pending.timeout);
+      this.#worldId = Math.max(this.#worldId, reply.snapshot.worldId);
+      pending.resolve(reply);
+    }
   }
 
   /** Route one message from the worker: settle a pending reply or fan out an event. */
@@ -167,15 +241,21 @@ export class SimClient {
           // was reused by a buggy worker. Either way there is no caller to settle.
           return;
         }
-        this.#pending.delete(msg.id);
-        clearTimeout(pending.timeout);
-        pending.resolve(msg);
+        if (this.#replies.has(msg.id)) return;
+        this.#observeDecision(msg.snapshot);
+        this.#replies.set(msg.id, msg);
+        this.#flushReplies();
         return;
       }
       case 'status':
+        if (this.#failure !== null || msg.snapshot.worldId < this.#worldId || !this.#observeDecision(msg.snapshot)) return;
+        this.#worldId = msg.snapshot.worldId;
+        this.#flushReplies();
         this.#handlers.onStatus?.(msg.snapshot);
         return;
       case 'fatal':
+        if (this.#failure !== null) return;
+        this.#settleFailure(msg.error);
         this.#handlers.onFatal?.(msg.error);
         return;
     }

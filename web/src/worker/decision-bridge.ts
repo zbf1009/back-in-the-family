@@ -46,6 +46,13 @@ export class DecisionFailure extends Error {
     this.kind = kind;
   }
 }
+/** A thrown WASM call is not a typed render/validation rejection. */
+class DecisionWasmFailure extends Error {
+  constructor(error: unknown) {
+    super(error instanceof Error ? error.message : String(error), { cause: error });
+    this.name = 'DecisionWasmFailure';
+  }
+}
 function fail(kind: DecisionFallbackReason): never { throw new DecisionFailure(kind); }
 function checkAbort(signal: AbortSignal): void {
   if (signal.aborted) fail('cancelled');
@@ -187,9 +194,8 @@ export class DecisionBridge {
       sessionCap: this.configValue?.session_cap ?? null, spent: this.spent, waitSeconds: this.waitSeconds };
   }
   setWaitSeconds(seconds: number): void {
-    // Non-number wire inputs are rejected by the future controller; NaN leaves
-    // the current preference intact rather than creating an unbounded deadline.
-    if (!Number.isNaN(seconds)) this.waitSeconds = Math.min(10, Math.max(0, seconds));
+    // Invalid direct adapter calls leave the bounded future preference intact.
+    if (Number.isFinite(seconds)) this.waitSeconds = Math.min(10, Math.max(0, seconds));
   }
   /** A synchronous readiness snapshot: callers need not preview/lock on fallback. */
   fallbackReason(): DecisionFallbackReason | null {
@@ -211,10 +217,16 @@ export class DecisionBridge {
     if (reason !== null) return { kind: 'fallback', reason };
     const waitMilliseconds = this.waitSeconds * 1000;
     let request: DecisionRequest;
+    let renderedJson: string;
     try {
-      const rendered: unknown = JSON.parse(this.wasm.llm_render_system_one(JSON.stringify({
+      renderedJson = this.wasm.llm_render_system_one(JSON.stringify({
         frozen_context: preview.frozen_context, mapping: this.mapping, permutation: 'base',
-      })));
+      }));
+    } catch (error) {
+      throw new DecisionWasmFailure(error);
+    }
+    try {
+      const rendered: unknown = JSON.parse(renderedJson);
       if (!decisionObject(rendered) || rendered.ok !== true) fail('malformed_request');
       const candidate = {
         version: DECISION_REQUEST_VERSION, family: preview.family,
@@ -235,14 +247,23 @@ export class DecisionBridge {
     if (this.spent >= this.configValue!.session_cap) return { kind: 'fallback', reason: 'session_cap' };
     this.spent += 1;
     try {
+      const started = this.timing.now();
       const decision = await this.deadline(async requestSignal => {
         const result = await this.client.decide(request, requestSignal);
         checkAbort(requestSignal);
+        // An elapsed deadline also wins when the host has not fired its timer yet.
+        if (this.timing.now() - started >= waitMilliseconds) fail('timeout');
         if (!isModelDecision(result, request)) fail('invalid_response');
+        let validatedJson: string;
         try {
-          const validated: unknown = JSON.parse(this.wasm.llm_validate(JSON.stringify({
+          validatedJson = this.wasm.llm_validate(JSON.stringify({
             frozen_context: preview.frozen_context, mode: 'raw_choice', raw: result.choice,
-          })));
+          }));
+        } catch (error) {
+          throw new DecisionWasmFailure(error);
+        }
+        try {
+          const validated: unknown = JSON.parse(validatedJson);
           if (!decisionObject(validated) || validated.ok !== true || !decisionObject(validated.verdict)
             || validated.verdict.kind !== 'decision' || validated.verdict.option !== result.choice) fail('invalid_response');
         } catch {
@@ -252,6 +273,7 @@ export class DecisionBridge {
       }, waitMilliseconds, signal);
       return { kind: 'model', decision };
     } catch (error) {
+      if (error instanceof DecisionWasmFailure) throw error;
       return { kind: 'fallback', reason: error instanceof DecisionFailure ? error.kind : 'invalid_response' };
     }
   }
@@ -286,11 +308,12 @@ export class DecisionBridge {
         if (this.timing.now() - start >= milliseconds) finish(new DecisionFailure('timeout'));
         else finish(null, value);
       }, error => {
-        if (this.timing.now() - start >= milliseconds) finish(new DecisionFailure('timeout'));
+        if (error instanceof DecisionWasmFailure) finish(error);
+        else if (this.timing.now() - start >= milliseconds) finish(new DecisionFailure('timeout'));
         else finish(error instanceof DecisionFailure ? error : new DecisionFailure('network'));
       });
     } catch (error) {
-      finish(error instanceof DecisionFailure ? error : new DecisionFailure('network'));
+      finish(error instanceof DecisionFailure || error instanceof DecisionWasmFailure ? error : new DecisionFailure('network'));
     }
     return promise;
   }
