@@ -4,6 +4,7 @@ use proptest::prelude::*;
 use proptest::test_runner::{RngAlgorithm, TestRng, TestRunner};
 use serde_json::{Value, json};
 use sim_core::canon::encode_to_vec;
+use sim_core::decision_contract;
 use sim_core::decision_fingerprint::DecisionFingerprint;
 use sim_core::ids::{InputSeq, Tick};
 use sim_core::input::InputPayload;
@@ -21,7 +22,6 @@ const BRIBE: &str = r#"{"Bribe":{"amount":"1"}}"#;
 const FIRING_TICK: Tick = Tick(1654);
 const DREAM_SEQ: InputSeq = InputSeq(61);
 const BRIBE_SEQ: InputSeq = InputSeq(62);
-const MAPPING: &str = "[instructions]\nPick an option.\n[state]\n{{tick}} {{situation}}\n{{people}}\n{{relations}}\n{{events}}\n{{player_input}}\n{{subject}}";
 
 fn decode(reply: &str) -> Value {
     serde_json::from_str(reply).expect("expected JSON object")
@@ -108,12 +108,27 @@ fn render_and_validate(family: &str, node: &Value) {
             .to_string(),
         )
     };
-    let rendered = render(MAPPING);
+    let rendered = render(decision_contract::SYSTEM_ONE_MAPPING);
     let value = decode(&rendered);
     assert_eq!(value["ok"], true);
     assert_eq!(value["criteria"], node["option_defs"]);
+    assert_eq!(value["question_id"], "decision");
+    assert!(
+        value["state"]
+            .as_str()
+            .unwrap()
+            .starts_with("Today is day 1654.\n")
+    );
+    assert!(
+        value["instructions"]
+            .as_str()
+            .unwrap()
+            .contains("How to read the facts:")
+    );
     emit(&format!("{family}.render"), &rendered);
-    let bad_mapping = render("[instructions]\nPick.\n[state]\n{{options}}");
+    let corrupt_mapping =
+        decision_contract::SYSTEM_ONE_MAPPING.replacen("{{subject}}", "{{options}}", 1);
+    let bad_mapping = render(&corrupt_mapping);
     assert_eq!(decode(&bad_mapping)["error"]["kind"], "render");
     emit(&format!("{family}.render_error"), &bad_mapping);
 
@@ -137,6 +152,48 @@ fn render_and_validate(family: &str, node: &Value) {
         }
         emit(&format!("{family}.{label}"), &validated);
     }
+}
+
+#[wasm_bindgen_test(unsupported = test)]
+fn decision_contract_native_wasm_json_trace() {
+    use decision_contract::{
+        FINGERPRINT, MAPPING_HASH, MAPPING_VERSION, MODEL, PROVIDER, RESPONSE_SCHEMA,
+        SYSTEM_ONE_MAPPING,
+    };
+
+    assert_eq!(
+        SYSTEM_ONE_MAPPING.as_bytes(),
+        include_bytes!("../../../eval/probe/templates/decision.system_one.v1.txt")
+    );
+    let fingerprint_input = [
+        PROVIDER,
+        MODEL,
+        MAPPING_VERSION,
+        MAPPING_HASH,
+        RESPONSE_SCHEMA,
+    ]
+    .join("\0");
+    assert_eq!(fingerprint_input.len(), 146);
+    assert_eq!(
+        fingerprint_input.bytes().filter(|byte| *byte == 0).count(),
+        4
+    );
+    assert!(!fingerprint_input.ends_with('\0'));
+    let contract = json!({
+        "provider": PROVIDER,
+        "model": MODEL,
+        "mappingVersion": MAPPING_VERSION,
+        "mappingHash": MAPPING_HASH,
+        "responseSchema": RESPONSE_SCHEMA,
+        "fingerprint": FINGERPRINT.to_string(),
+        "fingerprintInput": fingerprint_input,
+        "mapping": SYSTEM_ONE_MAPPING,
+    });
+    emit_json(
+        "DECISION_CONTRACT_PARITY",
+        "contract",
+        &contract.to_string(),
+    );
 }
 
 #[wasm_bindgen_test(unsupported = test)]
