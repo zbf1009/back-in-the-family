@@ -1,0 +1,302 @@
+// Built app + system Chrome + loopback-only OFFLINE FAKE, never live AI.
+// Harness use is limited to real Worker_Protocol fixture progression and reads.
+import { createHash } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { test, expect, type BrowserContext, type Page, type Route, type TestInfo } from '@playwright/test';
+import type { Reply, RequestWithoutId } from '../../src/shared/protocol.ts';
+import type { WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import { DECISION_CONTRACT } from '../../src/shared/decision-contract.ts';
+import { DECISION_CONFIG_VERSION, isDecisionRequest, isModelDecision, type DecisionRequest, type ModelDecision } from '../../src/shared/decision.ts';
+
+const ORIGIN = 'http://localhost:4173';
+const WAITING_TICK = 1654;
+const EVIDENCE_DIRECTORY = fileURLToPath(new URL('../../../target/slow-think-evidence/browser/', import.meta.url));
+const fixture = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seedU-underworld.replay.json', import.meta.url), 'utf8')) as {
+  seed: string; config: unknown; inputs: { tick: string; seq: string; payload: unknown }[];
+};
+// Node-only typecheck: only the actual protocol/read-only browser hook.
+declare const window: {
+  __simHarness?: { request(request: RequestWithoutId): Promise<Reply>; exportReplay(): Promise<Reply> };
+  scrollTo(x: number, y: number): void;
+  readonly scrollY: number;
+};
+
+async function offlineFake(context: BrowserContext, options: { enabled?: boolean; cap?: number; holdConfig?: boolean } = {}) {
+  const attempts: { route: Route; request: DecisionRequest }[] = [];
+  const cap = options.cap ?? 40;
+  let configRoute: Route | undefined;
+  const config = { version: DECISION_CONFIG_VERSION, enabled: options.enabled ?? true, session_cap: cap };
+  await context.route('**/*', async route => {
+    const request = route.request(); const url = new URL(request.url());
+    if (url.origin !== ORIGIN) { await route.abort('blockedbyclient'); return; }
+    if (url.pathname === '/api/decision/config') {
+      expect(request.method()).toBe('GET'); configRoute = route;
+      if (!options.holdConfig) await route.fulfill({ json: config });
+      return;
+    }
+    if (url.pathname === '/api/decision') {
+      expect(request.method()).toBe('POST');
+      const value: unknown = request.postDataJSON();
+      // Reuse the sole closed wire schema and pinned production contract.
+      expect(isDecisionRequest(value)).toBe(true);
+      if (!isDecisionRequest(value)) throw Error('offline fake received invalid request');
+      expect(value.family).toBe('dream_interpretation'); attempts.push({ route, request: value }); return;
+    }
+    if (url.pathname.startsWith('/api/')) { await route.abort('blockedbyclient'); return; }
+    await route.continue();
+  });
+  function accepted(index: number): ModelDecision {
+    const attempt = attempts[index];
+    if (!attempt) throw Error('offline fake attempt is missing');
+    const value: ModelDecision = { version: DECISION_CONTRACT.responseSchema, choice: attempt.request.criteria[0]!.id,
+      model: DECISION_CONTRACT.model, mapping_version: DECISION_CONTRACT.mappingVersion,
+      mapping_hash: DECISION_CONTRACT.mappingHash, fingerprint: DECISION_CONTRACT.fingerprint,
+      usage: null, session_cap: cap };
+    expect(isModelDecision(value, attempt.request)).toBe(true); return value;
+  }
+  return {
+    attempts,
+    async releaseConfig() {
+      await expect.poll(() => configRoute !== undefined).toBe(true);
+      await configRoute!.fulfill({ json: config });
+    },
+    async accept(index = 0) {
+      await expect.poll(() => attempts.length).toBeGreaterThan(index);
+      await attempts[index]!.route.fulfill({ json: accepted(index) });
+    },
+    async late(index = 0) {
+      const json = accepted(index);
+      // Chromium may discard an already-aborted intercepted worker request.
+      // Only transport cancellation is tolerated; schema/assertion failures aren't.
+      try { await attempts[index]!.route.fulfill({ json }); }
+      catch (error) { expect(String(error)).toMatch(/closed|cancel|handled|interception|Invalid Interception/i); }
+    },
+    async invalid(index = 0) {
+      await expect.poll(() => attempts.length).toBeGreaterThan(index);
+      await attempts[index]!.route.fulfill({ json: { choice: 'provider text must never be rendered' } });
+    },
+  };
+}
+async function request(page: Page, value: RequestWithoutId): Promise<Reply> {
+  return page.evaluate(async value => {
+    if (!window.__simHarness) throw Error('Worker_Protocol harness is missing');
+    return window.__simHarness.request(value);
+  }, value);
+}
+async function readWorld(page: Page): Promise<WorldSnapshot> {
+  const reply = await request(page, { type: 'world-snapshot' });
+  expect(reply.ok).toBe(true);
+  if (!reply.ok || !reply.world) throw Error('completed World Snapshot is missing');
+  return reply.world;
+}
+async function create(page: Page): Promise<void> {
+  await page.getByTestId('seed').fill(fixture.seed);
+  await page.getByTestId('config').fill(JSON.stringify(fixture.config));
+  await page.getByTestId('create').click();
+  await expect(page.getByTestId('tick')).toHaveText('0');
+  await expect(page.getByTestId('run-state')).toHaveText('paused');
+}
+async function waiting(page: Page): Promise<void> {
+  await create(page);
+  const prefix = fixture.inputs.filter(input => BigInt(input.seq) < 61n).map(input => ({ tick: input.tick, payload: input.payload }));
+  await page.evaluate(async ({ prefix, ticks }) => {
+    const harness = window.__simHarness;
+    if (!harness) throw Error('Worker_Protocol harness is missing');
+    for (const input of prefix) {
+      const reply = await harness.request({ type: 'submit', input: JSON.stringify(input) });
+      if (!reply.ok) throw Error(`fixture submit failed: ${reply.kind}`);
+    }
+    for (let tick = 0; tick < ticks; tick++) {
+      let reply = await harness.request({ type: 'step' });
+      if (!reply.ok && reply.kind === 'node_unanswered') {
+        const read = await harness.request({ type: 'world-snapshot' });
+        if (!read.ok || !read.world?.player_node) throw Error('fixture node is missing');
+        const node = read.world.player_node;
+        const chosen = await harness.request({ type: 'choose', node: node.id, option: node.rules_default });
+        if (!chosen.ok) throw Error('native fixture default was rejected');
+        reply = await harness.request({ type: 'step' });
+      }
+      if (!reply.ok) throw Error(`fixture step failed: ${reply.kind}`);
+    }
+    const finalRead = await harness.request({ type: 'world-snapshot' });
+    if (!finalRead.ok) throw Error('fixture final read failed');
+    if (finalRead.snapshot.playerNode.pending && !finalRead.snapshot.playerNode.answered) {
+      const node = finalRead.world?.player_node;
+      if (!node) throw Error('fixture final node is missing');
+      const chosen = await harness.request({ type: 'choose', node: node.id, option: node.rules_default });
+      if (!chosen.ok) throw Error('native final fixture default was rejected');
+    }
+  }, { prefix, ticks: WAITING_TICK - 1 });
+  // Native speed reply synchronizes the UI to this worker's completed tick;
+  // then actual Step reaches waiting. Neither writes DOM or app state.
+  await page.getByTestId('speed').selectOption('1');
+  await expect(page.getByTestId('tick')).toHaveText(String(WAITING_TICK - 1));
+  await expect(page.getByTestId('step')).toBeEnabled(); await page.getByTestId('step').click();
+  await expect(page.getByTestId('tick')).toHaveText(String(WAITING_TICK));
+  await expect(page.getByTestId('underworld-panel')).toBeVisible();
+  await expect(page.getByTestId('dream-send')).toBeEnabled();
+  await page.getByTestId('dreamer').selectOption('31'); await page.getByTestId('dream-intent-urge').click();
+  const world = await readWorld(page);
+  expect(world.player.place).toBe('waiting'); expect(world.underworld_view?.connected).toContain(31);
+  await expect(page.getByTestId('scene-dream')).toHaveCount(0);
+}
+async function open(page: Page): Promise<void> {
+  await page.setViewportSize({ width: 1280, height: 720 }); await page.goto('/?harness=1');
+  await page.waitForFunction(() => window.__simHarness !== undefined);
+  await expect(page.getByLabel('Decision wait (seconds)')).toHaveValue('10');
+}
+async function start(page: Page): Promise<{ tick: string; checksum: string }> {
+  const tick = await page.getByTestId('tick').innerText(); const checksum = await page.getByTestId('checksum').innerText();
+  await page.getByTestId('dream-send').click();
+  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'pending');
+  await expect(page.getByTestId('use-rules-now')).toBeVisible();
+  for (const id of ['run', 'pause', 'step', 'speed', 'dream-send', 'claim-imported_vessel', 'claim-rebuilt_body']) {
+    await expect(page.getByTestId(id)).toBeDisabled();
+  }
+  await expect(page.getByTestId('create')).toBeEnabled(); await expect(page.getByTestId('decision-wait')).toBeEnabled();
+  await expect(page.getByTestId('scene-dream')).toHaveCount(0); expect((await readWorld(page)).tick).toBe(tick);
+  return { tick, checksum };
+}
+async function recorded(page: Page, kind: 'model' | 'fallback', before: { tick: string; checksum: string }): Promise<void> {
+  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', kind);
+  await expect(page.getByTestId('decision-notice')).not.toBeEmpty();
+  await expect(page.getByTestId('decision-notice')).not.toContainText(/provider text|quality|personality/i);
+  await expect(page.getByTestId('use-rules-now')).toHaveCount(0);
+  await expect(page.getByTestId('tick')).toHaveText(before.tick); await expect(page.getByTestId('checksum')).toHaveText(before.checksum);
+  await expect(page.getByTestId('run-state')).toHaveText('paused'); await expect(page.getByTestId('scene-dream')).toHaveCount(0);
+  await expect(page.getByTestId('underworld-recorded')).toBeVisible(); await expect(page.getByTestId('step')).toBeEnabled();
+}
+async function resolve(page: Page): Promise<void> {
+  await page.getByTestId('step').click(); await expect(page.getByTestId('tick')).toHaveText(String(WAITING_TICK + 1));
+  await expect(page.getByTestId('scene-dream')).toBeVisible();
+  const world = await readWorld(page); expect(world.last_dream?.dreamer).toBe(31); expect(world.last_dream?.tick).toBe(String(WAITING_TICK));
+}
+async function capture(page: Page, name: string, fullPage = false): Promise<void> {
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+  await mkdir(EVIDENCE_DIRECTORY, { recursive: true });
+  await page.screenshot({ path: `${EVIDENCE_DIRECTORY}${name}`, fullPage });
+}
+
+async function evidence(page: Page, info: TestInfo, kind: 'acceptance' | 'fallback'): Promise<void> {
+  const exported = await page.evaluate(async () => {
+    if (!window.__simHarness) throw Error('read-only export hook is missing');
+    return window.__simHarness.exportReplay();
+  });
+  expect(exported.ok).toBe(true);
+  if (!exported.ok || exported.replay === undefined) throw Error('live WASM export is missing');
+  const replay = JSON.parse(exported.replay) as { version: number; ticks: string; inputs: { seq: string; tick: string; payload: Record<string, unknown> }[]; checksums: string[] };
+  expect(replay.version).toBe(5); expect(replay.ticks).toBe(String(WAITING_TICK + 1)); expect(replay.checksums.length).toBe(WAITING_TICK + 1);
+  const dream = replay.inputs.find(input => input.tick === String(WAITING_TICK) && 'Dream' in input.payload);
+  expect(dream).toBeDefined();
+  const appended = replay.inputs.filter(input => BigInt(input.seq) >= BigInt(dream!.seq));
+  expect(appended.map(input => Object.keys(input.payload)[0])).toEqual(kind === 'acceptance' ? ['Dream', 'Choose'] : ['Dream']);
+  expect(appended.every(input => input.tick === String(WAITING_TICK))).toBe(true);
+  expect(exported.replay).not.toMatch(/provider text|input_tokens|output_tokens|mapping_hash|instructions|criteria|telemetry/);
+  const directory = EVIDENCE_DIRECTORY;
+  await mkdir(directory, { recursive: true });
+  const name = `dream-${kind}.replay.json`; const path = `${directory}${name}`;
+  await writeFile(path, exported.replay); // Exactly WASM export bytes, never HTTP or reconstructed inputs.
+  const manifest = { version: 1, corpus: 'scope-3.3-built-browser', mode: 'offline-fake-not-live-ai', operation: 'dream', outcome: kind,
+    replay: `target/slow-think-evidence/browser/${name}`, sha256: createHash('sha256').update(exported.replay).digest('hex'),
+    provenance: { fixture: 'fixtures/parity/seedU-underworld.replay.json', prefix_seq_exclusive: '61', seed: fixture.seed,
+      progression: 'Worker_Protocol submit/step; checked native default for any Player_Node', decision_seq: dream!.seq,
+      controls: ['Create', 'Dreamer 31', 'urge', 'Send dream', 'Step'],
+      export: 'SimClient.exportReplay -> Sim_Worker -> WasmSim.export_replay', ticks: replay.ticks } };
+  await writeFile(`${directory}dream-${kind}.manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
+  await info.attach(`offline-fake-dream-${kind}-v5`, { path, contentType: 'application/json' });
+  await capture(page, `dream-${kind}-1280x720.png`);
+}
+
+test('offline fake acceptance drives Dream controls and produces a completed live v5 export', async ({ page, context }, info) => {
+  const fake = await offlineFake(context, { cap: 1 }); await open(page); await waiting(page);
+  const before = await start(page);
+  await capture(page, 'dream-pending-1280x720.png');
+  const wait = page.getByLabel('Decision wait (seconds)');
+  await wait.focus(); await expect(wait).toBeFocused(); await wait.selectOption('2'); await expect(wait).toHaveValue('2');
+  await fake.accept(); await recorded(page, 'model', before); await resolve(page); await evidence(page, info, 'acceptance');
+  await expect(page.getByTestId('decision-diagnostics')).toContainText('1/1');
+  // Replacing the World retains cap and future wait. Exhaustion makes no new POST.
+  await waiting(page); await expect(wait).toHaveValue('2');
+  const replaced = { tick: await page.getByTestId('tick').innerText(), checksum: await page.getByTestId('checksum').innerText() };
+  await page.getByTestId('dream-send').click(); await recorded(page, 'fallback', replaced); expect(fake.attempts).toHaveLength(1);
+});
+
+test('offline fake invalid response records rules and exports fallback without provider text', async ({ page, context }, info) => {
+  const fake = await offlineFake(context); await open(page); await waiting(page);
+  const before = await start(page); await fake.invalid(); await recorded(page, 'fallback', before);
+  await resolve(page); await evidence(page, info, 'fallback'); expect(fake.attempts).toHaveLength(1);
+});
+
+test('offline fake manual cancellation binds the current request through a newer Dream', async ({ page, context }) => {
+  const fake = await offlineFake(context); await open(page); await waiting(page);
+  const first = await start(page); await expect.poll(() => fake.attempts.length).toBe(1);
+  const button = page.getByRole('button', { name: 'Use rules now', exact: true });
+  await button.focus(); await expect(button).toBeFocused(); await button.press('Enter'); await recorded(page, 'fallback', first);
+  await waiting(page); const second = await start(page); await expect.poll(() => fake.attempts.length).toBe(2);
+  await fake.late(0);
+  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'pending');
+  await page.getByTestId('use-rules-now').click(); await recorded(page, 'fallback', second);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const box = await page.getByTestId('decision-controls').boundingBox();
+  expect(box).not.toBeNull(); expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+  await capture(page, 'dream-rules-mobile-390x844-fullpage.png', true);
+});
+
+test('offline fake World replacement cancels held Dream without locking Create or adopting stale result', async ({ page, context }) => {
+  const fake = await offlineFake(context); await open(page); await waiting(page); await start(page);
+  await expect.poll(() => fake.attempts.length).toBe(1);
+  await page.getByTestId('decision-wait').selectOption('0'); await create(page);
+  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', '');
+  await expect(page.getByTestId('decision-notice')).toBeEmpty(); await expect(page.getByTestId('use-rules-now')).toHaveCount(0);
+  await expect(page.getByTestId('decision-wait')).toHaveValue('0'); await expect(page.getByTestId('decision-diagnostics')).toContainText('1/40');
+  await fake.late();
+  await expect(page.getByTestId('tick')).toHaveText('0'); await expect(page.getByTestId('run')).toBeEnabled();
+  await expect(page.getByTestId('scene-dream')).toHaveCount(0); await waiting(page);
+  const before = { tick: await page.getByTestId('tick').innerText(), checksum: await page.getByTestId('checksum').innerText() };
+  await page.getByTestId('dream-send').click(); await recorded(page, 'fallback', before); expect(fake.attempts).toHaveLength(1);
+});
+
+test('offline fake deadline keeps the active wait after future preference changes to zero', async ({ page, context }) => {
+  const fake = await offlineFake(context); await open(page); await waiting(page);
+  await page.getByTestId('decision-wait').selectOption('10');
+  const before = await start(page); await expect.poll(() => fake.attempts.length).toBe(1);
+  await page.getByTestId('decision-wait').selectOption('0'); await expect(page.getByTestId('decision-wait')).toHaveValue('0');
+  // Observe a real worker deadline; never fake its timers or app state.
+  await page.waitForTimeout(300); await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'pending');
+  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'fallback', { timeout: 12_000 });
+  await recorded(page, 'fallback', before); expect(fake.attempts).toHaveLength(1); await resolve(page);
+});
+
+test('offline fake pending config and disabled adapter keep rules-only Dream controls with zero POSTs', async ({ page, context }) => {
+  const fake = await offlineFake(context, { holdConfig: true, enabled: false }); await open(page); await create(page);
+  await expect(page.getByTestId('decision-diagnostics')).toContainText('pending');
+  await page.getByTestId('decision-wait').selectOption('0'); await expect(page.getByTestId('decision-wait')).toHaveValue('0');
+  await fake.releaseConfig(); await waiting(page); await expect(page.getByTestId('decision-diagnostics')).toContainText('disabled');
+  const before = { tick: await page.getByTestId('tick').innerText(), checksum: await page.getByTestId('checksum').innerText() };
+  await page.getByTestId('dream-send').click(); await recorded(page, 'fallback', before); await resolve(page);
+  expect(fake.attempts).toHaveLength(0);
+});
+
+test('offline fake running Dream holds the native clock and resumes only to the resolution tick', async ({ page, context }) => {
+  const fake = await offlineFake(context); await open(page); await waiting(page);
+  await page.getByTestId('run').click(); await expect(page.getByTestId('run-state')).toHaveText('running');
+  await page.getByTestId('dream-send').click();
+  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'pending');
+  await expect.poll(() => fake.attempts.length).toBe(1);
+  const status = await request(page, { type: 'decision-status' });
+  expect(status.snapshot.runState).toBe('running'); expect(status.snapshot.decision?.pending).not.toBeNull();
+  const tick = status.snapshot.tick!; const checksum = status.snapshot.checksum!;
+  await expect(page.getByTestId('tick')).toHaveText(tick); await expect(page.getByTestId('tps')).toHaveText('—');
+  await expect(page.getByTestId('pause')).toBeDisabled(); await expect(page.getByTestId('step')).toBeDisabled();
+  await page.waitForTimeout(300);
+  await expect(page.getByTestId('tick')).toHaveText(tick); await expect(page.getByTestId('checksum')).toHaveText(checksum);
+  await expect(page.getByTestId('scene-dream')).toHaveCount(0);
+  await page.getByTestId('use-rules-now').click();
+  await expect(page.getByTestId('run-state')).toHaveText('paused');
+  await expect(page.getByTestId('tick')).toHaveText(String(Number(tick) + 1));
+  await expect(page.getByTestId('scene-dream')).toBeVisible();
+  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'fallback');
+});

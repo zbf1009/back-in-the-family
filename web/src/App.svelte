@@ -25,6 +25,8 @@
     reduce,
     controls,
     worldSnapshotNeeded,
+    decisionBusy,
+    decisionNotice,
     formatTick,
     formatChecksum,
     formatTps,
@@ -51,6 +53,7 @@
   // file at web/src/App.svelte: up to web/src, up to web, up to the repo root,
   // then into fixtures/configs.
   import pairwiseConfig from '../../fixtures/configs/pairwise.json?raw';
+  import { DEFAULT_DECISION_WAIT_SECONDS } from './shared/decision.ts';
 
   const { client, bridge }: { client: SimClient; bridge: EventBridge } = $props();
 
@@ -66,6 +69,8 @@
   // the Worker enforces the same gate even for direct harness requests.
   const buttons = $derived(controls(ui));
   const currentScene = $derived(ui.scene?.entries[0] ?? null);
+  const held = $derived(decisionBusy(ui));
+  const notice = $derived(decisionNotice(ui));
 
   // Fold one event into the state. Assigning a fresh object keeps the rune reactive.
   function dispatch(event: UiEvent): void {
@@ -92,7 +97,7 @@
   }
 
   async function sendUnderworld(requestWithoutId: RequestWithoutId | null): Promise<void> {
-    if (requestWithoutId === null) return;
+    if (requestWithoutId === null || held) return;
     const request: Request = { ...requestWithoutId, id: 0 };
     dispatch({ type: 'request-sent', request });
     settle(request, await client.request(requestWithoutId));
@@ -101,7 +106,21 @@
   function onForm(form: UnderworldForm): void { dispatch({ type: 'underworld-form', form }); }
   function onClose(): void { dispatch({ type: 'scene-close' }); }
   async function onDream(): Promise<void> {
-    await sendUnderworld(dreamRequest(ui.world!, ui.underworldForm));
+    if (ui.world === null || held) return;
+    await sendUnderworld(dreamRequest(ui.world, ui.underworldForm));
+  }
+
+  async function onWaitChange(event: Event): Promise<void> {
+    const seconds = Number((event.currentTarget as HTMLSelectElement).value);
+    const request: Request = { type: 'set-decision-wait', id: 0, seconds };
+    settle(request, await client.setDecisionWait(seconds));
+  }
+
+  async function onUseRules(): Promise<void> {
+    const pending = ui.decision?.pending;
+    if (pending == null || pending.worldId !== ui.worldId) return;
+    const request: Request = { type: 'use-rules-now', id: 0, requestId: pending.requestId, worldId: pending.worldId };
+    settle(request, await client.useRulesNow(pending.requestId, pending.worldId));
   }
   async function onClaim(slot: Slot): Promise<void> {
     await sendUnderworld(claimRequest(ui.underworldForm, slot));
@@ -113,6 +132,9 @@
   // `status`, `fatal` or `worker-error` becomes a UiEvent (R2.8, R2.9, R2.12).
   $effect(() => {
     bridge.dispatch = dispatch;
+    // Read page-session diagnostics before creation; no simulation mutation.
+    const request: Request = { type: 'decision-status', id: 0 };
+    void client.decisionStatus().then(message => settle(request, message));
     return () => {
       bridge.dispatch = null;
     };
@@ -190,7 +212,7 @@
 
     <label>
       Speed
-      <select data-testid="speed" value={ui.speed} onchange={onSpeedChange}>
+      <select data-testid="speed" disabled={held} value={ui.speed} onchange={onSpeedChange}>
         {#each SPEEDS as speed (speed)}
           <option value={speed}>{speed}</option>
         {/each}
@@ -227,6 +249,24 @@
       <span class="label">Ticks_Per_Second</span>
       <span data-testid="tps">{formatTps(ui)}</span>
     </div>
+  </section>
+  <section class="decision-controls" aria-label="Decision controls" data-testid="decision-controls">
+    <label>Decision wait (seconds)
+      <select data-testid="decision-wait" value={ui.decision?.waitSeconds ?? DEFAULT_DECISION_WAIT_SECONDS} onchange={onWaitChange}>
+        {#each Array.from({ length: 11 }, (_, seconds) => seconds) as seconds (seconds)}
+          <option value={seconds}>{seconds === 0 ? '0 — rules immediately' : seconds}</option>
+        {/each}
+      </select>
+    </label>
+    {#if ui.decision?.pending?.worldId === ui.worldId}
+      <button type="button" data-testid="use-rules-now" onclick={onUseRules}>Use rules now</button>
+    {/if}
+    <p role="status" data-testid="decision-notice" data-outcome={held ? 'pending' : notice === null ? '' : ui.decision?.outcome?.kind ?? ''}>
+      {held ? 'Decision pending. Time is held.' : notice ?? ''}
+    </p>
+    {#if ui.decision !== null}
+      <p class="decision-diagnostics" data-testid="decision-diagnostics">Config: {ui.decision.config} · {ui.decision.enabled ? 'enabled' : 'disabled'} · Requests: {ui.decision.spent}/{ui.decision.sessionCap ?? '—'}</p>
+    {/if}
   </section>
   <section class="inputs">
     <label>
@@ -297,6 +337,11 @@
   .seed-message { margin: 0; }
   .error { margin: 8px 16px; font-size: 12px; overflow-wrap: anywhere; }
   .error:empty { margin: 0; }
+  .decision-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 4px 16px 0; font-size: 12px; }
+  .decision-controls label { display: flex; align-items: center; gap: 6px; }
+  .decision-controls select { width: 155px; }
+  .decision-controls p { margin: 0; }
+  .decision-diagnostics { width: 100%; color: #54534f; font-variant-numeric: tabular-nums; }
   @media (max-width: 1279px) {
     .play-layout { grid-template-columns: minmax(240px, 300px) minmax(0, 620px); }
     .right-column { grid-column: 1 / -1; border-top: 1px solid #c6c3b9; }

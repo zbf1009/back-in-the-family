@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { UiState } from '../main/ui-state.ts';
+  import { decisionBusy } from '../main/ui-state.ts';
   import type { Slot, TraitName } from '../shared/world-snapshot.ts';
   import { DREAM_INTENTS } from '../shared/protocol.ts';
   import { underworldView } from '../main/view-model.ts';
@@ -33,7 +34,7 @@
       {#if slot.slot === 'rebuilt_body'}
         <button type="button" data-testid="customize" onclick={() => patch({ customization: form === null ? blankCustomization('Set') : null })}>Customize</button>
       {/if}
-      <button type="button" data-testid={`claim-${slot.slot}`} aria-label={`Claim ${slot.slot}`} disabled={!slot.claimEnabled} onclick={() => onClaim(slot.slot)}>Claim</button>
+      <button type="button" data-testid={`claim-${slot.slot}`} aria-label={`Claim ${slot.slot}`} disabled={!slot.claimEnabled || decisionBusy(ui)} onclick={() => onClaim(slot.slot)}>Claim</button>
     </div>
     <div class="path" data-testid={`path-${slot.slot}`}>
       <p>announced {slot.status.announced ? 'yes' : 'no'} · claimable {slot.status.claimable ? 'yes' : 'no'} · affordable {slot.status.affordable ? 'yes' : 'no'}</p>
@@ -99,7 +100,7 @@
           {#if view.connected.length === 0}<option value="">No connected people</option>{/if}
           {#each view.connected as person (person.id)}<option value={person.id}>{person.name}</option>{/each}
         </select></label>
-        <button type="button" data-testid="dream-send" disabled={!view.dreamEnabled} onclick={onDream}>Send dream (<span data-testid="dream-price">{view.dreamPrice}</span> joss paper)</button>
+        <button type="button" data-testid="dream-send" disabled={!view.dreamEnabled || decisionBusy(ui)} onclick={onDream}>Send dream (<span data-testid="dream-price">{view.dreamPrice}</span> joss paper)</button>
       </div>
       <div class="intents" role="group" aria-label="Dream intent">
         {#each DREAM_INTENTS as intent (intent)}

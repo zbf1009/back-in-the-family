@@ -30,6 +30,8 @@ export interface SimHarness {
    * only on the client's 30 s timeout (R9.13). The `id` is assigned by the client.
    */
   request(req: HarnessRequest): Promise<ReplyMessage>;
+  /** Read the live WASM v5 export; never reconstruct inputs in JavaScript. */
+  exportReplay(): Promise<ReplyMessage>;
 }
 
 declare global {
@@ -48,6 +50,9 @@ export function installHarness(client: SimClient): void {
   window.__simHarness = {
     request(req: HarnessRequest): Promise<ReplyMessage> {
       return client.request(req);
+    },
+    exportReplay(): Promise<ReplyMessage> {
+      return client.exportReplay();
     },
   };
 }

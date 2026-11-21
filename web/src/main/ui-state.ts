@@ -13,7 +13,7 @@
 // type from the client; every value import is erasable (type-only), so the file
 // works unchanged under Vite and Node.
 
-import type { Request, RunState, Snapshot, WorkerMessage } from '../shared/protocol.ts';
+import type { DecisionStatus, Request, RunState, Snapshot, WorkerMessage } from '../shared/protocol.ts';
 import { type SeedProblem, seedProblemMessage } from '../shared/seed.ts';
 import type { WorldSnapshot } from '../shared/world-snapshot.ts';
 import { nextScene, sceneQueue, type SceneQueue } from './scene-queue.ts';
@@ -59,6 +59,11 @@ export interface UiState {
   scene: SceneQueue | null;
   underworldRecorded: { worldId: number; tick: string } | null;
   underworldForm: UnderworldForm;
+  /** Worker-owned page-session preference, budget and request/World binding. */
+  decision: DecisionStatus | null;
+  decisionRequestId: number;
+  /** Only the brief interval before the worker announces a decision or replies. */
+  decisionSending: number | null;
   /** Error area text; non-empty while the last reply-or-fatal event was a failure (R5.8). */
   error: string | null;
   /** Seed validation message; set by a rejected seed, cleared by a sent create-world (R3.3). */
@@ -106,6 +111,9 @@ export function initialUiState(): UiState {
     scene: null,
     underworldRecorded: null,
     underworldForm: initialUnderworldForm(),
+    decision: null,
+    decisionRequestId: 0,
+    decisionSending: null,
     error: null,
     seedMessage: null,
     createPending: false,
@@ -136,6 +144,9 @@ export function reduce(s: UiState, e: UiEvent): UiState {
           return { ...s, seedMessage: null, createPending: true };
         case 'step':
           return { ...s, stepPending: true };
+        case 'dream':
+        case 'bribe':
+          return { ...s, decisionSending: s.worldId };
         case 'world-snapshot':
           return s.worldRead?.state === 'pending' || s.tick === null ? s : {
             ...s, worldRead: { state: 'pending', worldId: s.worldId, tick: s.tick }, worldStatuses: 0,
@@ -146,8 +157,12 @@ export function reduce(s: UiState, e: UiEvent): UiState {
     }
 
     case 'reply': {
+      const triggerReply = e.request.type === 'dream' || e.request.type === 'bribe';
+      const decisionReply = triggerReply || ['use-rules-now', 'decision-status', 'set-decision-wait', 'export-replay'].includes(e.request.type);
+      if (decisionReply && e.message.snapshot.worldId !== s.worldId) return s;
       const read = e.request.type === 'world-snapshot' ? s.worldRead : null;
       const cleared = e.request.type === 'world-snapshot' ? { ...s, worldRead: null } : clearPending(s, e.request);
+      if (triggerReply ? e.message.id < s.decisionRequestId : staleDecision(s, e.message.snapshot)) return cleared;
       // Finish the old read without adopting its values or error after replacement.
       if (e.request.type === 'world-snapshot'
         && (e.message.snapshot.worldId !== s.worldId || (read !== null && read.worldId !== s.worldId))) {
@@ -156,11 +171,12 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       if (e.message.ok) {
         const replaced = e.message.snapshot.worldId !== s.worldId;
         const next = {
-          ...cleared, ...fromSnapshot(e.message.snapshot), error: null,
+          ...cleared, ...fromSnapshot(e.message.snapshot), ...decisionFields(s, e.message.snapshot, triggerReply ? e.message.id : 0), error: null,
           world: replaced ? null : s.world,
           worldStatuses: replaced ? 0 : cleared.worldStatuses,
           worldRead: replaced && cleared.worldRead?.state === 'failed' ? null : cleared.worldRead,
           underworldForm: replaced ? initialUnderworldForm() : cleared.underworldForm,
+          decisionSending: replaced || e.request.type === 'dream' || e.request.type === 'bribe' ? null : cleared.decisionSending,
         };
         const world = e.message.world ?? e.message.snapshot.stop?.world;
         let adopted = expirePresentation(world === undefined ? next : withWorld(next, world));
@@ -175,7 +191,9 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       // Failures keep the completed display; a failed read is not retried at its tick.
       const tick = read?.tick ?? s.tick;
       return {
-        ...cleared, error: e.message.error,
+        ...cleared, ...decisionFields(s, e.message.snapshot, triggerReply ? e.message.id : 0),
+        decisionSending: e.request.type === 'dream' || e.request.type === 'bribe' ? null : cleared.decisionSending,
+        error: e.request.type === 'dream' ? dreamFailure(e.message) : e.message.error,
         worldRead: e.request.type === 'world-snapshot' && tick !== null
           ? { state: 'failed', worldId: s.worldId, tick } : cleared.worldRead,
       };
@@ -183,13 +201,13 @@ export function reduce(s: UiState, e: UiEvent): UiState {
 
     case 'status': {
       // Drop a status from a world we have already replaced (R3.7).
-      if (e.snapshot.worldId !== s.worldId) {
+      if (e.snapshot.worldId !== s.worldId || staleDecision(s, e.snapshot)) {
         return s;
       }
       // A status never carries an error and never clears one: the error area is
       // governed by replies and fatals only (R5.8). Adopt the live values.
       const next = {
-        ...s, ...fromSnapshot(e.snapshot),
+        ...s, ...fromSnapshot(e.snapshot), ...decisionFields(s, e.snapshot),
         worldStatuses: e.snapshot.runState === 'running' && e.snapshot.stop === undefined
           ? Math.min(s.worldStatuses + 1, 10) : s.worldStatuses,
       };
@@ -205,7 +223,8 @@ export function reduce(s: UiState, e: UiEvent): UiState {
     case 'worker-error': {
       // The worker can no longer be trusted. Go to `failed`, show the text, and
       // keep the last completed tick and checksum (R2.8, R2.9, R5.9).
-      return { ...s, runState: 'failed', error: e.error };
+      return { ...s, runState: 'failed', error: e.error, decisionSending: null,
+        decision: s.decision === null ? null : { ...s.decision, pending: null } };
     }
 
     case 'seed-invalid': {
@@ -255,7 +274,7 @@ function expirePresentation(s: UiState): UiState {
 }
 
 export function nodeOptionsEnabled(s: UiState): boolean {
-  return s.world?.player_node !== null && s.world?.player_node !== undefined
+  return !decisionBusy(s) && s.world?.player_node !== null && s.world?.player_node !== undefined
     && s.scene?.entries[0]?.node === s.world.player_node.id && s.playerNode.pending && !s.playerNode.answered;
 }
 
@@ -278,12 +297,53 @@ export function controls(s: UiState): {
   const running = s.runState === 'running';
   const paused = s.runState === 'paused';
   const unanswered = s.playerNode.pending && !s.playerNode.answered;
+  const held = decisionBusy(s);
   return {
     create: !s.createPending && s.runState !== 'failed',
-    run: paused && !unanswered,
-    pause: running,
-    step: paused && !unanswered && !s.stepPending,
+    run: paused && !unanswered && !held,
+    pause: running && !held,
+    step: paused && !unanswered && !s.stepPending && !held,
   };
+}
+
+/** No new pause state: only competing commands are held; Create and reads remain available. */
+export function decisionBusy(s: UiState): boolean {
+  return s.decisionSending === s.worldId || s.decision?.pending?.worldId === s.worldId;
+}
+
+/** Fixed UI copy never includes provider text, options, usage, or quality claims. */
+export function decisionNotice(s: UiState): string | null {
+  if (decisionBusy(s)) return null;
+  const outcome = s.decision?.outcome;
+  if (outcome == null || outcome.worldId !== s.worldId || outcome.requestId !== s.decisionRequestId) return null;
+  return outcome.kind === 'model' ? 'Decision recorded.'
+    : outcome.kind === 'fallback' ? 'Rules recorded.' : 'Decision cancelled.';
+}
+
+function staleDecision(s: UiState, snapshot: Snapshot): boolean {
+  if (snapshot.worldId !== s.worldId) return false;
+  const decision = snapshot.decision;
+  if (decision === undefined) return false;
+  const id = decision.pending?.requestId ?? decision.outcome?.requestId ?? 0;
+  return id < s.decisionRequestId
+    || (decision.pending !== null && id === s.decisionRequestId && s.decision?.outcome?.requestId === id);
+}
+
+function decisionFields(s: UiState, snapshot: Snapshot, requestId = 0): Pick<UiState, 'decision' | 'decisionRequestId'> {
+  if (snapshot.decision === undefined) return {
+    decision: snapshot.worldId === s.worldId ? s.decision : null,
+    decisionRequestId: Math.max(snapshot.worldId === s.worldId ? s.decisionRequestId : 0, requestId),
+  };
+  const decision = snapshot.decision;
+  return { decision, decisionRequestId: Math.max(snapshot.worldId === s.worldId ? s.decisionRequestId : 0,
+    decision.pending?.requestId ?? decision.outcome?.requestId ?? 0, requestId) };
+}
+
+function dreamFailure(message: Extract<ReplyMessage, { ok: false }>): string {
+  if (message.kind === 'cancelled') return 'Decision cancelled.';
+  if (message.previewError?.kind === 'no_node') return 'Dream was not recorded: no decision is available.';
+  if (message.previewError?.kind === 'malformed') return 'Dream was not recorded: decision data is unavailable.';
+  return 'Dream was not recorded. Check the available dreamer and joss paper.';
 }
 
 // --- status formatters (R5.1-R5.3, R5.6) -----------------------------------

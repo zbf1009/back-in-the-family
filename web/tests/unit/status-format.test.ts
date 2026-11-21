@@ -32,10 +32,10 @@ import {
   formatRunState,
   formatTick,
   formatTps,
+  initialUiState,
   type UiState,
 } from '../../src/main/ui-state.ts';
 import type { RunState } from '../../src/shared/protocol.ts';
-import { initialUnderworldForm } from '../../src/main/customization.ts';
 
 const RUNS = 1000;
 
@@ -81,18 +81,11 @@ const uiStateArb: fc.Arbitrary<UiState> = fc.record({
   checksum: checksumArb,
   tps: tpsArb,
   speed: fc.constantFrom(1, 7, 30, 90, 365),
-  playerNode: fc.constant({ pending: false } as const),
-  world: fc.constant(null),
-  worldRead: fc.constant(null),
-  worldStatuses: fc.constant(0),
-  scene: fc.constant(null),
-  underworldRecorded: fc.constant(null),
-  underworldForm: fc.constant(initialUnderworldForm()),
   error: fc.oneof(fc.constant<string | null>(null), fc.string()),
   seedMessage: fc.oneof(fc.constant<string | null>(null), fc.string()),
   createPending: fc.boolean(),
   stepPending: fc.boolean(),
-});
+}).map(fields => ({ ...initialUiState(), ...fields }));
 
 /** A matcher for exactly 16 lowercase hexadecimal characters. */
 const HEX16 = /^[0-9a-f]{16}$/;
@@ -151,25 +144,7 @@ test('Property 8: formatters show the value verbatim or a single dash for every 
 // A focused example: a brand-new world (R5.3) shows tick 0 and a dash for the
 // checksum; the no-world initial (R5.2) shows a dash for both.
 test('Property 8: example -- new world shows tick 0 and a dash checksum; no-world shows two dashes', () => {
-  const base: UiState = {
-    worldId: 0,
-    runState: 'no-world',
-    tick: null,
-    checksum: null,
-    tps: null,
-    speed: 1,
-    playerNode: { pending: false },
-    world: null,
-    worldRead: null,
-    worldStatuses: 0,
-    scene: null,
-    underworldRecorded: null,
-    underworldForm: initialUnderworldForm(),
-    error: null,
-    seedMessage: null,
-    createPending: false,
-    stepPending: false,
-  };
+  const base: UiState = initialUiState();
 
   // no-world: tick and checksum are both the dash, tps is the dash (R5.2, R5.6).
   assert.equal(formatTick(base), DASH);
@@ -188,23 +163,13 @@ test('Property 8: example -- new world shows tick 0 and a dash checksum; no-worl
 // with no thousands separators (R5.1).
 test('Property 8: example -- a large u64 tick and a checksum are shown verbatim', () => {
   const s: UiState = {
+    ...initialUiState(),
     worldId: 1,
     runState: 'running',
     tick: '18446744073709551615',
     checksum: 'a1b2c3d4e5f60718',
     tps: 1234567,
     speed: 365,
-    playerNode: { pending: false },
-    world: null,
-    worldRead: null,
-    worldStatuses: 0,
-    scene: null,
-    underworldRecorded: null,
-    underworldForm: initialUnderworldForm(),
-    error: null,
-    seedMessage: null,
-    createPending: false,
-    stepPending: false,
   };
   assert.equal(formatTick(s), '18446744073709551615', 'large u64 tick is not reformatted');
   assert.doesNotMatch(formatTick(s), /,/, 'no thousands separators');

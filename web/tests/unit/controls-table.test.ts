@@ -12,8 +12,8 @@
 //   - Create is enabled except while a create-world is in flight (`createPending`)
 //     or the worker has failed (R3.8).
 //
-// This test is exhaustive rather than randomized: `controls` reads exactly three
-// fields -- `runState`, `stepPending`, `createPending` -- so the full input space
+// This test is exhaustive rather than randomized: with no pending decision,
+// `controls` reads `runState`, `stepPending`, and `createPending`, so the input space
 // is the 4 x 2 x 2 = 16 combinations of their legal values. Each combination is
 // checked against an independently stated expectation (`expected` below), so a
 // change to the enablement rules in `ui-state.ts` fails here rather than slipping
@@ -22,9 +22,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { controls, type UiState } from '../../src/main/ui-state.ts';
+import { controls, initialUiState, type UiState } from '../../src/main/ui-state.ts';
 import type { RunState } from '../../src/shared/protocol.ts';
-import { initialUnderworldForm } from '../../src/main/customization.ts';
 
 /** The four Run_States, the full domain of the first axis (R4.7-R4.9). */
 const RUN_STATES: readonly RunState[] = ['no-world', 'paused', 'running', 'failed'];
@@ -58,28 +57,20 @@ function expected(runState: RunState, stepPending: boolean, createPending: boole
 }
 
 /**
- * Build a UiState for a combination. Only the three fields `controls` reads are
- * set from the combination; the rest are legal placeholders the function never
- * looks at (a mid-run snapshot with a real tick and checksum), chosen so the
+ * Build a UiState with no pending decision for a legacy controls combination.
+ * Only the three table axes are set from the combination; the remaining display
+ * fields use a mid-run snapshot with a real tick and checksum, chosen so the
  * placeholders cannot accidentally match the expectation.
  */
 function stateFor(runState: RunState, stepPending: boolean, createPending: boolean): UiState {
   return {
+    ...initialUiState(),
     worldId: 1,
     runState,
     tick: '42',
     checksum: 'a1b2c3d4e5f60718',
     tps: 123,
     speed: 365,
-    playerNode: { pending: false },
-    world: null,
-    worldRead: null,
-    worldStatuses: 0,
-    scene: null,
-    underworldRecorded: null,
-    underworldForm: initialUnderworldForm(),
-    error: null,
-    seedMessage: null,
     createPending,
     stepPending,
   };
