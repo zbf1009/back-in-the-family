@@ -6,6 +6,8 @@ export const DECISION_ERROR_VERSION = 'decision-error-v1';
 export const CONFIG_PREFETCH_TIMEOUT_MS = 3000;
 export const DEFAULT_SESSION_CAP = 40;
 export const DEFAULT_DECISION_WAIT_SECONDS = 10;
+/** Selected actual UTF-8 transport policy, not a runtime default, wire bound or token/neuron guarantee. */
+export const PROJECT_REQUEST_BYTE_CAP = 16_384;
 export const DECISION_WIRE_BOUNDS = Object.freeze({
   state: 65_536, instructions: 8192, label: 1024, id: 64,
   depth: 4, responseBytes: 4096, requestBytesCeiling: 1_048_576,

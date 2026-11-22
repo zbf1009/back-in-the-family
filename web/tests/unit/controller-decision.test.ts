@@ -3,10 +3,12 @@ import assert from 'node:assert/strict';
 import fc from 'fast-check';
 import { WasmSim, verify_replay } from '../../../target/wasm-pkg/sim_wasm.js';
 import { SimController, type SimHandle } from '../../src/worker/controller.ts';
-import { DecisionBridge, type DecisionWasm } from '../../src/worker/decision-bridge.ts';
+import { DecisionBridge, type DecisionPreview, type DecisionWasm } from '../../src/worker/decision-bridge.ts';
+import { PROJECT_REQUEST_BYTE_CAP, isDecisionError } from '../../src/shared/decision.ts';
 import type { Reply, Request, WorkerMessage } from '../../src/shared/protocol.ts';
 import { PLAY_RATE, SPEEDS } from '../../src/shared/speeds.ts';
-import { actualSim, ControlledDecisionClient, DecisionClock, config, mapping, modelDecision, realPreviews, settle, wasm } from './helpers/decision.ts';
+import { actualSim, ControlledDecisionClient, DecisionClock, HandlerDecisionClient, config, mapping,
+  modelDecision, realPreviews, settle, transportPaddedWasm, wasm } from './helpers/decision.ts';
 import { FakeFrameScheduler } from './helpers/fakes.ts';
 
 class Frames extends FakeFrameScheduler {
@@ -508,3 +510,124 @@ test('world replacement preserves the cached cap spent attempts and future wait 
   h.bridge.dispose();
 });
 
+test('actual WASM completed 16384 model and 16385 HTTP fallback streams match direct checked v5 runs for Dream and Bribe', async () => {
+  for (const family of ['dream', 'bribe'] as const) for (const bytes of [PROJECT_REQUEST_BYTE_CAP, PROJECT_REQUEST_BYTE_CAP + 1]) {
+    const live = actualSim(); const direct = actualSim(); const opposite = actualSim();
+    const trigger = family === 'dream' ? { Dream: { dreamer: '31', intent: 'urge' } } : { Bribe: { amount: '1' } };
+    const preview = JSON.parse(direct.preview_node(JSON.stringify(trigger))) as DecisionPreview;
+    assert.equal(preview.ok, true);
+    assert.equal(preview.family, family === 'dream' ? 'dream_interpretation' : 'magistrate_ruling');
+    assert.ok(preview.option_ids.includes(preview.rules_default));
+    const selectedWasm = await transportPaddedWasm(preview, bytes);
+    let validations = 0;
+    const clock = new DecisionClock();
+    const client = new HandlerDecisionClient(clock, preview.rules_default, {
+      inferenceEnabled: true, requestByteCap: PROJECT_REQUEST_BYTE_CAP, sessionCap: 1,
+    });
+    const bridge = new DecisionBridge(client, { ...selectedWasm, llm_validate: input => {
+      validations++; return wasm.llm_validate(input);
+    } }, mapping, clock);
+    const messages: WorkerMessage[] = []; const frames = new Frames(); const checkedAttempts: unknown[][] = [];
+    const checked = live.submit_checked.bind(live);
+    live.submit_checked = input => { checkedAttempts.push(JSON.parse(input)); return checked(input); };
+    const controller = new SimController({ createSim: () => live, clock, scheduler: frames, post: message => messages.push(message),
+      decision: { bridge, timing: clock, previewNode: (sim, payload) => (sim as WasmSim).preview_node(payload),
+        exportReplay: sim => (sim as WasmSim).export_replay() } });
+    const reply = (id: number) => messages.find((message): message is Reply => message.type === 'reply' && message.id === id)!;
+    try {
+      await client.prefetched.promise; await settle();
+      controller.ready(); controller.handle({ type: 'create-world', id: 1, seed: '1', config: '{}' });
+      const before = live.export_replay();
+      controller.handle(family === 'dream' ? { type: 'dream', id: 2, dreamer: 31, intent: 'urge' } : { type: 'bribe', id: 2, amount: '1' });
+      assert.equal(bridge.status().spent, 1); assert.equal(client.attempts.length, 1);
+      assert.equal(live.export_replay(), before, 'held transport must not submit or mutate the Rust world');
+      assert.equal(reply(2), undefined);
+      await client.attempts[0]!.completed; await settle();
+      const exact = bytes === PROJECT_REQUEST_BYTE_CAP;
+      assert.equal(client.posts.length, 1);
+      const post = client.posts[0]!;
+      assert.equal(new TextEncoder().encode(post.body).byteLength, bytes);
+      assert.equal(post.headers.has('content-length'), false);
+      assert.equal(post.status, exact ? 200 : 413);
+      assert.equal(client.aiCalls.length, exact ? 1 : 0); assert.equal(validations, exact ? 1 : 0);
+      assert.equal(reply(2).ok, true); assert.equal(reply(2).snapshot.decision?.pending, null);
+      if (exact) assert.equal(reply(2).snapshot.decision?.outcome?.kind, 'model');
+      else {
+        assert.ok(isDecisionError(post.result, 413));
+        assert.deepEqual(reply(2).snapshot.decision?.outcome, {
+          requestId: reply(2).id, worldId: reply(1).snapshot.worldId, kind: 'fallback', reason: 'payload_too_large',
+        });
+      }
+      const pair = [trigger, { Choose: { node: { Trigger: { seq: preview.trigger } }, option: preview.rules_default,
+        fingerprint: modelDecision().fingerprint } }];
+      const expected = exact ? pair : [trigger];
+      assert.deepEqual(checkedAttempts, [expected], 'only the controller calls the real atomic checked submission');
+      assert.deepEqual(JSON.parse(direct.submit_checked(JSON.stringify(expected))), { ok: true });
+      assert.deepEqual(JSON.parse(opposite.submit_checked(JSON.stringify(exact ? [trigger] : pair))), { ok: true });
+      assert.equal(live.export_replay(), direct.export_replay(), 'the queued Rust replay is exactly the direct authoritative path');
+      assert.equal(live.tick(), 1654n); assert.equal(frames.isPending, false);
+      controller.handle({ type: 'step', id: 3 }); direct.run_until_stop(1);
+      assert.equal(reply(3).ok, true); assert.equal(live.tick(), 1655n, 'the controller completed the firing tick');
+      assert.equal(reply(3).snapshot.tick, direct.tick().toString());
+      assert.equal(live.checksums(0n, live.tick()), direct.checksums(0n, direct.tick()));
+      assert.equal(live.snapshot(), direct.snapshot());
+      assert.notEqual(JSON.parse(opposite.run_until_stop(1)).checksum, reply(3).snapshot.checksum,
+        'same-option External versus Rules_Default sources must remain distinguishable');
+      const replay = JSON.parse(live.export_replay());
+      assert.equal(replay.version, 5);
+      const decisionInputs = replay.inputs.filter((input: { seq: string }) => BigInt(input.seq) >= BigInt(preview.trigger));
+      assert.deepEqual(decisionInputs.map((input: { payload: unknown }) => input.payload), expected);
+      assert.equal(decisionInputs[0].seq, preview.trigger); assert.equal(decisionInputs[0].tick, '1654');
+      if (exact) {
+        assert.equal(decisionInputs[1].seq, (BigInt(preview.trigger) + 1n).toString());
+        assert.equal(decisionInputs[1].tick, decisionInputs[0].tick);
+      } else assert.equal(decisionInputs.some((input: { payload: object }) => 'Choose' in input.payload), false);
+      assert.ok(BigInt(replay.ticks) > BigInt(decisionInputs[0].tick));
+      controller.handle({ type: 'export-replay', id: 4 });
+      const exported = reply(4); assert.ok(exported.ok && exported.replay);
+      assert.equal(exported.replay, live.export_replay()); assert.equal(exported.replay, direct.export_replay());
+      verify_replay(exported.replay); verify_replay(direct.export_replay());
+      clock.advance(10000); await settle();
+      assert.equal(messages.filter(message => message.type === 'reply' && message.id === 2).length, 1);
+      assert.equal(bridge.status().spent, 1); assert.equal(client.attempts.length, 1);
+      assert.equal(client.configSignals.length, 1); assert.equal(client.posts.length, 1);
+      assert.equal(client.aiCalls.length, exact ? 1 : 0); assert.deepEqual(checkedAttempts, [expected]);
+    } finally { bridge.dispose(); live.free(); direct.free(); opposite.free(); }
+  }
+});
+
+test('real WASM rejected Dream and Bribe previews stay ineligible with the production capped HTTP client', async () => {
+  for (const family of ['dream', 'bribe'] as const) {
+    const live = actualSim(); const clock = new DecisionClock(); let renders = 0;
+    const client = new HandlerDecisionClient(clock, realPreviews()[family === 'dream' ? 0 : 1]!.rules_default, {
+      inferenceEnabled: true, requestByteCap: PROJECT_REQUEST_BYTE_CAP, sessionCap: 1,
+    });
+    const bridge = new DecisionBridge(client, { ...wasm, llm_render_system_one: input => {
+      renders++; return wasm.llm_render_system_one(input);
+    } }, mapping, clock);
+    const messages: WorkerMessage[] = [];
+    const controller = new SimController({ createSim: () => live, clock, scheduler: new Frames(), post: message => messages.push(message),
+      decision: { bridge, timing: clock, previewNode: (sim, payload) => (sim as WasmSim).preview_node(payload),
+        exportReplay: sim => (sim as WasmSim).export_replay() } });
+    try {
+      await client.prefetched.promise; await settle();
+      controller.ready(); controller.handle({ type: 'create-world', id: 1, seed: '1', config: '{}' });
+      const before = live.export_replay();
+      const invalidSpec = JSON.parse(live.preview_node(JSON.stringify(family === 'dream'
+        ? { Dream: { dreamer: '999999', intent: 'urge' } } : { Bribe: { amount: '0' } })));
+      assert.equal(invalidSpec.ok, false); assert.equal(invalidSpec.error.kind, 'rejected');
+      controller.handle(family === 'dream' ? { type: 'dream', id: 2, dreamer: 999999, intent: 'urge' } : { type: 'bribe', id: 2, amount: '0' });
+      await settle();
+      const rejected = messages.find((message): message is Reply => message.type === 'reply' && message.id === 2)!;
+      assert.ok(!rejected.ok && rejected.kind === 'rejected');
+      assert.deepEqual(rejected.previewError, invalidSpec.error);
+      assert.equal(rejected.error, invalidSpec.error.reason);
+      assert.equal(live.export_replay(), before); assert.equal(live.tick(), 1654n);
+      assert.equal(renders, 0); assert.equal(client.attempts.length, 0); assert.equal(client.posts.length, 0);
+      assert.equal(client.aiCalls.length, 0); assert.equal(bridge.status().spent, 0);
+      const metrics = bridge.metrics!.report().families[family === 'dream' ? 'dream_interpretation' : 'magistrate_ruling'];
+      assert.equal(metrics.eligibleNodes, 0); assert.equal(metrics.postAttempts, 0); assert.equal(metrics.rejectedTriggers, 1);
+      assert.equal(metrics.checkedModelChoices, 0); assert.equal(metrics.checkedRulesFallbacks, 0);
+    } finally { bridge.dispose(); live.free(); }
+  }
+});

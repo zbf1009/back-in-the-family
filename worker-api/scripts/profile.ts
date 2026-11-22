@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { decisionObject } from '../../web/src/shared/decision.ts';
+import { PROJECT_REQUEST_BYTE_CAP, decisionObject } from '../../web/src/shared/decision.ts';
 
 export const root = fileURLToPath(new URL('../../', import.meta.url));
 export interface SourceConfig {
@@ -31,7 +31,7 @@ export function validateSourceConfig(config: unknown): asserts config is SourceC
   assert.deepEqual(config.assets.run_worker_first, ['/api', '/api/*'], 'Both exact and wildcard API routes must run Worker first');
   assert.equal(config.assets.not_found_handling, 'single-page-application', 'SPA fallback must be enabled');
   assert.deepEqual(config.ai, { binding: 'AI', remote: false }, 'Native non-remote AI binding is required');
-  assert.deepEqual(config.vars, { INFERENCE_ENABLED: 'false' }, 'Ordinary source inference must be disabled and the permanent byte cap unset');
+  assert.deepEqual(config.vars, { INFERENCE_ENABLED: 'false', MAX_REQUEST_BYTES: String(PROJECT_REQUEST_BYTE_CAP) }, 'Ordinary source inference must be disabled with the explicit project transport policy, not a runtime default');
 }
 
 export async function sourceConfig(): Promise<SourceConfig> {

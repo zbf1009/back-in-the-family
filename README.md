@@ -82,6 +82,12 @@ The browser front end lives in `web/`. It needs Node and pnpm from `mise`, and t
 
 `scripts/gates.sh` runs all of these — the pnpm version check, the frozen-lockfile install, the Type_Check, the Unit_Tests, the Web_Build and the Smoke_Test — as part of the full gate chain, after the Rust gates and the `sim-cli batch` step.
 
+#### Decision Worker transport policy (Spec 7)
+
+The [Spec 7 design](.kiro/specs/slow-think/design.md) selects a project transport policy: [source Worker configuration](worker-api/wrangler.jsonc) explicitly sets `MAX_REQUEST_BYTES` to the string `"16384"` and `INFERENCE_ENABLED` to `false`. Same-origin, closed-schema Clef requests are capped by their actual serialized UTF-8 bytes; oversized requests return HTTP 413 `payload_too_large` and use the checked `Rules_Default` fallback. A missing cap is not filled with a default.
+
+This is not a token/neuron conversion or a guarantee of ≤50 neurons. The page-session default of 40 attempts is not a server limit: direct calls consume the account's shared quota, may exhaust Free allocation, and may incur Paid charges. Production remains on Spec 6 static hosting with the publisher off; this policy does not authorize inference or deployment commands.
+
 ### LLM probe (`eval/probe/`)
 
 The probe runs the locked evaluation cards (`eval/cards/`) against the candidate runtimes and writes Results under `eval/results/`; the Report is `docs/llm-probe.md` and the requirement-by-requirement audit is `docs/llm-probe-audit.md`. Every command below runs from the repository root through `pnpm --dir eval/probe run probe <command>` (written `probe <command>` in the list; wrap it as shown in the first block). The package is separate from `web/` and nothing under `web/src` may import from `eval/` (the `check-web-imports` gate).

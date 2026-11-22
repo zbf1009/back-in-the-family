@@ -5,15 +5,50 @@ import { networkInterfaces } from 'node:os';
 import { createConnection, createServer } from 'node:net';
 import { once } from 'node:events';
 import { URL } from 'node:url';
+import { ReadableStream } from 'node:stream/web';
 import test from 'node:test';
-import { isDecisionConfig, isModelDecision } from '../../../web/src/shared/decision.ts';
+import { PROJECT_REQUEST_BYTE_CAP, decisionObject, isDecisionConfig, isDecisionRequest, isModelDecision } from '../../../web/src/shared/decision.ts';
 import { decisionRequest, enabledVariables, expectError, publicBody } from '../helpers/decision.ts';
 import { runtimeFixture } from '../helpers/runtime.ts';
 import { sourceConfig } from '../../scripts/profile.ts';
 import type { RuntimeFixture } from '../helpers/runtime.ts';
+import { requireTools } from '../../scripts/tools.ts';
+import type * as RuntimeTools from 'worker-tools/miniflare';
 
 const origin = 'https://router.test';
 const navigation = { Accept: 'text/html', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document' };
+
+function projectBoundaryBodies(escaped: boolean) {
+  const request = decisionRequest();
+  request.state = '界😀é';
+  const encoder = new TextEncoder();
+  const serialize = (state: string) => {
+    const body = JSON.stringify({ ...request, state });
+    return escaped ? body.replaceAll('界', '\\u754c').replaceAll('😀', '\\ud83d\\ude00') : body;
+  };
+  request.state += 'a'.repeat(PROJECT_REQUEST_BYTE_CAP - encoder.encode(serialize(request.state)).byteLength);
+  const exact = serialize(request.state);
+  const over = serialize(request.state + 'a');
+  assert.ok(isDecisionRequest(JSON.parse(exact)));
+  assert.ok(isDecisionRequest(JSON.parse(over)));
+  assert.equal(encoder.encode(exact).byteLength, 16384);
+  assert.equal(encoder.encode(over).byteLength, 16385);
+  return { request, exact, over };
+}
+
+function streamedPost(body: string): RuntimeTools.Request {
+  const tools = requireTools('miniflare') as typeof RuntimeTools;
+  const bytes = new TextEncoder().encode(body);
+  let offset = 0;
+  const request = new tools.Request(origin + '/api/decision', {
+    method: 'POST', duplex: 'half', body: new ReadableStream<Uint8Array>({ pull(controller) {
+      if (offset === bytes.byteLength) { controller.close(); return; }
+      controller.enqueue(bytes.slice(offset, offset += Math.min(17, bytes.byteLength - offset)));
+    } }),
+  });
+  assert.equal(request.headers.get('content-length'), null);
+  return request;
+}
 
 async function apiRoutes(fixture: RuntimeFixture): Promise<void> {
   for (const headers of [undefined, navigation]) {
@@ -85,7 +120,7 @@ test('runtime isolation requires only loopback; RPC loopback works and external 
   }
 });
 
-test('real source config preserves native AI and worker-first SPA profile with inference off and no byte cap', async () => {
+test('real source config preserves native AI worker-first SPA inference off and the explicit project byte policy', async () => {
   await sourceConfig();
 });
 
@@ -138,6 +173,27 @@ test('actual native-shaped RPC fake enables one valid POST; GET malformed and ov
     } });
   } finally { await fixture.dispose(); }
 });
+
+for (const escaped of [false, true]) {
+  test(`actual checked router accepts valid 16384-byte ${escaped ? 'escaped Unicode' : 'multibyte UTF8'} without Content-Length; 16385 bytes use zero AI`, async () => {
+    const { request, exact, over } = projectBoundaryBodies(escaped);
+    const fixture = await runtimeFixture({ variables: { INFERENCE_ENABLED: 'true' } });
+    try {
+      assert.deepEqual(await publicBody(await fixture.runtime.dispatchFetch(origin + '/api/decision/config')),
+        { version: 'decision-config-v1', enabled: true, session_cap: 40 });
+      assert.equal(fixture.calls.length, 0);
+      await expectError(await fixture.runtime.dispatchFetch(streamedPost(over)), 'payload_too_large', 413);
+      assert.equal(fixture.calls.length, 0);
+      const response = await fixture.runtime.dispatchFetch(streamedPost(exact));
+      assert.equal(response.status, 200);
+      assert.ok(isModelDecision(await publicBody(response), request));
+      assert.equal(fixture.calls.length, 1);
+      const input = fixture.calls[0]!.input;
+      assert.ok(decisionObject(input));
+      assert.equal(input.state, request.state);
+    } finally { await fixture.dispose(); }
+  });
+}
 
 test('actual runtime invalid session cap advertises no fabricated config and closes inference', async () => {
   const fixture = await runtimeFixture({ variables: { ...enabledVariables(), SESSION_CAP: '-1' } });
@@ -196,7 +252,8 @@ test('broken SPA config really returns 404 on deep navigation and is detected', 
 });
 
 test('actual runtime explicit enablement without a byte cap still closes inference', async () => {
-  const fixture = await runtimeFixture({ variables: { INFERENCE_ENABLED: 'true', SESSION_CAP: 0 } });
+  const fixture = await runtimeFixture({ variables: { INFERENCE_ENABLED: 'true', SESSION_CAP: 0 },
+    fault: 'missing-byte-cap', externalFault: false });
   try {
     const response = await fixture.runtime.dispatchFetch(origin + '/api/decision/config');
     assert.equal(response.status, 200);
@@ -206,6 +263,20 @@ test('actual runtime explicit enablement without a byte cap still closes inferen
     }), 'disabled', 503);
     assert.equal(fixture.calls.length, 0);
   } finally { await fixture.dispose(); }
+});
+
+test('actual runtime invalid configured byte caps never become missing or use the project policy as a default', async () => {
+  for (const cap of [null, 0, '16384 ', '1048577']) {
+    const fixture = await runtimeFixture({ variables: { INFERENCE_ENABLED: 'true', MAX_REQUEST_BYTES: cap }, externalFault: false });
+    try {
+      assert.deepEqual(await publicBody(await fixture.runtime.dispatchFetch(origin + '/api/decision/config')),
+        { version: 'decision-config-v1', enabled: false, session_cap: 40 });
+      await expectError(await fixture.runtime.dispatchFetch(origin + '/api/decision', {
+        method: 'POST', body: JSON.stringify(decisionRequest()),
+      }), 'disabled', 503);
+      assert.equal(fixture.calls.length, 0);
+    } finally { await fixture.dispose(); }
+  }
 });
 
 test('actual RPC native absent usage projects null and zero page cap does not disable server readiness', async () => {
@@ -254,15 +325,22 @@ test('actual RPC request-owned provider 429 is only rate_limited with one call a
   } finally { await fixture.dispose(); }
 });
 
-test('actual router explicit inference off blocks POST even with a usable native fake and valid byte cap', async () => {
-  const fixture = await runtimeFixture({ variables: { ...enabledVariables(), INFERENCE_ENABLED: 'false' } });
+test('actual ordinary source blocks exact and over project byte boundaries with a usable native fake and zero AI', async () => {
+  const fixture = await runtimeFixture();
   try {
     const config = await fixture.runtime.dispatchFetch(origin + '/api/decision/config', { headers: navigation });
     assert.equal(config.status, 200);
     assert.deepEqual(await publicBody(config), { version: 'decision-config-v1', enabled: false, session_cap: 40 });
-    await expectError(await fixture.runtime.dispatchFetch(origin + '/api/decision', {
-      method: 'POST', body: JSON.stringify(decisionRequest()),
-    }), 'disabled', 503);
+    for (const escaped of [false, true]) {
+      const { exact, over } = projectBoundaryBodies(escaped);
+      // Disabled POST responds before reading its body. Submit the finite JSON
+      // at once so a chunked uploader cannot outlive that response and hit EPIPE.
+      for (const body of [exact, over]) {
+        await expectError(await fixture.runtime.dispatchFetch(origin + '/api/decision', {
+          method: 'POST', body,
+        }), 'disabled', 503);
+      }
+    }
     assert.equal(fixture.calls.length, 0);
   } finally { await fixture.dispose(); }
 });

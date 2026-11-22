@@ -3,11 +3,12 @@ import test from 'node:test';
 import { handleRequest } from '../../src/handler.ts';
 import { DECISION_CONTRACT, decisionFingerprint } from '../../../web/src/shared/decision-contract.ts';
 import {
-  DECISION_WIRE_BOUNDS, isDecisionConfig, isModelDecision, withinDecisionDepth,
+  DECISION_WIRE_BOUNDS, PROJECT_REQUEST_BYTE_CAP, decisionObject, isDecisionConfig, isDecisionRequest, isModelDecision, withinDecisionDepth,
 } from '../../../web/src/shared/decision.ts';
 import {
   decisionRequest, enabledVariables, expectError, nativeResult, post, publicBody,
 } from '../helpers/decision.ts';
+import { sourceConfig } from '../../scripts/profile.ts';
 
 function binding(result: unknown = nativeResult(), error?: unknown) {
   const calls: { model: unknown; input: unknown }[] = [];
@@ -23,7 +24,7 @@ function binding(result: unknown = nativeResult(), error?: unknown) {
 }
 const get = () => new Request('https://decision.test/api/decision/config');
 
-test('GET readiness matches POST and missing cap defaults to 40 without AI', async () => {
+test('GET readiness matches POST and missing session cap defaults to 40 without AI', async () => {
   for (const cap of [undefined, 0, 40, Number.MAX_SAFE_INTEGER, '0', '40', String(Number.MAX_SAFE_INTEGER)]) {
     const fake = binding();
     const env = { ...fake.env, ...(cap === undefined ? {} : { SESSION_CAP: cap }) };
@@ -197,6 +198,67 @@ test('actual UTF8 bytes enforce exact and over limit independently of Content-Le
   });
   await expectError(await handleRequest(streamRequest(body), { ...fake.env, MAX_REQUEST_BYTES: 7 }), 'payload_too_large', 413);
   assert.ok(cancelled);
+  assert.equal(fake.calls.length, 0);
+});
+
+test('project policy accepts valid 16384-byte multibyte and escaped JSON only when ready; 16385 bytes never reach AI', async () => {
+  const source = await sourceConfig();
+  const encoder = new TextEncoder();
+  for (const escaped of [false, true]) {
+    const value = decisionRequest();
+    value.state = '界😀é';
+    const serialize = () => {
+      const body = JSON.stringify(value);
+      return escaped ? body.replaceAll('界', '\\u754c').replaceAll('😀', '\\ud83d\\ude00') : body;
+    };
+    value.state += 'a'.repeat(PROJECT_REQUEST_BYTE_CAP - encoder.encode(serialize()).byteLength);
+    const exactValue = structuredClone(value);
+    const exactBytes = encoder.encode(serialize());
+    value.state += 'a';
+    const overBytes = encoder.encode(serialize());
+    assert.ok(isDecisionRequest(exactValue));
+    assert.ok(isDecisionRequest(value));
+    assert.equal(exactBytes.byteLength, 16384);
+    assert.equal(overBytes.byteLength, 16385);
+    for (const cap of [PROJECT_REQUEST_BYTE_CAP, String(PROJECT_REQUEST_BYTE_CAP)]) {
+      const fake = binding();
+      const env = { ...source.vars, INFERENCE_ENABLED: 'true', MAX_REQUEST_BYTES: cap, AI: fake.env.AI };
+      assert.deepEqual(await publicBody(await handleRequest(get(), env)),
+        { version: 'decision-config-v1', enabled: true, session_cap: 40 });
+      assert.equal(fake.calls.length, 0);
+      const over = streamRequest(byteStream(overBytes));
+      assert.equal(over.headers.get('content-length'), null);
+      await expectError(await handleRequest(over, env), 'payload_too_large', 413);
+      assert.equal(fake.calls.length, 0);
+      const exact = streamRequest(byteStream(exactBytes));
+      assert.equal(exact.headers.get('content-length'), null);
+      const response = await handleRequest(exact, env);
+      assert.equal(response.status, 200);
+      assert.ok(isModelDecision(await publicBody(response), exactValue));
+      assert.equal(fake.calls.length, 1);
+      const input = fake.calls[0]!.input;
+      assert.ok(decisionObject(input));
+      assert.equal(input.state, exactValue.state);
+    }
+    const off = binding();
+    const env = { ...source.vars, AI: off.env.AI };
+    assert.deepEqual(await publicBody(await handleRequest(get(), env)),
+      { version: 'decision-config-v1', enabled: false, session_cap: 40 });
+    for (const bytes of [exactBytes, overBytes]) {
+      await expectError(await handleRequest(streamRequest(byteStream(bytes)), env), 'disabled', 503);
+    }
+    assert.equal(off.calls.length, 0);
+  }
+});
+
+test('actual byte cap omission never falls back to the selected project policy', async () => {
+  const fake = binding();
+  const env: Record<string, unknown> = { ...fake.env };
+  delete env.MAX_REQUEST_BYTES;
+  assert.equal(Object.hasOwn(env, 'MAX_REQUEST_BYTES'), false);
+  assert.deepEqual(await publicBody(await handleRequest(get(), env)),
+    { version: 'decision-config-v1', enabled: false, session_cap: 40 });
+  await expectError(await handleRequest(post(), env), 'disabled', 503);
   assert.equal(fake.calls.length, 0);
 });
 

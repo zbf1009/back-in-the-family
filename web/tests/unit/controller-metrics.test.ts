@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import fc from 'fast-check';
 import { WasmSim, verify_replay } from '../../../target/wasm-pkg/sim_wasm.js';
 import { DecisionMetrics, type DecisionMetricsReport } from '../../src/shared/decision-metrics.ts';
-import type { DecisionFamily, ModelDecision } from '../../src/shared/decision.ts';
+import { PROJECT_REQUEST_BYTE_CAP, type DecisionFamily, type ModelDecision } from '../../src/shared/decision.ts';
 import type { Reply, Request, WorkerMessage } from '../../src/shared/protocol.ts';
 import { SimController, type SimHandle } from '../../src/worker/controller.ts';
-import { DecisionBridge, DecisionFailure, type DecisionWasm } from '../../src/worker/decision-bridge.ts';
-import { actualSim, ControlledDecisionClient, DecisionClock, config, mapping, modelDecision,
-  realPreviews, settle, wasm } from './helpers/decision.ts';
+import { DecisionBridge, DecisionFailure, type DecisionPreview, type DecisionWasm } from '../../src/worker/decision-bridge.ts';
+import { actualSim, ControlledDecisionClient, DecisionClock, HandlerDecisionClient, config, mapping, modelDecision,
+  realPreviews, settle, transportPaddedWasm, wasm } from './helpers/decision.ts';
 import { FakeFrameScheduler } from './helpers/fakes.ts';
 
 class Frames extends FakeFrameScheduler {
@@ -447,6 +447,84 @@ test('real WASM rejected supported triggers in every skip mode count no eligibil
         assert.equal(Object.values(f.checkedFallbacksByReason).reduce((sum, count) => sum + count, 0), 0);
         assert.equal(live.export_replay(), before); assert.equal(productionPreviews, 0);
       } finally { bridge.dispose(); live.free(); }
+    }
+  }
+});
+
+async function actualTransportRun(family: DecisionFamily, bytes: number, metricsEnabled: boolean) {
+  const sim = actualSim(); const clock = new DecisionClock();
+  const trigger = family === 'dream_interpretation' ? { Dream: { dreamer: '31', intent: 'urge' } } : { Bribe: { amount: '1' } };
+  const preview = JSON.parse(sim.preview_node(JSON.stringify(trigger))) as DecisionPreview;
+  assert.equal(preview.ok, true); assert.equal(preview.family, family);
+  const selectedWasm = await transportPaddedWasm(preview, bytes);
+  const client = new HandlerDecisionClient(clock, preview.rules_default, {
+    inferenceEnabled: true, requestByteCap: PROJECT_REQUEST_BYTE_CAP, sessionCap: 1,
+  });
+  const bridge = new DecisionBridge(client, selectedWasm, mapping, clock, metricsEnabled ? new DecisionMetrics() : null);
+  const messages: WorkerMessage[] = [];
+  const controller = new SimController({ createSim: () => sim, clock, scheduler: new Frames(), post: message => messages.push(message),
+    decision: { bridge, timing: clock, previewNode: (handle, payload) => (handle as WasmSim).preview_node(payload),
+      exportReplay: handle => (handle as WasmSim).export_replay() } });
+  try {
+    await client.prefetched.promise; await settle();
+    controller.ready(); controller.handle({ type: 'create-world', id: 1, seed: '1', config: '{}' });
+    const created = messages.find((message): message is Reply => message.type === 'reply' && message.id === 1)!;
+    controller.handle(family === 'dream_interpretation' ? { type: 'dream', id: 2, dreamer: 31, intent: 'urge' } : { type: 'bribe', id: 2, amount: '1' });
+    const held = sim.export_replay(); controller.handle({ type: 'decision-metrics', id: 3 });
+    assert.equal(sim.export_replay(), held, 'metrics during real transport cannot mutate the held world');
+    assert.equal(bridge.status().spent, 1);
+    await client.attempts[0]!.completed; await settle();
+    const terminal = messages.find((message): message is Reply => message.type === 'reply' && message.id === 2)!;
+    assert.equal(terminal.ok, true);
+    const exact = bytes === PROJECT_REQUEST_BYTE_CAP;
+    assert.equal(terminal.snapshot.decision?.outcome?.kind, exact ? 'model' : 'fallback');
+    if (!exact) assert.deepEqual(terminal.snapshot.decision?.outcome, {
+      requestId: terminal.id, worldId: created.snapshot.worldId, kind: 'fallback', reason: 'payload_too_large',
+    });
+    assert.equal(client.posts.length, 1); assert.equal(client.posts[0]!.status, exact ? 200 : 413);
+    assert.equal(new TextEncoder().encode(client.posts[0]!.body).byteLength, bytes);
+    assert.equal(client.aiCalls.length, exact ? 1 : 0);
+    const queued = sim.export_replay(); controller.handle({ type: 'decision-metrics', id: 4 });
+    assert.equal(sim.export_replay(), queued, 'metrics after checked submission preserve exact queued v5 bytes');
+    controller.handle({ type: 'step', id: 5 }); assert.equal(sim.tick(), 1655n);
+    controller.handle({ type: 'export-replay', id: 6 }); controller.handle({ type: 'decision-metrics', id: 7 });
+    const exported = messages.find((message): message is Reply => message.type === 'reply' && message.id === 6)!;
+    const reported = messages.find((message): message is Reply => message.type === 'reply' && message.id === 7)!;
+    assert.ok(exported.ok && exported.replay); assert.ok(reported.ok);
+    assert.equal(exported.replay, sim.export_replay()); assert.equal(JSON.parse(exported.replay).version, 5);
+    verify_replay(exported.replay);
+    return { queued, replay: exported.replay, snapshot: sim.snapshot(), checksums: sim.checksums(0n, sim.tick()),
+      report: reported.metrics, defaultOrdinal: preview.option_ids.indexOf(preview.rules_default) };
+  } finally { bridge.dispose(); sim.free(); }
+}
+
+test('production 16384 success and 16385 payload_too_large telemetry keep separate denominators and actual-WASM v5 neutrality', async () => {
+  for (const family of ['dream_interpretation', 'magistrate_ruling'] as const) {
+    for (const bytes of [PROJECT_REQUEST_BYTE_CAP, PROJECT_REQUEST_BYTE_CAP + 1]) {
+      const enabled = await actualTransportRun(family, bytes, true);
+      const disabled = await actualTransportRun(family, bytes, false);
+      assert.equal(enabled.queued, disabled.queued); assert.equal(enabled.replay, disabled.replay);
+      assert.equal(enabled.snapshot, disabled.snapshot); assert.equal(enabled.checksums, disabled.checksums);
+      assert.equal(disabled.report, null); assert.ok(enabled.report); assertRedacted(enabled.report);
+      const f = enabled.report.families[family]; const exact = bytes === PROJECT_REQUEST_BYTE_CAP;
+      assert.equal(f.eligibleNodes, 1); assert.equal(f.postAttempts, 1);
+      assert.equal(f.validatedModelChoices, exact ? 1 : 0); assert.equal(f.checkedModelChoices, exact ? 1 : 0);
+      assert.equal(f.checkedRulesFallbacks, exact ? 0 : 1); assert.equal(f.attemptOutcomes.model, exact ? 1 : 0);
+      assert.equal(f.attemptOutcomes.payload_too_large, exact ? 0 : 1);
+      assert.equal(f.checkedFallbacksByReason.payload_too_large, exact ? 0 : 1);
+      assert.equal(f.skipsByReason.payload_too_large, 0, 'server 413 is an attempted outcome, never an eligibility skip');
+      assert.equal(Object.values(f.skipsByReason).reduce((sum, count) => sum + count, 0), 0);
+      assert.equal(Object.values(f.attemptOutcomes).reduce((sum, count) => sum + count, 0), 1);
+      assert.equal(Object.values(f.checkedFallbacksByReason).reduce((sum, count) => sum + count, 0), exact ? 0 : 1);
+      assert.equal(f.latencyBuckets.lt_250_ms, 1); assert.equal(f.latencyBuckets.unknown, 0);
+      assert.deepEqual(f.usage, exact ? { knownResponses: 1, unknownResponses: 0, inputTokens: 23, outputTokens: 2 }
+        : { knownResponses: 0, unknownResponses: 0, inputTokens: null, outputTokens: null });
+      assert.equal(f.options.checkedModel[enabled.defaultOrdinal], exact ? 1 : 0);
+      assert.equal(f.options.checkedRulesDefault[enabled.defaultOrdinal], exact ? 0 : 1);
+      assert.equal(f.agreement.checkedAgree, exact ? 1 : 0); assert.equal(f.agreement.checkedDiverge, 0);
+      assert.equal(f.agreement.unknownCheckedRulesDefault, 0, 'the checked fallback retains the actual Rust preview default');
+      const other = enabled.report.families[family === 'dream_interpretation' ? 'magistrate_ruling' : 'dream_interpretation'];
+      assert.equal(other.eligibleNodes, 0); assert.equal(other.postAttempts, 0);
     }
   }
 });

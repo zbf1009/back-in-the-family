@@ -13,10 +13,10 @@ const { validatePrepared } = require(join(root, 'scripts/gate-tools.mjs')) as {
   validatePrepared(manifest: unknown, inputs: unknown): void;
 };
 
-test('the same source guard used by Worker_Build rejects enabled inference and broken native/router profiles', async () => {
+test('the same source guard used by Worker_Build rejects enabled inference missing or mismatched project caps and broken native/router profiles', async () => {
   const source = await sourceConfig();
   validateSourceConfig(source);
-  for (const fault of ['inference', 'missing-ai', 'exact', 'wildcard', 'spa', 'date', 'remote', 'byte-cap']) {
+  for (const fault of ['inference', 'missing-ai', 'exact', 'wildcard', 'spa', 'date', 'remote', 'missing-byte-cap', 'byte-cap', 'numeric-byte-cap']) {
     const config = structuredClone(source);
     switch (fault) {
       case 'inference': config.vars.INFERENCE_ENABLED = 'true'; break;
@@ -26,7 +26,9 @@ test('the same source guard used by Worker_Build rejects enabled inference and b
       case 'spa': config.assets.not_found_handling = 'none'; break;
       case 'date': Object.assign(config, { compatibility_date: '2026-11-21' }); break;
       case 'remote': Object.assign(config.ai!, { remote: true }); break;
-      case 'byte-cap': config.vars.MAX_REQUEST_BYTES = 1048576; break;
+      case 'missing-byte-cap': delete config.vars.MAX_REQUEST_BYTES; break;
+      case 'byte-cap': config.vars.MAX_REQUEST_BYTES = '1048576'; break;
+      case 'numeric-byte-cap': config.vars.MAX_REQUEST_BYTES = 16384; break;
     }
     assert.throws(() => validateSourceConfig(config), { name: 'AssertionError' }, fault);
   }

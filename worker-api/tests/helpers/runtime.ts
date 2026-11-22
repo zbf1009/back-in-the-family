@@ -17,11 +17,12 @@ process.env.WRANGLER_SEND_METRICS = 'false';
 process.env.CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV = 'false';
 const wrangler = requireTools('wrangler') as typeof WranglerTools;
 
-export type ConfigFault = 'missing-ai' | 'missing-exact-worker-first' | 'missing-wildcard-worker-first' | 'broken-spa';
+export type ConfigFault = 'missing-ai' | 'missing-byte-cap' | 'missing-exact-worker-first' | 'missing-wildcard-worker-first' | 'broken-spa';
 
 export function applyConfigFault(config: SourceConfig, fault: ConfigFault): void {
   switch (fault) {
     case 'missing-ai': delete config.ai; break;
+    case 'missing-byte-cap': delete config.vars.MAX_REQUEST_BYTES; break;
     case 'missing-exact-worker-first': config.assets.run_worker_first = config.assets.run_worker_first.filter(path => path !== '/api'); break;
     case 'missing-wildcard-worker-first': config.assets.run_worker_first = config.assets.run_worker_first.filter(path => path !== '/api/*'); break;
     case 'broken-spa': config.assets.not_found_handling = 'none'; break;

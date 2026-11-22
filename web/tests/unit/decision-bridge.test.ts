@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 import { DecisionBridge, DecisionFailure, type DecisionWasm } from '../../src/worker/decision-bridge.ts';
-import type { DecisionConfig, ModelDecision } from '../../src/shared/decision.ts';
-import { ControlledDecisionClient, DecisionClock, config, mapping, modelDecision,
-  realPreviews, settle, wasm } from './helpers/decision.ts';
+import { PROJECT_REQUEST_BYTE_CAP, isDecisionError, isDecisionRequest,
+  type DecisionConfig, type ModelDecision } from '../../src/shared/decision.ts';
+import { ControlledDecisionClient, DecisionClock, HandlerDecisionClient, config, mapping, modelDecision,
+  realPreviews, settle, transportPaddedWasm, wasm } from './helpers/decision.ts';
 
 async function ready(cap = 40, selectedWasm: DecisionWasm = wasm) {
   const client = new ControlledDecisionClient();
@@ -356,3 +357,73 @@ test('typed WASM failures fall back but thrown renderer or validator panics rema
   }
 });
 
+test('production transport accepts 16384 bytes and rejects 16385 without AI, refund or retry for both Rust families', async () => {
+  assert.equal(PROJECT_REQUEST_BYTE_CAP, 16_384);
+  for (const preview of realPreviews()) for (const bytes of [PROJECT_REQUEST_BYTE_CAP, PROJECT_REQUEST_BYTE_CAP + 1]) {
+    const selectedWasm = await transportPaddedWasm(preview, bytes);
+    let validations = 0;
+    const clock = new DecisionClock();
+    const client = new HandlerDecisionClient(clock, preview.rules_default, {
+      inferenceEnabled: true, requestByteCap: PROJECT_REQUEST_BYTE_CAP, sessionCap: 1,
+    });
+    const bridge = new DecisionBridge(client, { ...selectedWasm, llm_validate: input => {
+      validations++; return wasm.llm_validate(input);
+    } }, mapping, clock);
+    try {
+      await client.prefetched.promise; await settle();
+      assert.equal(bridge.fallbackReason(), null);
+      const pending = bridge.decide(preview, new AbortController().signal);
+      assert.equal(bridge.status().spent, 1, 'the attempt is spent before the HTTP response settles');
+      assert.equal(client.attempts.length, 1);
+      const outcome = await pending;
+      const exact = bytes === PROJECT_REQUEST_BYTE_CAP;
+      assert.equal(client.posts.length, 1);
+      const post = client.posts[0]!;
+      assert.equal(new TextEncoder().encode(post.body).byteLength, bytes);
+      assert.ok(new TextEncoder().encode(post.body).byteLength > post.body.length, 'multibyte bytes are not JS code units');
+      assert.ok(post.body.includes('é🙂') && post.body.includes('\\"') && post.body.includes('\\\\') && post.body.includes('\\n'));
+      assert.equal(post.headers.has('content-length'), false);
+      assert.ok(isDecisionRequest(JSON.parse(post.body)), 'both boundary requests are otherwise valid');
+      assert.equal(post.status, exact ? 200 : 413);
+      assert.equal(client.aiCalls.length, exact ? 1 : 0);
+      assert.equal(validations, exact ? 1 : 0, 'only accepted HTTP choices reach the actual Rust validator');
+      if (exact) {
+        assert.deepEqual(outcome, { kind: 'model', decision: {
+          ...modelDecision(preview.rules_default, 1), usage: { input_tokens: 23, output_tokens: 2 },
+        } });
+        assert.equal(client.aiCalls[0]![0], modelDecision().model);
+        assert.equal(client.aiCalls[0]![1].state, client.attempts[0]!.request.state);
+        assert.deepEqual(client.aiCalls[0]![2], { returnRawResponse: true });
+      } else {
+        assert.ok(isDecisionError(post.result, 413));
+        assert.deepEqual(outcome, { kind: 'fallback', reason: 'payload_too_large' });
+      }
+      assert.deepEqual(await bridge.decide(preview, new AbortController().signal), { kind: 'fallback', reason: 'session_cap' });
+      clock.advance(10000); await settle();
+      assert.equal(bridge.status().spent, 1); assert.equal(client.attempts.length, 1);
+      assert.equal(client.configSignals.length, 1); assert.equal(client.posts.length, 1);
+      assert.equal(client.aiCalls.length, exact ? 1 : 0); assert.equal(clock.timers.size, 0);
+    } finally { bridge.dispose(); }
+  }
+});
+
+test('production GET keeps explicit disablement or a missing byte cap ineligible even for an exact-cap transport fixture', async () => {
+  for (const preview of realPreviews()) for (const mode of ['disabled', 'missing_cap'] as const) {
+    const selectedWasm = await transportPaddedWasm(preview, PROJECT_REQUEST_BYTE_CAP);
+    let renders = 0;
+    const clock = new DecisionClock();
+    const client = new HandlerDecisionClient(clock, preview.rules_default, {
+      inferenceEnabled: mode !== 'disabled', requestByteCap: mode === 'missing_cap' ? undefined : PROJECT_REQUEST_BYTE_CAP, sessionCap: 1,
+    });
+    const bridge = new DecisionBridge(client, { ...selectedWasm, llm_render_system_one: input => {
+      renders++; return selectedWasm.llm_render_system_one(input);
+    } }, mapping, clock);
+    try {
+      assert.deepEqual(await client.prefetched.promise, config(1, false)); await settle();
+      assert.deepEqual(await bridge.decide(preview, new AbortController().signal), { kind: 'fallback', reason: 'disabled' });
+      assert.equal(renders, 0); assert.equal(client.attempts.length, 0); assert.equal(client.posts.length, 0);
+      assert.equal(client.aiCalls.length, 0); assert.equal(bridge.status().spent, 0);
+      assert.equal(client.configSignals.length, 1);
+    } finally { bridge.dispose(); }
+  }
+});

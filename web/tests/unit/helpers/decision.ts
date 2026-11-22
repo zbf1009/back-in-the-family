@@ -5,9 +5,11 @@ import {
 } from '../../../../target/wasm-pkg/sim_wasm.js';
 import { loadWasm } from './wasm.ts';
 import { DECISION_CONTRACT } from '../../../src/shared/decision-contract.ts';
-import { DECISION_CONFIG_VERSION, DECISION_REQUEST_VERSION,
+import { DECISION_CONFIG_VERSION, DECISION_REQUEST_VERSION, isDecisionRequest,
   type DecisionConfig, type DecisionRequest, type ModelDecision } from '../../../src/shared/decision.ts';
-import type { DecisionClient, DecisionPreview, DecisionTiming } from '../../../src/worker/decision-bridge.ts';
+import { createSameOriginDecisionClient, DecisionBridge,
+  type DecisionClient, type DecisionPreview, type DecisionTiming, type DecisionWasm } from '../../../src/worker/decision-bridge.ts';
+import { handleRequest, type DecisionAI } from '../../../../worker-api/src/handler.ts';
 
 export const request: DecisionRequest = {
   version: DECISION_REQUEST_VERSION, family: 'dream_interpretation',
@@ -106,4 +108,81 @@ export function actualSim(): WasmSim {
     ]))), { ok: true });
   }
   return sim;
+}
+
+/** Native fake AI behind the real HTTP adapter and production request handler; never live inference. */
+export class HandlerDecisionClient implements DecisionClient {
+  readonly prefetched = Promise.withResolvers<DecisionConfig>();
+  readonly configSignals: AbortSignal[] = [];
+  readonly attempts: { request: DecisionRequest; signal: AbortSignal; completed: Promise<void> }[] = [];
+  readonly posts: { body: string; headers: Headers; status: number; result: unknown }[] = [];
+  readonly aiCalls: Parameters<DecisionAI['run']>[] = [];
+  private readonly transport: DecisionClient;
+  constructor(clock: DecisionClock, choice: string, options: {
+    inferenceEnabled: boolean; requestByteCap: number | undefined; sessionCap: number;
+  }) {
+    const ai: DecisionAI = { run: async (model, input, runOptions) => {
+      this.aiCalls.push([model, input, runOptions]);
+      return Response.json({ model: 'offline-transport-fixture',
+        answers: { decision: { type: 'choice', choice } }, usage: { input_tokens: 23, output_tokens: 2 } });
+    } };
+    const environment = { INFERENCE_ENABLED: options.inferenceEnabled, SESSION_CAP: options.sessionCap,
+      ...(options.requestByteCap === undefined ? {} : { MAX_REQUEST_BYTES: options.requestByteCap }) };
+    const fetcher: typeof fetch = async (input, init) => {
+      const incoming = new Request(input, init);
+      if (incoming.method !== 'POST') return handleRequest(incoming, environment, ai);
+      assert.equal(typeof init?.body, 'string');
+      const body = init!.body as string;
+      assert.ok(isDecisionRequest(JSON.parse(body)), 'padding must remain a valid production-schema request');
+      assert.equal(incoming.headers.has('content-length'), false, 'the handler must count actual streamed bytes');
+      const response = await handleRequest(incoming, environment, ai);
+      this.posts.push({ body, headers: incoming.headers, status: response.status, result: await response.clone().json() });
+      clock.advance(125);
+      return response;
+    };
+    this.transport = createSameOriginDecisionClient('https://decision.test', fetcher);
+  }
+  config(signal: AbortSignal): Promise<DecisionConfig> {
+    this.configSignals.push(signal);
+    return this.transport.config(signal).then(value => {
+      this.prefetched.resolve(value); return value;
+    }, error => { this.prefetched.reject(error); throw error; });
+  }
+  decide(request: DecisionRequest, signal: AbortSignal): Promise<ModelDecision> {
+    const completed = Promise.withResolvers<void>();
+    this.attempts.push({ request, signal, completed: completed.promise });
+    return this.transport.decide(request, signal).finally(() => { completed.resolve(); });
+  }
+}
+
+/**
+ * Transport-only padding, not a real game-world size or a worst-case corpus claim.
+ * Calibrate with the existing bridge's actual serialization, not a second wire builder.
+ * Rust still supplies the complete context, criteria, option order and validation.
+ */
+export async function transportPaddedWasm(preview: DecisionPreview, targetBytes: number): Promise<DecisionWasm> {
+  const client = new ControlledDecisionClient(); const clock = new DecisionClock();
+  const bridge = new DecisionBridge(client, wasm, mapping, clock);
+  try {
+    client.prefetched.resolve(config()); await settle();
+    const pending = bridge.decide(preview, new AbortController().signal);
+    const attempt = client.attempts[0]!;
+    assert.ok(attempt, 'the unmodified Rust renderer must be eligible');
+    const original = attempt.request;
+    const bytes = new TextEncoder().encode(JSON.stringify(original)).byteLength;
+    attempt.response.resolve(modelDecision(preview.rules_default));
+    assert.equal((await pending).kind, 'model', 'calibration must retain real Rust legality');
+    const marker = '\n[transport-fixture padding; not game-world worst-case]\n' + 'é🙂"\\\n'.repeat(200);
+    const markerBytes = new TextEncoder().encode(JSON.stringify(marker)).byteLength - 2;
+    assert.ok(targetBytes >= bytes + markerBytes, 'the genuine fixture must fit without truncating world data');
+    const padding = marker + 'x'.repeat(targetBytes - bytes - markerBytes);
+    return { ...wasm, llm_render_system_one: input => {
+      const rendered = JSON.parse(wasm.llm_render_system_one(input));
+      assert.equal(rendered.ok, true);
+      assert.equal(rendered.state, original.state, 'the controller must preview the same authoritative Rust context');
+      assert.deepEqual(rendered.criteria, original.criteria);
+      rendered.state += padding;
+      return JSON.stringify(rendered);
+    } };
+  } finally { bridge.dispose(); }
 }

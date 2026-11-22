@@ -11,5 +11,5 @@
     "not_found_handling": "single-page-application"
   },
   "ai": { "binding": "AI", "remote": false },
-  "vars": { "INFERENCE_ENABLED": "false" }
+  "vars": { "INFERENCE_ENABLED": "false", "MAX_REQUEST_BYTES": "16384" }
 }
