@@ -61,6 +61,7 @@ export interface UiState {
   underworldForm: UnderworldForm;
   /** Worker-owned page-session preference, budget and request/World binding. */
   decision: DecisionStatus | null;
+  /** Newest observed pending/handled trigger; rejection may retain an older carrier. */
   decisionRequestId: number;
   /** Only the brief interval before the worker announces a decision or replies. */
   decisionSending: number | null;
@@ -162,7 +163,9 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       if (decisionReply && e.message.snapshot.worldId !== s.worldId) return s;
       const read = e.request.type === 'world-snapshot' ? s.worldRead : null;
       const cleared = e.request.type === 'world-snapshot' ? { ...s, worldRead: null } : clearPending(s, e.request);
-      if (triggerReply ? e.message.id < s.decisionRequestId : staleDecision(s, e.message.snapshot)) return cleared;
+      const staleReply = e.message.snapshot.worldId === s.worldId && (e.message.id < s.decisionRequestId
+        || (triggerReply && e.message.id === s.decisionRequestId && s.decision?.pending?.requestId !== e.message.id));
+      if (staleReply || (!triggerReply && staleDecision(s, e.message.snapshot))) return cleared;
       // Finish the old read without adopting its values or error after replacement.
       if (e.request.type === 'world-snapshot'
         && (e.message.snapshot.worldId !== s.worldId || (read !== null && read.worldId !== s.worldId))) {
@@ -325,8 +328,13 @@ function staleDecision(s: UiState, snapshot: Snapshot): boolean {
   const decision = snapshot.decision;
   if (decision === undefined) return false;
   const id = decision.pending?.requestId ?? decision.outcome?.requestId ?? 0;
-  return id < s.decisionRequestId
-    || (decision.pending !== null && id === s.decisionRequestId && s.decision?.outcome?.requestId === id);
+  // A rejected trigger closes its request without creating an outcome. The
+  // retained carrier (including no outcome) still accompanies fresh clock
+  // snapshots, but no closed pending or other older decision may replace it.
+  // Replies also check their own IDs; statuses have only this carrier binding.
+  const retainedId = s.decision?.pending?.requestId ?? s.decision?.outcome?.requestId ?? 0;
+  return id <= s.decisionRequestId && (id !== retainedId
+    || (decision.pending !== null && s.decision?.pending?.requestId !== id));
 }
 
 function decisionFields(s: UiState, snapshot: Snapshot, requestId = 0): Pick<UiState, 'decision' | 'decisionRequestId'> {

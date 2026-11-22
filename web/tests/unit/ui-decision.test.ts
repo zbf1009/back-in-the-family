@@ -133,3 +133,98 @@ test('terminal Dream failure without an outcome releases the current hold and hi
   assert.equal(decisionBusy(next), false); assert.equal(decisionNotice(next), null); assert.ok(next.error);
   assert.equal(next.tick, ui.tick); assert.equal(next.decisionRequestId, 12);
 });
+
+for (const priorOutcome of [false, true]) {
+  test(`rejected Dream ${priorOutcome ? 'with prior outcome' : 'without prior outcome'} keeps Run Pause Step and reads synchronized`, () => {
+    let ui: UiState = { ...uiFor(waitingSnapshot()), checksum: '1111111111111111' };
+    if (priorOutcome) {
+      ui = reply(ui, { type: 'dream', id: 12, dreamer: 1, intent: 'warn' }, session({
+        outcome: { requestId: 12, worldId: 1, kind: 'model', option: 'heed_warning', usage: null },
+      }), { world: ui.world! });
+      assert.equal(decisionNotice(ui), 'Decision recorded.');
+      ui = reply(ui, { type: 'step', id: 13 }, ui.decision!, {
+        snapshot: { ...snapshot(ui, ui.decision!), tick: '501', checksum: '2222222222222222' },
+        world: { ...ui.world!, tick: '501' },
+      });
+    } else {
+      ui = reply(ui, { type: 'decision-status', id: 12 }, session({ spent: 0 }));
+    }
+    const before = ui;
+    const retained = ui.decision!;
+    const dream: Request = { type: 'dream', id: 20, dreamer: 1, intent: 'warn' };
+    const sending = reduce(ui, { type: 'request-sent', request: dream });
+    assert.equal(decisionBusy(sending), true);
+    const failed: Extract<Reply, { ok: false }> = { type: 'reply', id: 20, ok: false,
+      kind: 'rejected', error: 'private detail', previewError: { kind: 'rejected', reason: 'insufficient_joss' },
+      snapshot: snapshot(before, retained) };
+    ui = reduce(sending, { type: 'reply', request: dream, message: failed });
+    assert.equal(ui.error, 'Dream was not recorded. Check the available dreamer and joss paper.');
+    assert.equal(ui.tick, before.tick); assert.equal(ui.checksum, before.checksum);
+    assert.deepEqual(ui.decision, retained); assert.equal(ui.decisionRequestId, 20);
+    assert.equal(decisionBusy(ui), false); assert.equal(decisionNotice(ui), null);
+    assert.equal(ui.underworldRecorded, null); assert.equal(ui.scene, null);
+    assert.equal(controls(ui).run, true); assert.equal(controls(ui).step, true);
+
+    // An unchanged retained carrier is not permission to adopt an older reply.
+    const oldRead = reply(ui, { type: 'world-snapshot', id: 13 }, retained, {
+      snapshot: { ...snapshot(before, retained), tick: '499', checksum: 'aaaaaaaaaaaaaaaa' },
+      world: { ...before.world!, tick: '499' },
+    });
+    assert.equal(oldRead.tick, ui.tick); assert.equal(oldRead.checksum, ui.checksum);
+    assert.equal(oldRead.error, ui.error); assert.deepEqual(oldRead.decision, retained);
+    assert.strictEqual(reduce(ui, { type: 'reply', request: dream,
+      message: { type: 'reply', id: 20, ok: true, snapshot: failed.snapshot } }), ui);
+    for (const decision of [
+      { ...retained, pending: { requestId: 20, worldId: 1, tick: ui.tick!, trigger: '63' } },
+      { ...retained, outcome: { requestId: 20, worldId: 1, kind: 'fallback' as const, reason: 'manual' as const } },
+      { ...retained, outcome: { requestId: 10, worldId: 1, kind: 'fallback' as const, reason: 'manual' as const } },
+      ...(priorOutcome ? [{ ...retained, pending: { requestId: 12, worldId: 1, tick: ui.tick!, trigger: '61' } }] : []),
+    ]) {
+      assert.strictEqual(reduce(ui, { type: 'status', snapshot: snapshot(before, decision) }), ui);
+    }
+    ui = reduce(ui, { type: 'status', snapshot: snapshot(before, retained) });
+    assert.equal(ui.error, 'Dream was not recorded. Check the available dreamer and joss paper.');
+
+    const runSnapshot: Snapshot = { ...snapshot(before, retained), runState: 'running' };
+    ui = reduce(ui, { type: 'request-sent', request: { type: 'run', id: 21 } });
+    ui = reply(ui, { type: 'run', id: 21 }, retained, { snapshot: runSnapshot });
+    assert.equal(ui.runState, runSnapshot.runState); assert.equal(ui.tick, runSnapshot.tick);
+    assert.equal(ui.checksum, runSnapshot.checksum); assert.equal(ui.error, null);
+    assert.equal(controls(ui).pause, true); assert.equal(controls(ui).run, false);
+    const runningSnapshot: Snapshot = { ...runSnapshot, tick: '502', checksum: '3333333333333333', tps: 30 };
+    ui = reduce(ui, { type: 'status', snapshot: runningSnapshot });
+    assert.equal(ui.runState, runningSnapshot.runState); assert.equal(ui.tick, runningSnapshot.tick);
+    assert.equal(ui.checksum, runningSnapshot.checksum); assert.equal(ui.tps, runningSnapshot.tps);
+    const pauseSnapshot: Snapshot = { ...runningSnapshot, runState: 'paused', tick: '503', checksum: '4444444444444444' };
+    ui = reply(ui, { type: 'pause', id: 22 }, retained, { snapshot: pauseSnapshot });
+    assert.equal(ui.runState, pauseSnapshot.runState); assert.equal(ui.tick, pauseSnapshot.tick);
+    assert.equal(ui.checksum, pauseSnapshot.checksum); assert.equal(controls(ui).step, true);
+    const stepSnapshot: Snapshot = { ...pauseSnapshot, tick: '504', checksum: '5555555555555555' };
+    ui = reduce(ui, { type: 'request-sent', request: { type: 'step', id: 23 } });
+    assert.equal(controls(ui).step, false);
+    ui = reply(ui, { type: 'step', id: 23 }, retained, { snapshot: stepSnapshot });
+    assert.equal(ui.runState, stepSnapshot.runState); assert.equal(ui.tick, stepSnapshot.tick);
+    assert.equal(ui.checksum, stepSnapshot.checksum); assert.equal(controls(ui).step, true);
+    ui = reduce(ui, { type: 'request-sent', request: { type: 'world-snapshot', id: 24 } });
+    const completedWorld = { ...before.world!, tick: stepSnapshot.tick! };
+    ui = reply(ui, { type: 'world-snapshot', id: 24 }, retained, { snapshot: stepSnapshot, world: completedWorld });
+    assert.deepEqual(ui.world, completedWorld); assert.equal(ui.worldRead, null);
+    ui = reduce(ui, { type: 'status', snapshot: stepSnapshot });
+    assert.equal(ui.tick, stepSnapshot.tick); assert.equal(ui.checksum, stepSnapshot.checksum);
+    assert.deepEqual(ui.decision, retained); assert.equal(decisionNotice(ui), null);
+    assert.equal(ui.underworldRecorded, null); assert.equal(ui.scene, null);
+
+    const newer = reduce(ui, { type: 'status', snapshot: { ...stepSnapshot, decision: {
+      ...retained, pending: { requestId: 25, worldId: 1, tick: ui.tick!, trigger: '65' },
+    } } });
+    assert.equal(decisionBusy(newer), true); assert.equal(controls(newer).run, false);
+    assert.strictEqual(reduce(newer, { type: 'reply', request: dream, message: failed }), newer);
+    assert.strictEqual(reduce(newer, { type: 'status', snapshot: stepSnapshot }), newer);
+    const fresh = { ...stepSnapshot, worldId: 2, tick: '0', checksum: null, decision: { ...retained, pending: null, outcome: null } };
+    const replaced = reply(newer, { type: 'create-world', id: 30, seed: '2', config: '{}' }, fresh.decision, { snapshot: fresh });
+    assert.equal(replaced.worldId, 2); assert.equal(replaced.tick, '0'); assert.equal(replaced.checksum, null);
+    assert.equal(decisionBusy(replaced), false); assert.equal(decisionNotice(replaced), null);
+    assert.strictEqual(reduce(replaced, { type: 'reply', request: dream, message: failed }), replaced);
+    assert.strictEqual(reduce(replaced, { type: 'status', snapshot: stepSnapshot }), replaced);
+  });
+}
