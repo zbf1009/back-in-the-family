@@ -1,0 +1,18 @@
+{
+  // Offline preparation only. This draft name is not an approved release target;
+  // current production CI continues to select web/wrangler.jsonc.
+  "$schema": "../web/node_modules/wrangler/config-schema.json",
+  "name": "back-in-the-family-decision-draft",
+  "main": "../target/decision-worker/worker.js",
+  "no_bundle": true,
+  "compatibility_date": "2026-11-10",
+  "send_metrics": false,
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/api", "/api/*"],
+    "not_found_handling": "single-page-application"
+  },
+  "ai": { "binding": "AI", "remote": false },
+  "vars": { "INFERENCE_ENABLED": "false", "MAX_REQUEST_BYTES": "16384" }
+}

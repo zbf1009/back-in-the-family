@@ -88,6 +88,16 @@ The [Spec 7 design](.kiro/specs/slow-think/design.md) selects a project transpor
 
 This is not a token/neuron conversion or a guarantee of ≤50 neurons. The page-session default of 40 attempts is not a server limit: direct calls consume the account's shared quota, may exhaust Free allocation, and may incur Paid charges. Production remains on Spec 6 static hosting with the publisher off; this policy does not authorize inference or deployment commands.
 
+#### Hosted candidate preparation and rollback (Spec 7, leaf 5.4)
+
+[`worker-api/hosted-candidate.jsonc`](worker-api/hosted-candidate.jsonc) is an offline deploy candidate, not a selected production config. Its draft Worker name is **not an approved release target**. It consumes the already checked `target/decision-worker/worker.js` with `no_bundle: true` and the same checked `web/dist`; it retains the source runtime date `2026-11-10`, native non-remote AI, exact and wildcard API Worker-first routing, SPA fallback, telemetry off, `MAX_REQUEST_BYTES: "16384"` and `INFERENCE_ENABLED: "false"`.
+
+After the existing builds are checked, `scripts/offline-gates.sh node scripts/check-hosted-candidate.ts` checks the pinned Wrangler config/API, source and bundle stamp, existing asset checks and production-path identity without rebuilding or deploying. Current production CI still runs `mise exec -- pnpm exec wrangler deploy` from `web/` with the byte-exact static `web/wrangler.jsonc`. Green `main`, existing `DEPLOY_ENABLED`, C3 or C4 acceptance, and permanent publisher approval do not select the candidate or enable inference; this checker grants no release authority.
+
+Later activation requires separate explicit Author approval after verified 5.3 and green checks. That approval must name the actual hosted target, checked revision, measured 16,384-byte cap, inference enablement and **automatic deployment on green `main`**. No approval or default from another scope inherits these decisions. Any workflow/config selection or enabling-variable change must be part of that separately approved release, not this preparation.
+
+The rollback plan is to turn hosted inference off and restore the prior assets-only `web/wrangler.jsonc` and `web/` static deployment path with its prior checked assets. Keep `Rules_Default` fallback while hosted inference is enabled. No push, deploy, activation or rollback command is currently authorized by leaf 5.4.
+
 ### LLM probe (`eval/probe/`)
 
 The probe runs the locked evaluation cards (`eval/cards/`) against the candidate runtimes and writes Results under `eval/results/`; the Report is `docs/llm-probe.md` and the requirement-by-requirement audit is `docs/llm-probe-audit.md`. Every command below runs from the repository root through `pnpm --dir eval/probe run probe <command>` (written `probe <command>` in the list; wrap it as shown in the first block). The package is separate from `web/` and nothing under `web/src` may import from `eval/` (the `check-web-imports` gate).

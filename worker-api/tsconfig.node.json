@@ -4,6 +4,6 @@
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "types": ["node"]
   },
-  "include": ["src/handler.ts", "scripts/**/*.ts", "tests/**/*.ts"],
+  "include": ["src/handler.ts", "scripts/**/*.ts", "tests/**/*.ts", "../scripts/check-hosted-candidate.ts"],
   "exclude": ["worker-configuration.d.ts", "src/index.ts"]
 }
