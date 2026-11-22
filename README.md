@@ -80,7 +80,7 @@ The browser front end lives in `web/`. It needs Node and pnpm from `mise`, and t
    mise exec -- pnpm --dir web run test:smoke
    ```
 
-`scripts/gates.sh` runs all of these — the pnpm version check, the frozen-lockfile install, the Type_Check, the Unit_Tests, the Web_Build and the Smoke_Test — as part of the full gate chain, after the Rust gates and the `sim-cli batch` step.
+`scripts/gates.sh` runs offline against separately prepared pinned tools and dependency stores: the pnpm version check, Type_Check, Unit_Tests, Web_Build, Worker_Build and actual Worker runtime/router tests, then Artifact_Check and its built-input artifact/publisher consumer tests. Smoke_Test remains the last gate. Gates do not install dependencies or download tools.
 
 #### Decision Worker transport policy (Spec 7)
 
@@ -98,7 +98,7 @@ Later activation requires separate explicit Author approval after verified 5.3 a
 
 The rollback plan is to turn hosted inference off and restore the prior assets-only `web/wrangler.jsonc` and `web/` static deployment path with its prior checked assets. Keep `Rules_Default` fallback while hosted inference is enabled. No push, deploy, activation or rollback command is currently authorized by leaf 5.4.
 
-#### Offline artifact preparation (Spec 7, leaf 6.1)
+#### Offline artifact preparation and Artifact_Check (Spec 7, leaves 6.1–6.2)
 
 The source tree builds and checks the application; an artifact tree contains only checked `dist/`, `worker.js` outside `dist`, in-root Wrangler config, pinned deploy metadata, `LICENSE`, [`NOTICE`](worker-api/artifact-deploy/NOTICE) and public provenance. It has no application build script, Rust/Vite dependencies, source, tests, probe data or model weights. The minimal private ESM package pins pnpm `10.33.1`, Wrangler `4.157.0` and its existing `@types/node` peer `26.6.6`.
 
@@ -111,9 +111,11 @@ scripts/offline-gates.sh node scripts/stage-artifact.ts --prepare
 scripts/offline-gates.sh node scripts/check-artifact.ts
 ```
 
-Preparation requires a fresh `target/artifact-release` directory; it writes private `inputs.json` beside `tree/`, not inside the public tree. The local checker independently derives expected identity from actual HEAD and checked source/build inputs. To copy the verified transport into a separate fresh candidate directory, use `scripts/stage-artifact.ts --input target/artifact-release --output <fresh-owned-directory>` through the same offline wrapper. Neither staging nor checking rebuilds or contacts Cloudflare. Artifact_Check gate-chain wiring and its mutation proofs belong to leaf 6.2; these commands claim no gate or live-release acceptance.
+Preparation requires a fresh output directory; it writes private `inputs.json` beside `tree/`, not inside the public tree. The local checker independently derives expected identity from actual HEAD and checked source/build inputs. After Web_Build, Worker_Build and the Worker runtime/router tests, `scripts/gates.sh` prepares a fresh owned temporary transport and runs this same check CLI, followed by the actual-built-input artifact, publisher and per-boundary CLI mutation tests; it removes the transport on exit and keeps Smoke_Test last. To copy a verified transport into a separate fresh candidate directory, use `scripts/stage-artifact.ts --input target/artifact-release --output <fresh-owned-directory>` through the same offline wrapper. Staging, checking and these consumer tests do not install dependencies, rebuild or contact Cloudflare. This wiring does not claim full clean-gate or live-release acceptance.
 
 The gate/build job transports immutable checked bytes and an independently bound envelope digest to a separate publisher; the publisher never rebuilds. Its job **and branch-write step stay disabled** until C4 passes and the Author separately approves permanent rollout in 8.1. No permanent artifact branch name, public Deploy button, remote command or hosted activation is authorized here. Owned disposable local-ref tests are not publication. The artifact remains an offline candidate with inference off; any later opt-in uses the deployer's own account and shared Free/Paid quota, with the explicit 16,384-byte policy and `Rules_Default` fallback described in NOTICE.
+
+CI transport uses MIT-licensed [`actions/upload-artifact` v4.6.2](https://github.com/actions/upload-artifact/blob/ea165f8d65b6e75b540449e92b4886f43607fa02/LICENSE) and [`actions/download-artifact` v4.3.0](https://github.com/actions/download-artifact/blob/d3f86a106a0bac45b974a628896c90dbdf5c8093/LICENSE), pinned to the exact revisions in those links. These CI actions are not distributed artifact runtime code.
 
 
 ### LLM probe (`eval/probe/`)

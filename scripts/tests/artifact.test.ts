@@ -1,46 +1,17 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { root } from '../../worker-api/scripts/profile.ts';
 import { digest } from '../../worker-api/scripts/bundle.ts';
-import { METADATA_INPUT_PATHS, SOURCE_INPUT_DIRECTORIES, SOURCE_INPUT_PATHS, assertPrivateContent,
-  collectArtifactInputs, copyBytes, currentSourceCommit, jsonBytes, prepareArtifact, readClosedTree,
+import { assertPrivateContent, collectArtifactInputs, currentSourceCommit, jsonBytes, prepareArtifact, readClosedTree,
   safeRelativePath, validateCheckedInputs, verifyArtifactInputs } from '../artifact-inputs.ts';
 import type { ArtifactExpectation, CheckedInputs, ReleaseIdentity } from '../artifact-inputs.ts';
 import { checkArtifact, checkReferences, validateNotice } from '../check-artifact.ts';
 import { stageArtifact } from '../stage-artifact.ts';
+import { fixtureProject } from './artifact-fixture.ts';
 
-async function fixtureProject(parent: string): Promise<string> {
-  const project = join(parent, 'source');
-  await mkdir(project);
-  const paths = [...new Set([...SOURCE_INPUT_PATHS, ...Object.values(METADATA_INPUT_PATHS), 'README.md',
-    'target/decision-worker/worker.js', 'target/decision-worker/build.json', 'target/wasm-pkg/sim_wasm_bg.wasm'])];
-  for (const path of paths) {
-    await mkdir(dirname(join(project, path)), { recursive: true });
-    await writeFile(join(project, path), await readFile(join(root, path)), { flag: 'wx' });
-  }
-  for (const directory of [...SOURCE_INPUT_DIRECTORIES, 'web/dist']) {
-    await mkdir(join(project, directory), { recursive: true });
-    await copyBytes(join(project, directory), await readClosedTree(join(root, directory)));
-  }
-  // Only explicitly owned disposable source refs; no main/remote operations.
-  const files = await readClosedTree(project);
-  execFileSync('git', ['init', '--quiet', '--initial-branch=fixture-source', project]);
-  const pathsInput = files.map(file => file.path).join('\n') + '\n';
-  const hashes = execFileSync('git', ['-C', project, 'hash-object', '-w', '--stdin-paths'], { input: pathsInput, encoding: 'utf8' }).trim().split('\n');
-  const index = files.map((file, index) => `100644 ${hashes[index]}\t${file.path}`).join('\n') + '\n';
-  execFileSync('git', ['-C', project, 'update-index', '--index-info'], { input: index });
-  const tree = execFileSync('git', ['-C', project, 'write-tree'], { encoding: 'utf8' }).trim();
-  const sha = execFileSync('git', ['-C', project, 'commit-tree', tree], { input: 'Actual checked-input fixture\n', encoding: 'utf8',
-    env: { ...process.env, GIT_AUTHOR_NAME: 'Artifact Test', GIT_AUTHOR_EMAIL: 'artifact-test@example.invalid',
-      GIT_COMMITTER_NAME: 'Artifact Test', GIT_COMMITTER_EMAIL: 'artifact-test@example.invalid',
-      GIT_AUTHOR_DATE: '2000-01-01T00:00:00Z', GIT_COMMITTER_DATE: '2000-01-01T00:00:00Z' } }).trim();
-  execFileSync('git', ['-C', project, 'update-ref', 'refs/heads/fixture-source', sha]);
-  return project;
-}
 
 test('full actual checked inputs survive transport and stage; every uncertain boundary rejects then restores', async t => {
   const parent = await mkdtemp(join(tmpdir(), 'bif-artifact-'));

@@ -80,6 +80,14 @@ run scripts/web-build.sh
 # exact checked Worker for the actual pinned runtime/assets router suite.
 run scripts/worker-build.sh
 run pnpm --dir worker-api run test:runtime
+# Artifact_Check consumes the exact checked builds in a fresh private transport.
+# It neither rebuilds nor installs; its consumers run only after built inputs exist.
+artifact_gate=$(mktemp -d target/artifact-gate.XXXXXX)
+trap 'rm -rf -- "$artifact_gate"' EXIT
+echo "==> Artifact_Check"
+run node scripts/stage-artifact.ts --prepare --output "$artifact_gate/transport"
+run node scripts/check-artifact.ts --input "$artifact_gate/transport"
+run node --test scripts/tests/artifact.test.ts scripts/tests/publisher.test.ts scripts/tests/artifact-gate.test.ts
 # Smoke_Test gate (R9, R10.1): the LAST gate. Playwright drives the BUILT page in the
 # system Chrome against the native Parity_Fixture. Its `webServer` serves the web/dist
 # that the Web_Build gate just produced (Local_Preview rebuilds nothing), so Web_Build
