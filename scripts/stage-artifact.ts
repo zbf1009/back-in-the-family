@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { digest } from '../worker-api/scripts/bundle.ts';
 import { root } from '../worker-api/scripts/profile.ts';
 import { assertWorkerTools } from '../worker-api/scripts/tools.ts';
-import { artifactCliContext, collectArtifactInputs, copyBytes, freshDirectory, jsonBytes, prepareArtifact, readClosedTree, verifyArtifactInputs } from './artifact-inputs.ts';
+import { artifactCliContext, copyBytes, freshDirectory, prepareArtifact, readClosedTree, verifyArtifactInputs } from './artifact-inputs.ts';
 import type { ArtifactExpectation, CheckedInputs } from './artifact-inputs.ts';
 import { checkArtifact } from './check-artifact.ts';
 
@@ -26,12 +25,11 @@ if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(
     const context = await artifactCliContext(process.argv.slice(2));
     if (context.prepare) {
       assert.ok(!process.argv.includes('--input'), 'Preparation consumes checked source inputs, not another transport');
-      assert.ok(context.envelopeSHA === undefined, 'Preparation cannot accept a supplied envelope digest');
       const envelopeSHA = await prepareArtifact(root, context.outputDir, context.identity);
       console.log(JSON.stringify({ identity: context.identity, envelopeSHA }));
     } else {
       assert.ok(context.outputDir !== context.inputDir, 'Staging requires an explicit fresh output directory distinct from transport');
-      const envelopeSHA = context.envelopeSHA ?? digest(jsonBytes(await collectArtifactInputs(root, context.identity)));
+      const envelopeSHA = context.envelopeSHA;
       await stageArtifact(root, context.inputDir, context.outputDir, { identity: context.identity, envelopeSHA });
       console.log(JSON.stringify({ identity: context.identity, envelopeSHA }));
     }

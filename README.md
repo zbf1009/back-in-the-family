@@ -105,13 +105,26 @@ The source tree builds and checks the application; an artifact tree contains onl
 Run the separate lock-only preparation from the repository root when deploy metadata changes. It uses the existing prepared `target/gate-cache/node.path`, `pnpm.path` and `pnpm/v10` store, copies the web lock and minimal package into an owned temporary workspace, disables package-manager bootstrap and scripts, and isolates HOME, credentials/proxies and the network. It writes only the generated deploy lock back; the web lock stays untouched. It is **not** an install inside a gate or Artifact_Check.
 
 ```sh
+set -eu
 bash scripts/prepare-artifact-metadata.sh
 # After the existing Web_Build and Worker_Build have produced checked bytes:
-scripts/offline-gates.sh node scripts/stage-artifact.ts --prepare
-scripts/offline-gates.sh node scripts/check-artifact.ts
+artifact_work=$(mktemp -d target/artifact-example.XXXXXX)
+trap 'rm -rf -- "$artifact_work"' EXIT
+prepared=$(scripts/offline-gates.sh node scripts/stage-artifact.ts --prepare \
+  --output "$artifact_work/transport")
+envelope_sha=$(node -e 'const p=JSON.parse(process.argv[1]); if (!/^[a-f0-9]{64}$/.test(p.envelopeSHA)) throw new Error("Invalid checked envelope SHA"); process.stdout.write(p.envelopeSHA)' "$prepared")
+scripts/offline-gates.sh node scripts/check-artifact.ts \
+  --input "$artifact_work/transport" --envelope-sha "$envelope_sha"
+scripts/offline-gates.sh node scripts/stage-artifact.ts \
+  --input "$artifact_work/transport" --output "$artifact_work/candidate" \
+  --envelope-sha "$envelope_sha"
 ```
 
-Preparation requires a fresh output directory; it writes private `inputs.json` beside `tree/`, not inside the public tree. The local checker independently derives expected identity from actual HEAD and checked source/build inputs. After Web_Build, Worker_Build and the Worker runtime/router tests, `scripts/gates.sh` prepares a fresh owned temporary transport and runs this same check CLI, followed by the actual-built-input artifact, publisher and per-boundary CLI mutation tests; it removes the transport on exit and keeps Smoke_Test last. To copy a verified transport into a separate fresh candidate directory, use `scripts/stage-artifact.ts --input target/artifact-release --output <fresh-owned-directory>` through the same offline wrapper. Staging, checking and these consumer tests do not install dependencies, rebuild or contact Cloudflare. This wiring does not claim full clean-gate or live-release acceptance.
+Preparation requires a fresh output directory and is the only path that collects checked build inputs and runtime license sources. It writes a self-contained private `inputs.json` beside `tree/`, including the exact source-bound license closure; that closure is not a public artifact file and never appears in public provenance. Capture the digest from the successful producer's JSON stdout independently of the transferred envelope, as above; never recompute the expected digest from a received envelope or public provenance. Ordinary checking and staging require `--envelope-sha` even for the default local identity (actual HEAD, run `local`, attempt `1`). For CI identities, pass the complete `--source-commit`, `--run-id` and `--run-attempt` tuple to preparation and every consumer, along with the independently captured digest for consumers.
+
+The commands above use the source checkout's general offline-gate wrapper and its prepared build tools. An independent consumer instead runs the copied check/stage/publish CLI from a fresh matching source checkout in a sanitized, loopback-only Node environment with its own prepared pinned checker SDK. It needs no Cargo executable or store, Rust toolchain or `rustc.path`, local Svelte license source, producer build outputs or borrowed dependency-directory links. Checking and staging validate the authenticated private closure and exact public bytes without collecting licenses, installing dependencies, rebuilding or contacting Cloudflare.
+
+After Web_Build, Worker_Build and Worker runtime/router tests, `scripts/gates.sh` captures preparation stdout and passes its digest explicitly to Artifact_Check, followed by the built-input artifact, publisher and per-boundary CLI consumer tests. It removes only its fresh owned transport on exit and keeps Smoke_Test last. This wiring does not claim full clean-gate, C4 or live-release acceptance.
 
 The gate/build job transports immutable checked bytes and an independently bound envelope digest to a separate publisher; the publisher never rebuilds. Its job **and branch-write step stay disabled** until C4 passes and the Author separately approves permanent rollout in 8.1. No permanent artifact branch name, public Deploy button, remote command or hosted activation is authorized here. Owned disposable local-ref tests are not publication. The artifact remains an offline candidate with inference off; any later opt-in uses the deployer's own account and shared Free/Paid quota, with the explicit 16,384-byte policy and `Rules_Default` fallback described in NOTICE.
 

@@ -15,7 +15,7 @@ export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # Run a gate; on failure name the failing command and exit with its status (R10.2).
 run() {
-  echo "==> $*"
+  echo "==> $*" >&2
   local status=0
   "$@" || status=$?
   if [ "$status" -ne 0 ]; then
@@ -80,13 +80,14 @@ run scripts/web-build.sh
 # exact checked Worker for the actual pinned runtime/assets router suite.
 run scripts/worker-build.sh
 run pnpm --dir worker-api run test:runtime
-# Artifact_Check consumes the exact checked builds in a fresh private transport.
-# It neither rebuilds nor installs; its consumers run only after built inputs exist.
+# Artifact_Check prepares the exact checked builds in a fresh private transport,
+# captures the producer's independent digest, then checks without rebuilding.
 artifact_gate=$(mktemp -d target/artifact-gate.XXXXXX)
 trap 'rm -rf -- "$artifact_gate"' EXIT
 echo "==> Artifact_Check"
-run node scripts/stage-artifact.ts --prepare --output "$artifact_gate/transport"
-run node scripts/check-artifact.ts --input "$artifact_gate/transport"
+artifact_prepared=$(run node scripts/stage-artifact.ts --prepare --output "$artifact_gate/transport")
+artifact_envelope_sha=$(run node -e 'const p=JSON.parse(process.argv[1]); if (!/^[a-f0-9]{64}$/.test(p.envelopeSHA)) throw new Error("Invalid checked envelope SHA"); process.stdout.write(p.envelopeSHA)' "$artifact_prepared")
+run node scripts/check-artifact.ts --input "$artifact_gate/transport" --envelope-sha "$artifact_envelope_sha"
 run node --test scripts/tests/artifact.test.ts scripts/tests/publisher.test.ts scripts/tests/artifact-gate.test.ts
 # Smoke_Test gate (R9, R10.1): the LAST gate. Playwright drives the BUILT page in the
 # system Chrome against the native Parity_Fixture. Its `webServer` serves the web/dist

@@ -1,15 +1,16 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { dirname, extname, join, posix, resolve } from 'node:path';
+import { extname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type * as TypeScriptTools from '../web/node_modules/typescript';
 import { digest } from '../worker-api/scripts/bundle.ts';
 import { root } from '../worker-api/scripts/profile.ts';
 import { assertWorkerTools } from '../worker-api/scripts/tools.ts';
-import { artifactCliContext, artifactConfig, assertPrivateContent, assertSame, collectArtifactInputs, jsonBytes,
-  manifest, publicProvenance, readClosedTree, readRegularFile, readWranglerConfig, safeRelativePath,
+import { artifactCliContext, artifactConfig, assertPrivateContent, assertSame,
+  manifest, publicProvenance, readClosedTree, readWranglerConfig, safeRelativePath,
   validateAssets, validateCheckedInputs, validateIdentity, verifyArtifactInputs } from './artifact-inputs.ts';
 import type { ArtifactBytes, CheckedInputs, ReleaseIdentity } from './artifact-inputs.ts';
+import type { LicenseClosure } from './artifact-licenses.ts';
 
 const publicRoots = ['worker.js', 'wrangler.jsonc', 'package.json', 'pnpm-lock.yaml', 'LICENSE', 'NOTICE', 'provenance.json'];
 const referenceExtensions = /\.(?:js|css|wasm|html|png|gif|webp|jpg|svg|ttf|otf|woff2?|mp3|ogg|wav)(?:[?#].*)?$/i;
@@ -93,44 +94,41 @@ export function validateNotice(text: string): void {
     /no model weights/i, /(?:rules-only|inference.{0,30}disabled)/i];
   assert.ok(requirements.every(pattern => pattern.test(normalized)), 'NOTICE is missing required account/quota/default/policy statements');
 }
-async function validateLicenseTerms(projectRoot: string, files: readonly ArtifactBytes[]): Promise<void> {
+function validateLicenseTerms(files: readonly ArtifactBytes[], closure: LicenseClosure): void {
   const license = fileBytes(files, 'LICENSE');
-  const sourceLicense = await readRegularFile(join(projectRoot, 'LICENSE'));
-  assert.ok(license.equals(sourceLicense), 'Project LICENSE must be copied intact');
+  const project = closure.entries.find(entry => entry.id === 'project')!;
+  assert.ok(license.equals(Buffer.from(project.text, 'utf8')), 'Project LICENSE must be copied intact');
   const text = license.toString('utf8');
   assert.ok(/Apache License/.test(text) && /Version 2\.0/.test(text) && /TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION/.test(text) &&
     /END OF TERMS AND CONDITIONS/.test(text), 'Project license terms are incomplete');
   const notice = fileBytes(files, 'NOTICE').toString('utf8');
   validateNotice(notice);
-  // The actual distributed Svelte runtime has MIT terms; require the intact
-  // locally installed license, not merely a digest supplied by the artifact.
-  const svelteLicense = await readRegularFile(join(dirname(requireWeb.resolve('svelte/package.json')), 'LICENSE.md'));
   const normalizedNotice = notice.replace(/\s+/g, ' ').trim();
-  const registry = join(root, 'target/gate-cache/cargo/registry/src/index.crates.io-1949cf8c6b5b557f');
-  for (const relative of ['arrayvec-0.7.8/LICENSE-MIT', 'cfg-if-1.0.5/LICENSE-MIT', 'wasm-bindgen-0.2.130/LICENSE-MIT',
-    'wasm-bindgen-shared-0.2.130/LICENSE-MIT', 'serde-1.0.229/LICENSE-MIT', 'memchr-2.8.3/LICENSE-MIT',
-    'constant_time_eq-0.4.2/LICENSE-MIT0', 'unicode-ident-1.0.27/LICENSE-UNICODE', 'blake3-1.8.7/LICENSE_A2']) {
-    const terms = (await readRegularFile(join(registry, relative))).toString('utf8').trim();
-    if (relative === 'blake3-1.8.7/LICENSE_A2') {
+  for (const entry of closure.entries) {
+    if (entry.id === 'project') continue;
+    if (entry.id === 'svelte') {
+      assert.ok(notice.includes(entry.text.trim()), 'NOTICE must preserve the actual distributed Svelte runtime license');
+      continue;
+    }
+    if (entry.id === 'rust-unicode' || entry.id === 'rust-llvm-exception') {
+      assert.ok(normalizedNotice.includes(entry.text.replace(/\s+/g, ' ').trim()), 'NOTICE must preserve the pinned standard-library license and exception terms');
+      continue;
+    }
+    const terms = entry.text.trim();
+    if (entry.id === 'blake3') {
       const copyright = terms.indexOf("Copyright 2019 Jack O'Connor and Samuel Neves");
       assert.ok(copyright > 0, 'Pinned BLAKE3 Apache notice boundary is missing');
       assert.ok(text.replace(/\s+/g, ' ').includes(terms.slice(0, copyright).replace(/\s+/g, ' ').trim()) &&
         normalizedNotice.includes(terms.slice(copyright).replace(/\s+/g, ' ').trim()),
-      `LICENSE and NOTICE must preserve intact pinned runtime license terms: ${relative}`);
+      `LICENSE and NOTICE must preserve intact pinned runtime license terms: ${entry.sourcePin}`);
       continue;
     }
-    // Shared MIT bodies stay complete; every distinct copyright also stays intact.
+    // Shared MIT bodies stay complete; every distinct copyright stays intact.
+    // Whitespace normalization is comparison-only, never closure capture.
     const permission = terms.indexOf('Permission is hereby granted');
     const parts = permission > 0 ? [terms.slice(0, permission), terms.slice(permission)] : [terms];
-    assert.ok(parts.every(part => normalizedNotice.includes(part.replace(/\s+/g, ' ').trim())), `NOTICE must preserve intact pinned runtime license terms: ${relative}`);
+    assert.ok(parts.every(part => normalizedNotice.includes(part.replace(/\s+/g, ' ').trim())), `NOTICE must preserve intact pinned runtime license terms: ${entry.sourcePin}`);
   }
-  const rustc = (await readRegularFile(join(root, 'target/gate-cache/rustc.path'))).toString('utf8').trim();
-  assert.ok(rustc.endsWith('/bin/rustc') && rustc.includes('/1.99.1-'), 'Use the prepared pinned Rust license sources');
-  for (const relative of ['Unicode-3.0.txt', 'LLVM-exception.txt']) {
-    const terms = (await readRegularFile(join(dirname(dirname(rustc)), 'share/doc/rust/licenses', relative))).toString('utf8');
-    assert.ok(normalizedNotice.includes(terms.replace(/\s+/g, ' ').trim()), 'NOTICE must preserve the pinned standard-library license and exception terms');
-  }
-  assert.ok(notice.includes(svelteLicense.toString('utf8').trim()), 'NOTICE must preserve the actual distributed Svelte runtime license');
   assert.ok(/wasm-bindgen/i.test(notice) && /Rust/i.test(notice) && /Apache-2\.0|Apache License/.test(notice) && /MIT/.test(notice),
     'NOTICE must attribute the distributed WASM/Rust runtime terms');
 }
@@ -164,9 +162,9 @@ async function validateArtifactConfig(treeDir: string): Promise<void> {
 }
 /** Same public-tree checks used during preparation, staging and publication. */
 export async function checkArtifact(projectRoot: string, treeDir: string, expectedEnvelope: CheckedInputs, identity: ReleaseIdentity): Promise<void> {
-  validateCheckedInputs(expectedEnvelope);
   validateIdentity(identity);
   assertSame(expectedEnvelope.identity, identity, 'Public check identity must come from trusted context');
+  validateCheckedInputs(expectedEnvelope);
   const files = await readClosedTree(treeDir);
   assert.ok(files.every(file => publicRoots.includes(file.path) || file.path.startsWith('dist/')), 'Public tree contains a forbidden or unlisted root path');
   assertSame(files.map(file => file.path).sort(), [...publicRoots, ...expectedEnvelope.assets.map(file => `dist/${file.path}`)].sort(), 'Public artifact path set differs from checked manifest');
@@ -175,7 +173,7 @@ export async function checkArtifact(projectRoot: string, treeDir: string, expect
   assertPrivateContent(files);
   await validateArtifactConfig(treeDir);
   validateDeployMetadata(files);
-  await validateLicenseTerms(projectRoot, files);
+  validateLicenseTerms(files, expectedEnvelope.licenseClosure);
   const assets = files.filter(file => file.path.startsWith('dist/')).map(file => ({ ...file, path: file.path.slice(5) }));
   await validateAssets(projectRoot, assets, expectedEnvelope.wasm.sha256, identity.sourceCommit);
   checkReferences(files);
@@ -192,9 +190,7 @@ if (process.argv[1] !== undefined && fileURLToPath(import.meta.url) === resolve(
     const context = await artifactCliContext(process.argv.slice(2));
     assert.ok(!process.argv.includes('--output'), 'Check command cannot select a staging output');
     assert.ok(!context.prepare, 'Check command does not prepare or rebuild');
-    // Local default independently derives the expected envelope from actual
-    // checked source/builds. Publisher uses the trusted gate output instead.
-    const envelopeSHA = context.envelopeSHA ?? digest(jsonBytes(await collectArtifactInputs(root, context.identity)));
+    const envelopeSHA = context.envelopeSHA;
     await verifyArtifactInputs(root, context.inputDir, { identity: context.identity, envelopeSHA });
     console.log(JSON.stringify({ identity: context.identity, envelopeSHA, checked: true }));
   } catch (error) {
