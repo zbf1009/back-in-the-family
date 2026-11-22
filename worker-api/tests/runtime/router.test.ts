@@ -8,7 +8,8 @@ import { URL } from 'node:url';
 import test from 'node:test';
 import { isDecisionConfig, isModelDecision } from '../../../web/src/shared/decision.ts';
 import { decisionRequest, enabledVariables, expectError, publicBody } from '../helpers/decision.ts';
-import { runtimeFixture, sourceConfig } from '../helpers/runtime.ts';
+import { runtimeFixture } from '../helpers/runtime.ts';
+import { sourceConfig } from '../../scripts/profile.ts';
 import type { RuntimeFixture } from '../helpers/runtime.ts';
 
 const origin = 'https://router.test';
@@ -250,5 +251,18 @@ test('actual RPC request-owned provider 429 is only rate_limited with one call a
       method: 'POST', body: JSON.stringify(decisionRequest()),
     }), 'rate_limited', 429);
     assert.equal(fixture.calls.length, 1);
+  } finally { await fixture.dispose(); }
+});
+
+test('actual router explicit inference off blocks POST even with a usable native fake and valid byte cap', async () => {
+  const fixture = await runtimeFixture({ variables: { ...enabledVariables(), INFERENCE_ENABLED: 'false' } });
+  try {
+    const config = await fixture.runtime.dispatchFetch(origin + '/api/decision/config', { headers: navigation });
+    assert.equal(config.status, 200);
+    assert.deepEqual(await publicBody(config), { version: 'decision-config-v1', enabled: false, session_cap: 40 });
+    await expectError(await fixture.runtime.dispatchFetch(origin + '/api/decision', {
+      method: 'POST', body: JSON.stringify(decisionRequest()),
+    }), 'disabled', 503);
+    assert.equal(fixture.calls.length, 0);
   } finally { await fixture.dispose(); }
 });

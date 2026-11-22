@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   WasmSim, llm_render_system_one, llm_validate,
@@ -84,4 +85,25 @@ export function realPreviews(): DecisionPreview[] {
   } finally {
     sim.free();
   }
+}
+/** Existing real-WASM decision fixture with its interactive gate answered through Rust. */
+export function actualSim(): WasmSim {
+  loadWasm();
+  const replay = JSON.parse(readFileSync(new URL('../../../../fixtures/parity/seedU-underworld.replay.json', import.meta.url), 'utf8')) as {
+    seed: string; config: unknown; inputs: { tick: string; seq: string; payload: unknown }[];
+  };
+  const sim = new WasmSim(BigInt(replay.seed), JSON.stringify(replay.config));
+  for (const input of replay.inputs) {
+    if (BigInt(input.seq) >= 61n) break;
+    sim.submit(JSON.stringify({ tick: input.tick, payload: input.payload }));
+  }
+  sim.run_ticks(1654);
+  const gate = JSON.parse(sim.player_node_state());
+  if (gate.pending && !gate.answered) {
+    const node = JSON.parse(sim.snapshot()).player_node;
+    assert.deepEqual(JSON.parse(sim.submit_checked(JSON.stringify([
+      { ChoosePlayer: { node: gate.node, option: node.rules_default } },
+    ]))), { ok: true });
+  }
+  return sim;
 }

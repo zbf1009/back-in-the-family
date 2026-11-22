@@ -62,11 +62,11 @@ export default defineConfig({
     channel: 'chrome',
   },
   // R9.4, R9.13: serve the Deploy_Directory with Local_Preview and wait for it.
-  // `mise exec` reaches the pnpm version pinned in mise.toml (the pnpm on PATH may
-  // differ), matching how scripts/gates.sh runs every web step. reuseExistingServer
-  // is false so the run always starts a fresh preview of the just-built web/dist.
+  // The offline launcher supplies the prepared pinned pnpm; preview does not
+  // install tools or dependencies. reuseExistingServer is false so this always
+  // starts a fresh preview of the just-built web/dist.
   webServer: {
-    command: 'mise exec -- pnpm --dir web run preview',
+    command: 'pnpm --dir web run preview',
     url: BASE_URL,
     reuseExistingServer: false,
     timeout: PREVIEW_START_TIMEOUT_MS,

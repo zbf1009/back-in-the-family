@@ -7,6 +7,11 @@ if (!existsSync(new URL('../worker-configuration.d.ts', import.meta.url))) {
   console.error('Generate worker-api/worker-configuration.d.ts with the pinned Wrangler first.');
   process.exit(1);
 }
+const generated = spawnSync(process.execPath, [
+  fileURLToPath(new URL('./wrangler.ts', import.meta.url)), 'types:check',
+], { cwd: packageDir, stdio: 'inherit' });
+if (generated.error) throw generated.error;
+if (generated.status !== 0) process.exit(1);
 let failed = false;
 for (const config of ['tsconfig.json', 'tsconfig.node.json']) {
   console.log(`==> Worker Type_Check ${config}`);

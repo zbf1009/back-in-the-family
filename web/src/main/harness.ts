@@ -32,6 +32,8 @@ export interface SimHarness {
   request(req: HarnessRequest): Promise<ReplyMessage>;
   /** Read the live WASM v5 export; never reconstruct inputs in JavaScript. */
   exportReplay(): Promise<ReplyMessage>;
+  /** Detached bounded page-session counters, outside the World and v5 replay. */
+  decisionMetrics(): Promise<ReplyMessage>;
 }
 
 declare global {
@@ -53,6 +55,9 @@ export function installHarness(client: SimClient): void {
     },
     exportReplay(): Promise<ReplyMessage> {
       return client.exportReplay();
+    },
+    decisionMetrics(): Promise<ReplyMessage> {
+      return client.request({ type: 'decision-metrics' });
     },
   };
 }

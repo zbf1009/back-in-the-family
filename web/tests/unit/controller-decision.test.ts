@@ -1,15 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
-import { readFileSync } from 'node:fs';
 import { WasmSim, verify_replay } from '../../../target/wasm-pkg/sim_wasm.js';
 import { SimController, type SimHandle } from '../../src/worker/controller.ts';
 import { DecisionBridge, type DecisionWasm } from '../../src/worker/decision-bridge.ts';
 import type { Reply, Request, WorkerMessage } from '../../src/shared/protocol.ts';
 import { PLAY_RATE, SPEEDS } from '../../src/shared/speeds.ts';
-import { ControlledDecisionClient, DecisionClock, config, mapping, modelDecision, realPreviews, settle, wasm } from './helpers/decision.ts';
+import { actualSim, ControlledDecisionClient, DecisionClock, config, mapping, modelDecision, realPreviews, settle, wasm } from './helpers/decision.ts';
 import { FakeFrameScheduler } from './helpers/fakes.ts';
-import { loadWasm } from './helpers/wasm.ts';
 
 class Frames extends FakeFrameScheduler {
   readonly callbacks: (() => void)[] = [];
@@ -235,26 +233,6 @@ test('Property: model timeout manual and replacement terminal permutations commi
   }), { numRuns: 48 });
 });
 
-function actualSim(): WasmSim {
-  loadWasm();
-  const replay = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seedU-underworld.replay.json', import.meta.url), 'utf8')) as {
-    seed: string; config: unknown; inputs: { tick: string; seq: string; payload: unknown }[];
-  };
-  const sim = new WasmSim(BigInt(replay.seed), JSON.stringify(replay.config));
-  for (const input of replay.inputs) {
-    if (BigInt(input.seq) >= 61n) break;
-    sim.submit(JSON.stringify({ tick: input.tick, payload: input.payload }));
-  }
-  sim.run_ticks(1654);
-  const gate = JSON.parse(sim.player_node_state());
-  if (gate.pending && !gate.answered) {
-    const node = JSON.parse(sim.snapshot()).player_node;
-    assert.deepEqual(JSON.parse(sim.submit_checked(JSON.stringify([
-      { ChoosePlayer: { node: gate.node, option: node.rules_default } },
-    ]))), { ok: true });
-  }
-  return sim;
-}
 
 test('actual WASM completed model/fallback streams match direct per-tick checksums and verify offline for both families', async () => {
   for (const family of ['dream', 'bribe'] as const) for (const accepted of [true, false]) {

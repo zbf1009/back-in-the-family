@@ -5,8 +5,11 @@
   "type": "module",
   "packageManager": "pnpm@10.33.1",
   "scripts": {
-    "typecheck": "node scripts/typecheck.ts",
-    "test:unit": "node --test tests/unit/*.test.ts",
-    "test:runtime": "node --test tests/runtime/*.test.ts"
+    "build": "bash ../scripts/worker-build.sh",
+    "types:generate": "bash ../scripts/offline-gates.sh node worker-api/scripts/wrangler.ts types:generate",
+    "types:check": "bash ../scripts/offline-gates.sh node worker-api/scripts/wrangler.ts types:check",
+    "typecheck": "bash ../scripts/offline-gates.sh node worker-api/scripts/typecheck.ts",
+    "test:unit": "bash ../scripts/offline-gates.sh node --test worker-api/tests/unit/*.test.ts",
+    "test:runtime": "bash ../scripts/offline-gates.sh node --test worker-api/tests/runtime/*.test.ts"
   }
 }

@@ -1,5 +1,6 @@
 /// <reference lib="es2024.promise" />
 import { DECISION_CONTRACT } from '../shared/decision-contract.ts';
+import { DecisionMetrics, type MetricAttemptOutcome } from '../shared/decision-metrics.ts';
 import {
   CONFIG_PREFETCH_TIMEOUT_MS, DEFAULT_DECISION_WAIT_SECONDS, DECISION_REQUEST_VERSION,
   DECISION_WIRE_BOUNDS, decisionObject, isDecisionConfig, isDecisionError,
@@ -169,12 +170,15 @@ export class DecisionBridge {
   private configValue: DecisionConfig | null = null;
   private spent = 0;
   private waitSeconds = DEFAULT_DECISION_WAIT_SECONDS;
+  readonly metrics: DecisionMetrics | null;
 
-  constructor(client: DecisionClient, wasm: DecisionWasm, mapping: string, timing: DecisionTiming = browserTiming) {
+  constructor(client: DecisionClient, wasm: DecisionWasm, mapping: string, timing: DecisionTiming = browserTiming,
+    metrics: DecisionMetrics | null = new DecisionMetrics()) {
     this.client = client;
     this.wasm = wasm;
     this.mapping = mapping;
     this.timing = timing;
+    this.metrics = metrics;
     void this.deadline(async signal => {
       const config = await this.client.config(signal);
       checkAbort(signal);
@@ -246,14 +250,18 @@ export class DecisionBridge {
     // Compare before increment; GET is the sole cap source. No refund or retry.
     if (this.spent >= this.configValue!.session_cap) return { kind: 'fallback', reason: 'session_cap' };
     this.spent += 1;
+    this.metrics?.attempt(preview.family);
+    const started = this.timing.now();
+    let attemptOutcome: MetricAttemptOutcome = 'wasm_failure';
     try {
-      const started = this.timing.now();
+      // Timing is request-local; reports retain only a fixed latency bucket.
       const decision = await this.deadline(async requestSignal => {
         const result = await this.client.decide(request, requestSignal);
         checkAbort(requestSignal);
         // An elapsed deadline also wins when the host has not fired its timer yet.
         if (this.timing.now() - started >= waitMilliseconds) fail('timeout');
         if (!isModelDecision(result, request)) fail('invalid_response');
+        this.metrics?.responseUsage(preview.family, result.usage);
         let validatedJson: string;
         try {
           validatedJson = this.wasm.llm_validate(JSON.stringify({
@@ -271,10 +279,16 @@ export class DecisionBridge {
         }
         return { ...result, usage: result.usage === null ? null : { ...result.usage } };
       }, waitMilliseconds, signal);
+      attemptOutcome = 'model';
+      this.metrics?.validatedModel(preview.family, preview.option_ids.indexOf(decision.choice), decision.choice === preview.rules_default);
       return { kind: 'model', decision };
     } catch (error) {
       if (error instanceof DecisionWasmFailure) throw error;
-      return { kind: 'fallback', reason: error instanceof DecisionFailure ? error.kind : 'invalid_response' };
+      const reason = error instanceof DecisionFailure ? error.kind : 'invalid_response';
+      attemptOutcome = reason;
+      return { kind: 'fallback', reason };
+    } finally {
+      this.metrics?.attemptFinished(preview.family, attemptOutcome, this.timing.now() - started);
     }
   }
 

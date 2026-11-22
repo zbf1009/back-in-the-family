@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Checks that pnpm is pinned to the same exact version in mise.toml and in the
-# packageManager field of web/package.json and eval/probe/package.json (R1.2, R1.3,
-# R16.1, R16.9). The version must be a
+# packageManager field of web, eval/probe and worker-api (R1.2, R1.3, R16.1,
+# R16.9). The version must be a
 # full major.minor.patch with no range or tag. On any missing, malformed or
 # differing value this prints both values (or "missing") and exits 1; it exits 0
-# only when both are present, well-formed and equal. Runs before the frozen
-# install in scripts/gates.sh.
+# only when every package agrees. Used by separate dependency preparation and
+# offline gates; it installs or provisions nothing.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -42,13 +42,17 @@ web_version="$pm_version"
 read_pm eval/probe/package.json
 probe_value="$pm_value"
 probe_version="$pm_version"
+read_pm worker-api/package.json
+worker_value="$pm_value"
+worker_version="$pm_version"
 
-if [ "$mise_value" = "missing" ] || [ "$web_value" = "missing" ] || [ "$probe_value" = "missing" ] \
-  || [ "$mise_value" != "$web_version" ] || [ "$mise_value" != "$probe_version" ]; then
+if [ "$mise_value" = "missing" ] || [ "$web_value" = "missing" ] || [ "$probe_value" = "missing" ] || [ "$worker_value" = "missing" ] \
+  || [ "$mise_value" != "$web_version" ] || [ "$mise_value" != "$probe_version" ] || [ "$mise_value" != "$worker_version" ]; then
   echo "mise.toml: $mise_value"
   echo "web/package.json packageManager: $web_value"
   echo "eval/probe/package.json packageManager: $probe_value"
+  echo "worker-api/package.json packageManager: $worker_value"
   exit 1
 fi
 
-echo "pnpm pinned to $mise_value in mise.toml, web/package.json and eval/probe/package.json."
+echo "pnpm pinned to $mise_value in mise.toml, web/package.json, eval/probe/package.json and worker-api/package.json."

@@ -2,6 +2,7 @@
 // Sim_Worker. This module is imported by both sides (R2.4).
 import type { PlayerOption, Slot, TraitName, WorldSnapshot } from './world-snapshot.ts';
 import type { DecisionFallbackReason, DecisionSessionStatus, DecisionUsage } from './decision.ts';
+import type { DecisionMetricsReport } from './decision-metrics.ts';
 
 export type DecisionPreviewError = { kind: 'malformed' | 'no_node' } | { kind: 'rejected'; reason: string };
 export type DecisionNotice = { requestId: number; worldId: number } & (
@@ -41,6 +42,7 @@ export type Request =
   | { type: 'bribe'; id: number; amount: string }
   | { type: 'carry-over'; id: number; trait: TraitName }
   | { type: 'decision-status'; id: number }
+  | { type: 'decision-metrics'; id: number }
   | { type: 'set-decision-wait'; id: number; seconds: number }
   | { type: 'use-rules-now'; id: number; requestId: number; worldId: number }
   | { type: 'export-replay'; id: number }
@@ -79,7 +81,7 @@ export type ErrorKind =
   | 'cancelled';
 
 export type Reply =
-  | { type: 'reply'; id: number; ok: true; snapshot: Snapshot; world?: WorldSnapshot; checksums?: string[]; replay?: string }
+  | { type: 'reply'; id: number; ok: true; snapshot: Snapshot; world?: WorldSnapshot; checksums?: string[]; replay?: string; metrics?: DecisionMetricsReport | null }
   | { type: 'reply'; id: number; ok: false; kind: ErrorKind; error: string; snapshot: Snapshot; world?: WorldSnapshot; previewError?: DecisionPreviewError };
 export interface Status { type: 'status'; snapshot: Snapshot }
 export type WorkerMessage = Reply | Status | { type: 'fatal'; error: string };

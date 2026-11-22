@@ -16,7 +16,7 @@ import { isSpeed, SPEEDS, type Speed } from '../shared/speeds.ts';
 import { TpsWindow } from './tps.ts';
 import { ticksDue } from './pacer.ts';
 import type { DecisionBridge, DecisionPreview, DecisionTiming } from './decision-bridge.ts';
-import type { DecisionOutcome } from '../shared/decision.ts';
+import type { DecisionFamily, DecisionOutcome } from '../shared/decision.ts';
 
 /** WasmSim's API, injected so tests can drive pacing without a real clock. */
 export interface SimHandle {
@@ -77,6 +77,10 @@ interface PendingDecision {
   payload: unknown;
   abort: AbortController;
   attempted: boolean;
+  family: DecisionFamily;
+  defaultOrdinal: number | null;
+  modelOrdinal: number;
+  modelAgrees: boolean;
 }
 
 export class SimController {
@@ -193,6 +197,7 @@ export class SimController {
     // `invalid-state`.
     this.#failKind = wasLoaded ? 'invalid-state' : 'load-failed';
     this.#failError = error;
+    if (this.#decisionPending !== null) this.#decision?.bridge.metrics?.aborted(this.#decisionPending.family);
     this.#decisionPending?.abort.abort();
     this.#decisionPending = null;
     this.#cancelDecisionStatus?.();
@@ -213,7 +218,7 @@ export class SimController {
   #dispatch(req: Request): void {
     if (this.#decisionPending !== null && ![
       'create-world', 'world-snapshot', 'checksums', 'player_node_state',
-      'decision-status', 'set-decision-wait', 'use-rules-now', 'export-replay',
+      'decision-status', 'decision-metrics', 'set-decision-wait', 'use-rules-now', 'export-replay',
     ].includes(req.type)) {
       this.#post(this.#unchangedReply(req, 'decision_pending', 'decision_pending'));
       return;
@@ -252,6 +257,9 @@ export class SimController {
         return;
       case 'decision-status':
         this.#post(this.#okReply(req));
+        return;
+      case 'decision-metrics':
+        this.#post({ ...this.#okReply(req), metrics: this.#decision?.bridge.metrics?.report() ?? null });
         return;
       case 'set-decision-wait':
         if (typeof req.seconds !== 'number' || !Number.isFinite(req.seconds)) {
@@ -315,6 +323,7 @@ export class SimController {
     const pending = this.#decisionPending;
     if (pending !== null) {
       this.#closeDecision(pending, false);
+      this.#decision?.bridge.metrics?.cancelled(pending.family);
       this.#decisionOutcome = { requestId: pending.request.id, worldId: pending.world.worldId, kind: 'cancelled' };
       this.#post(this.#failReply(pending.request, 'cancelled', 'cancelled'));
     }
@@ -467,6 +476,8 @@ export class SimController {
     }
     const pending: PendingDecision = {
       request: req, world: this.#world, tick: this.#lastTick, trigger: null, payload, abort: new AbortController(), attempted: false,
+      family: req.type === 'dream' ? 'dream_interpretation' : 'magistrate_ruling',
+      defaultOrdinal: null, modelOrdinal: -1, modelAgrees: false,
     };
     this.#decisionPending = pending;
     this.#stopLoop();
@@ -474,12 +485,16 @@ export class SimController {
       const preview: DecisionPreview | { ok: false; error: DecisionPreviewError } =
         JSON.parse(decision.previewNode(pending.world.handle, JSON.stringify(payload)));
       if (!preview.ok) {
+        decision.bridge.metrics?.rejected(pending.family);
         this.#closeDecision(pending, true);
         this.#post({ ...this.#unchangedReply(req, preview.error.kind === 'rejected' ? 'rejected' : 'preview-error',
           preview.error.kind === 'rejected' ? preview.error.reason : preview.error.kind), previewError: preview.error });
         return;
       }
       pending.trigger = preview.trigger;
+      pending.family = preview.family;
+      pending.defaultOrdinal = preview.option_ids.indexOf(preview.rules_default);
+      decision.bridge.metrics?.eligible(preview.family);
       const spent = decision.bridge.status().spent;
       const operation = decision.bridge.decide(preview, pending.abort.signal);
       pending.attempted = decision.bridge.status().spent > spent;
@@ -515,6 +530,7 @@ export class SimController {
     try {
       if (pending.world.handle.tick() !== pending.tick || this.#lastTick !== pending.tick) {
         this.#closeDecision(pending, true);
+        this.#decision?.bridge.metrics?.aborted(pending.family);
         this.#post(this.#failReply(pending.request, 'invalid-state', 'decision tick changed'));
         return;
       }
@@ -527,9 +543,12 @@ export class SimController {
           this.#decision!.previewNode(pending.world.handle, JSON.stringify(pending.payload)));
         if (!current.ok || current.trigger !== pending.trigger) {
           this.#closeDecision(pending, true);
+          this.#decision?.bridge.metrics?.aborted(pending.family);
           this.#post(this.#failReply(pending.request, 'invalid-state', 'decision trigger changed'));
           return;
         }
+        pending.modelOrdinal = current.option_ids.indexOf(outcome.decision.choice);
+        pending.modelAgrees = outcome.decision.choice === current.rules_default;
         payloads = [pending.payload, { Choose: { node: { Trigger: { seq: pending.trigger } },
           option: outcome.decision.choice, fingerprint: outcome.decision.fingerprint } }];
         notice = { requestId: pending.request.id, worldId: pending.world.worldId, kind: 'model',
@@ -547,6 +566,23 @@ export class SimController {
       if (!result.ok && payloads.length === 2) {
         result = JSON.parse(this.#world!.handle.submit_checked(JSON.stringify([payloads[0]])));
         notice = { requestId: req.id, worldId: this.#world!.worldId, kind: 'fallback', reason: 'invalid_response' };
+      }
+      const family = pending?.family ?? (req.type === 'dream' ? 'dream_interpretation' : 'magistrate_ruling');
+      const metrics = this.#decision?.bridge.metrics;
+      if (!result.ok) metrics?.rejected(family);
+      else {
+        // checked* records atomic queue acceptance, not the later World resolution.
+        // Supported Dream/Bribe rules guarantee a node on successful apply. Their
+        // checked trigger therefore proves eligibility without adding a preview;
+        // this is an opportunity count, not a direct NodeRecord/source reading.
+        // A valid model preview already counted the same opportunity.
+        if (pending === undefined) metrics?.eligible(family);
+        if (notice.kind === 'model' && pending !== undefined) {
+          metrics?.checkedModel(family, pending.modelOrdinal, pending.modelAgrees);
+        } else if (notice.kind === 'fallback') {
+          metrics?.checkedFallback(family, notice.reason, pending?.defaultOrdinal ?? null);
+          if (pending?.attempted !== true) metrics?.skip(family, notice.reason);
+        }
       }
       this.#refreshPending();
       this.#decisionOutcome = notice;

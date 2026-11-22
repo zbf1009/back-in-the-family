@@ -25,10 +25,9 @@ step wasm-build scripts/wasm-build.sh
 # 2. Clear the Deploy_Directory so nothing from an earlier run survives (R7.2).
 rm -rf web/dist
 
-# 3. Build the Web_App into web/dist (R7.3). The pinned pnpm is reached through
-#    `mise exec`, because the pnpm on PATH may be a different version.
-step vite-build mise exec -- pnpm --dir web run build
+# 3. Build the Web_App with the prepared pinned pnpm on the offline launcher's PATH.
+step vite-build pnpm --dir web run build
 
 # 4. Check every deployed file against the Size_Limit and the deploy boundary
 #    (R7.4, R7.5, R2.3, R7.3). Exit 0 only if this and all earlier steps pass (R7.9).
-step check-deploy mise exec -- pnpm --dir web run check-deploy
+step check-deploy pnpm --dir web run check-deploy
