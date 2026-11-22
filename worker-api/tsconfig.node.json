@@ -4,6 +4,6 @@
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "types": ["node"]
   },
-  "include": ["src/handler.ts", "scripts/**/*.ts", "tests/**/*.ts", "../scripts/check-hosted-candidate.ts"],
+  "include": ["src/handler.ts", "scripts/**/*.ts", "tests/**/*.ts", "../scripts/check-hosted-candidate.ts", "../scripts/artifact-inputs.ts", "../scripts/stage-artifact.ts", "../scripts/check-artifact.ts", "../scripts/publish-artifact.ts", "../scripts/tests/artifact.test.ts", "../scripts/tests/publisher.test.ts"],
   "exclude": ["worker-configuration.d.ts", "src/index.ts"]
 }

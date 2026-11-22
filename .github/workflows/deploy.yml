@@ -13,8 +13,8 @@ on:
   push:
     branches: [main]
 
-# Read-only token: the workflow checks out the commit and deploys with the Cloudflare
-# secrets; it never writes back to the repository (R11.5).
+# The gate/static deploy job retains read-only repository access. Only the separate
+# hard-disabled future publisher declares write permission; no rollout is authorized.
 permissions:
   contents: read
 
@@ -33,6 +33,12 @@ jobs:
     # 26.04 in Nov 2026.
     runs-on: ubuntu-24.04
     timeout-minutes: 60
+    outputs:
+      artifact_id: ${{ steps.artifact-upload.outputs.artifact-id }}
+      envelope_sha: ${{ steps.artifact-inputs.outputs.envelope_sha }}
+      source_sha: ${{ steps.artifact-inputs.outputs.source_sha }}
+      run_id: ${{ steps.artifact-inputs.outputs.run_id }}
+      run_attempt: ${{ steps.artifact-inputs.outputs.run_attempt }}
     env:
       # The Smoke_Test uses the system Chrome; never download a Playwright browser (R9.2).
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
@@ -64,6 +70,34 @@ jobs:
       - name: Run gates
         run: scripts/gates.sh
 
+      # Package/check the exact successful gate bytes without rebuilding. The private
+      # inputs envelope is bound independently to a job output, not public provenance.
+      - name: Prepare checked artifact transport
+        id: artifact-inputs
+        run: |
+          prepared=$(scripts/offline-gates.sh node scripts/stage-artifact.ts --prepare \
+            --output target/artifact-release --source-commit "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" --run-attempt "$GITHUB_RUN_ATTEMPT")
+          envelope_sha=$(node -e 'const p=JSON.parse(process.argv[1]); if (!/^[a-f0-9]{64}$/.test(p.envelopeSHA)) throw new Error("Invalid checked envelope SHA"); process.stdout.write(p.envelopeSHA)' "$prepared")
+          scripts/offline-gates.sh node scripts/check-artifact.ts --input target/artifact-release \
+            --source-commit "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" --envelope-sha "$envelope_sha"
+          echo "envelope_sha=$envelope_sha" >> "$GITHUB_OUTPUT"
+          echo "source_sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "run_id=$GITHUB_RUN_ID" >> "$GITHUB_OUTPUT"
+          echo "run_attempt=$GITHUB_RUN_ATTEMPT" >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable checked artifact transport
+        id: artifact-upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: checked-artifact-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/artifact-release/
+          if-no-files-found: error
+          include-hidden-files: false
+          overwrite: false
+          retention-days: 7
+
       # Decide whether to deploy. deploy=true only when both Cloudflare secrets are
       # present AND the Author has set the DEPLOY_ENABLED repository variable to 'true';
       # otherwise print the not-configured message and leave deploy skipped (R11.7).
@@ -93,3 +127,103 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: mise exec -- pnpm exec wrangler deploy
+
+  # 8.1 must separately approve the permanent target and edit BOTH hard-false guards.
+  # Passing offline checks or setting repository variables cannot enable this job.
+  publish-artifact:
+    if: ${{ false }}
+    needs: gates-and-deploy
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    concurrency:
+      group: artifact-branch-writer
+      cancel-in-progress: false
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
+      CLOUDFLARE_INCLUDE_PROCESS_ENV: "false"
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      # Reserved explicit 8.1 inputs: no permanent artifact branch is selected now.
+      BIF_ARTIFACT_TARGET_REF: ${{ vars.ARTIFACT_TARGET_REF }}
+      BIF_ARTIFACT_PUBLICATION_APPROVED: ${{ vars.ARTIFACT_PUBLICATION_APPROVED }}
+      BIF_ARTIFACT_EXPECT_ABSENT: ${{ vars.ARTIFACT_EXPECT_ABSENT }}
+    steps:
+      - name: Check out exact checked source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.gates-and-deploy.outputs.source_sha }}
+          persist-credentials: false
+
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+        with:
+          install: false
+
+      # Preparation may use the network, but it installs only the existing pinned
+      # Node/pnpm and frozen checker SDK closure. No Rust/app/Worker compilation.
+      - name: Prepare pinned checker dependencies
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          mise install node@26.7.0 pnpm@10.33.1
+          node=$(mise which node)
+          pnpm=$(mise which pnpm)
+          export PATH="$(dirname "$node"):$(dirname "$pnpm"):$PATH"
+          "$pnpm" --dir web install --frozen-lockfile
+          echo "CHECKER_NODE=$node" >> "$GITHUB_ENV"
+
+      - name: Download only this gate's immutable artifact ID
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          artifact-ids: ${{ needs.gates-and-deploy.outputs.artifact_id }}
+          path: target/artifact-release
+          merge-multiple: true
+
+      - name: Check downloaded artifact offline without rebuilding
+        env:
+          CHECKED_SOURCE: ${{ needs.gates-and-deploy.outputs.source_sha }}
+          CHECKED_RUN_ID: ${{ needs.gates-and-deploy.outputs.run_id }}
+          CHECKED_RUN_ATTEMPT: ${{ needs.gates-and-deploy.outputs.run_attempt }}
+          CHECKED_ENVELOPE_SHA: ${{ needs.gates-and-deploy.outputs.envelope_sha }}
+        run: |
+          isolated_home=$(mktemp -d)
+          trap 'rm -rf "$isolated_home"' EXIT
+          env -i PATH="$(dirname "$CHECKER_NODE"):/usr/bin:/bin" HOME="$isolated_home" TMPDIR="$isolated_home" \
+            WRANGLER_SEND_METRICS=false CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false CLOUDFLARE_INCLUDE_PROCESS_ENV=false \
+            /usr/bin/unshare --user --map-root-user --net --fork /bin/bash -c \
+            'set -euo pipefail; /usr/bin/ip link set lo up; exec "$@"' artifact-offline \
+            "$CHECKER_NODE" scripts/check-artifact.ts --input target/artifact-release \
+            --source-commit "$CHECKED_SOURCE" --run-id "$CHECKED_RUN_ID" \
+            --run-attempt "$CHECKED_RUN_ATTEMPT" --envelope-sha "$CHECKED_ENVELOPE_SHA"
+
+      # Read-only discovery precedes staging. An absent target is accepted ONLY with
+      # the separately approved explicit absent-ref input; it is never an overwrite default.
+      - name: Capture expected artifact predecessor
+        id: artifact-prior
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CHECKED_SOURCE: ${{ needs.gates-and-deploy.outputs.source_sha }}
+          CHECKED_RUN_ID: ${{ needs.gates-and-deploy.outputs.run_id }}
+          CHECKED_RUN_ATTEMPT: ${{ needs.gates-and-deploy.outputs.run_attempt }}
+          CHECKED_ENVELOPE_SHA: ${{ needs.gates-and-deploy.outputs.envelope_sha }}
+        run: |
+          "$CHECKER_NODE" scripts/publish-artifact.ts --ci-capture-prior \
+            --artifact-ref "$BIF_ARTIFACT_TARGET_REF" --source-commit "$CHECKED_SOURCE" \
+            --run-id "$CHECKED_RUN_ID" --run-attempt "$CHECKED_RUN_ATTEMPT" \
+            --envelope-sha "$CHECKED_ENVELOPE_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Publish checked artifact branch with an exact lease
+        if: ${{ false }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CHECKED_SOURCE: ${{ needs.gates-and-deploy.outputs.source_sha }}
+          CHECKED_RUN_ID: ${{ needs.gates-and-deploy.outputs.run_id }}
+          CHECKED_RUN_ATTEMPT: ${{ needs.gates-and-deploy.outputs.run_attempt }}
+          CHECKED_ENVELOPE_SHA: ${{ needs.gates-and-deploy.outputs.envelope_sha }}
+          EXPECTED_PRIOR_OID: ${{ steps.artifact-prior.outputs.oid }}
+        run: |
+          "$CHECKER_NODE" scripts/publish-artifact.ts --ci --project-root "$GITHUB_WORKSPACE" \
+            --input target/artifact-release --artifact-ref "$BIF_ARTIFACT_TARGET_REF" \
+            --expected-prior-oid "$EXPECTED_PRIOR_OID" --source-commit "$CHECKED_SOURCE" \
+            --run-id "$CHECKED_RUN_ID" --run-attempt "$CHECKED_RUN_ATTEMPT" \
+            --envelope-sha "$CHECKED_ENVELOPE_SHA" >> "$GITHUB_STEP_SUMMARY"

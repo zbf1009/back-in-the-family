@@ -16,7 +16,7 @@ import { assertWorkerTools, requireTools } from '../worker-api/scripts/tools.ts'
 // These are the existing approved static path, not a new release-authority protocol.
 // Any workflow/config change requires separate review; this preparatory checker
 // cannot approve a target, select the candidate, enable inference, or deploy.
-const STATIC_WORKFLOW = 'b487e475c7a0a87572cfb99c308c39eff319a3b90a29a511d31c73267c2bc2a4';
+const STATIC_WORKFLOW = '339d77db175727fac82d5f8f2b564d34d67acbcce9b2a1c0528cd3e3017e71d5';
 const STATIC_CONFIG = '19bbf6907bd2c275f23b494a6683f1511124d33bfadc15080c06486238533cd3';
 export interface HostedCandidate extends SourceConfig { no_bundle: true }
 export interface StaticDeployment { cwd: string; command: string; configPath: string }
@@ -53,7 +53,7 @@ export async function currentStaticDeployment(projectRoot = root): Promise<Stati
   const configPath = join(projectRoot, 'web/wrangler.jsonc');
   assert.equal(digest(await readFile(configPath)), STATIC_CONFIG, 'The approved static production config must remain byte-exact');
   // Consume the actual checked workflow tail, not a second deployment convention.
-  const tail = /working-directory: (web)\n[\s\S]*?\n        run: ([^\n]+)\s*$/.exec(workflow.toString('utf8'));
+  const tail = /- name: Deploy web\/dist\n        if: steps\.cfg\.outputs\.deploy == 'true'\n        working-directory: (web)\n        env:\n(?:          [^\n]+\n)+        run: ([^\n]+)(?=\n(?:\n|$))/.exec(workflow.toString('utf8'));
   assert.ok(tail, 'Expected the current production deployment tail');
   assert.equal(tail[2], 'mise exec -- pnpm exec wrangler deploy');
   const { config } = readConfig(configPath);

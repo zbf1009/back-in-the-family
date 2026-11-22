@@ -98,6 +98,24 @@ Later activation requires separate explicit Author approval after verified 5.3 a
 
 The rollback plan is to turn hosted inference off and restore the prior assets-only `web/wrangler.jsonc` and `web/` static deployment path with its prior checked assets. Keep `Rules_Default` fallback while hosted inference is enabled. No push, deploy, activation or rollback command is currently authorized by leaf 5.4.
 
+#### Offline artifact preparation (Spec 7, leaf 6.1)
+
+The source tree builds and checks the application; an artifact tree contains only checked `dist/`, `worker.js` outside `dist`, in-root Wrangler config, pinned deploy metadata, `LICENSE`, [`NOTICE`](worker-api/artifact-deploy/NOTICE) and public provenance. It has no application build script, Rust/Vite dependencies, source, tests, probe data or model weights. The minimal private ESM package pins pnpm `10.33.1`, Wrangler `4.157.0` and its existing `@types/node` peer `26.6.6`.
+
+Run the separate lock-only preparation from the repository root when deploy metadata changes. It uses the existing prepared `target/gate-cache/node.path`, `pnpm.path` and `pnpm/v10` store, copies the web lock and minimal package into an owned temporary workspace, disables package-manager bootstrap and scripts, and isolates HOME, credentials/proxies and the network. It writes only the generated deploy lock back; the web lock stays untouched. It is **not** an install inside a gate or Artifact_Check.
+
+```sh
+bash scripts/prepare-artifact-metadata.sh
+# After the existing Web_Build and Worker_Build have produced checked bytes:
+scripts/offline-gates.sh node scripts/stage-artifact.ts --prepare
+scripts/offline-gates.sh node scripts/check-artifact.ts
+```
+
+Preparation requires a fresh `target/artifact-release` directory; it writes private `inputs.json` beside `tree/`, not inside the public tree. The local checker independently derives expected identity from actual HEAD and checked source/build inputs. To copy the verified transport into a separate fresh candidate directory, use `scripts/stage-artifact.ts --input target/artifact-release --output <fresh-owned-directory>` through the same offline wrapper. Neither staging nor checking rebuilds or contacts Cloudflare. Artifact_Check gate-chain wiring and its mutation proofs belong to leaf 6.2; these commands claim no gate or live-release acceptance.
+
+The gate/build job transports immutable checked bytes and an independently bound envelope digest to a separate publisher; the publisher never rebuilds. Its job **and branch-write step stay disabled** until C4 passes and the Author separately approves permanent rollout in 8.1. No permanent artifact branch name, public Deploy button, remote command or hosted activation is authorized here. Owned disposable local-ref tests are not publication. The artifact remains an offline candidate with inference off; any later opt-in uses the deployer's own account and shared Free/Paid quota, with the explicit 16,384-byte policy and `Rules_Default` fallback described in NOTICE.
+
+
 ### LLM probe (`eval/probe/`)
 
 The probe runs the locked evaluation cards (`eval/cards/`) against the candidate runtimes and writes Results under `eval/results/`; the Report is `docs/llm-probe.md` and the requirement-by-requirement audit is `docs/llm-probe-audit.md`. Every command below runs from the repository root through `pnpm --dir eval/probe run probe <command>` (written `probe <command>` in the list; wrap it as shown in the first block). The package is separate from `web/` and nothing under `web/src` may import from `eval/` (the `check-web-imports` gate).
