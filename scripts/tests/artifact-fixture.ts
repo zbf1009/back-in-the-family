@@ -12,6 +12,7 @@ const cliPaths = ['scripts/artifact-inputs.ts', 'scripts/artifact-licenses.ts', 
   'scripts/artifact-sdk-lock.ts', 'scripts/check-artifact-sdk.mjs', 'scripts/check-artifact-sdk-native.mjs',
   'scripts/prepare-artifact-sdk-cache.mjs', 'scripts/prepare-artifact-metadata.sh',
   'scripts/stage-artifact.ts', 'scripts/publish-artifact.ts', 'scripts/tests/artifact-consumer.ts',
+  'scripts/check-decision-contract.ts', 'scripts/tests/decision-contract.test.ts',
   'worker-api/scripts/profile.ts', 'worker-api/scripts/bundle.ts', 'worker-api/scripts/tools.ts', 'web/scripts/check-deploy.ts'];
 const cargoLicenses = ['arrayvec-0.7.8/LICENSE-MIT', 'cfg-if-1.0.5/LICENSE-MIT', 'wasm-bindgen-0.2.130/LICENSE-MIT',
   'wasm-bindgen-shared-0.2.130/LICENSE-MIT', 'serde-1.0.229/LICENSE-MIT', 'memchr-2.8.3/LICENSE-MIT',

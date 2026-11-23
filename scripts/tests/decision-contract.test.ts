@@ -6,7 +6,7 @@ import {
   DECISION_CONTRACT,
   decisionFingerprint,
   decisionFingerprintInput,
-} from '../../src/shared/decision-contract.ts';
+} from '../../web/src/shared/decision-contract.ts';
 
 const FIXED_VECTOR = '6ffb8d3a255dbc1d066ba3b4a1c38291b1adfda5aa1f4e3c65a9adafbd243a32';
 const FIXED_INPUT = 'cloudflare_workers_ai\0@cf/cloudflare/clef\0system-one-v1\0'
@@ -18,8 +18,8 @@ function sha256(bytes: Uint8Array | string): string {
 }
 
 test('production mapping is byte-identical to the frozen template and SHA-256 pin', async () => {
-  const production = readFileSync(new URL('../../src/shared/system-one-v1.txt', import.meta.url));
-  const frozen = readFileSync(new URL('../../../eval/probe/templates/decision.system_one.v1.txt', import.meta.url));
+  const production = readFileSync(new URL('../../web/src/shared/system-one-v1.txt', import.meta.url));
+  const frozen = readFileSync(new URL('../../eval/probe/templates/decision.system_one.v1.txt', import.meta.url));
   assert.deepEqual(production, frozen);
   assert.equal(production.length, 1879);
   assert.equal(sha256(production), DECISION_CONTRACT.mappingHash);

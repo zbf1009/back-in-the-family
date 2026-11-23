@@ -1,5 +1,5 @@
 // Offline C1 proof over the actual native and wasm32 --nocapture trace logs.
-// Usage: node web/scripts/check-decision-contract.ts <native.log> <wasm32.log>
+// Usage: node scripts/check-decision-contract.ts <native.log> <wasm32.log>
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -7,11 +7,11 @@ import {
   DECISION_CONTRACT,
   decisionFingerprint,
   decisionFingerprintInput,
-} from '../src/shared/decision-contract.ts';
+} from '../web/src/shared/decision-contract.ts';
 
 const [nativePath, wasmPath, ...extra] = process.argv.slice(2);
 assert.ok(nativePath && wasmPath && extra.length === 0,
-  'usage: node web/scripts/check-decision-contract.ts <native.log> <wasm32.log>');
+  'usage: node scripts/check-decision-contract.ts <native.log> <wasm32.log>');
 const logs = [readFileSync(nativePath, 'utf8'), readFileSync(wasmPath, 'utf8')];
 
 function trace(log: string, marker: string): string[] {
@@ -27,8 +27,8 @@ assert.deepEqual(contracts[0], contracts[1], 'native/wasm32 contract JSON bytes'
 const contractRow = contracts[0]![0]!;
 assert.ok(contractRow.startsWith('contract\t'));
 const contract: unknown = JSON.parse(contractRow.slice('contract\t'.length));
-const production = readFileSync(new URL('../src/shared/system-one-v1.txt', import.meta.url));
-const frozen = readFileSync(new URL('../../eval/probe/templates/decision.system_one.v1.txt', import.meta.url));
+const production = readFileSync(new URL('../web/src/shared/system-one-v1.txt', import.meta.url));
+const frozen = readFileSync(new URL('../eval/probe/templates/decision.system_one.v1.txt', import.meta.url));
 assert.deepEqual(production, frozen);
 assert.equal(createHash('sha256').update(production).digest('hex'), DECISION_CONTRACT.mappingHash);
 const mappingDigest = await crypto.subtle.digest('SHA-256', production);
