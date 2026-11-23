@@ -137,7 +137,7 @@ CI transport uses MIT-licensed [`actions/upload-artifact` v4.6.2](https://github
 
 #### Private-code reviewer release (`judge-demo-release`)
 
-The separate [judge release](worker-api/judge.jsonc) is being implemented and has **not been deployed**. It adds private-code access to the existing game and native Clef decisions without changing the public rules-only game or enabling model calls on its static deployment.
+The separate [judge release](worker-api/judge.jsonc) adds private-code access to the existing native Decision demo while leaving the public rules-only game unchanged.
 
 The reviewer pool permits **40 application admissions per UTC day shared across all sessions** and **10 per session lifetime**, with a session TTL of **86400 seconds**. UTC midnight resets only the shared daily allowance; refresh, repeated login and redeploy do not reset a session's lifetime count. Model failure, invalid output, timeout or exhausted allowance uses the existing `Rules_Default` fallback; a reserved admission is not refunded when dispatch fails.
 
