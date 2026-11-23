@@ -10,6 +10,13 @@
     "types:check": "bash ../scripts/offline-gates.sh node worker-api/scripts/wrangler.ts types:check",
     "typecheck": "bash ../scripts/offline-gates.sh node worker-api/scripts/typecheck.ts",
     "test:unit": "bash ../scripts/offline-gates.sh node --test worker-api/tests/unit/*.test.ts",
-    "test:runtime": "bash ../scripts/offline-gates.sh node --test worker-api/tests/runtime/*.test.ts"
+    "test:runtime": "bash ../scripts/offline-gates.sh node --test worker-api/tests/runtime/*.test.ts",
+    "build:judge": "bash ../scripts/offline-gates.sh node worker-api/scripts/wrangler.ts build --profile judge",
+    "types:generate:judge": "bash ../scripts/offline-gates.sh node worker-api/scripts/wrangler.ts types:generate --profile judge",
+    "types:check:judge": "bash ../scripts/offline-gates.sh node worker-api/scripts/wrangler.ts types:check --profile judge",
+    "typecheck:judge": "bash ../scripts/offline-gates.sh node worker-api/scripts/typecheck.ts --profile judge",
+    "test:judge:unit": "bash ../scripts/offline-gates.sh node --test worker-api/tests/judge/unit.test.ts",
+    "test:judge:runtime": "bash ../scripts/offline-gates.sh node --test worker-api/tests/judge/runtime.test.ts",
+    "test:judge:artifact": "bash ../scripts/offline-gates.sh node --test worker-api/tests/judge/artifact.test.ts"
   }
 }

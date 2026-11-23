@@ -18,5 +18,5 @@
       "worker-tools/esbuild": ["../web/node_modules/.pnpm/esbuild@0.28.2/node_modules/esbuild"]
     }
   },
-  "include": ["worker-configuration.d.ts", "src/**/*.ts"]
+  "include": ["worker-configuration.d.ts", "runtime-configuration.d.ts", "src/index.ts", "src/handler.ts", "src/http.ts"]
 }

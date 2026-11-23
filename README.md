@@ -135,6 +135,14 @@ The gate/build job transports immutable checked bytes and an independently bound
 CI transport uses MIT-licensed [`actions/upload-artifact` v4.6.2](https://github.com/actions/upload-artifact/blob/ea165f8d65b6e75b540449e92b4886f43607fa02/LICENSE) and [`actions/download-artifact` v4.3.0](https://github.com/actions/download-artifact/blob/d3f86a106a0bac45b974a628896c90dbdf5c8093/LICENSE), pinned to the exact revisions in those links. These CI actions are not distributed artifact runtime code.
 
 
+#### Private-code reviewer release (`judge-demo-release`)
+
+The separate [judge release](worker-api/judge.jsonc) is being implemented and has **not been deployed**. It adds private-code access to the existing game and native Clef decisions without changing the public rules-only game or enabling model calls on its static deployment.
+
+The reviewer pool permits **40 application admissions per UTC day shared across all sessions** and **10 per session lifetime**, with a session TTL of **86400 seconds**. UTC midnight resets only the shared daily allowance; refresh, repeated login and redeploy do not reset a session's lifetime count. Model failure, invalid output, timeout or exhausted allowance uses the existing `Rules_Default` fallback; a reserved admission is not refunded when dispatch fails.
+
+Reviewer code is delivered privately and kept outside the repository and artifacts; neither code nor session tokens belong in URLs or Web Storage. This independent release does not enable a README Deploy button, permanent artifact publication or either disabled publisher guard. Local checks in `docs/kiro-log.md` are not a live-release acceptance claim.
+
 ### LLM probe (`eval/probe/`)
 
 The probe runs the locked evaluation cards (`eval/cards/`) against the candidate runtimes and writes Results under `eval/results/`; the Report is `docs/llm-probe.md` and the requirement-by-requirement audit is `docs/llm-probe-audit.md`. Every command below runs from the repository root through `pnpm --dir eval/probe run probe <command>` (written `probe <command>` in the list; wrap it as shown in the first block). The package is separate from `web/` and nothing under `web/src` may import from `eval/` (the `check-web-imports` gate).

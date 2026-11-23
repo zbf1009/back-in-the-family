@@ -4,6 +4,6 @@
     "lib": ["ES2024", "DOM", "DOM.Iterable"],
     "types": ["node"]
   },
-  "include": ["src/handler.ts", "scripts/**/*.ts", "tests/**/*.ts", "../scripts/check-hosted-candidate.ts", "../scripts/artifact-inputs.ts", "../scripts/artifact-licenses.ts", "../scripts/stage-artifact.ts", "../scripts/check-artifact.ts", "../scripts/publish-artifact.ts", "../scripts/tests/artifact.test.ts", "../scripts/tests/publisher.test.ts", "../scripts/tests/artifact-gate.test.ts", "../scripts/tests/artifact-sdk-lock.test.ts", "../scripts/tests/artifact-consumer.ts"],
-  "exclude": ["worker-configuration.d.ts", "src/index.ts"]
+  "include": ["src/handler.ts", "src/http.ts", "scripts/**/*.ts", "tests/unit/**/*.ts", "tests/runtime/**/*.ts", "tests/helpers/runtime.ts", "tests/helpers/decision.ts", "../scripts/check-hosted-candidate.ts", "../scripts/artifact-inputs.ts", "../scripts/artifact-licenses.ts", "../scripts/stage-artifact.ts", "../scripts/check-artifact.ts", "../scripts/publish-artifact.ts", "../scripts/tests/artifact.test.ts", "../scripts/tests/publisher.test.ts", "../scripts/tests/artifact-gate.test.ts", "../scripts/tests/artifact-sdk-lock.test.ts", "../scripts/tests/artifact-consumer.ts"],
+  "exclude": ["worker-configuration.d.ts", "judge-configuration.d.ts", "runtime-configuration.d.ts", "src/index.ts", "src/judge.ts", "src/judge-gate.ts", "tests/judge", "tests/helpers/judge-runtime.ts"]
 }

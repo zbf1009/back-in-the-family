@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { constants, mkdirSync, mkdtempSync, readlinkSync, rmSync } from 'node:fs';
+import { constants, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { access, chmod, copyFile, lstat, mkdir, readFile, readdir, realpath, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { root } from '../../worker-api/scripts/profile.ts';
@@ -90,10 +90,10 @@ async function assertSDK(sdk: string): Promise<void> {
 }
 
 /** Commit actual source copies before preparation; builds/licenses are private. */
-export async function fixtureProject(parent: string): Promise<string> {
+export async function fixtureProject(parent: string, additionalPaths: readonly string[] = []): Promise<string> {
   const project = join(parent, 'source');
   await mkdir(project);
-  const paths = [...new Set([...SOURCE_INPUT_PATHS, ...Object.values(METADATA_INPUT_PATHS), 'README.md', ...cliPaths])];
+  const paths = [...new Set([...SOURCE_INPUT_PATHS, ...Object.values(METADATA_INPUT_PATHS), 'README.md', ...cliPaths, ...additionalPaths])];
   for (const path of paths) await copiedFile(join(root, path), join(project, path));
   for (const directory of SOURCE_INPUT_DIRECTORIES) {
     await mkdir(join(project, directory), { recursive: true });
@@ -151,8 +151,8 @@ export interface IndependentArtifact {
 }
 
 /** Producer's prepare return is recorded once, outside the immutable transport. */
-export async function independentArtifact(owned: string, runId = '62001', runAttempt = '1'): Promise<IndependentArtifact> {
-  const producer = await fixtureProject(owned);
+export async function independentArtifact(owned: string, runId = '62001', runAttempt = '1', additionalPaths: readonly string[] = []): Promise<IndependentArtifact> {
+  const producer = await fixtureProject(owned, additionalPaths);
   const identity: ReleaseIdentity = { sourceCommit: await currentSourceCommit(producer), runId, runAttempt };
   const transport = join(owned, 'transport');
   const envelopeSHA = await prepareArtifact(producer, transport, identity);
@@ -173,8 +173,13 @@ export async function independentArtifact(owned: string, runId = '62001', runAtt
 export function consumerCLI(project: string, args: string[]) {
   assert.ok(args[0]?.startsWith(`${project}/scripts/`), 'Consumer must execute a copied source CLI, never the original module root');
   const owned = dirname(project);
+  // Workerd still initializes TLS for its denied internet service. Supply only
+  // the already installed public trust bundle, never host /etc or caller env.
+  const certificates = readFileSync(realpathSync('/etc/ssl/certs/ca-certificates.crt'));
+  assert.ok(certificates.includes('-----BEGIN CERTIFICATE-----') && !certificates.includes('PRIVATE KEY'), 'Installed public CA bundle is unavailable');
   const home = mkdtempSync(join(owned, 'consumer-home-'));
   mkdirSync(join(home, 'tmp'));
+  const certificatePath = join(home, 'ca-certificates.crt');
   const parentNet = readlinkSync('/proc/self/ns/net');
   const parentUser = readlinkSync('/proc/self/ns/user');
   const node = join(owned, 'bin/node');
@@ -189,16 +194,23 @@ export function consumerCLI(project: string, args: string[]) {
     for(const name of ['LICENSE','target','web/node_modules/svelte']) assert.equal(fs.existsSync(process.argv[5]+'/'+name),false,'Producer licenses/builds must be hidden');
     for(const name of ['cargo','rustc','rustup','pnpm']) assert.equal(fs.existsSync(process.env.PATH+'/'+name),false);
     assert.equal(process.version,'v26.7.0');`;
+  const certificatePreflight = `const fs=require('node:fs'),assert=require('node:assert/strict');
+    assert.equal(process.env.NODE_EXTRA_CA_CERTS,process.env.HOME+'/ca-certificates.crt');
+    assert.equal(process.env.SSL_CERT_FILE,process.env.NODE_EXTRA_CA_CERTS);
+    assert.ok(fs.readFileSync(process.env.NODE_EXTRA_CA_CERTS).includes('-----BEGIN CERTIFICATE-----'));`;
   try {
+    writeFileSync(certificatePath, certificates, { mode: 0o600, flag: 'wx' });
     const result = spawnSync('/usr/bin/env', ['-i', `PATH=${path}`, `HOME=${home}`, `TMPDIR=${join(home, 'tmp')}`,
       `XDG_CONFIG_HOME=${join(home, 'config')}`, `XDG_CACHE_HOME=${join(home, 'cache')}`,
       'GIT_CONFIG_NOSYSTEM=1', 'GIT_CONFIG_GLOBAL=/dev/null', 'GIT_TERMINAL_PROMPT=0',
       'WRANGLER_SEND_METRICS=false', 'CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false', 'CLOUDFLARE_INCLUDE_PROCESS_ENV=false',
+      `NODE_EXTRA_CA_CERTS=${certificatePath}`, `SSL_CERT_FILE=${certificatePath}`,
       '/usr/bin/bwrap', '--die-with-parent', '--unshare-user', '--uid', '0', '--gid', '0', '--unshare-net', '--unshare-pid',
       '--ro-bind', '/usr', '/usr', '--symlink', 'usr/bin', '/bin', '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib', '/lib64',
+      '--ro-bind', certificatePath, '/etc/ssl/certs/ca-certificates.crt', '--ro-bind', certificatePath, '/etc/ssl/cert.pem',
       '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--bind', owned, owned, '--tmpfs', join(owned, 'source'), '--chdir', project,
-      '/bin/bash', '-euc', '/usr/bin/ip link set lo up; "$1" -e "$2" "$3" "$4" "$5" "$6" "$7"; shift 7; exec "$@"',
-      'consumer-proof', node, preflight, parentNet, parentUser, path, root, join(owned, 'source'), node, ...args],
+      '/bin/bash', '-euc', '/usr/bin/ip link set lo up; "$1" -e "$2" "$3" "$4" "$5" "$6" "$7"; "$1" -e "$8"; shift 8; exec "$@"',
+      'consumer-proof', node, preflight, parentNet, parentUser, path, root, join(owned, 'source'), certificatePreflight, node, ...args],
     { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, env: {} });
     assert.equal(result.error, undefined, 'Consumer requires already installed bwrap/ip/git and the pinned copied Node SDK');
     assert.equal(result.signal, null, 'Independent consumer must terminate normally');

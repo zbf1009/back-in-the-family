@@ -1,0 +1,26 @@
+{
+  "$schema": "../web/node_modules/wrangler/config-schema.json",
+  "name": "back-in-the-family-judge",
+  "main": "../target/judge-worker/worker.js",
+  "no_bundle": true,
+  "compatibility_date": "2026-11-10",
+  "send_metrics": false,
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "run_worker_first": ["/", "/api", "/api/*", "/judge/login"],
+    "not_found_handling": "single-page-application"
+  },
+  "ai": { "binding": "AI", "remote": false },
+  "vars": {
+    "INFERENCE_ENABLED": "true",
+    "MAX_REQUEST_BYTES": "16384",
+    "SESSION_CAP": "10",
+    "JUDGE_DAILY_CAP": "40",
+    "JUDGE_SESSION_TTL_SECONDS": "86400"
+  },
+  "durable_objects": { "bindings": [{ "name": "JUDGE_GATE", "class_name": "JudgeGate" }] },
+  "exports": { "JudgeGate": { "type": "durable-object", "storage": "sqlite" } }
+}

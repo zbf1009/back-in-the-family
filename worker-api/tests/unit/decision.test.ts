@@ -417,3 +417,27 @@ test('explicit byte safety endpoints are readiness bounds not a default or serve
     }
   }
 });
+
+test('optional admission runs after original validation once before the unchanged native call', async () => {
+  for (const kind of ['admitted', 'disabled', 'rate_limited', 'unavailable'] as const) {
+    const fake = binding();
+    let admissions = 0;
+    const admit = async () => { admissions += 1; assert.equal(fake.calls.length, 0); return kind; };
+    await expectError(await handleRequest(post({ ...decisionRequest(), extra: true }), fake.env, undefined, admit), 'malformed_request', 400);
+    assert.equal(admissions, 0);
+    const request = post();
+    assert.equal(request.headers.get('origin'), null);
+    const response = await handleRequest(request, fake.env, undefined, admit);
+    if (kind === 'admitted') {
+      assert.equal(response.status, 200);
+      assert.ok(isModelDecision(await publicBody(response), decisionRequest()));
+    } else {
+      await expectError(response, kind, kind === 'rate_limited' ? 429 : 503);
+    }
+    assert.equal(admissions, 1);
+    assert.equal(fake.calls.length, kind === 'admitted' ? 1 : 0);
+  }
+  const fake = binding();
+  await expectError(await handleRequest(post(), fake.env, undefined, async () => { throw new Error('PRIVATE_ADMISSION_FAILURE'); }), 'unavailable', 503);
+  assert.equal(fake.calls.length, 0);
+});

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.judge.json",
+  "compilerOptions": {
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "types": ["node"]
+  },
+  "include": ["judge-configuration.d.ts", "runtime-configuration.d.ts", "src/judge.ts", "src/judge-gate.ts", "src/handler.ts", "src/http.ts", "tests/judge/unit.test.ts", "tests/helpers/decision.ts"],
+  "exclude": ["worker-configuration.d.ts", "src/index.ts", "tests/judge/runtime.test.ts", "tests/judge/artifact.test.ts"]
+}

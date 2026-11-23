@@ -1,3 +1,4 @@
+import { readRequest } from './http.ts';
 import { DECISION_CONTRACT } from '../../web/src/shared/decision-contract.ts';
 import {
   DECISION_CONFIG_VERSION, DECISION_ERROR_STATUS, DECISION_ERROR_VERSION,
@@ -20,7 +21,9 @@ export interface DecisionAI {
   }, options: { returnRawResponse: true }): Promise<unknown>;
 }
 
-function json(value: unknown, status = 200, allow?: string): Response {
+export type DecisionAdmission = () => Promise<'admitted' | 'disabled' | 'rate_limited' | 'unavailable'>;
+
+export function json(value: unknown, status = 200, allow?: string): Response {
   return new Response(JSON.stringify(value), {
     status,
     headers: {
@@ -30,13 +33,13 @@ function json(value: unknown, status = 200, allow?: string): Response {
     },
   });
 }
-function failure(kind: DecisionErrorKind, allow?: string): Response {
+export function failure(kind: DecisionErrorKind, allow?: string): Response {
   return json({ version: DECISION_ERROR_VERSION, error: { kind } }, DECISION_ERROR_STATUS[kind], allow);
 }
 
 // Wrangler variables may be JSON numbers or decimal strings. No truthiness,
 // whitespace, exponent, fractional, boolean or invalid-value defaulting.
-function configuredCount(value: unknown): number | null {
+export function configuredCount(value: unknown): number | null {
   if (isDecisionCount(value)) return value;
   if (typeof value !== 'string' || !/^(0|[1-9][0-9]*)$/.test(value)) return null;
   const number = Number(value);
@@ -44,37 +47,6 @@ function configuredCount(value: unknown): number | null {
 }
 function usableAI(value: unknown): value is DecisionAI {
   return decisionObject(value) && typeof value.run === 'function';
-}
-
-async function readRequest(request: Request, cap: number): Promise<unknown | Response> {
-  if (request.body === null) return failure('malformed_request');
-  const reader = request.body.getReader();
-  let size = 0;
-  const chunks: Uint8Array[] = [];
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > cap) {
-        await reader.cancel().catch(() => {});
-        return failure('payload_too_large');
-      }
-      chunks.push(value);
-    }
-    const bytes = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return JSON.parse(new TextDecoder('utf-8', { fatal: true, ignoreBOM: false }).decode(bytes)) as unknown;
-  } catch {
-    await reader.cancel().catch(() => {});
-    return failure('malformed_request');
-  } finally {
-    reader.releaseLock();
-  }
 }
 
 function project(raw: unknown, request: DecisionRequest, sessionCap: number): ModelDecision | null {
@@ -106,7 +78,7 @@ function project(raw: unknown, request: DecisionRequest, sessionCap: number): Mo
 }
 
 /** Unknown at the runtime boundary; generated Wrangler types own real bindings. */
-export async function handleRequest(request: Request, environment: unknown, binding?: DecisionAI): Promise<Response> {
+export async function handleRequest(request: Request, environment: unknown, binding?: DecisionAI, admission?: DecisionAdmission): Promise<Response> {
   const path = new URL(request.url).pathname;
   const env = decisionObject(environment) ? environment : {};
   if (path !== '/api' && !path.startsWith('/api/')) {
@@ -131,22 +103,34 @@ export async function handleRequest(request: Request, environment: unknown, bind
   if (configRoute) return json({ version: DECISION_CONFIG_VERSION, enabled, session_cap: sessionCap });
   if (!enabled || byteCap === null || !usableAI(ai)) return failure('disabled');
 
-  const parsed = await readRequest(request, byteCap);
-  if (parsed instanceof Response) return parsed;
+  const body = await readRequest(request, byteCap);
+  if (!body.ok) return failure(body.kind);
+  const parsed = body.value;
   if (!isDecisionRequest(parsed)) return failure('malformed_request');
+  const input: Parameters<DecisionAI['run']>[1] = {
+    model: 'clef',
+    state: parsed.state,
+    questions: {
+      decision: {
+        type: 'choice',
+        instructions: parsed.instructions,
+        criteria: Object.fromEntries(parsed.criteria.map(criterion => [criterion.id, criterion.label])),
+      },
+    },
+  };
+  if (admission !== undefined) {
+    try {
+      const result = await admission();
+      if (result !== 'admitted') {
+        return failure(result === 'disabled' || result === 'rate_limited' ? result : 'unavailable');
+      }
+    } catch {
+      return failure('unavailable');
+    }
+  }
   let raw: unknown;
   try {
-    raw = await ai.run('@cf/cloudflare/clef', {
-      model: 'clef',
-      state: parsed.state,
-      questions: {
-        decision: {
-          type: 'choice',
-          instructions: parsed.instructions,
-          criteria: Object.fromEntries(parsed.criteria.map(criterion => [criterion.id, criterion.label])),
-        },
-      },
-    }, { returnRawResponse: true });
+    raw = await ai.run('@cf/cloudflare/clef', input, { returnRawResponse: true });
   } catch {
     return failure('model_error');
   }

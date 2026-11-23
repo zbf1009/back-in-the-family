@@ -20,7 +20,7 @@ async function fixture(t: TestContext): Promise<string> {
   t.after(async () => { await rm(project, { recursive: true, force: true }); });
   const paths = [
     'worker-api/hosted-candidate.jsonc', 'worker-api/wrangler.jsonc',
-    'worker-api/src/index.ts', 'worker-api/src/handler.ts',
+    'worker-api/src/index.ts', 'worker-api/src/handler.ts', 'worker-api/src/http.ts',
     'web/src/shared/decision.ts', 'web/src/shared/decision-contract.ts',
     'target/decision-worker/worker.js', 'target/decision-worker/build.json',
     'web/wrangler.jsonc', '.github/workflows/deploy.yml',

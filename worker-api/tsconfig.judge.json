@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["judge-configuration.d.ts", "runtime-configuration.d.ts", "src/judge.ts", "src/judge-gate.ts", "src/handler.ts", "src/http.ts"]
+}

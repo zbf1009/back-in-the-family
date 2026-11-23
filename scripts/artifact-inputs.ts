@@ -36,7 +36,7 @@ const SHA = /^[a-f0-9]{64}$/;
 export const SOURCE_INPUT_PATHS = ['Cargo.toml', 'Cargo.lock', 'crates/sim-core/Cargo.toml', 'crates/sim-wasm/Cargo.toml',
   'rust-toolchain.toml', 'mise.toml', '.cargo/config.toml', 'web/package.json', 'web/pnpm-lock.yaml',
   'web/vite.config.ts', 'web/tsconfig.app.json', 'web/tsconfig.worker.json', 'web/tsconfig.node.json', 'web/index.html', 'web/assets/ASSETS.json',
-  'web/wrangler.jsonc', 'worker-api/package.json', 'worker-api/wrangler.jsonc', 'worker-api/tsconfig.json',
+  'web/wrangler.jsonc', 'worker-api/package.json', 'worker-api/wrangler.jsonc', 'worker-api/tsconfig.json', 'worker-api/runtime-configuration.d.ts',
   'scripts/wasm-build.sh', 'scripts/web-build.sh', 'scripts/worker-build.sh', 'scripts/gates.sh',
   'scripts/check-decision-contract.ts', 'scripts/tests/decision-contract.test.ts', 'scripts/artifact-inputs.ts',
   'scripts/artifact-licenses.ts', 'scripts/check-artifact.ts', 'scripts/artifact-sdk-lock.ts',
@@ -170,7 +170,7 @@ export async function validateAssets(projectRoot: string, files: readonly Artifa
   assert.ok(assetInventoryOffenders(entries, inventory, readme).length === 0, 'Asset media must match the checked licensed inventory and committed attribution facts');
   assertPrivateContent(files);
 }
-async function checkedSource(projectRoot: string, identity: ReleaseIdentity) {
+export async function checkedSource(projectRoot: string, identity: ReleaseIdentity, additionalPaths: readonly string[] = []) {
   validateIdentity(identity);
   assert.ok(await currentSourceCommit(projectRoot) === identity.sourceCommit, 'Checked source HEAD differs from release identity');
   assert.ok(process.version === 'v26.7.0', 'Use prepared pinned Node');
@@ -179,7 +179,8 @@ async function checkedSource(projectRoot: string, identity: ReleaseIdentity) {
   try { validateSourceConfig(readWranglerConfig(sourcePath).raw); }
   catch { throw new Error('Source Worker config violates the closed disabled profile (contents redacted)'); }
   assert.ok(PROJECT_REQUEST_BYTE_CAP === 16384, 'The measured project transport policy must be explicit');
-  const paths = [...SOURCE_INPUT_PATHS, ...Object.values(METADATA_INPUT_PATHS)];
+  for (const path of additionalPaths) safeRelativePath(path);
+  const paths = [...SOURCE_INPUT_PATHS, ...Object.values(METADATA_INPUT_PATHS), ...additionalPaths];
   for (const directory of SOURCE_INPUT_DIRECTORIES) for (const file of await readClosedTree(join(projectRoot, directory))) paths.push(`${directory}/${file.path}`);
   const sources: Record<string, string> = {};
   const blobs: Record<string, string> = {};
@@ -192,7 +193,7 @@ async function checkedSource(projectRoot: string, identity: ReleaseIdentity) {
   }
   validateLicenseSourceVersions(licenseMetadata['Cargo.lock']!, licenseMetadata['rust-toolchain.toml']!, licenseMetadata['web/package.json']!);
   const tracked = await exec('git', ['-C', projectRoot, 'ls-tree', '-r', '-z', '--full-tree', identity.sourceCommit, '--',
-    ...SOURCE_INPUT_PATHS, ...SOURCE_INPUT_DIRECTORIES, ...Object.values(METADATA_INPUT_PATHS)], { maxBuffer: 8 * 1024 * 1024 });
+    ...SOURCE_INPUT_PATHS, ...SOURCE_INPUT_DIRECTORIES, ...Object.values(METADATA_INPUT_PATHS), ...additionalPaths], { maxBuffer: 8 * 1024 * 1024 });
   const committed: Record<string, string> = {};
   for (const entry of tracked.stdout.split('\0').filter(Boolean)) {
     const match = /^100(?:644|755) blob ([a-f0-9]{40})\t(.+)$/.exec(entry);

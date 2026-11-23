@@ -21,20 +21,24 @@ test('Property 6: generated closed requests accept exact bytes and reject malfor
     } };
     const bytes = new TextEncoder().encode(JSON.stringify(request)).byteLength;
     const env = { ...enabledVariables(), MAX_REQUEST_BYTES: bytes, AI };
-    const response = await handleRequest(post(request), env);
+    let admissions = 0;
+    const admission = async () => { admissions += 1; return 'admitted' as const; };
+    const response = await handleRequest(post(request), env, undefined, admission);
     assert.equal(response.status, 200);
     assert.ok(isModelDecision(await publicBody(response), request));
     assert.equal(calls, 1);
-    await expectError(await handleRequest(post(request), { ...env, MAX_REQUEST_BYTES: bytes - 1 }), 'payload_too_large', 413);
+    assert.equal(admissions, 1);
+    await expectError(await handleRequest(post(request), { ...env, MAX_REQUEST_BYTES: bytes - 1 }, undefined, admission), 'payload_too_large', 413);
     for (const invalid of [
       { ...request, extra: true }, { ...request, metadata: {} }, { ...request, mapping_hash: 'wrong' },
       { ...request, criteria: [request.criteria[0], request.criteria[0]] },
       { ...request, criteria: [{ id: 'INVALID', label: state }, request.criteria[1]] },
       { ...request, metadata: { bridge_version: { a: { b: { c: {} } } } } },
     ]) {
-      await expectError(await handleRequest(post(invalid), { ...env, MAX_REQUEST_BYTES: DECISION_WIRE_BOUNDS.requestBytesCeiling }), 'malformed_request', 400);
+      await expectError(await handleRequest(post(invalid), { ...env, MAX_REQUEST_BYTES: DECISION_WIRE_BOUNDS.requestBytesCeiling }, undefined, admission), 'malformed_request', 400);
     }
     assert.equal(calls, 1);
+    assert.equal(admissions, 1);
   }), { numRuns: 100, seed: 73106 });
 });
 

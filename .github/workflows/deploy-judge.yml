@@ -1,0 +1,350 @@
+name: deploy-judge
+
+on:
+  workflow_run:
+    workflows: [deploy]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: judge-main
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.repository == 'zbf1009/back-in-the-family' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    outputs:
+      source_sha: ${{ steps.trust.outputs.source_sha }}
+      upstream_run_id: ${{ steps.trust.outputs.upstream_run_id }}
+      upstream_run_attempt: ${{ steps.trust.outputs.upstream_run_attempt }}
+      upstream_artifact_id: ${{ steps.trust.outputs.upstream_artifact_id }}
+      upstream_archive_sha: ${{ steps.trust.outputs.upstream_archive_sha }}
+      upstream_envelope_sha: ${{ steps.trust.outputs.upstream_envelope_sha }}
+      manifest_sha: ${{ steps.gates.outputs.manifest_sha }}
+      artifact_id: ${{ steps.upload.outputs.artifact-id }}
+      run_id: ${{ github.run_id }}
+      run_attempt: ${{ github.run_attempt }}
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
+      CLOUDFLARE_INCLUDE_PROCESS_ENV: "false"
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+    steps:
+      # Authenticate the producer before checking out or executing any source from it.
+      - name: Authenticate exact successful main producer and raw archive
+        id: trust
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, stat, subprocess, zipfile
+          repo = 'zbf1009/back-in-the-family'
+          event = json.load(open(os.environ['GITHUB_EVENT_PATH']))
+          assert os.environ['GITHUB_REPOSITORY'] == repo and event['repository']['full_name'] == repo
+          supplied = event['workflow_run']
+          assert isinstance(supplied['id'], int) and supplied['id'] > 0
+          def api(path):
+              return json.loads(subprocess.check_output(['gh', 'api', path]))
+          run = api(f'repos/{repo}/actions/runs/{supplied["id"]}')
+          assert run['id'] == supplied['id'] and run['run_attempt'] == supplied['run_attempt']
+          assert run['status'] == 'completed' and run['conclusion'] == 'success' and run['event'] == 'push'
+          assert run['head_branch'] == 'main' and run['repository']['full_name'] == repo and run['head_repository']['full_name'] == repo
+          assert supplied['event'] == 'push' and supplied['head_branch'] == 'main' and supplied['head_repository']['full_name'] == repo
+          assert run['path'] == '.github/workflows/deploy.yml' and run['head_sha'] == supplied['head_sha']
+          workflow = api(f'repos/{repo}/actions/workflows/{run["workflow_id"]}')
+          assert workflow['path'] == '.github/workflows/deploy.yml' and workflow['name'] == 'deploy'
+          assert re.fullmatch('[a-f0-9]{40}', run['head_sha']) and run['run_attempt'] > 0
+          assert api(f'repos/{repo}/git/ref/heads/main')['object']['sha'] == run['head_sha'], 'Stale producer main head'
+          matches = []
+          page = 1
+          while True:
+              artifacts = api(f'repos/{repo}/actions/runs/{run["id"]}/artifacts?per_page=100&page={page}')['artifacts']
+              matches += [a for a in artifacts if a['name'] == f'checked-artifact-{run["id"]}-{run["run_attempt"]}']
+              if len(artifacts) < 100: break
+              page += 1
+          assert len(matches) == 1
+          artifact = api(f'repos/{repo}/actions/artifacts/{matches[0]["id"]}')
+          assert artifact['id'] == matches[0]['id'] and artifact['id'] > 0 and artifact['expired'] is False
+          assert artifact['name'] == f'checked-artifact-{run["id"]}-{run["run_attempt"]}'
+          producer = artifact['workflow_run']
+          assert producer['id'] == run['id'] and producer['head_sha'] == run['head_sha'] and producer['head_branch'] == 'main'
+          assert producer['repository_id'] == run['repository']['id'] and producer['head_repository_id'] == run['repository']['id']
+          assert re.fullmatch('sha256:[a-f0-9]{64}', artifact.get('digest', '')), 'Authenticated archive digest is required'
+          trust = pathlib.Path(os.environ['RUNNER_TEMP']) / 'judge-upstream'
+          trust.mkdir()
+          archive = trust / 'upstream.zip'
+          with archive.open('wb') as output:
+              subprocess.run(['gh', 'api', f'repos/{repo}/actions/artifacts/{artifact["id"]}/zip'], stdout=output, check=True)
+          archive_sha = hashlib.sha256(archive.read_bytes()).hexdigest()
+          assert archive_sha == artifact['digest'][7:], 'Actual raw ZIP differs from authenticated metadata'
+          destination = trust / 'upstream'
+          destination.mkdir()
+          with zipfile.ZipFile(archive) as package:
+              entries = package.infolist()
+              assert len({e.filename for e in entries}) == len(entries)
+              assert sum(e.file_size for e in entries) <= 536870912
+              for entry in entries:
+                  path = pathlib.PurePosixPath(entry.filename)
+                  assert not path.is_absolute() and all(p not in ('', '.', '..') for p in path.parts) and '\\' not in entry.filename
+                  assert not stat.S_ISLNK(entry.external_attr >> 16)
+                  assert entry.is_dir() or stat.S_IFMT(entry.external_attr >> 16) in (0, stat.S_IFREG)
+                  assert entry.file_size <= 26214400
+              package.extractall(destination)
+          envelope_sha = hashlib.sha256((destination / 'inputs.json').read_bytes()).hexdigest()
+          values = dict(source_sha=run['head_sha'], upstream_run_id=str(run['id']), upstream_run_attempt=str(run['run_attempt']),
+                        upstream_artifact_id=str(artifact['id']), upstream_archive_sha=archive_sha, upstream_envelope_sha=envelope_sha)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              for key, value in values.items(): output.write(f'{key}={value}\n')
+          PY
+
+      - name: Check out authenticated exact source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ steps.trust.outputs.source_sha }}
+          persist-credentials: false
+
+      - name: Install pinned Rust prerequisites without compilation
+        run: rustup show
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      - name: Prepare existing frozen offline dependencies
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          scripts/prepare-gates.sh
+          mkdir -p target/judge-upstream
+          cp -a "$RUNNER_TEMP/judge-upstream/." target/judge-upstream/
+
+      - name: Restore upstream and check judge offline
+        id: gates
+        env:
+          SOURCE_SHA: ${{ steps.trust.outputs.source_sha }}
+          UPSTREAM_RUN_ID: ${{ steps.trust.outputs.upstream_run_id }}
+          UPSTREAM_RUN_ATTEMPT: ${{ steps.trust.outputs.upstream_run_attempt }}
+          UPSTREAM_ARTIFACT_ID: ${{ steps.trust.outputs.upstream_artifact_id }}
+          UPSTREAM_ARCHIVE_SHA: ${{ steps.trust.outputs.upstream_archive_sha }}
+          UPSTREAM_ENVELOPE_SHA: ${{ steps.trust.outputs.upstream_envelope_sha }}
+        run: |
+          set -euo pipefail
+          scripts/judge-gates.sh --mode ci --input target/judge-upstream/upstream \
+            --archive target/judge-upstream/upstream.zip --archive-sha "$UPSTREAM_ARCHIVE_SHA" \
+            --artifact-id "$UPSTREAM_ARTIFACT_ID" --envelope-sha "$UPSTREAM_ENVELOPE_SHA" \
+            --source-commit "$SOURCE_SHA" --upstream-run-id "$UPSTREAM_RUN_ID" \
+            --upstream-run-attempt "$UPSTREAM_RUN_ATTEMPT" --run-id "$GITHUB_RUN_ID" \
+            --run-attempt "$GITHUB_RUN_ATTEMPT" | tee "$RUNNER_TEMP/judge-gates.log"
+          manifest_sha=$(grep -E '^manifest_sha=[a-f0-9]{64}$' "$RUNNER_TEMP/judge-gates.log")
+          [[ $(printf '%s\n' "$manifest_sha" | wc -l) == 1 ]]
+          printf '%s\n' "$manifest_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Upload immutable checked judge release
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: checked-judge-${{ github.run_id }}-${{ github.run_attempt }}
+          path: target/judge-release/
+          if-no-files-found: error
+          include-hidden-files: false
+          overwrite: false
+          retention-days: 7
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    concurrency:
+      group: judge-deploy-main
+      cancel-in-progress: false
+    env:
+      WRANGLER_SEND_METRICS: "false"
+      CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
+      CLOUDFLARE_INCLUDE_PROCESS_ENV: "false"
+      PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
+      SOURCE_SHA: ${{ needs.check.outputs.source_sha }}
+      UPSTREAM_RUN_ID: ${{ needs.check.outputs.upstream_run_id }}
+      UPSTREAM_RUN_ATTEMPT: ${{ needs.check.outputs.upstream_run_attempt }}
+      UPSTREAM_ARTIFACT_ID: ${{ needs.check.outputs.upstream_artifact_id }}
+      UPSTREAM_ARCHIVE_SHA: ${{ needs.check.outputs.upstream_archive_sha }}
+      UPSTREAM_ENVELOPE_SHA: ${{ needs.check.outputs.upstream_envelope_sha }}
+      JUDGE_MANIFEST_SHA: ${{ needs.check.outputs.manifest_sha }}
+      JUDGE_RUN_ID: ${{ needs.check.outputs.run_id }}
+      JUDGE_RUN_ATTEMPT: ${{ needs.check.outputs.run_attempt }}
+      JUDGE_ARTIFACT_ID: ${{ needs.check.outputs.artifact_id }}
+    steps:
+      - name: Reauthenticate producer and exact judge archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, stat, subprocess, zipfile
+          repo = 'zbf1009/back-in-the-family'
+          def api(path): return json.loads(subprocess.check_output(['gh', 'api', path]))
+          assert os.environ['GITHUB_REPOSITORY'] == repo
+          for key in ('UPSTREAM_RUN_ID', 'UPSTREAM_RUN_ATTEMPT', 'UPSTREAM_ARTIFACT_ID', 'JUDGE_RUN_ID', 'JUDGE_RUN_ATTEMPT', 'JUDGE_ARTIFACT_ID'):
+              assert re.fullmatch('[1-9][0-9]*', os.environ[key])
+          for key in ('UPSTREAM_ARCHIVE_SHA', 'UPSTREAM_ENVELOPE_SHA', 'JUDGE_MANIFEST_SHA'):
+              assert re.fullmatch('[a-f0-9]{64}', os.environ[key])
+          source = os.environ['SOURCE_SHA']
+          assert re.fullmatch('[a-f0-9]{40}', source)
+          assert os.environ['JUDGE_RUN_ID'] == os.environ['GITHUB_RUN_ID'] and os.environ['JUDGE_RUN_ATTEMPT'] == os.environ['GITHUB_RUN_ATTEMPT']
+          current = api(f'repos/{repo}/actions/runs/{os.environ["JUDGE_RUN_ID"]}')
+          assert current['event'] == 'workflow_run' and current['path'] == '.github/workflows/deploy-judge.yml'
+          assert current['repository']['full_name'] == repo and current['head_repository']['full_name'] == repo and current['head_sha'] == source
+          run = api(f'repos/{repo}/actions/runs/{os.environ["UPSTREAM_RUN_ID"]}')
+          assert run['id'] == int(os.environ['UPSTREAM_RUN_ID']) and run['run_attempt'] == int(os.environ['UPSTREAM_RUN_ATTEMPT'])
+          assert run['event'] == 'push' and run['status'] == 'completed' and run['conclusion'] == 'success' and run['head_branch'] == 'main'
+          assert run['repository']['full_name'] == repo and run['head_repository']['full_name'] == repo and run['head_sha'] == source
+          assert run['path'] == '.github/workflows/deploy.yml'
+          upstream = api(f'repos/{repo}/actions/artifacts/{os.environ["UPSTREAM_ARTIFACT_ID"]}')
+          assert upstream['name'] == f'checked-artifact-{run["id"]}-{run["run_attempt"]}' and upstream['expired'] is False
+          assert upstream['workflow_run']['id'] == run['id'] and upstream['workflow_run']['head_sha'] == source
+          assert upstream['workflow_run']['head_repository_id'] == run['repository']['id'] and upstream['workflow_run']['repository_id'] == run['repository']['id']
+          assert upstream['digest'] == 'sha256:' + os.environ['UPSTREAM_ARCHIVE_SHA']
+          assert api(f'repos/{repo}/git/ref/heads/main')['object']['sha'] == source, 'Stale judge source'
+          judge = api(f'repos/{repo}/actions/artifacts/{os.environ["JUDGE_ARTIFACT_ID"]}')
+          assert judge['id'] == int(os.environ['JUDGE_ARTIFACT_ID']) and judge['expired'] is False
+          assert judge['name'] == f'checked-judge-{os.environ["JUDGE_RUN_ID"]}-{os.environ["JUDGE_RUN_ATTEMPT"]}'
+          assert judge['workflow_run']['id'] == int(os.environ['JUDGE_RUN_ID']) and judge['workflow_run']['head_sha'] == source
+          assert judge['workflow_run']['repository_id'] == run['repository']['id'] and judge['workflow_run']['head_repository_id'] == run['repository']['id']
+          assert re.fullmatch('sha256:[a-f0-9]{64}', judge.get('digest', ''))
+          trust = pathlib.Path(os.environ['RUNNER_TEMP']) / 'judge-checked'
+          trust.mkdir()
+          archive = trust / 'judge.zip'
+          with archive.open('wb') as output:
+              subprocess.run(['gh', 'api', f'repos/{repo}/actions/artifacts/{judge["id"]}/zip'], stdout=output, check=True)
+          assert hashlib.sha256(archive.read_bytes()).hexdigest() == judge['digest'][7:], 'Raw judge ZIP digest mismatch'
+          with zipfile.ZipFile(archive) as package:
+              entries = package.infolist()
+              assert len({e.filename for e in entries}) == len(entries) and sum(e.file_size for e in entries) <= 1073741824
+              for entry in entries:
+                  path = pathlib.PurePosixPath(entry.filename)
+                  assert not path.is_absolute() and all(p not in ('', '.', '..') for p in path.parts) and '\\' not in entry.filename
+                  assert not stat.S_ISLNK(entry.external_attr >> 16)
+                  assert entry.is_dir() or stat.S_IFMT(entry.external_attr >> 16) in (0, stat.S_IFREG)
+                  assert entry.file_size <= 536870912
+              package.extractall(trust / 'packet')
+          manifest = trust / 'packet/target/judge-worker/judge-manifest.json'
+          assert hashlib.sha256(manifest.read_bytes()).hexdigest() == os.environ['JUDGE_MANIFEST_SHA']
+          PY
+
+      - name: Check out exact checked source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.check.outputs.source_sha }}
+          persist-credentials: false
+      - name: Install pinned Rust prerequisites without compilation
+        run: rustup show
+      - uses: jdx/mise-action@f5be966e4a917d54244728e6a5fdcd1d93a35e6c # v5.2.6
+      - name: Prepare existing pinned checker dependencies
+        run: |
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          scripts/prepare-gates.sh
+          mkdir -p target/judge-release
+          cp -a "$RUNNER_TEMP/judge-checked/packet/." target/judge-release/
+      - name: Verify immutable judge bytes offline without rebuilding
+        run: |
+          set -euo pipefail
+          trust=(--mode ci --input target/judge-release/upstream --archive target/judge-release/upstream.zip
+            --archive-sha "$UPSTREAM_ARCHIVE_SHA" --artifact-id "$UPSTREAM_ARTIFACT_ID"
+            --envelope-sha "$UPSTREAM_ENVELOPE_SHA" --source-commit "$SOURCE_SHA"
+            --upstream-run-id "$UPSTREAM_RUN_ID" --upstream-run-attempt "$UPSTREAM_RUN_ATTEMPT"
+            --run-id "$JUDGE_RUN_ID" --run-attempt "$JUDGE_RUN_ATTEMPT" --manifest-sha "$JUDGE_MANIFEST_SHA")
+          scripts/offline-gates.sh node scripts/check-judge-artifact.ts restore-judge "${trust[@]}" --packet target/judge-release
+          scripts/offline-gates.sh node scripts/check-judge-artifact.ts check "${trust[@]}"
+      - name: Reject stale source immediately before scoped publication
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          [[ $(gh api repos/zbf1009/back-in-the-family/git/ref/heads/main --jq .object.sha) == "$SOURCE_SHA" ]]
+
+      # Only this step receives Cloudflare credentials. CI never creates or replaces JUDGE_CODE.
+      - name: Provision disabled, require installed native prerequisites, then enable same namespace
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          EXPECTED_NAMESPACE_ID: ${{ vars.JUDGE_EXPECTED_NAMESPACE_ID }}
+          EXPECT_ABSENT: ${{ vars.JUDGE_EXPECT_ABSENT }}
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { spawnSync } from 'node:child_process';
+          import { resolve } from 'node:path';
+          const name = 'back-in-the-family-judge';
+          const account = process.env.CLOUDFLARE_ACCOUNT_ID;
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          assert.ok(/^[a-f0-9]{32}$/.test(account ?? '') && token, 'Scoped deployment credentials are unavailable');
+          const base = `https://api.cloudflare.com/client/v4/accounts/${account}`;
+          async function api(path, absent = false) {
+            const response = await fetch(base + path, { headers: { authorization: `Bearer ${token}` } });
+            if (absent && response.status === 404) return null;
+            assert.ok(response.ok, 'Scoped Cloudflare metadata request failed (contents redacted)');
+            const body = await response.json();
+            assert.ok(body.success === true, 'Scoped Cloudflare metadata rejected (contents redacted)');
+            return body.result;
+          }
+          async function ownedNamespaces() {
+            const namespaces = [];
+            for (let page = 1; ; page++) {
+              const items = await api(`/workers/durable_objects/namespaces?per_page=1000&page=${page}`);
+              namespaces.push(...items);
+              if (items.length < 1000) return namespaces;
+            }
+          }
+          const endpoint = `/workers/scripts/${name}`;
+          let expected = process.env.EXPECTED_NAMESPACE_ID;
+          const before = await api(endpoint + '/settings', true);
+          if (before === null) {
+            assert.ok(process.env.EXPECT_ABSENT === 'true' && !expected, 'Absent target must be explicitly confirmed before first write');
+            const namespaces = await ownedNamespaces();
+            assert.ok(!namespaces.some(ns => ns.script === name), 'Unexpected existing judge namespace must not be overwritten');
+          } else {
+            assert.ok(/^[a-f0-9]{32}$/.test(expected ?? ''), 'Existing target requires recorded owned namespace identity');
+            const gate = before.bindings.filter(binding => binding.name === 'JUDGE_GATE');
+            assert.ok(gate.length === 1 && gate[0].type === 'durable_object_namespace' && gate[0].class_name === 'JudgeGate' && gate[0].namespace_id === expected && (gate[0].script_name === undefined || gate[0].script_name === name), 'Existing judge ownership/binding differs');
+          }
+          function deploy(config) {
+            const result = spawnSync('pnpm', ['--dir', 'web', 'exec', 'wrangler', 'deploy', '--config', resolve(config)], { stdio: 'inherit' });
+            assert.ifError(result.error); assert.ok(result.status === 0, 'Scoped checked deployment failed');
+          }
+          const disabled = 'target/judge-worker/deploy-disabled.jsonc';
+          deploy(disabled);
+          async function prerequisites(enabled) {
+            const settings = await api(endpoint + '/settings');
+            const bindings = settings.bindings;
+            const gate = bindings.filter(binding => binding.name === 'JUDGE_GATE');
+            assert.ok(gate.length === 1 && gate[0].type === 'durable_object_namespace' && gate[0].class_name === 'JudgeGate' && (gate[0].script_name === undefined || gate[0].script_name === name));
+            if (!expected) expected = gate[0].namespace_id;
+            assert.ok(gate[0].namespace_id === expected, 'Judge namespace must remain stable across deployments');
+            const namespaces = await ownedNamespaces();
+            const namespace = namespaces.find(ns => ns.id === expected);
+            assert.ok(namespace && namespace.script === name && namespace.class === 'JudgeGate' && namespace.use_sqlite === true, 'Native JudgeGate namespace is not SQLite');
+            assert.ok(bindings.some(binding => binding.name === 'AI' && binding.type === 'ai') && bindings.some(binding => binding.name === 'ASSETS' && binding.type === 'assets'), 'Native required bindings are unavailable');
+            const subdomain = await api(endpoint + '/subdomain');
+            assert.ok(subdomain.enabled === true && subdomain.previews_enabled === false, 'Judge preview/version URLs must remain off');
+            for (const [variable, value] of Object.entries({ INFERENCE_ENABLED: String(enabled), MAX_REQUEST_BYTES: '16384', SESSION_CAP: '10', JUDGE_DAILY_CAP: '40', JUDGE_SESSION_TTL_SECONDS: '86400' })) {
+              const values = bindings.filter(binding => binding.name === variable);
+              assert.ok(values.length === 1 && values[0].type === 'plain_text' && values[0].text === value, 'Remote judge policy differs');
+            }
+            const secrets = await api(endpoint + '/secrets');
+            assert.ok(secrets.some(secret => secret.name === 'JUDGE_CODE' && secret.type === 'secret_text'), 'JUDGE_CODE is not installed; disabled target retained for private stdin installation');
+            const config = await fetch(`https://${name}.${(await api('/workers/subdomain')).subdomain}.workers.dev/api/decision/config`, { redirect: 'error' });
+            assert.ok(config.status === (enabled ? 200 : 503), 'Native judge configuration is unavailable');
+            const wire = await config.json();
+            const expectedWire = enabled ? { version: 'decision-config-v1', enabled: false, session_cap: 0 }
+              : { version: 'decision-error-v1', error: { kind: 'disabled' } };
+            assert.ok(JSON.stringify(wire) === JSON.stringify(expectedWire), 'Anonymous native judge config must dispatch nothing');
+          }
+          let activationAttempted = false;
+          try {
+            await prerequisites(false);
+            activationAttempted = true;
+            deploy('worker-api/judge-hosted.jsonc');
+            await prerequisites(true);
+            console.log('Checked judge release enabled on the same owned SQLite namespace; secret values omitted.');
+          } catch {
+            if (activationAttempted) deploy(disabled);
+            throw new Error('Judge prerequisites failed; checked disabled variant retained on the same namespace for scoped repair (contents redacted)');
+          }
+          JS

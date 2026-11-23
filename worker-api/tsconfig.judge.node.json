@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.node.json",
+  "include": ["src/handler.ts", "src/http.ts", "scripts/**/*.ts", "tests/judge/runtime.test.ts", "tests/judge/artifact.test.ts", "tests/helpers/runtime.ts", "tests/helpers/judge-runtime.ts", "tests/helpers/decision.ts", "../scripts/check-judge-artifact.ts"],
+  "exclude": ["worker-configuration.d.ts", "judge-configuration.d.ts", "runtime-configuration.d.ts", "src/index.ts", "src/judge.ts", "src/judge-gate.ts", "tests/judge/unit.test.ts", "tests/unit", "tests/runtime"]
+}

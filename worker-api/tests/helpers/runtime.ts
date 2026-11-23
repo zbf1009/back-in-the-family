@@ -3,13 +3,13 @@ import { readFile, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { URL } from 'node:url';
-import type { Miniflare, V4WorkerOptions } from 'worker-tools/miniflare';
+import type { DurableObjectStorageHandle, Miniflare, MiniflareOptions, V4FetchHandler, V4WorkerOptions, WorkerOptions } from 'worker-tools/miniflare';
 import type * as MiniflareTools from 'worker-tools/miniflare';
 import type * as WranglerTools from '../../../web/node_modules/wrangler';
 import { decisionObject } from '../../../web/src/shared/decision.ts';
 import { nativeResult } from './decision.ts';
 import { root, sourceConfig } from '../../scripts/profile.ts';
-import type { SourceConfig } from '../../scripts/profile.ts';
+import type { JudgeSourceConfig, SourceConfig, WorkerProfile } from '../../scripts/profile.ts';
 import { assertWorkerTools, requireTools } from '../../scripts/tools.ts';
 import { checkedWorkerBundle } from '../../scripts/bundle.ts';
 
@@ -61,23 +61,43 @@ export interface RuntimeFixture {
   dispose(): Promise<void>;
 }
 
-export async function runtimeFixture(options: {
+export interface RuntimeFixtureOptions {
   variables?: Record<string, unknown>;
   result?: unknown;
   status?: number;
   fault?: ConfigFault;
   externalFault?: boolean;
-} = {}): Promise<RuntimeFixture> {
+}
+
+export interface JudgeFixtureControls {
+  workerName: string;
+  persistencePath: string;
+  readonly reserveAttempts: number;
+  setTime(ms: number): Promise<void>;
+  storage(): Promise<DurableObjectStorageHandle>;
+  evict(): Promise<void>;
+}
+
+export async function runtimeFixture(options: RuntimeFixtureOptions = {}): Promise<RuntimeFixture> {
+  return profileRuntimeFixture(await sourceConfig(), 'generic', root, options);
+}
+
+export async function profileRuntimeFixture(
+  config: SourceConfig | JudgeSourceConfig,
+  profile: WorkerProfile,
+  projectRoot: string,
+  options: RuntimeFixtureOptions & { persistencePath?: string; nowMs?: number; reserveFault?: 'reject-after-commit' } = {},
+): Promise<RuntimeFixture & JudgeFixtureControls> {
   process.env.WRANGLER_SEND_METRICS = 'false';
   process.env.CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV = 'false';
-  const config = await sourceConfig();
-  const assetsDir = resolve(root, 'worker-api', config.assets.directory);
+  assert.ok(options.reserveFault === undefined || (profile === 'judge' && options.reserveFault === 'reject-after-commit'), 'Reserve faults are judge-fixture-only');
+  const assetsDir = resolve(projectRoot, 'worker-api', config.assets.directory);
   assert.ok((await readFile(join(assetsDir, 'index.html'))).byteLength > 0, 'Build checked web/dist first');
-  config.main = resolve(root, 'worker-api', config.main);
+  config.main = resolve(projectRoot, 'worker-api', config.main);
   config.assets.directory = assetsDir;
   config.vars = { ...config.vars, ...options.variables };
   if (options.fault) applyConfigFault(config, options.fault);
-  if (options.externalFault !== false && process.env.WORKER_API_FAULT) {
+  if (profile === 'generic' && options.externalFault !== false && process.env.WORKER_API_FAULT) {
     const fault = process.env.WORKER_API_FAULT;
     assert.ok(['missing-ai', 'missing-exact-worker-first', 'missing-wildcard-worker-first', 'broken-spa'].includes(fault));
     applyConfigFault(config, fault as ConfigFault);
@@ -87,7 +107,11 @@ export async function runtimeFixture(options: {
   // config: Wrangler rejects local AI before it can return Miniflare options.
   const nativeAI = config.ai;
   delete config.ai;
+  let nowMs = options.nowMs;
+  if (nowMs !== undefined) assert.ok(Number.isSafeInteger(nowMs) && nowMs >= 0, 'Fixture time must be a nonnegative safe integer');
   const temp = await mkdtemp(join(tmpdir(), 'worker-api-runtime-'));
+  const persistencePath = options.persistencePath === undefined ? join(temp, 'storage') : resolve(options.persistencePath);
+  const workerName = profile === 'judge' ? 'judge-api' : 'decision-api';
   let runtime: Miniflare | undefined;
   try {
     const path = join(temp, 'wrangler.jsonc');
@@ -104,7 +128,17 @@ export async function runtimeFixture(options: {
     assert.equal(workerOptions.assets?.binding, 'ASSETS');
     assert.deepEqual(Object.keys(workerOptions.bindings ?? {}).sort(), Object.keys(config.vars).sort());
     assert.deepEqual(workerOptions.serviceBindings ?? {}, {});
-    for (const key of ['kvNamespaces', 'd1Databases', 'r2Buckets', 'durableObjects', 'queueProducers',
+    if (profile === 'judge') {
+      assert.deepEqual(Object.keys(workerOptions.durableObjects ?? {}), ['JUDGE_GATE'], 'Only the judge SQLite binding is permitted');
+      const gate = workerOptions.durableObjects?.JUDGE_GATE;
+      assert.ok(decisionObject(gate));
+      assert.equal(gate.className, 'JudgeGate');
+      assert.equal(gate.useSQLite, true, 'The pinned Wrangler converter must enable real SQLite storage');
+      assert.equal(gate.scriptName, undefined);
+      assert.equal(gate.container, undefined);
+      assert.ok(Object.keys(gate).every(key => ['className', 'useSQLite', 'scriptName', 'container'].includes(key)));
+    }
+    for (const key of ['kvNamespaces', 'd1Databases', 'r2Buckets', ...(profile === 'generic' ? ['durableObjects'] as const : []), 'queueProducers',
       'queueConsumers', 'hyperdrives', 'ratelimits', 'unsafeBindings', 'workflows', 'tails', 'streamingTails'] as const) {
       const value = workerOptions[key];
       assert.ok(value === undefined || (Array.isArray(value) ? value.length === 0
@@ -112,11 +146,13 @@ export async function runtimeFixture(options: {
     }
     // Execute the exact module checked and staged by Worker_Build, never a second
     // test-only esbuild build that could mask a broken Wrangler bundle.
-    const script = await checkedWorkerBundle();
+    const script = await checkedWorkerBundle(projectRoot, profile);
     const { modulesRules: _rules, ai: _removedAI, ...withoutAI } = workerOptions;
     // Also omit native AI from V4 options: its converter runs after service
     // bindings and would otherwise overwrite the local RPC fake.
     const calls: { model: unknown; input: unknown }[] = [];
+    let reserveAttempts = 0;
+    let reserveFaultUsed = false;
     const tools = offlineMiniflare();
     let outboundDenials = 0;
     const deny = () => {
@@ -126,8 +162,22 @@ export async function runtimeFixture(options: {
       });
     };
     const user: V4WorkerOptions = {
-      ...withoutAI, name: 'decision-api', modules: true, script,
-      serviceBindings: nativeAI ? { AI: { name: 'fake-ai', entrypoint: 'FakeAI' } } : {},
+      ...withoutAI, name: workerName, modules: true, script,
+      serviceBindings: {
+        ...(nativeAI ? { AI: { name: 'fake-ai', entrypoint: 'FakeAI' } } : {}),
+        ...(options.reserveFault ? { FIXTURE_EVENTS: async (request: Parameters<V4FetchHandler>[0]) => {
+          const path = new URL(request.url).pathname;
+          assert.equal(request.method, 'POST');
+          if (path === '/attempt') {
+            reserveAttempts += 1;
+            return new tools.Response(null, { status: 204 });
+          }
+          assert.equal(path, '/committed');
+          const reject = !reserveFaultUsed;
+          reserveFaultUsed = true;
+          return new tools.Response(reject ? 'reject' : 'forward');
+        } } : {}),
+      },
       outboundService: deny, unsafeRegisterWorker: false,
     };
     const fake: V4WorkerOptions = {
@@ -143,11 +193,65 @@ export async function runtimeFixture(options: {
       outboundService: deny, unsafeRegisterWorker: false,
       unsafeDirectSockets: [{ host: '127.0.0.1', port: 0, entrypoint: 'default' }],
     };
-    const runtimeOptions = tools.convertV4MiniflareOptions({
-      workers: [user, fake], rootPath: temp, cf: false, host: '127.0.0.1', port: 0,
-      log: new tools.Log(tools.LogLevel.ERROR), logRequests: false,
-      telemetry: { enabled: false }, unsafeLocalExplorer: false, unsafeObservability: false,
-    });
+    const makeRuntimeOptions = (): MiniflareOptions => {
+      // Initialize the fixture clock inside each workerd module context, not in
+      // Node. Reload only fixture modules, retaining the byte-exact checked
+      // bundle and the same caller-owned SQLite persistence directory.
+      const source = profile === 'judge' ? {
+        ...user,
+        modulesRoot: temp,
+        modules: [
+          { type: 'ESModule' as const, path: join(temp, 'fixture.js'), contents: options.reserveFault ? `
+import './fixture-clock.js';
+import worker, { JudgeGate } from './checked-worker.js';
+export { JudgeGate };
+export default {
+  fetch(request, env, ctx) {
+    const gate = {
+      getByName(name) {
+        const target = env.JUDGE_GATE.getByName(name);
+        return {
+          status(...args) { return target.status(...args); },
+          open(...args) { return target.open(...args); },
+          revoke(...args) { return target.revoke(...args); },
+          async reserve(...args) {
+            await env.FIXTURE_EVENTS.fetch('http://fixture-events.local/attempt', { method: 'POST' });
+            const result = await target.reserve(...args);
+            if (result.kind === 'admitted') {
+              const event = await env.FIXTURE_EVENTS.fetch('http://fixture-events.local/committed', { method: 'POST' });
+              if (await event.text() === 'reject') throw new Error('Fixture admission transport rejection');
+            }
+            return result;
+          },
+        };
+      },
+    };
+    return worker.fetch(request, { ...env, JUDGE_GATE: gate }, ctx);
+  },
+};
+` : "import './fixture-clock.js'; export { default, JudgeGate } from './checked-worker.js';" },
+          { type: 'ESModule' as const, path: join(temp, 'fixture-clock.js'), contents: nowMs === undefined ? 'export {};' : `Date.now = () => ${nowMs};` },
+          { type: 'ESModule' as const, path: join(temp, 'checked-worker.js'), contents: script },
+        ],
+      } : user;
+      const converted: MiniflareOptions = tools.convertV4MiniflareOptions({
+        workers: [source, fake], rootPath: temp, resourcePersistencePath: persistencePath, cf: false, host: '127.0.0.1', port: 0,
+        log: new tools.Log(tools.LogLevel.ERROR), logRequests: false,
+        telemetry: { enabled: false }, unsafeLocalExplorer: false, unsafeObservability: false, unsafeInspectDurableObjects: profile === 'judge',
+      });
+      const workers: WorkerOptions[] = converted.workers;
+      if (profile === 'judge') {
+        const worker = workers.find(worker => worker.config.name === workerName);
+        assert.ok(worker);
+        assert.deepEqual(Object.keys(worker.config.exports ?? {}), ['JudgeGate']);
+        assert.equal(worker.config.exports?.JudgeGate?.type, 'durable-object');
+        const gate = worker.config.exports?.JudgeGate;
+        assert.ok(gate?.type === 'durable-object' && 'storage' in gate && gate.storage === 'sqlite');
+        assert.deepEqual(worker.config.env?.JUDGE_GATE, { type: 'durable-object', worker: workerName, exportName: 'JudgeGate' });
+      }
+      return converted;
+    };
+    const runtimeOptions = makeRuntimeOptions();
     assert.equal(runtimeOptions.enableDevRegistry, false);
     assert.equal(runtimeOptions.telemetry?.enabled, false);
     for (const worker of runtimeOptions.workers) {
@@ -163,7 +267,23 @@ export async function runtimeFixture(options: {
     assert.deepEqual(await (await fetch(fakeURL.href)).json(), { blocked: true });
     assert.equal(outboundDenials, 1, 'The fake probe must invoke the registered outbound deny hook');
     const fixtureRuntime = runtime;
-    return { runtime, calls, assetsDir,
+    return { runtime, calls, assetsDir, workerName, persistencePath,
+      get reserveAttempts() { return reserveAttempts; },
+      async setTime(ms) {
+        assert.equal(profile, 'judge', 'Clock controls are judge-fixture-only');
+        assert.ok(Number.isSafeInteger(ms) && ms >= 0, 'Fixture time must be a nonnegative safe integer');
+        nowMs = ms;
+        await fixtureRuntime.setOptions(makeRuntimeOptions());
+        await fixtureRuntime.ready;
+      },
+      async storage() {
+        assert.equal(profile, 'judge', 'SQLite controls are judge-fixture-only');
+        return fixtureRuntime.unsafeGetDurableObjectStorage(workerName, 'JudgeGate', { name: 'review-pool-v1' });
+      },
+      async evict() {
+        assert.equal(profile, 'judge', 'DO controls are judge-fixture-only');
+        await fixtureRuntime.unsafeEvictDurableObject(workerName, 'JudgeGate', { name: 'review-pool-v1' });
+      },
       async dispose() { await fixtureRuntime.dispose(); await rm(temp, { recursive: true, force: true }); },
     };
   } catch (error) {
