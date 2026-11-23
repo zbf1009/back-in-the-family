@@ -82,19 +82,29 @@ test('R10.12: a Step stop status replaces the queue before its reply without cle
   assert.equal(nodeOptionsEnabled(ui), true);
 });
 
-test('R10.12/R11.13: a dream can be recorded with the funeral open and no control disablement', () => {
+test('R10.12/R11.13: an accepted Dream fallback records with the funeral open and no control disablement', () => {
   const world = waitingSnapshot(5);
   let ui = stop(world, ['player_died']);
   const before = underworldView(ui);
+  const queue = ui.scene;
+  const enabled = controls(ui);
+  assert.equal(enabled.run, true);
+  assert.equal(enabled.step, true);
   const request: Request = { type: 'dream', id: 1, dreamer: 1, intent: 'warn' };
-  ui = reduce(ui, { type: 'reply', request, message: { type: 'reply', id: 1, ok: true, snapshot: status(ui), world } });
+  const outcome = { requestId: request.id, worldId: ui.worldId, kind: 'fallback' as const, reason: 'rate_limited' as const };
+  ui = reduce(ui, { type: 'request-sent', request });
+  ui = reduce(ui, { type: 'reply', request, message: { type: 'reply', id: request.id, ok: true, world,
+    snapshot: { ...status(ui), decision: { config: 'ready', enabled: true, sessionCap: 40, spent: 1,
+      waitSeconds: 10, pending: null, outcome } } } });
+  assert.strictEqual(ui.scene, queue);
   assert.equal(ui.scene?.entries[0]!.kind, 'funeral');
   assert.deepEqual(underworldView(ui), before);
   assert.deepEqual(ui.underworldRecorded, { worldId: 1, tick: '500' });
-  ui = reduce(ui, { type: 'reply', request: { ...request, id: 2 }, message: { type: 'reply', id: 2, ok: false, kind: 'rejected', error: 'rate_limited', snapshot: status(ui) } });
-  assert.equal(ui.error, 'rate_limited');
-  assert.deepEqual(underworldView(ui), before);
-  assert.equal(ui.scene?.entries[0]!.kind, 'funeral');
+  assert.deepEqual(ui.decision?.outcome, outcome);
+  assert.equal(ui.error, null);
+  assert.equal(ui.tick, '500');
+  assert.equal(ui.runState, 'paused');
+  assert.deepEqual(controls(ui), enabled);
   ui = reduce(ui, { type: 'status', snapshot: { ...status(ui), tick: '501', runState: 'running' } });
   assert.equal(ui.scene, null);
   assert.equal(ui.underworldRecorded, null);

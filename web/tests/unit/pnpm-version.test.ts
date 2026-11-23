@@ -2,20 +2,19 @@
 //
 // Validates: Requirements 1.3
 //
-// check-pnpm-version.sh (R1.2, R1.3) checks that pnpm is pinned to the same exact
-// major.minor.patch version in mise.toml and in the packageManager field of
-// web/package.json. On any missing, malformed or differing value it prints both
-// values (or "missing") and exits 1; it exits 0 only when both are present,
-// well-formed and equal.
+// check-pnpm-version.sh checks that pnpm is pinned to the same exact
+// major.minor.patch version in mise.toml and in the packageManager fields of
+// web/package.json, eval/probe/package.json and worker-api/package.json. On any
+// missing, malformed or differing value it prints the values (or "missing") and
+// exits 1; it exits 0 only when all are present, well-formed and equal.
 //
-// The script resolves its inputs relative to its own location: it runs
-// `cd "$(dirname "$0")/.."` and then reads `mise.toml` and `web/package.json`
-// (the latter via `node -p`). To exercise it against controlled inputs without
-// touching the repository files, each case builds a temporary repo-like layout
+// Each case builds a temporary repo-like layout containing the real script and
+// every input package, so its relative input paths cannot read repository files:
 //   <tmp>/scripts/check-pnpm-version.sh   (a copy of the real script)
 //   <tmp>/mise.toml
 //   <tmp>/web/package.json
-// and runs the copied script there, so the script's `cd ..` lands on <tmp>.
+//   <tmp>/eval/probe/package.json
+//   <tmp>/worker-api/package.json
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -44,6 +43,8 @@ interface Fixture {
   packageJson: string;
   /** Full text of the temporary eval/probe/package.json (default: same as packageJson-matching pin). */
   probePackageJson?: string;
+  /** Full text of the temporary worker-api/package.json (default: the matching pin). */
+  workerPackageJson?: string;
 }
 
 interface RunResult {
@@ -53,8 +54,8 @@ interface RunResult {
 }
 
 /**
- * Build a temporary repo-like layout holding a copy of the real script plus the
- * given mise.toml and web/package.json, run the copied script there, and return
+ * Build a temporary repo-like layout holding a copy of the real script plus its
+ * mise.toml and all package.json inputs, run the copied script there, and return
  * its exit status and output. The temporary directory is removed before returning.
  */
 function runWithFixture(fixture: Fixture): RunResult {
@@ -63,12 +64,17 @@ function runWithFixture(fixture: Fixture): RunResult {
     mkdirSync(path.join(dir, 'scripts'));
     mkdirSync(path.join(dir, 'web'));
     mkdirSync(path.join(dir, 'eval', 'probe'), { recursive: true });
+    mkdirSync(path.join(dir, 'worker-api'));
     cpSync(realScript, path.join(dir, 'scripts', 'check-pnpm-version.sh'));
     writeFileSync(path.join(dir, 'mise.toml'), fixture.miseToml);
     writeFileSync(path.join(dir, 'web', 'package.json'), fixture.packageJson);
     writeFileSync(
       path.join(dir, 'eval', 'probe', 'package.json'),
       fixture.probePackageJson ?? packageWith('pnpm@10.33.1'),
+    );
+    writeFileSync(
+      path.join(dir, 'worker-api', 'package.json'),
+      fixture.workerPackageJson ?? packageWith('pnpm@10.33.1'),
     );
 
     const result = spawnSync(
@@ -107,13 +113,13 @@ function packageWith(packageManager: string | null): string {
   return JSON.stringify(obj, null, 2) + '\n';
 }
 
-// Case (a): matching versions in both places -> exit 0, no "missing".
+// Case (a): matching versions in all places -> exit 0, no "missing".
 test('matching versions exit 0', () => {
   const result = runWithFixture({
     miseToml: miseWith('pnpm = "10.33.1"'),
     packageJson: packageWith('pnpm@10.33.1'),
   });
-  assert.equal(result.status, 0, `expected exit 0, got ${result.status}: ${result.stderr}`);
+  assert.equal(result.status, 0, `expected exit 0, got ${result.status}: ${result.stdout}${result.stderr}`);
   assert.match(result.stdout, /10\.33\.1/);
   assert.doesNotMatch(result.stdout, /missing/);
 });
@@ -183,4 +189,37 @@ test('missing probe packageManager exits 1', () => {
   });
   assert.equal(result.status, 1);
   assert.match(result.stdout, /eval\/probe\/package\.json packageManager: missing/);
+});
+
+// Case (h): the worker package.json differs -> exit 1 and the file is named.
+test('mismatched worker packageManager exits 1 and names the file', () => {
+  const result = runWithFixture({
+    miseToml: miseWith('pnpm = "10.33.1"'),
+    packageJson: packageWith('pnpm@10.33.1'),
+    workerPackageJson: packageWith('pnpm@10.33.2'),
+  });
+  assert.equal(result.status, 1, 'expected exit 1 on a worker mismatch');
+  assert.match(result.stdout, /worker-api\/package\.json packageManager: pnpm@10\.33\.2/);
+});
+
+// Case (i): the worker packageManager field is absent -> exit 1 with "missing".
+test('missing worker packageManager exits 1', () => {
+  const result = runWithFixture({
+    miseToml: miseWith('pnpm = "10.33.1"'),
+    packageJson: packageWith('pnpm@10.33.1'),
+    workerPackageJson: packageWith(null),
+  });
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /worker-api\/package\.json packageManager: missing/);
+});
+
+// Case (j): the worker packageManager carries a range -> exit 1 with "missing".
+test('worker packageManager range is treated as missing and exits 1', () => {
+  const result = runWithFixture({
+    miseToml: miseWith('pnpm = "10.33.1"'),
+    packageJson: packageWith('pnpm@10.33.1'),
+    workerPackageJson: packageWith('pnpm@^10.33.1'),
+  });
+  assert.equal(result.status, 1, 'expected exit 1 for a range in worker packageManager');
+  assert.match(result.stdout, /worker-api\/package\.json packageManager: missing/);
 });
