@@ -128,6 +128,8 @@ After Web_Build, Worker_Build and Worker runtime/router tests, `scripts/gates.sh
 
 The gate/build job transports immutable checked bytes and an independently bound envelope digest to a separate publisher; the publisher never rebuilds. Its job **and branch-write step stay disabled** until C4 passes and the Author separately approves permanent rollout in 8.1. No permanent artifact branch name, public Deploy button, remote command or hosted activation is authorized here. Owned disposable local-ref tests are not publication. The artifact remains an offline candidate with inference off; any later opt-in uses the deployer's own account and shared Free/Paid quota, with the explicit 16,384-byte policy and `Rules_Default` fallback described in NOTICE.
 
+**Permanent rollout decision (8.1):** C4's functional checkpoint is accepted, using the separately authorized real button/infrastructure and Clef-applied replay evidence. Permanent publisher writes, its target ref and the README Deploy button remain **not authorized**; both hard-false guards stay unchanged. The released next steps are final local offline verification and audit through C5, not hosted activation or publication.
+
 CI transport uses MIT-licensed [`actions/upload-artifact` v4.6.2](https://github.com/actions/upload-artifact/blob/ea165f8d65b6e75b540449e92b4886f43607fa02/LICENSE) and [`actions/download-artifact` v4.3.0](https://github.com/actions/download-artifact/blob/d3f86a106a0bac45b974a628896c90dbdf5c8093/LICENSE), pinned to the exact revisions in those links. These CI actions are not distributed artifact runtime code.
 
 
