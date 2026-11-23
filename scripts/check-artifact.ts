@@ -1,20 +1,24 @@
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { extname, join, posix, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import type * as TypeScriptTools from '../web/node_modules/typescript';
 import { digest } from '../worker-api/scripts/bundle.ts';
 import { root } from '../worker-api/scripts/profile.ts';
 import { assertWorkerTools } from '../worker-api/scripts/tools.ts';
-import { artifactCliContext, artifactConfig, assertPrivateContent, assertSame,
-  manifest, publicProvenance, readClosedTree, readWranglerConfig, safeRelativePath,
+import { artifactCliContext, artifactConfig, assertPrivateContent, assertSame, currentSourceCommit,
+  manifest, publicProvenance, readClosedTree, readRegularFile, readWranglerConfig, safeRelativePath,
   validateAssets, validateCheckedInputs, validateIdentity, verifyArtifactInputs } from './artifact-inputs.ts';
 import type { ArtifactBytes, CheckedInputs, ReleaseIdentity } from './artifact-inputs.ts';
 import type { LicenseClosure } from './artifact-licenses.ts';
+import { validateSdkLock } from './artifact-sdk-lock.ts';
 
 const publicRoots = ['worker.js', 'wrangler.jsonc', 'package.json', 'pnpm-lock.yaml', 'LICENSE', 'NOTICE', 'provenance.json'];
 const referenceExtensions = /\.(?:js|css|wasm|html|png|gif|webp|jpg|svg|ttf|otf|woff2?|mp3|ogg|wav)(?:[?#].*)?$/i;
 const requireWeb = createRequire(join(root, 'web/package.json'));
+const exec = promisify(execFile);
 function parsed(bytes: Buffer): unknown {
   try { return JSON.parse(bytes.toString('utf8')); }
   catch { throw new Error('Artifact JSON is invalid (contents redacted)'); }
@@ -132,21 +136,20 @@ function validateLicenseTerms(files: readonly ArtifactBytes[], closure: LicenseC
   assert.ok(/wasm-bindgen/i.test(notice) && /Rust/i.test(notice) && /Apache-2\.0|Apache License/.test(notice) && /MIT/.test(notice),
     'NOTICE must attribute the distributed WASM/Rust runtime terms');
 }
-function validateDeployMetadata(files: readonly ArtifactBytes[]): void {
-  const pkg = parsed(fileBytes(files, 'package.json'));
+async function validateDeployMetadata(projectRoot: string, files: readonly ArtifactBytes[], expectedEnvelope: CheckedInputs, identity: ReleaseIdentity): Promise<void> {
+  const packageBytes = fileBytes(files, 'package.json');
+  const pkg = parsed(packageBytes);
   assertSame(pkg, { name: 'back-in-the-family-artifact', version: '0.0.0', private: true, type: 'module',
     packageManager: 'pnpm@10.33.1', devDependencies: { '@types/node': '26.6.6', wrangler: '4.157.0' } },
   'Deploy package must be the exact Wrangler-only pinned metadata without application build scripts');
-  const lock = fileBytes(files, 'pnpm-lock.yaml').toString('utf8');
-  assert.ok(/^lockfileVersion: ['"]9\.0['"]\s*$/m.test(lock), 'Expected pinned pnpm v9 lock format');
-  const importer = /^importers:\s*\n([\s\S]*?)(?=^\S|$(?![\s\S]))/m.exec(lock)?.[1] ?? '';
-  assert.ok(/^  \.:\s*$/m.test(importer) && (importer.match(/^  \S[^\n]*:\s*$/gm) ?? []).length === 1,
-    'Deploy lock must have only the root importer');
-  assert.ok(/wrangler:\s*\n\s+specifier: 4\.157\.0\s*\n\s+version: 4\.157\.0\(@types\/node@26\.6\.6\)/.test(importer) &&
-    /['"]?@types\/node['"]?:\s*\n\s+specifier: 26\.6\.6\s*\n\s+version: 26\.6\.6/.test(importer), 'Deploy lock importer pins differ');
-  assert.ok(!/^\s+(?:dependencies|optionalDependencies):\s*$/m.test(importer), 'Deploy importer must not add application dependencies');
-  assert.ok(!/(?:^|[\s/'"])(?:vite|svelte|typescript|fast-check|playwright|sim-wasm|sim-core)(?:@|:|\/)/m.test(lock),
-    'Deploy lock contains application build/runtime dependencies outside the Wrangler-only closure');
+  assert.ok(await currentSourceCommit(projectRoot) === identity.sourceCommit, 'Checked source HEAD differs from release identity');
+  const sourcePath = 'web/pnpm-lock.yaml';
+  const healthy = await readRegularFile(join(projectRoot, sourcePath));
+  assert.ok(digest(healthy) === expectedEnvelope.sourceDigests[sourcePath], 'Healthy SDK lock differs from independently checked source digest');
+  const { stdout: committed } = await exec('git', ['-C', projectRoot, 'show', `${identity.sourceCommit}:${sourcePath}`],
+    { encoding: 'buffer', maxBuffer: 8 * 1024 * 1024 });
+  assert.ok(healthy.equals(committed), 'Healthy SDK lock bytes differ from trusted source commit');
+  validateSdkLock(fileBytes(files, 'pnpm-lock.yaml').toString('utf8'), healthy.toString('utf8'), packageBytes.toString('utf8'));
 }
 async function validateArtifactConfig(treeDir: string): Promise<void> {
   const path = join(treeDir, 'wrangler.jsonc');
@@ -172,7 +175,7 @@ export async function checkArtifact(projectRoot: string, treeDir: string, expect
   // their actual guard instead of being rejected only as a digest mismatch.
   assertPrivateContent(files);
   await validateArtifactConfig(treeDir);
-  validateDeployMetadata(files);
+  await validateDeployMetadata(projectRoot, files, expectedEnvelope, identity);
   validateLicenseTerms(files, expectedEnvelope.licenseClosure);
   const assets = files.filter(file => file.path.startsWith('dist/')).map(file => ({ ...file, path: file.path.slice(5) }));
   await validateAssets(projectRoot, assets, expectedEnvelope.wasm.sha256, identity.sourceCommit);

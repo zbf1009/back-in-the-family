@@ -308,7 +308,7 @@ More entries are added here as libraries and assets arrive.
 
 ### Web app (`web/`) dependencies
 
-Resolved versions are from the committed `web/pnpm-lock.yaml`; licenses are the SPDX identifiers on the npm registry. All nine are dev dependencies. Transitive packages whose code reaches the Deploy_Directory are added from the build report in task 4; so far only `svelte` is bundled (`web/.bundle-report.json`), so `wrangler` is a dev/deploy tool and is not part of `web/dist`.
+Resolved versions are from the committed `web/pnpm-lock.yaml`; licenses are the SPDX identifiers on the npm registry. All ten are dev dependencies. Transitive packages whose code reaches the Deploy_Directory are added from the build report in task 4; so far only `svelte` is bundled (`web/.bundle-report.json`), so `wrangler` is a dev/deploy tool and is not part of `web/dist`.
 
 | Name | Version | License | Used for |
 |---|---|---|---|
@@ -321,6 +321,9 @@ Resolved versions are from the committed `web/pnpm-lock.yaml`; licenses are the 
 | [`@playwright/test`](https://www.npmjs.com/package/@playwright/test) | 1.64.1 | Apache-2.0 | Browser Smoke_Test driver using the system Chrome (dev/gate only; no browser download) |
 | [`fast-check`](https://www.npmjs.com/package/fast-check) | 4.10.2 | MIT | Property-based testing in the web Unit_Tests (dev/test only) |
 | [`wrangler`](https://www.npmjs.com/package/wrangler) | 4.157.0 | MIT OR Apache-2.0 | Deploy `web/dist` to Cloudflare Workers Static Assets (dev/deploy only). NOT bundled into `web/dist`; the Deploy_Workflow runs `pnpm exec wrangler deploy` from `web/` |
+| [`yaml`](https://www.npmjs.com/package/yaml) | 2.8.1 | ISC | Structured source-lock selection and Artifact_Check validation (checker/dev only); not an application runtime dependency or a public deploy root |
+
+The exact YAML [official tarball](https://registry.npmjs.org/yaml/-/yaml-2.8.1.tgz) was verified against `sha512-lcYcMxX2PO9XMGvAJkJ3OsNMw+/7FKes7/hgerGUYWIoWu5j/+YQqcZr5JnPZWzOsEBgMbSbiSTn/dv/69Mkpw==`. Its [manifest](https://registry.npmjs.org/yaml/2.8.1) and packaged [ISC license](https://github.com/eemeli/yaml/blob/1dc3c3ba06971613d0bcb772da4711ca25343dac/LICENSE) were inspected: built-in TypeScript types, Node >=14.6, no runtime dependencies and no install/preinstall/postinstall/prepare lifecycle script.
 
 
 

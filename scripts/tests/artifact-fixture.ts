@@ -6,8 +6,11 @@ import { dirname, join, relative } from 'node:path';
 import { root } from '../../worker-api/scripts/profile.ts';
 import { METADATA_INPUT_PATHS, SOURCE_INPUT_DIRECTORIES, SOURCE_INPUT_PATHS, copyBytes, currentSourceCommit, prepareArtifact, readClosedTree } from '../artifact-inputs.ts';
 import type { ArtifactExpectation, CheckedInputs, ReleaseIdentity } from '../artifact-inputs.ts';
+import { selectSdkLock } from '../artifact-sdk-lock.ts';
 
 const cliPaths = ['scripts/artifact-inputs.ts', 'scripts/artifact-licenses.ts', 'scripts/check-artifact.ts',
+  'scripts/artifact-sdk-lock.ts', 'scripts/check-artifact-sdk.mjs', 'scripts/check-artifact-sdk-native.mjs',
+  'scripts/prepare-artifact-sdk-cache.mjs', 'scripts/prepare-artifact-metadata.sh',
   'scripts/stage-artifact.ts', 'scripts/publish-artifact.ts', 'scripts/tests/artifact-consumer.ts',
   'worker-api/scripts/profile.ts', 'worker-api/scripts/bundle.ts', 'worker-api/scripts/tools.ts', 'web/scripts/check-deploy.ts'];
 const cargoLicenses = ['arrayvec-0.7.8/LICENSE-MIT', 'cfg-if-1.0.5/LICENSE-MIT', 'wasm-bindgen-0.2.130/LICENSE-MIT',
@@ -47,7 +50,7 @@ async function checkerSDK(project: string): Promise<void> {
     }
   }
   await mkdir(sdk, { recursive: true });
-  for (const [name, version] of [['wrangler', '4.157.0'], ['typescript', '6.0.3']] as const) {
+  for (const [name, version] of [['wrangler', '4.157.0'], ['typescript', '6.0.3'], ['yaml', '2.8.1']] as const) {
     const installed = join(original, name);
     assert.equal(JSON.parse(await readFile(join(installed, 'package.json'), 'utf8')).version, version, `Missing prepared pinned ${name}@${version}; do not install during QA`);
     await copy(installed);
@@ -95,6 +98,10 @@ export async function fixtureProject(parent: string): Promise<string> {
     await mkdir(join(project, directory), { recursive: true });
     await copyBytes(join(project, directory), await readClosedTree(join(root, directory)));
   }
+  // JSON is plain safe YAML; bind a complete selection before the source commit.
+  const sdkLock = selectSdkLock(await readFile(join(project, 'web/pnpm-lock.yaml'), 'utf8'),
+    await readFile(join(project, 'worker-api/artifact-deploy/package.json'), 'utf8'));
+  await writeFile(join(project, 'worker-api/artifact-deploy/pnpm-lock.yaml'), `${JSON.stringify(sdkLock, null, 2)}\n`);
   const files = await readClosedTree(project);
   execFileSync('/usr/bin/git', ['init', '--quiet', '--initial-branch=fixture-source', project]);
   const hashes = execFileSync('/usr/bin/git', ['-C', project, 'hash-object', '-w', '--stdin-paths'], {
