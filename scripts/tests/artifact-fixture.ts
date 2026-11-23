@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { constants, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { constants, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { access, chmod, copyFile, lstat, mkdir, readFile, readdir, realpath, symlink, writeFile } from 'node:fs/promises';
 import { dirname, join, relative } from 'node:path';
 import { root } from '../../worker-api/scripts/profile.ts';
@@ -173,6 +173,16 @@ export async function independentArtifact(owned: string, runId = '62001', runAtt
 export function consumerCLI(project: string, args: string[]) {
   assert.ok(args[0]?.startsWith(`${project}/scripts/`), 'Consumer must execute a copied source CLI, never the original module root');
   const owned = dirname(project);
+  // Preserve ELF interpreter aliases, not Arch's particular /lib64 -> usr/lib.
+  // Ubuntu's loader lives under usr/lib64 and its multiarch usr/lib directory.
+  const libraryAliases = ['/lib', '/lib64'].flatMap(directory => {
+    const actual = realpathSync(directory);
+    assert.ok(['/usr/lib', '/usr/lib64', '/lib', '/lib64'].includes(actual), 'Consumer library aliases must resolve to standard OS ABI directories');
+    const metadata = lstatSync(directory);
+    if (metadata.isSymbolicLink()) return ['--symlink', readlinkSync(directory), directory];
+    assert.ok(metadata.isDirectory(), 'Consumer ABI path must be a directory or directory alias');
+    return ['--ro-bind', actual, directory];
+  });
   // Workerd still initializes TLS for its denied internet service. Supply only
   // the already installed public trust bundle, never host /etc or caller env.
   const certificates = readFileSync(realpathSync('/etc/ssl/certs/ca-certificates.crt'));
@@ -206,7 +216,7 @@ export function consumerCLI(project: string, args: string[]) {
       'WRANGLER_SEND_METRICS=false', 'CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV=false', 'CLOUDFLARE_INCLUDE_PROCESS_ENV=false',
       `NODE_EXTRA_CA_CERTS=${certificatePath}`, `SSL_CERT_FILE=${certificatePath}`,
       '/usr/bin/bwrap', '--die-with-parent', '--unshare-user', '--uid', '0', '--gid', '0', '--unshare-net', '--unshare-pid',
-      '--ro-bind', '/usr', '/usr', '--symlink', 'usr/bin', '/bin', '--symlink', 'usr/lib', '/lib', '--symlink', 'usr/lib', '/lib64',
+      '--ro-bind', '/usr', '/usr', '--symlink', 'usr/bin', '/bin', ...libraryAliases,
       '--ro-bind', certificatePath, '/etc/ssl/certs/ca-certificates.crt', '--ro-bind', certificatePath, '/etc/ssl/cert.pem',
       '--proc', '/proc', '--dev', '/dev', '--tmpfs', '/tmp', '--bind', owned, owned, '--tmpfs', join(owned, 'source'), '--chdir', project,
       '/bin/bash', '-euc', '/usr/bin/ip link set lo up; "$1" -e "$2" "$3" "$4" "$5" "$6" "$7"; "$1" -e "$8"; shift 8; exec "$@"',
