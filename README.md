@@ -130,6 +130,8 @@ The gate/build job transports immutable checked bytes and an independently bound
 
 **Permanent rollout decision (8.1):** C4's functional checkpoint is accepted, using the separately authorized real button/infrastructure and Clef-applied replay evidence. Permanent publisher writes, its target ref and the README Deploy button remain **not authorized**; both hard-false guards stay unchanged. The released next steps are final local offline verification and audit through C5, not hosted activation or publication.
 
+**C5 local verification:** Complete offline gate coverage passed by continuous execution from a clean build, with the original failures retained and only affected checks resumed after local repairs—not a single-script exit-zero claim. Final real system-Chrome Smoke_Test passed 13/13; the checked Worker and WASM bytes still match accepted C4. The [independent audit](docs/slow-think-audit.md) separates local/fake evidence, retained real C3/C4 evidence and unauthorized release actions. C5 made zero real model calls and no remote changes. The last previously confirmed production release remains Spec 6; C5 did not query or deploy production. Stop at C5 for review.
+
 CI transport uses MIT-licensed [`actions/upload-artifact` v4.6.2](https://github.com/actions/upload-artifact/blob/ea165f8d65b6e75b540449e92b4886f43607fa02/LICENSE) and [`actions/download-artifact` v4.3.0](https://github.com/actions/download-artifact/blob/d3f86a106a0bac45b974a628896c90dbdf5c8093/LICENSE), pinned to the exact revisions in those links. These CI actions are not distributed artifact runtime code.
 
 

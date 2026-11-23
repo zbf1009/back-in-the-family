@@ -127,3 +127,13 @@ eval runner ──> sim-core (context rendering + validation) and the LLM adapte
 - Spec 5 (`underworld`) is **done** (2026-11-16): the underworld mechanics, Auto_Player, passive and Devoted batches, checker tests and native/WASM underworld replay fixture are in place; audited in `docs/underworld-audit.md` (task 13.1, follow-ups 14.1 and 15.1). Gate time: task 15.1 (Author, option B) added `[profile.dev.package.sim-core] opt-level = 2` to the workspace `Cargo.toml` (debug assertions and overflow checks stay on) and raised the CI `timeout-minutes` from 45 to 60; `scripts/gates.sh` from a clean build fell from 1,258 s to 377 s with byte-identical batch output. Pushed to `main` and deployed by CI run `43789626782` on 2026-11-16 (about 10 minutes).
 - The Kiroween final submission deadline is 2026-12-05 06:00 GMT+8, with time kept after spec 6 for filling gaps, the demo video, English materials and a buffer. The rest of `slow-think`, the Cloudflare Worker script, request budget, clef wiring and one-click deploy button follow after spec 6. A presentation-text layer (with caching) is pending.
 - Hooks were tried and removed on 2026-11-04 (output never reached the agent; see `docs/kiro-log.md`); `sim-cli batch` runs as a step in `scripts/gates.sh`. When a later spec changes tick logic, regenerate the fixtures on purpose (`scripts/regen-fixtures.sh`) and say so in the commit.
+
+## Spec 7 implemented boundaries at C5
+
+Local verification is complete; C5 remains the Author review stop. The implementation and evidence are documented in `docs/slow-think-audit.md`, separately from the unchanged Spec 6 production deployment.
+
+- `worker-api/` owns the same-origin Decision_Worker, generated binding types and fake/runtime checks. `tests/runtime/hosted-candidate.test.ts` consumes checked assets and the Worker bundle only after both builds; pre-build unit tests require no prior build outputs.
+- `scripts/check-decision-contract.ts` and `scripts/tests/decision-contract.test.ts` hold Node-only frozen mapping/parity checks outside the frontend tree. Web_Build checks the frozen bytes before Vite; the full-web eval import guard remains unchanged.
+- `scripts/prepare-gates.sh` prepares the complete fixed public SDK cache separately from offline gates. The existing artifact source/metadata pins and private thirteen-entry license closure bind the checked prebuilt tree; no publisher rebuild or Rust dependency is needed by the independent Node consumer.
+- Source inference and the independent hosted candidate remain disabled with the explicit 16,384-byte policy. Both permanent publisher guards remain false, no permanent ref/button is authorized, and C5 grants no push, deploy, hosted switch or release activation.
+
