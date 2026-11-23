@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Network-capable dependency preparation ONLY. Never called by an offline gate.
+# Dependency preparation ONLY. --offline forbids downloads and lifecycle scripts.
 # First install the existing rust-toolchain.toml and mise.toml pins separately
 # (CI already does this); system Chrome, unshare and ip must also be installed.
 set -euo pipefail
@@ -55,8 +55,48 @@ if [[ -d "$original_store" && ! -d "$cache/pnpm/$(basename "$original_store")" ]
 fi
 CARGO_HOME="$cache/cargo" "$cargo" fetch --locked
 # Installs are deliberately outside gates, always frozen, never browser/model tools.
+install_flags=(--frozen-lockfile --store-dir "$cache/pnpm")
+if [[ "${1:-}" == --offline ]]; then
+  install_flags+=(--offline --ignore-scripts)
+fi
 for package in web eval/probe; do
-  CI=1 "$pnpm" --dir "$package" install --frozen-lockfile --store-dir "$cache/pnpm"
+  CI=1 "$pnpm" --dir "$package" install "${install_flags[@]}"
 done
+
+# Host installs omit other platforms' optional payloads. Inventory the existing
+# two fixed public SDK roots, plus the installed YAML helper, before recording.
+sdk_workspace=$(mktemp -d "$root/target/sdk-cache-preparation.XXXXXX")
+trap 'rm -rf -- "$sdk_workspace"' EXIT
+sdk_args=(--source-lock "$root/web/pnpm-lock.yaml"
+  --package "$root/worker-api/artifact-deploy/package.json"
+  --store-dir "$cache/pnpm" --output "$sdk_workspace/output")
+env -i PATH=/usr/bin:/bin "$node" "$root/scripts/prepare-artifact-sdk-cache.mjs" \
+  --plan "${sdk_args[@]}" > "$sdk_workspace/plan.json"
+sdk_missing=$(env -i PATH=/usr/bin:/bin "$node" -e '
+  const plan = require(process.argv[1]);
+  console.log(plan.missing.map(({ name, version }) => `${name}@${version}`).join("\n"));
+' "$sdk_workspace/plan.json")
+if [[ -n "$sdk_missing" ]]; then
+  if [[ "${1:-}" == --offline ]]; then
+    printf 'prepare-gates: missing complete fixed SDK cache payloads (offline; no downloads):\n%s\n' "$sdk_missing" >&2
+    exit 1
+  fi
+  # Only the exact missing packages in this current-lock plan may be fetched.
+  # The helper verifies locked tarball SRI and writes a new owned store only.
+  env -i PATH=/usr/bin:/bin "$node" "$root/scripts/prepare-artifact-sdk-cache.mjs" \
+    --prepare "${sdk_args[@]}" --approved-plan "$sdk_workspace/plan.json" > "$sdk_workspace/preparation.json"
+  for directory in files index; do
+    mkdir -p "$cache/pnpm/v10/$directory"
+    cp -a "$sdk_workspace/output/store/v10/$directory/." "$cache/pnpm/v10/$directory/"
+  done
+  env -i PATH=/usr/bin:/bin "$node" "$root/scripts/prepare-artifact-sdk-cache.mjs" \
+    --plan "${sdk_args[@]}" > "$sdk_workspace/complete.json"
+  env -i PATH=/usr/bin:/bin "$node" -e '
+    const plan = require(process.argv[1]);
+    if (plan.missing.length) throw new Error(`Incomplete fixed SDK cache after copy: ${plan.missing.map(({ name, version }) => `${name}@${version}`).join(", ")}`);
+  ' "$sdk_workspace/complete.json"
+fi
+rm -rf -- "$sdk_workspace"
+trap - EXIT
 "$node" scripts/gate-tools.mjs record
 printf '%s\n' 'Pinned dependencies prepared. Run scripts/gates.sh or scripts/offline-gates.sh <command>; no installs occur inside gates.'
