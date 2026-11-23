@@ -1,8 +1,9 @@
 // Built app + system Chrome + loopback-only OFFLINE FAKE, never live AI.
 // Harness use is limited to real Worker_Protocol fixture progression and reads.
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
+import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect, type BrowserContext, type Page, type Route, type TestInfo } from '@playwright/test';
 import type { Reply, RequestWithoutId, Snapshot } from '../../src/shared/protocol.ts';
@@ -12,7 +13,8 @@ import { DECISION_CONFIG_VERSION, isDecisionRequest, isModelDecision, type Decis
 
 const ORIGIN = 'http://localhost:4173';
 const WAITING_TICK = 1654;
-const EVIDENCE_DIRECTORY = fileURLToPath(new URL('../../../target/slow-think-evidence/browser/', import.meta.url));
+// Manifest replay paths stay repository-relative; artifacts belong to each test's outputPath.
+const REPOSITORY_DIRECTORY = fileURLToPath(new URL('../../../', import.meta.url));
 const fixture = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seedU-underworld.replay.json', import.meta.url), 'utf8')) as {
   seed: string; config: unknown; inputs: { tick: string; seq: string; payload: unknown }[];
 };
@@ -176,11 +178,10 @@ async function resolve(page: Page): Promise<void> {
   await expect(page.getByTestId('scene-dream')).toBeVisible();
   const world = await readWorld(page); expect(world.last_dream?.dreamer).toBe(31); expect(world.last_dream?.tick).toBe(String(WAITING_TICK));
 }
-async function capture(page: Page, name: string, fullPage = false): Promise<void> {
+async function capture(page: Page, info: TestInfo, name: string, fullPage = false): Promise<void> {
   await page.evaluate(() => window.scrollTo(0, 0));
   await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
-  await mkdir(EVIDENCE_DIRECTORY, { recursive: true });
-  await page.screenshot({ path: `${EVIDENCE_DIRECTORY}${name}`, fullPage });
+  await page.screenshot({ path: info.outputPath(name), fullPage });
 }
 
 async function evidence(page: Page, info: TestInfo, kind: 'acceptance' | 'fallback'): Promise<void> {
@@ -198,19 +199,17 @@ async function evidence(page: Page, info: TestInfo, kind: 'acceptance' | 'fallba
   expect(appended.map(input => Object.keys(input.payload)[0])).toEqual(kind === 'acceptance' ? ['Dream', 'Choose'] : ['Dream']);
   expect(appended.every(input => input.tick === String(WAITING_TICK))).toBe(true);
   expect(exported.replay).not.toMatch(/provider text|input_tokens|output_tokens|mapping_hash|instructions|criteria|telemetry/);
-  const directory = EVIDENCE_DIRECTORY;
-  await mkdir(directory, { recursive: true });
-  const name = `dream-${kind}.replay.json`; const path = `${directory}${name}`;
+  const name = `dream-${kind}.replay.json`; const path = info.outputPath(name);
   await writeFile(path, exported.replay); // Exactly WASM export bytes, never HTTP or reconstructed inputs.
   const manifest = { version: 1, corpus: 'scope-3.3-built-browser', mode: 'offline-fake-not-live-ai', operation: 'dream', outcome: kind,
-    replay: `target/slow-think-evidence/browser/${name}`, sha256: createHash('sha256').update(exported.replay).digest('hex'),
+    replay: relative(REPOSITORY_DIRECTORY, path), sha256: createHash('sha256').update(exported.replay).digest('hex'),
     provenance: { fixture: 'fixtures/parity/seedU-underworld.replay.json', prefix_seq_exclusive: '61', seed: fixture.seed,
       progression: 'Worker_Protocol submit/step; checked native default for any Player_Node', decision_seq: dream!.seq,
       controls: ['Create', 'Dreamer 31', 'urge', 'Send dream', 'Step'],
       export: 'SimClient.exportReplay -> Sim_Worker -> WasmSim.export_replay', ticks: replay.ticks } };
-  await writeFile(`${directory}dream-${kind}.manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
+  await writeFile(info.outputPath(`dream-${kind}.manifest.json`), `${JSON.stringify(manifest, null, 2)}\n`);
   await info.attach(`offline-fake-dream-${kind}-v5`, { path, contentType: 'application/json' });
-  await capture(page, `dream-${kind}-1280x720.png`);
+  await capture(page, info, `dream-${kind}-1280x720.png`);
 }
 
 async function liveReplay(page: Page): Promise<{ bytes: string; inputs: { payload: Record<string, unknown> }[]; checksums: string[] }> {
@@ -322,9 +321,8 @@ for (const priorOutcome of [false, true]) {
       return { tick: snapshot.tick, checksum: snapshot.checksum, outcomeId: snapshot.decision?.outcome?.requestId ?? null,
         requestCounts: { posts: fake.attempts.length, decisions: snapshot.decision?.spent ?? 0, replayInputs } };
     }
-    await mkdir(EVIDENCE_DIRECTORY, { recursive: true });
     const name = `dream-rejected-${priorOutcome ? 'prior-outcome' : 'no-outcome'}.json`;
-    const path = `${EVIDENCE_DIRECTORY}${name}`;
+    const path = info.outputPath(name);
     await writeFile(path, `${JSON.stringify({ mode: 'offline-fake-not-live-ai',
       before: mark(before.snapshot, beforeReplay.inputs.length), rejected: mark(rejected.snapshot, rejectedReplay.inputs.length),
       recovered: { running: mark(running, recoveredReplay.inputs.length), paused: mark(paused, recoveredReplay.inputs.length),
@@ -337,7 +335,7 @@ for (const priorOutcome of [false, true]) {
 test('offline fake acceptance drives Dream controls and produces a completed live v5 export', async ({ page, context }, info) => {
   const fake = await offlineFake(context, { cap: 1 }); await open(page); await waiting(page);
   const before = await start(page);
-  await capture(page, 'dream-pending-1280x720.png');
+  await capture(page, info, 'dream-pending-1280x720.png');
   const wait = page.getByLabel('Decision wait (seconds)');
   await wait.focus(); await expect(wait).toBeFocused(); await wait.selectOption('2'); await expect(wait).toHaveValue('2');
   await fake.accept(); await recorded(page, 'model', before); await resolve(page); await evidence(page, info, 'acceptance');
@@ -354,7 +352,7 @@ test('offline fake invalid response records rules and exports fallback without p
   await resolve(page); await evidence(page, info, 'fallback'); expect(fake.attempts).toHaveLength(1);
 });
 
-test('offline fake manual cancellation binds the current request through a newer Dream', async ({ page, context }) => {
+test('offline fake manual cancellation binds the current request through a newer Dream', async ({ page, context }, info) => {
   const fake = await offlineFake(context); await open(page); await waiting(page);
   const first = await start(page); await expect.poll(() => fake.attempts.length).toBe(1);
   const button = page.getByRole('button', { name: 'Use rules now', exact: true });
@@ -366,7 +364,7 @@ test('offline fake manual cancellation binds the current request through a newer
   await page.setViewportSize({ width: 390, height: 844 });
   const box = await page.getByTestId('decision-controls').boundingBox();
   expect(box).not.toBeNull(); expect(box!.x).toBeGreaterThanOrEqual(0); expect(box!.x + box!.width).toBeLessThanOrEqual(390);
-  await capture(page, 'dream-rules-mobile-390x844-fullpage.png', true);
+  await capture(page, info, 'dream-rules-mobile-390x844-fullpage.png', true);
 });
 
 test('offline fake World replacement cancels held Dream without locking Create or adopting stale result', async ({ page, context }) => {
@@ -507,12 +505,11 @@ test('offline fake both families share one completed tick with trigger-sequence 
     expect(choose.option).toBe(fake.attempts[(offset - 1) / 2]!.request.criteria[0]!.id);
   }
   expect(exported.replay).not.toMatch(/input_tokens|output_tokens|mapping_hash|instructions|criteria|telemetry/);
-  await mkdir(EVIDENCE_DIRECTORY, { recursive: true });
-  const path = `${EVIDENCE_DIRECTORY}both-families.replay.json`;
+  const path = info.outputPath('both-families.replay.json');
   await writeFile(path, exported.replay); // Exact completed live WASM bytes, not reconstructed inputs.
   const manifest = {
     version: 1, corpus: 'scope-4.1-built-browser-same-tick', mode: 'offline-fake-not-live-ai',
-    replay: 'target/slow-think-evidence/browser/both-families.replay.json',
+    replay: relative(REPOSITORY_DIRECTORY, path),
     sha256: createHash('sha256').update(exported.replay).digest('hex'),
     completed_ticks: replay.ticks, trigger_tick: before.tick,
     decisions: [
@@ -529,6 +526,6 @@ test('offline fake both families share one completed tick with trigger-sequence 
     },
     limits: 'Offline fake choice acceptance only; native replay audit supplies resolved source/default comparisons, not request-attempt or error rates.',
   };
-  await writeFile(`${EVIDENCE_DIRECTORY}both-families.manifest.json`, `${JSON.stringify(manifest, null, 2)}\n`);
+  await writeFile(info.outputPath('both-families.manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   await info.attach('offline-fake-both-families-v5', { path, contentType: 'application/json' });
 });
