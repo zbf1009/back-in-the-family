@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Dependency preparation ONLY. --offline forbids downloads and lifecycle scripts.
+# Dependency preparation ONLY. --offline forbids downloads, system installs and lifecycle scripts.
 # First install the existing rust-toolchain.toml and mise.toml pins separately
-# (CI already does this); system Chrome, unshare and ip must also be installed.
+# (CI already does this); system Chrome, bubblewrap, unshare and ip are prerequisites.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 root=$PWD
@@ -20,6 +20,23 @@ esac
 for tool in unshare ip; do
   command -v "$tool" >/dev/null || { echo "prepare-gates: missing system prerequisite $tool" >&2; exit 1; }
 done
+# Consumers require this fixed executable, not a PATH substitute or weaker sandbox.
+# GitHub's default runner variables identify hosted CI; also verify actual Ubuntu.
+if [[ ! -f /usr/bin/bwrap || ! -x /usr/bin/bwrap ]]; then
+  if [[ "${1:-}" != --offline && ! -e /usr/bin/bwrap &&
+        "${GITHUB_ACTIONS:-}" == true &&
+        "${RUNNER_ENVIRONMENT:-}" == github-hosted &&
+        "${RUNNER_OS:-}" == Linux ]] &&
+      [[ -r /etc/os-release ]] &&
+      ( . /etc/os-release; [[ "${ID:-}" == ubuntu ]] ); then
+    sudo -n apt-get update
+    sudo -n apt-get install --yes --no-install-recommends --no-upgrade bubblewrap
+  fi
+  [[ -f /usr/bin/bwrap && -x /usr/bin/bwrap ]] || {
+    echo 'prepare-gates: missing executable /usr/bin/bwrap; install distro bubblewrap separately. Automatic installation requires online GitHub-hosted Ubuntu Linux CI; --offline never installs system packages or downloads.' >&2
+    exit 1
+  }
+fi
 node_dir=$(mise where node@26.7.0)
 pnpm=$(mise which pnpm)
 wasm=$(mise which wasm-bindgen)
