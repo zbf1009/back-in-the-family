@@ -43,7 +43,7 @@ try {
   const cacheInventory = await inspectSdkCache(selected.packages, storeDir);
   evidence = { result: 'fail', cacheInventory };
   assert.equal(cacheInventory.missing.length, 0, `Missing complete fixed SDK cache payloads; run separately approved preparation only: ${JSON.stringify(cacheInventory.missing)}`);
-  for (const directory of ['public', 'sdk', 'store', 'home', 'config', 'cache', 'tmp', 'logs', 'out', 'proof']) await mkdir(join(workspace, directory));
+  for (const directory of ['public', 'sdk', 'home', 'config', 'cache', 'tmp', 'logs', 'out', 'proof']) await mkdir(join(workspace, directory));
   await copyBytes(join(workspace, 'public'), publicFiles);
   await copyBytes(join(workspace, 'sdk'), publicFiles.filter(file => ['package.json', 'pnpm-lock.yaml'].includes(file.path)));
   // The existing store is read-only input; all pnpm writes land in this owned copy.
@@ -56,7 +56,7 @@ try {
   const libraries = new Set(libraryScan.stdout.split('\n').filter(line => !line.endsWith(':')).flatMap(line => line.match(/\/[^\s()]+/g) ?? []));
   const libc = [...libraries].find(path => basename(path) === 'libc.so.6');
   assert.ok(libc, 'glibc standard library path is required');
-  libraries.add(join(dirname(libc), 'libresolv.so.2'));
+  for (const library of ['libresolv.so.2', 'librt.so.1']) libraries.add(join(dirname(libc), library));
   const namespaceArgs = ['--unshare-all', '--die-with-parent', '--new-session', '--clearenv', '--proc', '/proc', '--dev', '/dev'];
   const directories = new Set(['/usr', '/usr/lib', '/usr/lib64', '/lib', '/lib64', '/tools', '/bin']);
   for (const library of libraries) {
@@ -67,7 +67,7 @@ try {
   for (const directory of [...directories].sort((a, b) => a.length - b.length)) namespaceArgs.push('--dir', directory);
   for (const library of libraries) namespaceArgs.push('--ro-bind', await realpath(library), library);
   namespaceArgs.push('--ro-bind', node, '/tools/node', '--ro-bind', pnpm, '/tools/pnpm', '--ro-bind', '/usr/bin/sh', '/bin/sh', '--bind', workspace, '/workspace', '--ro-bind', join(workspace, 'public'), '/workspace/public', '--chdir', '/workspace/sdk');
-  const environment = { PATH: '/tools:/bin', HOME: '/workspace/home', TMPDIR: '/workspace/tmp', XDG_CONFIG_HOME: '/workspace/config', XDG_CACHE_HOME: '/workspace/cache', CI: '1', WRANGLER_SEND_METRICS: 'false', WRANGLER_LOG_PATH: '/workspace/logs/wrangler.log', CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false', CLOUDFLARE_INCLUDE_PROCESS_ENV: 'false', npm_config_offline: 'true', npm_config_manage_package_manager_versions: 'false', npm_config_package_manager_strict_version: 'true', npm_config_userconfig: '/dev/null', npm_config_globalconfig: '/dev/null', BIF_SDK_PARENT_NET_NS: parentNet, BIF_SDK_PARENT_MOUNT_NS: parentMount };
+  const environment = { PATH: '/tools:/bin', HOME: '/workspace/home', TMPDIR: '/workspace/tmp', XDG_CONFIG_HOME: '/workspace/config', XDG_CACHE_HOME: '/workspace/cache', CI: '1', WRANGLER_SEND_METRICS: 'false', WRANGLER_HIDE_BANNER: 'true', WRANGLER_LOG_PATH: '/workspace/logs/wrangler.log', CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: 'false', CLOUDFLARE_INCLUDE_PROCESS_ENV: 'false', npm_config_offline: 'true', npm_config_ignore_scripts: 'true', npm_config_optional: 'true', npm_config_production: 'false', npm_config_manage_package_manager_versions: 'false', npm_config_package_manager_strict_version: 'true', npm_config_userconfig: '/dev/null', npm_config_globalconfig: '/dev/null', BIF_SDK_PARENT_NET_NS: parentNet, BIF_SDK_PARENT_MOUNT_NS: parentMount };
   for (const [name, value] of Object.entries(environment)) namespaceArgs.push('--setenv', name, value);
   namespaceArgs.push('/tools/node', '/workspace/proof/check-artifact-sdk-native.mjs');
   const result = spawnSync('/usr/bin/bwrap', namespaceArgs, { env: {}, encoding: 'utf8', timeout: 300_000, maxBuffer: 32 * 1024 * 1024 });
@@ -79,7 +79,7 @@ try {
   evidence.cacheInventory = cacheInventory;
   evidence.launch.osLibraries = [...libraries];
   assert.ifError(result.error);
-  assert.equal(result.status, 0, `Fresh public SDK proof failed; only separately approved fixed-package cache preparation can remedy missing content.\n${evidence.error ?? ''}\n${result.stderr}`);
+  assert.equal(result.status, 0, `Fresh public SDK proof failed.\n${evidence.error ?? ''}\n${result.stderr}`);
   assert.equal(evidence.result, 'pass');
   assert.deepEqual(manifest(await readClosedTree(join(workspace, 'public'))), publicDigests, 'Owned public bytes changed');
   assert.deepEqual(manifest(await readClosedTree(join(context.inputDir, 'tree'))), publicDigests, 'Original public transport bytes changed');

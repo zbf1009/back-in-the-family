@@ -227,12 +227,14 @@ test('Artifact_Check rejects independently source-committed and externally SHA-p
         try {
           await writeFile(sourceMetadataPath, badLockBytes);
           const sourceCommit = committedFixtureLock(project, originalCommit, badLockBytes);
-          const changed: CheckedInputs = structuredClone(inputs);
-          changed.identity = { ...fixture.expected.identity, sourceCommit };
-          changed.sourceDigests['worker-api/artifact-deploy/pnpm-lock.yaml'] = digest(badLockBytes);
-          changed.metadata['pnpm-lock.yaml'] = digest(badLockBytes);
-          changed.licenseClosure = { ...changed.licenseClosure, entries: changed.licenseClosure.entries.map(entry =>
-            entry.id === 'project' ? { ...entry, sourcePin: `git:${sourceCommit}:LICENSE` } : entry) };
+          const changed: CheckedInputs = {
+            ...inputs,
+            identity: { ...fixture.expected.identity, sourceCommit },
+            sourceDigests: { ...inputs.sourceDigests, 'worker-api/artifact-deploy/pnpm-lock.yaml': digest(badLockBytes) },
+            metadata: { ...inputs.metadata, 'pnpm-lock.yaml': digest(badLockBytes) },
+            licenseClosure: { ...inputs.licenseClosure, entries: inputs.licenseClosure.entries.map(entry =>
+              entry.id === 'project' ? { ...entry, sourcePin: `git:${sourceCommit}:LICENSE` } : entry) },
+          };
           const envelopeBytes = jsonBytes(changed);
           const expected = { identity: changed.identity, envelopeSHA: digest(envelopeBytes) };
           await writeFile(join(badTransport, 'tree/pnpm-lock.yaml'), badLockBytes);
@@ -279,13 +281,13 @@ test('Artifact_Check authenticates the healthy source digest and committed bytes
       await t.test(matchDigest ? 'matching envelope source digest cannot replace the committed healthy lock' : 'unchanged external envelope requires the healthy source digest', async () => {
         checkCLI(project, transport, fixture.expected);
         const changedHealthy = Buffer.concat([healthyBytes, Buffer.from('\n# independent uncommitted source mutation\n')]);
-        const changed = structuredClone(fixture.inputs);
-        if (matchDigest) {
-          changed.sourceDigests['web/pnpm-lock.yaml'] = digest(changedHealthy);
-          changed.licenseClosure = { ...changed.licenseClosure, sourcePins: {
-            ...changed.licenseClosure.sourcePins, 'web/pnpm-lock.yaml': digest(changedHealthy),
-          } };
-        }
+        const changed: CheckedInputs = matchDigest ? {
+          ...fixture.inputs,
+          sourceDigests: { ...fixture.inputs.sourceDigests, 'web/pnpm-lock.yaml': digest(changedHealthy) },
+          licenseClosure: { ...fixture.inputs.licenseClosure, sourcePins: {
+            ...fixture.inputs.licenseClosure.sourcePins, 'web/pnpm-lock.yaml': digest(changedHealthy),
+          } },
+        } : fixture.inputs;
         const envelopeBytes = matchDigest ? jsonBytes(changed) : fixture.envelopeBytes;
         const expectedSHA = matchDigest ? digest(envelopeBytes) : fixture.expected.envelopeSHA;
         try {

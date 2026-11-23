@@ -24,14 +24,14 @@ function command(file, args, cwd = sdk) {
   return result.stdout.trim();
 }
 function tree(directory, prefix = '') {
-  return readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).flatMap(entry => {
+  return readdirSync(directory, { withFileTypes: true }).flatMap(entry => {
     const path = prefix + entry.name;
     assert.ok(!entry.isSymbolicLink(), 'Public tree must not contain symlinks');
     if (entry.isDirectory()) return tree(join(directory, entry.name), `${path}/`);
     assert.ok(entry.isFile(), 'Public tree must contain only regular files');
     const bytes = readFileSync(join(directory, entry.name));
     return [{ path, size: bytes.length, sha256: hash(bytes) }];
-  });
+  }).sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
 }
 try {
   assert.equal(process.platform, 'linux');
@@ -49,7 +49,7 @@ try {
   assert.deepEqual(before, JSON.parse(readFileSync(join(workspace, 'before.json'), 'utf8')));
   const pnpmVersion = command('/tools/pnpm', ['--version']);
   assert.equal(pnpmVersion, '10.33.1');
-  command('/tools/pnpm', ['install', '--frozen-lockfile', '--offline', '--ignore-scripts', '--optional=true', '--store-dir', `${workspace}/store`, '--package-import-method=copy', '--verify-store-integrity', '--side-effects-cache=false', '--manage-package-manager-versions=false']);
+  command('/tools/pnpm', ['install', '--frozen-lockfile', '--offline', '--ignore-scripts', '--optional=true', '--store-dir', `${workspace}/store`, '--package-import-method=copy', '--verify-store-integrity', '--side-effects-cache=false']);
   assert.ok(readFileSync(join(sdk, 'package.json')).equals(readFileSync(join(workspace, 'public/package.json'))));
   assert.ok(readFileSync(join(sdk, 'pnpm-lock.yaml')).equals(readFileSync(join(workspace, 'public/pnpm-lock.yaml'))));
   const rootRequire = createRequire(join(sdk, 'package.json'));
@@ -73,7 +73,7 @@ try {
   const wranglerVersion = command('/tools/node', [wranglerCLI, '--version']);
   assert.match(wranglerVersion, /\b4\.157\.0\b/);
   const workerd = wranglerRequire('workerd');
-  const workerdBinary = owned(workerd.binPath);
+  const workerdBinary = owned(workerd.default);
   const nativeWorkerd = command(workerdBinary, ['--version']);
   assert.match(nativeWorkerd, /2026-11-03|20261103/);
   const esbuildManifest = packagePaths.esbuild;
