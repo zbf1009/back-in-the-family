@@ -79,16 +79,22 @@ pub(crate) fn has_ghost(world: &World) -> bool {
     latest_body(world, world.souls.player).is_some()
 }
 
-/// Rejects an underworld input that needs a Ghost and a wait (design "Inputs"): the
-/// `no_ghost` check first, then `not_waiting` (R4.3, R5.3, R7.8, R9.2).
-pub(crate) fn require_waiting(world: &World) -> Result<(), RejectReason> {
+/// Resolves the acting Ghost once, with `no_ghost` before `not_waiting` (R4.3,
+/// R5.3, R7.8, R9.2). Read-only action inspections can share this result.
+pub(crate) fn waiting_ghost(world: &World) -> Result<PersonId, RejectReason> {
     if !has_ghost(world) {
         return Err(RejectReason::NoGhost);
     }
-    if world.player_wait.is_none() {
-        return Err(RejectReason::NotWaiting);
-    }
-    Ok(())
+    world
+        .player_wait
+        .as_ref()
+        .map(|wait| wait.ghost)
+        .ok_or(RejectReason::NotWaiting)
+}
+
+/// Rejects an underworld input that needs a Ghost and a wait (design "Inputs").
+pub(crate) fn require_waiting(world: &World) -> Result<(), RejectReason> {
+    waiting_ghost(world).map(|_| ())
 }
 
 /// Applies a `CarryOver` input: stores it until the wait ends (OP-U9 A). A later valid

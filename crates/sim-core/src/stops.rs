@@ -18,21 +18,20 @@ impl StopSet {
         self.player_node || self.player_died || self.dream_resolved || self.player_reborn
     }
 
+    /// Stop labels in their stable report order, without allocating.
+    pub fn iter_labels(self) -> impl Iterator<Item = &'static str> {
+        [
+            (self.player_node, "player_node"),
+            (self.player_died, "player_died"),
+            (self.dream_resolved, "dream_resolved"),
+            (self.player_reborn, "player_reborn"),
+        ]
+        .into_iter()
+        .filter_map(|(present, label)| present.then_some(label))
+    }
+
     pub fn labels(self) -> Vec<&'static str> {
-        let mut labels = Vec::with_capacity(4);
-        if self.player_node {
-            labels.push("player_node");
-        }
-        if self.player_died {
-            labels.push("player_died");
-        }
-        if self.dream_resolved {
-            labels.push("dream_resolved");
-        }
-        if self.player_reborn {
-            labels.push("player_reborn");
-        }
-        labels
+        self.iter_labels().collect()
     }
 }
 

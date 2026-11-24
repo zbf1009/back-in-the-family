@@ -54,15 +54,8 @@ fn checksum<S: Serializer>(value: &Option<Checksum>, s: S) -> Result<S::Ok, S::E
 }
 fn stops<S: Serializer>(value: &StopSet, s: S) -> Result<S::Ok, S::Error> {
     let mut seq = s.serialize_seq(None)?;
-    for (present, label) in [
-        (value.player_node, "player_node"),
-        (value.player_died, "player_died"),
-        (value.dream_resolved, "dream_resolved"),
-        (value.player_reborn, "player_reborn"),
-    ] {
-        if present {
-            seq.serialize_element(label)?;
-        }
+    for label in value.iter_labels() {
+        seq.serialize_element(label)?;
     }
     seq.end()
 }
@@ -538,6 +531,44 @@ mod tests {
             unreachable!()
         };
         result
+    }
+
+    #[test]
+    fn report_stop_labels_preserve_all_wire_combinations() {
+        let expected = [
+            r#"[]"#,
+            r#"["player_node"]"#,
+            r#"["player_died"]"#,
+            r#"["player_node","player_died"]"#,
+            r#"["dream_resolved"]"#,
+            r#"["player_node","dream_resolved"]"#,
+            r#"["player_died","dream_resolved"]"#,
+            r#"["player_node","player_died","dream_resolved"]"#,
+            r#"["player_reborn"]"#,
+            r#"["player_node","player_reborn"]"#,
+            r#"["player_died","player_reborn"]"#,
+            r#"["player_node","player_died","player_reborn"]"#,
+            r#"["dream_resolved","player_reborn"]"#,
+            r#"["player_node","dream_resolved","player_reborn"]"#,
+            r#"["player_died","dream_resolved","player_reborn"]"#,
+            r#"["player_node","player_died","dream_resolved","player_reborn"]"#,
+        ];
+        for (mask, expected) in expected.into_iter().enumerate() {
+            let report = RunUntilStopResult {
+                ran: 0,
+                checksum: None,
+                stops: StopSet {
+                    player_node: mask & 1 != 0,
+                    player_died: mask & 2 != 0,
+                    dream_resolved: mask & 4 != 0,
+                    player_reborn: mask & 8 != 0,
+                },
+                actions: Vec::new(),
+                player_lifecycle: Vec::new(),
+            };
+            let wire = serde_json::to_value(&report).unwrap();
+            assert_eq!(wire["stops"].to_string(), expected, "stop mask {mask}");
+        }
     }
 
     #[test]

@@ -123,10 +123,16 @@ pub const MIN_BRIBE_AMOUNT: u64 = 1;
 
 /// Checks the authoritative input order without spending, appending or firing.
 pub(crate) fn validate(world: &World, amount: u64) -> Result<PersonId, RejectReason> {
-    player::require_waiting(world)?;
-    let Some(ghost) = world.player_wait.as_ref().map(|wait| wait.ghost) else {
-        return Err(RejectReason::NotWaiting);
-    };
+    validate_with_waiting(world, amount, player::waiting_ghost(world))
+}
+
+/// Reuses the pure waiting result from the same borrowed World inspection.
+pub(crate) fn validate_with_waiting(
+    world: &World,
+    amount: u64,
+    waiting_ghost: Result<PersonId, RejectReason>,
+) -> Result<PersonId, RejectReason> {
+    let ghost = waiting_ghost?;
     if amount == 0 {
         return Err(RejectReason::BadAmount);
     }

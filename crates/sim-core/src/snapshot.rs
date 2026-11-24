@@ -79,7 +79,7 @@ pub struct ActionView {
 }
 impl ActionView {
     pub fn inspect(world: &World, connected: &[PersonId]) -> Self {
-        use crate::underworld::{hauntings, joss, magistrate};
+        use crate::underworld::{hauntings, joss, magistrate, player};
         let tick = world.tick();
         let account = world
             .joss()
@@ -88,6 +88,8 @@ impl ActionView {
             .unwrap_or_default();
         let yearly_cap = world.params().yearly_cap;
         let spent = account.capped_spent_in(tick);
+        let waiting_ghost = player::waiting_ghost(world);
+        let haunt = hauntings::HauntInspection::new(world, waiting_ghost);
         Self {
             version: 1,
             capped_spend: CappedSpendView {
@@ -99,9 +101,10 @@ impl ActionView {
             bribe: BribeView {
                 min_amount: magistrate::MIN_BRIBE_AMOUNT,
                 max_amount: account.balance,
-                availability: Availability::from_validation(magistrate::validate(
+                availability: Availability::from_validation(magistrate::validate_with_waiting(
                     world,
                     magistrate::MIN_BRIBE_AMOUNT,
+                    waiting_ghost,
                 )),
             },
             haunt: HauntView {
@@ -110,9 +113,7 @@ impl ActionView {
                     .iter()
                     .map(|&target| HauntTargetView {
                         target,
-                        availability: Availability::from_validation(hauntings::validate(
-                            world, target,
-                        )),
+                        availability: Availability::from_validation(haunt.validate(target)),
                     })
                     .collect(),
             },
@@ -1127,5 +1128,199 @@ mod tests {
             );
         }
         assert_eq!(Checksum::of(&world), before);
+    }
+    fn assert_action_inspection_matches_apply(
+        world: &World,
+        cases: &[(PersonId, Option<crate::world::RejectReason>)],
+    ) {
+        use crate::ids::InputSeq;
+        use crate::underworld::{hauntings, magistrate};
+
+        let before = Checksum::of(world);
+        let targets: Vec<_> = cases.iter().map(|&(target, _)| target).collect();
+        let view = ActionView::inspect(world, &targets);
+        assert_eq!(view.haunt.targets.len(), cases.len());
+        for (entry, &(target, reason)) in view.haunt.targets.iter().zip(cases) {
+            assert_eq!(entry.target, target);
+            assert_eq!(
+                entry.availability,
+                Availability {
+                    eligible: reason.is_none(),
+                    reason
+                }
+            );
+            let expected = reason.map_or(Ok(()), Err);
+            assert_eq!(hauntings::validate(world, target).map(|_| ()), expected);
+            let mut applied = world.clone();
+            assert_eq!(hauntings::apply(&mut applied, target), expected);
+            if reason.is_some() {
+                assert_eq!(Checksum::of(&applied), before, "a rejected Haunt is atomic");
+            }
+        }
+        assert_eq!(view.bribe.min_amount, magistrate::MIN_BRIBE_AMOUNT);
+        assert_eq!(
+            view.bribe.max_amount,
+            world.joss[&world.souls.player].balance
+        );
+        assert_eq!(
+            view.bribe.availability,
+            Availability::from_validation(magistrate::validate(
+                world,
+                magistrate::MIN_BRIBE_AMOUNT
+            )),
+        );
+        let mut applied = world.clone();
+        assert_eq!(
+            magistrate::apply(&mut applied, InputSeq(0), magistrate::MIN_BRIBE_AMOUNT),
+            view.bribe.availability.reason.map_or(Ok(()), Err),
+        );
+        if !view.bribe.availability.eligible {
+            assert_eq!(Checksum::of(&applied), before, "a rejected Bribe is atomic");
+        }
+        assert_eq!(Checksum::of(world), before, "inspection is read-only");
+    }
+
+    #[test]
+    fn action_inspection_preserves_rejection_priority_and_matches_apply() {
+        use crate::world::RejectReason::*;
+
+        let living = world();
+        let unknown = PersonId(u64::MAX);
+        let official = living.magistrate.id;
+        assert_action_inspection_matches_apply(
+            &living,
+            &[(official, Some(OfficialPerson)), (unknown, Some(NoGhost))],
+        );
+
+        let waiting = waiting_player();
+        let ghost = waiting.player_wait.as_ref().unwrap().ghost;
+        let target = crate::underworld::ghosts::connected(&waiting, ghost)[0];
+        let unrelated = waiting
+            .persons
+            .values()
+            .find(|person| {
+                matches!(person.life, Life::Alive { .. })
+                    && !waiting.relations.contains_key(&(person.id, ghost))
+            })
+            .unwrap()
+            .id;
+        let mut not_waiting = waiting.clone();
+        not_waiting.player_wait = None;
+        assert_action_inspection_matches_apply(
+            &not_waiting,
+            &[
+                (official, Some(OfficialPerson)),
+                (unknown, Some(NotWaiting)),
+            ],
+        );
+
+        let price = waiting.params.haunt_price;
+        let cap = waiting.params.yearly_cap;
+        for (balance, spent, exhausted, reason) in [
+            (0, cap, true, Some(InsufficientJoss)),
+            (price, cap, true, Some(YearlyCap)),
+            (price, 0, true, Some(IdExhausted)),
+            (price, 0, false, None),
+        ] {
+            let mut w = waiting.clone();
+            let account = w.joss.get_mut(&w.souls.player).unwrap();
+            account.balance = balance;
+            account.capped_spent = spent;
+            if exhausted {
+                w.log.exhaust_ids_leaving(0);
+            }
+            assert_action_inspection_matches_apply(
+                &w,
+                &[
+                    (official, Some(OfficialPerson)),
+                    (unknown, Some(UnknownPerson)),
+                    (ghost, Some(DeadPerson)),
+                    (unrelated, Some(NotConnected)),
+                    (target, reason),
+                ],
+            );
+        }
+
+        let mut rate_limited = waiting.clone();
+        rate_limited
+            .joss
+            .get_mut(&rate_limited.souls.player)
+            .unwrap()
+            .balance = price;
+        assert_eq!(
+            crate::underworld::hauntings::apply(&mut rate_limited, target),
+            Ok(())
+        );
+        rate_limited.params.yearly_cap = 0;
+        rate_limited.log.exhaust_ids_leaving(0);
+        assert_action_inspection_matches_apply(
+            &rate_limited,
+            &[
+                (unknown, Some(UnknownPerson)),
+                (ghost, Some(DeadPerson)),
+                (unrelated, Some(NotConnected)),
+                (target, Some(RateLimited)),
+            ],
+        );
+    }
+
+    #[test]
+    fn bribe_inspection_ignores_haunt_rate_and_spend_cap_but_keeps_its_node_gate() {
+        use crate::ids::InputSeq;
+        use crate::underworld::{hauntings, magistrate};
+        use crate::world::RejectReason;
+
+        let mut w = waiting_player();
+        let ghost = w.player_wait.as_ref().unwrap().ghost;
+        let target = crate::underworld::ghosts::connected(&w, ghost)[0];
+        w.joss.get_mut(&w.souls.player).unwrap().balance = w.params.haunt_price + 100;
+        w.joss.get_mut(&w.souls.player).unwrap().capped_spent = w.params.yearly_cap;
+        let before = Checksum::of(&w);
+        let view = ActionView::inspect(&w, &[target]);
+        assert_eq!(
+            view.haunt.targets[0].availability.reason,
+            Some(RejectReason::YearlyCap)
+        );
+        assert!(
+            view.bribe.availability.eligible,
+            "Haunt/Rebuilt spend caps do not limit Bribe"
+        );
+        assert_eq!(Checksum::of(&w), before);
+        w.joss.get_mut(&w.souls.player).unwrap().capped_spent = 0;
+        assert_eq!(hauntings::apply(&mut w, target), Ok(()));
+        w.params.yearly_cap = 0;
+        let before = Checksum::of(&w);
+        let view = ActionView::inspect(&w, &[target]);
+        assert_eq!(
+            view.haunt.targets[0].availability.reason,
+            Some(RejectReason::RateLimited)
+        );
+        assert!(view.bribe.availability.eligible);
+        assert_eq!(view.bribe.min_amount, 1);
+        assert_eq!(view.bribe.max_amount, 100);
+        assert_eq!(Checksum::of(&w), before);
+        assert_eq!(magistrate::apply(&mut w, InputSeq(0), 1), Ok(()));
+        let before = Checksum::of(&w);
+        let view = ActionView::inspect(&w, &[target]);
+        assert_eq!(
+            view.bribe.availability.reason,
+            Some(RejectReason::NodePending)
+        );
+        assert_eq!(
+            magistrate::apply(&mut w, InputSeq(1), 1),
+            Err(RejectReason::NodePending)
+        );
+        assert_eq!(Checksum::of(&w), before);
+        assert_eq!(
+            magistrate::apply(&mut w, InputSeq(1), 0),
+            Err(RejectReason::BadAmount)
+        );
+        assert_eq!(Checksum::of(&w), before);
+        // Balance precedes the independent Bribe node gate.
+        w.joss.get_mut(&w.souls.player).unwrap().balance = 0;
+        assert_eq!(
+            ActionView::inspect(&w, &[target]).bribe.availability.reason,
+            Some(RejectReason::InsufficientJoss)
+        );
     }
 }

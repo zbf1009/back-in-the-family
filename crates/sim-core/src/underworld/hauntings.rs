@@ -6,29 +6,55 @@
 //! else: the target's Mood moves by the fixed `-15` of the Event's `mood_delta` row
 //! (LS-R14.2), so Mood still changes only through an Event (R5.2, R5.4).
 
-use crate::events::{CausedBy, EventKind, EventTags};
-use crate::ids::PersonId;
+use crate::events::{CausedBy, Event, EventKind, EventTags};
+use crate::ids::{PersonId, Tick};
 use crate::underworld::{ghosts, joss, player};
 use crate::world::{AppendRefused, Life, RejectReason, World};
 
+/// Borrowed facts shared by every target in one read-only action inspection.
+/// Errors remain deferred until their position in the authoritative input order.
+pub(crate) struct HauntInspection<'a> {
+    world: &'a World,
+    waiting_ghost: Result<PersonId, RejectReason>,
+    tail: Result<(), RejectReason>,
+}
+
+impl<'a> HauntInspection<'a> {
+    pub(crate) fn new(world: &'a World, waiting_ghost: Result<PersonId, RejectReason>) -> Self {
+        Self {
+            world,
+            waiting_ghost,
+            tail: validate_tail(world),
+        }
+    }
+
+    pub(crate) fn validate(&self, target: PersonId) -> Result<PersonId, RejectReason> {
+        let world = self.world;
+        if target == world.magistrate.id {
+            return Err(RejectReason::OfficialPerson);
+        }
+        let ghost = self.waiting_ghost?;
+        let Some(person) = world.persons.get(&target) else {
+            return Err(RejectReason::UnknownPerson);
+        };
+        if matches!(person.life, Life::Dead { .. }) {
+            return Err(RejectReason::DeadPerson);
+        }
+        if !ghosts::is_connected(world, target, ghost) {
+            return Err(RejectReason::NotConnected);
+        }
+        self.tail?;
+        Ok(ghost)
+    }
+}
+
 /// Checks the authoritative input order without mutating the World.
 pub(crate) fn validate(world: &World, target: PersonId) -> Result<PersonId, RejectReason> {
-    if target == world.magistrate.id {
-        return Err(RejectReason::OfficialPerson);
-    }
-    player::require_waiting(world)?;
-    let Some(ghost) = world.player_wait.as_ref().map(|wait| wait.ghost) else {
-        return Err(RejectReason::NotWaiting);
-    };
-    let Some(person) = world.persons.get(&target) else {
-        return Err(RejectReason::UnknownPerson);
-    };
-    if matches!(person.life, Life::Dead { .. }) {
-        return Err(RejectReason::DeadPerson);
-    }
-    if !ghosts::is_connected(world, target, ghost) {
-        return Err(RejectReason::NotConnected);
-    }
+    HauntInspection::new(world, player::waiting_ghost(world)).validate(target)
+}
+
+/// The target-independent tail, shared by inspection and apply.
+fn validate_tail(world: &World) -> Result<(), RejectReason> {
     if haunted_this_tick(world) {
         return Err(RejectReason::RateLimited);
     }
@@ -46,7 +72,7 @@ pub(crate) fn validate(world: &World, target: PersonId) -> Result<PersonId, Reje
     if !world.log.has_room(1) {
         return Err(RejectReason::IdExhausted);
     }
-    Ok(ghost)
+    Ok(())
 }
 
 /// Appends the validated event before charging the shared capped-spend budget.
@@ -78,16 +104,21 @@ pub(crate) fn apply(world: &mut World, target: PersonId) -> Result<(), RejectRea
 
 /// Whether a `haunting` Event already fired in the current tick (OP-U5 A).
 fn haunted_this_tick(world: &World) -> bool {
-    world
-        .log
-        .events()
-        .iter()
-        .rev()
-        .find_map(|event| match event.kind {
-            EventKind::Haunting { .. } => Some(event.tick),
-            _ => None,
-        })
-        == Some(world.tick)
+    haunted_in_tick_suffix(world.log.events().iter().rev(), world.tick)
+}
+
+/// Event ticks are nondecreasing in a valid World. The first older Event bounds
+/// the search even when no haunting has ever occurred.
+fn haunted_in_tick_suffix<'a>(events: impl Iterator<Item = &'a Event>, tick: Tick) -> bool {
+    for event in events {
+        if event.tick < tick {
+            break;
+        }
+        if matches!(event.kind, EventKind::Haunting { .. }) {
+            return true;
+        }
+    }
+    false
 }
 
 #[cfg(test)]
@@ -311,5 +342,104 @@ mod tests {
             w.rejections().last.map(|(_, _, reason)| reason),
             Some(RejectReason::NoGhost)
         );
+    }
+    #[test]
+    fn haunting_search_stops_at_the_first_older_event_without_a_historical_haunting() {
+        use std::cell::Cell;
+
+        let mut w = world(quiet());
+        let person = *w.persons.keys().next().unwrap();
+        for _ in 0..10_000 {
+            w.log
+                .push(
+                    Tick(0),
+                    EventKind::Birth { person },
+                    CausedBy::default(),
+                    EventTags::empty(),
+                )
+                .unwrap();
+        }
+        w.tick = Tick(1);
+        let visited = Cell::new(0);
+        let search = |w: &World| {
+            visited.set(0);
+            haunted_in_tick_suffix(
+                w.log
+                    .events()
+                    .iter()
+                    .rev()
+                    .inspect(|_| visited.set(visited.get() + 1)),
+                w.tick,
+            )
+        };
+        assert!(!search(&w));
+        assert_eq!(visited.get(), 1, "only the older-tick boundary is read");
+        for _ in 0..3 {
+            w.log
+                .push(
+                    w.tick,
+                    EventKind::Birth { person },
+                    CausedBy::default(),
+                    EventTags::empty(),
+                )
+                .unwrap();
+        }
+        assert!(!haunted_this_tick(&w));
+        assert!(!search(&w));
+        assert_eq!(visited.get(), 4, "three current Events and one boundary");
+    }
+
+    #[test]
+    fn a_historical_haunting_does_not_rate_limit_a_later_tick() {
+        let mut w = world(quiet());
+        let ghost = kill_player(&mut w);
+        let target = connected(&w, ghost);
+        give_joss(&mut w, 100);
+        assert_eq!(apply(&mut w, target), Ok(()));
+        w.tick = Tick(1);
+        assert!(!haunted_this_tick(&w));
+        assert_eq!(validate(&w, target), Ok(ghost));
+        assert_eq!(apply(&mut w, target), Ok(()));
+    }
+
+    #[test]
+    fn any_current_tick_haunting_rate_limits_the_player() {
+        let mut w = world(quiet());
+        let ghost = kill_player(&mut w);
+        let target = connected(&w, ghost);
+        let others: Vec<_> = w
+            .persons
+            .keys()
+            .copied()
+            .filter(|id| *id != ghost && *id != target)
+            .take(2)
+            .collect();
+        let other_ghost = others[0];
+        let other_target = others[1];
+        let soul = w.persons[&other_ghost].soul;
+        w.persons.get_mut(&other_ghost).unwrap().life = Life::Dead { death: w.tick };
+        w.souls
+            .places
+            .insert(soul, SoulPlace::Waiting { since: w.tick });
+        w.append(
+            EventKind::Haunting {
+                ghost: other_ghost,
+                target: other_target,
+                intensity: w.params.haunt_intensity,
+                price: w.params.haunt_price,
+            },
+            CausedBy::default(),
+            EventTags::empty(),
+        )
+        .unwrap();
+        assert!(haunted_this_tick(&w));
+        // RateLimited precedes the balance, cap and ID checks.
+        give_joss(&mut w, 0);
+        w.params.yearly_cap = 0;
+        w.log.exhaust_ids_leaving(0);
+        let before = crate::checksum::Checksum::of(&w);
+        assert_eq!(validate(&w, target), Err(RejectReason::RateLimited));
+        assert_eq!(apply(&mut w, target), Err(RejectReason::RateLimited));
+        assert_eq!(crate::checksum::Checksum::of(&w), before);
     }
 }
