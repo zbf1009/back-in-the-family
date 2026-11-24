@@ -14,7 +14,7 @@ First-playable local status (2026-11-20): spec 6 is **accepted and audited local
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/zbf1009/back-in-the-family/tree/cloudflare-deploy)
 
-Import the CI-published `cloudflare-deploy` artifact into **your own Cloudflare account**, not the `main` source tree or the private reviewer release. The copied project is one generic Worker with native `AI` and `ASSETS` bindings, prebuilt page/WASM/Worker bytes and the complete `LICENSE` and `NOTICE`. It needs no reviewer code, Secret or Durable Object.
+Import the CI-published `cloudflare-deploy` artifact into **your own Cloudflare account**, not the `main` source tree or the private reviewer release. This is the single public deployment entry: one generic Worker with native `AI` and `ASSETS` bindings, prebuilt page/WASM/Worker bytes and the complete `LICENSE` and `NOTICE`. It needs no reviewer code, Secret or storage binding.
 
 ### Import settings
 
@@ -26,6 +26,20 @@ Import the CI-published `cloudflare-deploy` artifact into **your own Cloudflare 
 The copy starts with `INFERENCE_ENABLED: "false"`: it is playable in rules-only mode using `Rules_Default`. Model use requires your explicit opt-in on your own account; it is not enabled by importing or clicking the button. Retain `MAX_REQUEST_BYTES: "16384"`, the cap on actual serialized UTF-8 request bytes—not a token/neuron conversion or a guarantee of ≤50 neurons.
 
 The generic page-document default cap is **40 attempts**, not a server-enforced daily allowance. After opt-in, direct endpoint requests bypass that page cap and consume the account's shared Workers AI allocation; Free quota may be exhausted, Paid usage may incur charges, and provider/model availability is not guaranteed. This is separate from the private reviewer pool's **40 admissions per UTC day across all sessions**, **10 per session lifetime** and **86400-second session TTL**.
+
+### Verified public delivery
+
+The actual README button imported the permanent non-default ref into an owned disposable repository and deployed it through Workers Builds with an empty application build command and a pinned, SDK-only install. Real Create/Step/Run/Pause controls, checked page/WASM/Worker bytes, native AI/ASSETS, JSON API routing, disabled POST and SPA fallback were verified. The copy remained inference-disabled: **0 new model dispatches**, including **0 judge calls**. Its repository, Worker and Builds trigger/connection were cleaned up; the permanent button/ref and both production services were retained.
+
+| Observed delivery | Identity / result |
+|---|---|
+| Source at import; successful main/static/publisher | `32100ed224595d0ec4d0645a0ae4e9cde640c7bf`; [run `45326300030/1`](https://github.com/zbf1009/back-in-the-family/actions/runs/45326300030/attempts/1) |
+| Permanent artifact at import | [`83dd1ae56f46f2f18c60619f1d9121b79b1408a8`](https://github.com/zbf1009/back-in-the-family/commit/83dd1ae56f46f2f18c60619f1d9121b79b1408a8), on [`cloudflare-deploy`](https://github.com/zbf1009/back-in-the-family/tree/cloudflare-deploy) |
+| Separate judge chain | [run `45328839414/1`](https://github.com/zbf1009/back-in-the-family/actions/runs/45328839414/attempts/1), success; original accepted judge identity remains `1701d2df26ede28c2a5ed422a6dbff0fcd7845dd` |
+
+Two platform limits are disclosed rather than hidden: the import initially hit GitHub's anonymous rate-limit 403 and continued through the same UI after its real reset; the initial manual Build's `commit_hash` was blank, so the copied commit/tree and bytes were fetched independently. Also, `no_bundle` avoids an application rebuild, **not** auxiliary module discovery: the actual upload had seven multipart modules, including four SDK WASM/HTML auxiliaries. The public Git tree is closed and the main Worker/game WASM/page bytes are exact; no closed allowlist or single-module claim is made for Cloudflare's uploaded module tree.
+
+See [permanent public delivery evidence and limitations](docs/slow-think-audit.md#permanent-public-delivery), including the local/ignored proof paths. Tasks 10.1–10.3 are complete; final documentation delivery/CI observation (10.4) and final Spec acceptance remain open. The run identities above describe the verified import source, not a future documentation-tail publication.
 
 ## Build and test
 
@@ -143,7 +157,7 @@ The commands above use the source checkout's general offline-gate wrapper and it
 
 After Web_Build, Worker_Build and Worker runtime/router tests, `scripts/gates.sh` captures preparation stdout and passes its digest explicitly to Artifact_Check, followed by the built-input artifact, publisher and per-boundary CLI consumer tests. It removes only its fresh owned transport on exit and keeps Smoke_Test last. This wiring does not claim full clean-gate, C4 or live-release acceptance.
 
-The gate/build job transports immutable checked bytes and an independently bound envelope digest to a separate publisher; the publisher never rebuilds. Its job and branch-write step are enabled under the later permanent public deployment Author grant for tasks 10.1–10.4. Successful source workflow `45321550513/1` published the checked `refs/heads/cloudflare-deploy` at `805ac01dfc7c66b2ccc8bcf109a3218a658f3045`, bound to source `cab87be498a12cf4043c3c326b1dbc2ba1ff4991`; authenticated CI transport and the actual ref's closed public bytes were verified. The public copy retains inference off, the explicit 16,384-byte policy and `Rules_Default` fallback. Publication does not select the generic hosted candidate or alter the separate private reviewer release; any model opt-in uses the deployer's own account and shared Free/Paid quota, as described in NOTICE.
+The gate/build job transports immutable checked bytes and an independently bound envelope digest to a separate publisher; the publisher never rebuilds. Its job and branch-write step are enabled under the separate permanent public deployment Author grant for tasks 10.1–10.4. Successful source workflow `45326300030/1` published the checked `refs/heads/cloudflare-deploy` at `83dd1ae56f46f2f18c60619f1d9121b79b1408a8`, bound to source `32100ed224595d0ec4d0645a0ae4e9cde640c7bf`, after predecessor `805ac01dfc7c66b2ccc8bcf109a3218a658f3045`; authenticated CI transport and the actual ref's closed public bytes were verified. The actual default-off button/import proof is recorded above and in the audit. Publication does not select the generic hosted candidate or alter the separate private reviewer release; any model opt-in uses the deployer's own account and shared Free/Paid quota, as described in NOTICE.
 
 **Historical permanent rollout decision (8.1, before the public-delivery grant):** C4's functional checkpoint was accepted using the separately authorized real button/infrastructure and Clef-applied replay evidence. At that checkpoint, permanent publisher writes, its target ref and the README Deploy button were **not authorized**; both hard-false guards remained unchanged. The released next steps were final local offline verification and audit through C5, not hosted activation or publication. The later permanent public deployment grant is a separate rollout decision, not authority inherited from C4 or C5.
 
@@ -156,7 +170,7 @@ CI transport uses MIT-licensed [`actions/upload-artifact` v4.6.2](https://github
 
 The separate [judge release](worker-api/judge.jsonc) adds private-code access to the existing native Decision demo while leaving the public rules-only game unchanged.
 
-The reviewer pool permits **40 application admissions per UTC day shared across all sessions** and **10 per session lifetime**, with a session TTL of **86400 seconds**. UTC midnight resets only the shared daily allowance; refresh, repeated login and redeploy do not reset a session's lifetime count. Model failure, invalid output, timeout or exhausted allowance uses the existing `Rules_Default` fallback; a reserved admission is not refunded when dispatch fails.
+The reviewer pool permits **40 application admissions per UTC day shared across all sessions** and **10 per session lifetime**, with a session TTL of **86400 seconds**. UTC midnight resets only the shared daily allowance; refresh, repeated login and redeploy do not reset a session's lifetime count. The stable reviewer namespace/pool and counters are retained across this public-delivery continuation; no new balance equality is claimed. Model failure, invalid output, timeout or exhausted allowance uses the existing `Rules_Default` fallback; a reserved admission is not refunded when dispatch fails.
 
 Reviewer code is delivered privately and kept outside the repository and artifacts; neither code nor session tokens belong in URLs or Web Storage. This independent judge release did not authorize the public button or permanent artifact publication; those are enabled by the later, separate public-delivery grant and use the generic default-off artifact, not the reviewer release. Local checks in `docs/kiro-log.md` are not a live-release acceptance claim.
 
