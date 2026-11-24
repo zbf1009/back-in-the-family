@@ -271,13 +271,17 @@ jobs:
           import assert from 'node:assert/strict';
           import { spawnSync } from 'node:child_process';
           import { resolve } from 'node:path';
+          import { isDecisionConfig, isDecisionError } from './web/src/shared/decision.ts';
+          let phase = 'ownership.credentials';
+          let safeHTTPStatus = null;
+          function setPhase(label) { phase = label; safeHTTPStatus = null; }
           const name = 'back-in-the-family-judge';
           const account = process.env.CLOUDFLARE_ACCOUNT_ID;
           const token = process.env.CLOUDFLARE_API_TOKEN;
-          assert.ok(/^[a-f0-9]{32}$/.test(account ?? '') && token, 'Scoped deployment credentials are unavailable');
           const base = `https://api.cloudflare.com/client/v4/accounts/${account}`;
           async function api(path, absent = false) {
             const response = await fetch(base + path, { headers: { authorization: `Bearer ${token}` } });
+            safeHTTPStatus = response.status;
             if (absent && response.status === 404) return null;
             assert.ok(response.ok, `Scoped Cloudflare metadata request failed (HTTP ${response.status}; contents redacted)`);
             const body = await response.json();
@@ -292,59 +296,128 @@ jobs:
               if (items.length < 1000) return namespaces;
             }
           }
+          async function waitForAnonymousConfig(url, enabled) {
+            const deadline = performance.now() + 30_000;
+            for (;;) {
+              setPhase(enabled ? 'enabled.config-status' : 'disabled.config-status');
+              const remaining = Math.floor(deadline - performance.now());
+              assert.ok(remaining > 0, 'Anonymous config readiness timed out');
+              const response = await fetch(url, {
+                method: 'GET', credentials: 'omit', redirect: 'error', cache: 'no-store',
+                signal: AbortSignal.timeout(remaining),
+              });
+              safeHTTPStatus = response.status;
+              if (response.status !== 200 && response.status !== 503) {
+                void response.body?.cancel().catch(() => {});
+                throw new Error('Unexpected anonymous config status');
+              }
+              setPhase(enabled ? 'enabled.config-wire' : 'disabled.config-wire');
+              safeHTTPStatus = response.status;
+              const mediaType = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
+              if (mediaType !== 'application/json' || response.body === null) {
+                void response.body?.cancel().catch(() => {});
+                throw new Error('Invalid anonymous config media type');
+              }
+              let size = 0;
+              const chunks = [];
+              const reader = response.body.getReader();
+              try {
+                for (;;) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  size += value.byteLength;
+                  assert.ok(size <= 1024, 'Anonymous config wire exceeds its bounded envelope');
+                  chunks.push(value);
+                }
+              } finally {
+                void reader.cancel().catch(() => {});
+                reader.releaseLock();
+              }
+              const wire = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks, size)));
+              const enabledWire = response.status === 200 && isDecisionConfig(wire) && wire.enabled === false && wire.session_cap === 0;
+              const disabledWire = response.status === 503 && isDecisionError(wire, 503) && wire.error.kind === 'disabled';
+              assert.ok(enabledWire || disabledWire, 'Unknown anonymous config wire');
+              assert.ok(performance.now() < deadline, 'Anonymous config readiness timed out');
+              if (enabled ? enabledWire : disabledWire) return;
+              // Only the exact closed wire of the opposite deployed variant may
+              // wait. This GET never authenticates, reserves or dispatches AI.
+              const delay = Math.min(1000, deadline - performance.now());
+              assert.ok(delay > 0, 'Anonymous config readiness timed out');
+              await new Promise(resolveDelay => setTimeout(resolveDelay, delay));
+            }
+          }
           const endpoint = `/workers/scripts/${name}`;
           let expected = process.env.EXPECTED_NAMESPACE_ID;
-          const before = await api(endpoint + '/settings', true);
-          if (before === null) {
-            assert.ok(process.env.EXPECT_ABSENT === 'true' && !expected, 'Absent target must be explicitly confirmed before first write');
-            const namespaces = await ownedNamespaces();
-            assert.ok(!namespaces.some(ns => ns.script === name), 'Unexpected existing judge namespace must not be overwritten');
-          } else {
-            assert.ok(/^[a-f0-9]{32}$/.test(expected ?? ''), 'Existing target requires recorded owned namespace identity');
-            const gate = before.bindings.filter(binding => binding.name === 'JUDGE_GATE');
-            assert.ok(gate.length === 1 && gate[0].type === 'durable_object_namespace' && gate[0].class_name === 'JudgeGate' && gate[0].namespace_id === expected && (gate[0].script_name === undefined || gate[0].script_name === name), 'Existing judge ownership/binding differs');
-          }
           function deploy(config) {
             const result = spawnSync('pnpm', ['--dir', 'web', 'exec', 'wrangler', 'deploy', '--config', resolve(config)], { stdio: 'inherit' });
             assert.ifError(result.error); assert.ok(result.status === 0, 'Scoped checked deployment failed');
           }
           const disabled = 'target/judge-worker/deploy-disabled.jsonc';
-          deploy(disabled);
           async function prerequisites(enabled) {
+            setPhase(enabled ? 'enabled.metadata' : 'disabled.metadata');
             const settings = await api(endpoint + '/settings');
             const bindings = settings.bindings;
+            setPhase(enabled ? 'enabled.gate' : 'disabled.gate');
             const gate = bindings.filter(binding => binding.name === 'JUDGE_GATE');
             assert.ok(gate.length === 1 && gate[0].type === 'durable_object_namespace' && gate[0].class_name === 'JudgeGate' && (gate[0].script_name === undefined || gate[0].script_name === name));
             if (!expected) expected = gate[0].namespace_id;
             assert.ok(gate[0].namespace_id === expected, 'Judge namespace must remain stable across deployments');
+            setPhase(enabled ? 'enabled.sqlite' : 'disabled.sqlite');
             const namespaces = await ownedNamespaces();
             const namespace = namespaces.find(ns => ns.id === expected);
             assert.ok(namespace && namespace.script === name && namespace.class === 'JudgeGate' && namespace.use_sqlite === true, 'Native JudgeGate namespace is not SQLite');
+            setPhase(enabled ? 'enabled.native-bindings' : 'disabled.native-bindings');
             assert.ok(bindings.some(binding => binding.name === 'AI' && binding.type === 'ai') && bindings.some(binding => binding.name === 'ASSETS' && binding.type === 'assets'), 'Native required bindings are unavailable');
+            setPhase(enabled ? 'enabled.aliases' : 'disabled.aliases');
             const subdomain = await api(endpoint + '/subdomain');
             assert.ok(subdomain.enabled === true && subdomain.previews_enabled === false, 'Judge preview/version URLs must remain off');
+            setPhase(enabled ? 'enabled.policy' : 'disabled.policy');
             for (const [variable, value] of Object.entries({ INFERENCE_ENABLED: String(enabled), MAX_REQUEST_BYTES: '16384', SESSION_CAP: '10', JUDGE_DAILY_CAP: '40', JUDGE_SESSION_TTL_SECONDS: '86400' })) {
               const values = bindings.filter(binding => binding.name === variable);
               assert.ok(values.length === 1 && values[0].type === 'plain_text' && values[0].text === value, 'Remote judge policy differs');
             }
+            setPhase(enabled ? 'enabled.secret-presence' : 'disabled.secret-presence');
             const secrets = await api(endpoint + '/secrets');
             assert.ok(secrets.some(secret => secret.name === 'JUDGE_CODE' && secret.type === 'secret_text'), 'JUDGE_CODE is not installed; disabled target retained for private stdin installation');
-            const config = await fetch(`https://${name}.${(await api('/workers/subdomain')).subdomain}.workers.dev/api/decision/config`, { redirect: 'error' });
-            assert.ok(config.status === (enabled ? 200 : 503), 'Native judge configuration is unavailable');
-            const wire = await config.json();
-            const expectedWire = enabled ? { version: 'decision-config-v1', enabled: false, session_cap: 0 }
-              : { version: 'decision-error-v1', error: { kind: 'disabled' } };
-            assert.ok(JSON.stringify(wire) === JSON.stringify(expectedWire), 'Anonymous native judge config must dispatch nothing');
+            setPhase(enabled ? 'enabled.aliases-hostname' : 'disabled.aliases-hostname');
+            const hostname = (await api('/workers/subdomain')).subdomain;
+            assert.ok(typeof hostname === 'string' && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(hostname), 'Invalid judge hostname');
+            await waitForAnonymousConfig(`https://${name}.${hostname}.workers.dev/api/decision/config`, enabled);
           }
           let activationAttempted = false;
           try {
+            assert.ok(/^[a-f0-9]{32}$/.test(account ?? '') && token, 'Scoped deployment credentials are unavailable');
+            setPhase('ownership.metadata');
+            const before = await api(endpoint + '/settings', true);
+            setPhase('ownership.target');
+            if (before === null) {
+              assert.ok(process.env.EXPECT_ABSENT === 'true' && !expected, 'Absent target must be explicitly confirmed before first write');
+              const namespaces = await ownedNamespaces();
+              assert.ok(!namespaces.some(ns => ns.script === name), 'Unexpected existing judge namespace must not be overwritten');
+            } else {
+              assert.ok(/^[a-f0-9]{32}$/.test(expected ?? ''), 'Existing target requires recorded owned namespace identity');
+              const gate = before.bindings.filter(binding => binding.name === 'JUDGE_GATE');
+              assert.ok(gate.length === 1 && gate[0].type === 'durable_object_namespace' && gate[0].class_name === 'JudgeGate' && gate[0].namespace_id === expected && (gate[0].script_name === undefined || gate[0].script_name === name), 'Existing judge ownership/binding differs');
+            }
+            setPhase('disabled.deploy');
+            deploy(disabled);
             await prerequisites(false);
             activationAttempted = true;
+            setPhase('enabled.deploy');
             deploy('worker-api/judge-hosted.jsonc');
             await prerequisites(true);
             console.log('Checked judge release enabled on the same owned SQLite namespace; secret values omitted.');
           } catch {
-            if (activationAttempted) deploy(disabled);
-            throw new Error('Judge prerequisites failed; checked disabled variant retained on the same namespace for scoped repair (contents redacted)');
+            const failurePhase = phase;
+            const failureHTTP = Number.isInteger(safeHTTPStatus) && safeHTTPStatus >= 100 && safeHTTPStatus <= 599 ? safeHTTPStatus : 'none';
+            console.error(`Judge safety check failed (phase ${failurePhase}; HTTP ${failureHTTP}; details redacted)`);
+            if (activationAttempted) {
+              setPhase('rollback.disabled');
+              try { deploy(disabled); }
+              catch { throw new Error('Checked judge disabled rollback failed (phase rollback.disabled; details redacted)'); }
+            }
+            throw new Error(activationAttempted
+              ? 'Judge prerequisites failed; checked disabled variant retained on the same namespace (details redacted)'
+              : 'Judge safety check failed before activation (details redacted)');
           }
           JS
