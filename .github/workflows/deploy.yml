@@ -14,7 +14,7 @@ on:
     branches: [main]
 
 # The gate/static deploy job retains read-only repository access. Only the separate
-# hard-disabled future publisher declares write permission; no rollout is authorized.
+# approved artifact publisher declares write permission for exact-lease updates.
 permissions:
   contents: read
 
@@ -128,10 +128,10 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: mise exec -- pnpm exec wrangler deploy
 
-  # 8.1 must separately approve the permanent target and edit BOTH hard-false guards.
-  # Passing offline checks or setting repository variables cannot enable this job.
+  # Publish only to the permanent target separately approved by the Author in 8.1.
+  # Missing or mismatched approval/ref inputs leave publication disabled.
   publish-artifact:
-    if: ${{ false }}
+    if: ${{ vars.ARTIFACT_PUBLICATION_APPROVED == '8.1' && vars.ARTIFACT_TARGET_REF == 'refs/heads/cloudflare-deploy' }}
     needs: gates-and-deploy
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -145,7 +145,7 @@ jobs:
       CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV: "false"
       CLOUDFLARE_INCLUDE_PROCESS_ENV: "false"
       PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: "1"
-      # Reserved explicit 8.1 inputs: no permanent artifact branch is selected now.
+      # Explicit permanent-publication inputs; first creation requires approved absence.
       BIF_ARTIFACT_TARGET_REF: ${{ vars.ARTIFACT_TARGET_REF }}
       BIF_ARTIFACT_PUBLICATION_APPROVED: ${{ vars.ARTIFACT_PUBLICATION_APPROVED }}
       BIF_ARTIFACT_EXPECT_ABSENT: ${{ vars.ARTIFACT_EXPECT_ABSENT }}
@@ -213,7 +213,7 @@ jobs:
             --envelope-sha "$CHECKED_ENVELOPE_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Publish checked artifact branch with an exact lease
-        if: ${{ false }}
+        if: ${{ vars.ARTIFACT_PUBLICATION_APPROVED == '8.1' && vars.ARTIFACT_TARGET_REF == 'refs/heads/cloudflare-deploy' }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CHECKED_SOURCE: ${{ needs.gates-and-deploy.outputs.source_sha }}

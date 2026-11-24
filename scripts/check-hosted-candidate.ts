@@ -16,7 +16,7 @@ import { assertWorkerTools, requireTools } from '../worker-api/scripts/tools.ts'
 // These are the existing approved static path, not a new release-authority protocol.
 // Any workflow/config change requires separate review; this preparatory checker
 // cannot approve a target, select the candidate, enable inference, or deploy.
-const STATIC_WORKFLOW = '339d77db175727fac82d5f8f2b564d34d67acbcce9b2a1c0528cd3e3017e71d5';
+const STATIC_WORKFLOW = 'f7d89dd243883d4e4893bc2e8229b43a24239b6e058deb50e33fb63e35599db7';
 const STATIC_CONFIG = '19bbf6907bd2c275f23b494a6683f1511124d33bfadc15080c06486238533cd3';
 export interface HostedCandidate extends SourceConfig { no_bundle: true }
 export interface StaticDeployment { cwd: string; command: string; configPath: string }
