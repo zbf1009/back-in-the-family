@@ -384,3 +384,62 @@ fn last_dream_names_a_dreamer_who_has_since_died() {
             .all(|person| person["id"] != dreamer.0)
     );
 }
+
+#[test]
+fn waiting_snapshot_delivers_required_action_view_and_current_lazy_budget() {
+    let mut params = Params::DEFAULT;
+    params.haunt_price = 13;
+    params.yearly_cap = 91;
+    let (mut world, target) = waiting_for_snapshot(params, None);
+    let player = world.souls().player;
+    let mut account = world.joss()[&player];
+    account.capped_spent = 90;
+    set_invalid_joss_account(&mut world, player, account);
+    let view = read_snapshot(&world);
+    let actions = &view["underworld_view"]["actions"];
+    assert_eq!(actions["version"], 1);
+    assert_eq!(actions["haunt"]["price"], "13");
+    assert_eq!(
+        actions["capped_spend"],
+        json!({"cap_year":"0","yearly_cap":"91","spent":"90","remaining":"1"})
+    );
+    assert_eq!(actions["bribe"]["min_amount"], "1");
+    assert_eq!(actions["bribe"]["max_amount"], account.balance.to_string());
+    assert_eq!(
+        actions["bribe"]["availability"],
+        json!({"eligible":true,"reason":null})
+    );
+    let targets = actions["haunt"]["targets"].as_array().unwrap();
+    assert_eq!(
+        targets
+            .iter()
+            .map(|entry| entry["target"].clone())
+            .collect::<Vec<_>>(),
+        *view["underworld_view"]["connected"].as_array().unwrap()
+    );
+    assert_eq!(
+        targets
+            .iter()
+            .find(|entry| entry["target"] == target.0)
+            .unwrap()["availability"],
+        json!({"eligible":false,"reason":"yearly_cap"})
+    );
+    sim_core::testing::set_tick(&mut world, Tick(365));
+    let view = read_snapshot(&world);
+    assert_eq!(
+        view["underworld_view"]["actions"]["capped_spend"],
+        json!({"cap_year":"1","yearly_cap":"91","spent":"0","remaining":"91"})
+    );
+    assert_eq!(
+        world.joss()[&player],
+        account,
+        "the stored lazy counters are unchanged"
+    );
+    account.balance = 0;
+    set_invalid_joss_account(&mut world, player, account);
+    let view = read_snapshot(&world);
+    assert_eq!(
+        view["underworld_view"]["actions"]["bribe"],
+        json!({"min_amount":"1","max_amount":"0","availability":{"eligible":false,"reason":"insufficient_joss"}})
+    );
+}

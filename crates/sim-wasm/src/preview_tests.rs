@@ -455,18 +455,42 @@ fn replay_export_native_wasm_json_trace() {
     let mut fallback = WasmSim {
         inner: sim.inner.clone(),
     };
+    let fallback_receipt = fallback.submit_checked_json(&format!("[{BRIBE}]")).unwrap();
+    let fallback_seq = fallback
+        .inner
+        .inputs()
+        .all()
+        .iter()
+        .max_by_key(|input| input.seq)
+        .unwrap()
+        .seq;
     assert_eq!(
-        fallback.submit_checked_json(&format!("[{BRIBE}]")),
-        Ok(r#"{"ok":true}"#.into())
+        decode(&fallback_receipt),
+        serde_json::json!({"ok":true,"tick":FIRING_TICK.0.to_string(),"seqs":[fallback_seq.0.to_string()]})
     );
     let before_submit = sim.inner.clone();
     for malformed in ["null", r#""f00""#] {
         assert!(sim.submit_checked_json(&batch(malformed)).is_err());
         same_live_run(&sim.inner, &before_submit).unwrap();
     }
+    let receipt = sim
+        .submit_checked_json(&batch(&format!(r#""{historical}""#)))
+        .unwrap();
+    let mut assigned: Vec<_> = sim
+        .inner
+        .inputs()
+        .all()
+        .iter()
+        .map(|input| input.seq)
+        .collect();
+    assigned.sort_unstable();
+    let assigned: Vec<_> = assigned[assigned.len() - 2..]
+        .iter()
+        .map(|seq| seq.0.to_string())
+        .collect();
     assert_eq!(
-        sim.submit_checked_json(&batch(&format!(r#""{historical}""#))),
-        Ok(r#"{"ok":true}"#.into())
+        decode(&receipt),
+        serde_json::json!({"ok":true,"tick":FIRING_TICK.0.to_string(),"seqs":assigned})
     );
 
     let mut unexported = sim.inner.clone();

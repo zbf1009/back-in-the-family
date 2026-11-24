@@ -1033,8 +1033,10 @@ fn example_life_stage_candidate() {
 
 fn assert_snapshot_blocks(world: &World) {
     use serde_json::{Value, json};
+    use sim_core::snapshot::ActionView;
     use sim_core::underworld::carry_over::TraitName;
     use sim_core::underworld::slots::{Needed, SlotRef, base_traits, path_status};
+    use sim_core::underworld::{ghosts, joss, magistrate};
 
     let value: Value = serde_json::from_str(&sim_core::snapshot::snapshot_json(world)).unwrap();
     let current = match world.souls().places[&world.souls().player] {
@@ -1102,6 +1104,32 @@ fn assert_snapshot_blocks(world: &World) {
     assert_eq!(value["chronicle"], json!(chronicle));
     let traits = |t: &sim_core::values::Traits| json!({"greed":t.greed.get(),"loyalty":t.loyalty.get(),"pride":t.pride.get(),"warmth":t.warmth.get(),"temper":t.temper.get(),"vindictiveness":t.vindictiveness.get(),"piety":t.piety.get()});
     let expected_view = world.player_wait().map(|wait| {
+        let connected = ghosts::connected(world, wait.ghost);
+        let action_view = ActionView::inspect(world, &connected);
+        let account = world.joss()[&world.souls().player];
+        let spent = account.capped_spent_in(world.tick());
+        assert_eq!(action_view.version, 1);
+        assert_eq!(action_view.haunt.targets.len(), connected.len());
+        let targets: Vec<_> = connected.iter().zip(&action_view.haunt.targets).map(|(target, inspected)| {
+            assert_eq!(inspected.target, *target);
+            assert_ne!(*target, world.magistrate().id);
+            json!({"target":target.0,"availability":inspected.availability})
+        }).collect();
+        let actions = json!({
+            "version":1,
+            "capped_spend":{
+                "cap_year":joss::cap_year(world.tick()).to_string(),
+                "yearly_cap":world.params().yearly_cap.to_string(),
+                "spent":spent.to_string(),
+                "remaining":world.params().yearly_cap.saturating_sub(spent).to_string()
+            },
+            "bribe":{
+                "min_amount":magistrate::MIN_BRIBE_AMOUNT.to_string(),
+                "max_amount":account.balance.to_string(),
+                "availability":action_view.bribe.availability
+            },
+            "haunt":{"price":world.params().haunt_price.to_string(),"targets":targets}
+        });
         let mut slots: Vec<_> = world.slots().values().map(|s| (SlotRef::Birth(s.id),format!("birth:{}",s.id.0),"birth_slot",0,Some(s.birth.0.to_string()))).collect();
         slots.push((SlotRef::ImportedVessel,"imported_vessel".to_owned(),"imported_vessel",world.params().imported_price,None));
         slots.push((SlotRef::RebuiltBody,"rebuilt_body".to_owned(),"rebuilt_body",world.params().rebuilt_price,None));
@@ -1121,9 +1149,9 @@ fn assert_snapshot_blocks(world: &World) {
                 TraitName::Greed => "greed", TraitName::Loyalty => "loyalty", TraitName::Pride => "pride",
                 TraitName::Warmth => "warmth", TraitName::Temper => "temper", TraitName::Vindictiveness => "vindictiveness", TraitName::Piety => "piety",
             }),"traits":traits(&base_traits(world,carry).unwrap())})).collect();
-        json!({"connected":sim_core::underworld::ghosts::connected(world,wait.ghost).iter().map(|id|id.0).collect::<Vec<_>>(),
+        json!({"connected":connected.iter().map(|id|id.0).collect::<Vec<_>>(),
             "dream_price":world.params().dream_price.to_string(),
-            "ghost_traits":traits(&world.persons()[&wait.ghost].traits),"slots":slots,"base_traits":bases})
+            "ghost_traits":traits(&world.persons()[&wait.ghost].traits),"slots":slots,"base_traits":bases,"actions":actions})
     });
     assert_eq!(value["underworld_view"], json!(expected_view));
     let last_dream = world.nodes().resolved.iter().rev().find(|record| {

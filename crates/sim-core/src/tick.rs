@@ -46,6 +46,7 @@ use crate::checksum::Checksum;
 use crate::events::CausedBy;
 use crate::ids::{InputSeq, PersonId, Tick};
 use crate::input::{InputOutcome, InputPayload, InputStream, SubmitError, TickInput};
+use crate::observations::{CheckedSubmission, Collector, RunUntilStopResult, TickObserver};
 use crate::social::apply_social;
 use crate::values::Intensity;
 use crate::world::{AppendRefused, ConfigError, Life, RejectReason, World, WorldConfig};
@@ -72,13 +73,13 @@ impl World {
     /// The vector is a return value, not World state: it is never encoded, never
     /// checksummed and never stored in the World (LS-R16.5).
     pub fn step_with_outcomes(&mut self, inputs: &[TickInput]) -> (Checksum, Vec<InputOutcome>) {
-        self.step_observing_inputs(inputs, &mut |_, _| {})
+        self.step_observing_inputs(inputs, &mut |_: &World, _: &TickInput| {})
     }
 
     fn step_observing_inputs(
         &mut self,
         inputs: &[TickInput],
-        observer: &mut impl FnMut(&World, &TickInput),
+        observer: &mut impl TickObserver,
     ) -> (Checksum, Vec<InputOutcome>) {
         // 1. Reset flows.
         self.flows = crate::economy::FlowTotals::default();
@@ -170,13 +171,13 @@ impl World {
 
     #[cfg(any(test, feature = "test-support"))]
     fn apply_inputs(&mut self, inputs: &[TickInput]) -> Vec<InputOutcome> {
-        self.apply_inputs_observing(inputs, &mut |_, _| {})
+        self.apply_inputs_observing(inputs, &mut |_: &World, _: &TickInput| {})
     }
 
     fn apply_inputs_observing(
         &mut self,
         inputs: &[TickInput],
-        observer: &mut impl FnMut(&World, &TickInput),
+        observer: &mut impl TickObserver,
     ) -> Vec<InputOutcome> {
         let mut outcomes = Vec::with_capacity(inputs.len());
         for input in inputs {
@@ -186,7 +187,7 @@ impl World {
             } else {
                 // Observe the exact applied prefix, including the frozen node, without
                 // storing provenance in World or re-running legality/default logic.
-                observer(self, input);
+                observer.applied(self, input);
             }
             outcomes.push(InputOutcome {
                 seq: input.seq,
@@ -340,15 +341,12 @@ impl Sim {
 
     /// Runs the current tick, returning and recording its checksum and stop reasons.
     pub fn step(&mut self) -> Checksum {
-        self.step_observing_inputs(&mut |_, _| {})
+        self.step_observing_inputs(&mut |_: &World, _: &TickInput| {})
     }
 
     /// Replay tooling observes successful inputs immediately after their application.
     /// The observer is read-only and never changes counters, draws or canonical state.
-    pub(crate) fn step_observing_inputs(
-        &mut self,
-        observer: &mut impl FnMut(&World, &TickInput),
-    ) -> Checksum {
+    pub(crate) fn step_observing_inputs(&mut self, observer: &mut impl TickObserver) -> Checksum {
         let before_place = self
             .world
             .souls()
@@ -363,6 +361,7 @@ impl Sim {
         self.last_outcomes = outcomes;
         self.last_stops = crate::stops::stops_for(before_place, &self.world, tick, resolved);
         self.checksums.push(checksum);
+        observer.completed(&self.world, self.inputs.for_tick(tick), &self.last_outcomes);
         checksum
     }
 
@@ -373,9 +372,24 @@ impl Sim {
 
     /// Runs up to `max` ticks, stopping on the tick that first produces any stop.
     pub fn run_until_stop(&mut self, max: u32) -> crate::stops::RunUntilStop {
+        self.run_observing(max, &mut |_: &World, _: &TickInput| {})
+    }
+
+    /// Runs the same loop with transient per-input and player-lifecycle observations.
+    pub fn run_until_stop_observed(&mut self, max: u32) -> RunUntilStopResult {
+        let mut collector = Collector::new(&self.world);
+        let run = self.run_observing(max, &mut collector);
+        collector.finish(run)
+    }
+
+    fn run_observing(
+        &mut self,
+        max: u32,
+        observer: &mut impl TickObserver,
+    ) -> crate::stops::RunUntilStop {
         let mut ran = 0;
         while ran < max {
-            let checksum = self.step();
+            let checksum = self.step_observing_inputs(observer);
             ran = ran
                 .checked_add(1)
                 .expect("run count cannot exceed u32::MAX");
@@ -469,7 +483,6 @@ impl Sim {
             let _ = preview.apply_one(input.seq, input.payload);
         }
         let start_seq = self.inputs.next_seq().0;
-        let mut seqs = Vec::with_capacity(payloads.len());
         for (index, &payload) in payloads.iter().enumerate() {
             let seq = start_seq
                 .checked_add(u64::try_from(index).unwrap_or(u64::MAX))
@@ -479,14 +492,22 @@ impl Sim {
             preview
                 .apply_one(seq, payload)
                 .map_err(|reason| (index, reason))?;
-            seqs.push(seq);
         }
+        let mut seqs = Vec::with_capacity(payloads.len());
         for &payload in payloads {
-            self.inputs
+            let seq = self
+                .inputs
                 .submit(tick, tick, payload)
                 .expect("preflighted sequence capacity");
+            seqs.push(seq);
         }
         Ok(seqs)
+    }
+
+    /// Checked admission with its actual allocation exposed as a typed wire receipt.
+    pub fn submit_checked(&mut self, payloads: &[InputPayload]) -> CheckedSubmission {
+        let tick = self.world.tick();
+        CheckedSubmission::from_result(tick, self.try_submit_all(payloads))
     }
 
     /// The pending Player_Node and whether its accepted choice is queued for its Choice_Tick.
@@ -1337,7 +1358,7 @@ mod tests {
             }
             let mut plain = sim.clone();
             let mut observed = Vec::new();
-            let checksum = sim.step_observing_inputs(&mut |world, input| {
+            let checksum = sim.step_observing_inputs(&mut |world: &World, input: &TickInput| {
                 if let Some(node) = world
                     .nodes()
                     .pending
@@ -1437,5 +1458,56 @@ mod tests {
             s.preview_node(InputPayload::Haunt { target: dreamer }),
             Err(PreviewError::NoNode)
         );
+    }
+
+    #[test]
+    fn checked_receipts_move_real_high_u64_allocations_and_failed_batches_allocate_none() {
+        use crate::observations::CheckedSubmission;
+        use crate::underworld::carry_over::TraitName;
+        let (mut sim, _, _) = waiting_sim();
+        sim.world.tick = Tick(1u64 << 54);
+        sim.inputs = InputStream::with_next_seq(u64::MAX - 2);
+        let payload = InputPayload::CarryOver {
+            trait_name: TraitName::Piety,
+        };
+        let before = sim.inputs.clone();
+        let rejected = sim.submit_checked(&[payload, InputPayload::Bribe { amount: 0 }]);
+        assert_eq!(
+            rejected,
+            CheckedSubmission::Rejected {
+                index: 1,
+                reason: RejectReason::BadAmount
+            }
+        );
+        assert_eq!(sim.inputs, before);
+        let accepted = sim.submit_checked(&[payload, payload]);
+        let CheckedSubmission::Accepted(receipt) = &accepted else {
+            panic!("the batch was accepted")
+        };
+        assert_eq!(receipt.tick, sim.world.tick());
+        assert_eq!(
+            receipt.seqs,
+            sim.inputs()
+                .all()
+                .iter()
+                .map(|input| input.seq)
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            receipt.seqs,
+            [InputSeq(u64::MAX - 2), InputSeq(u64::MAX - 1)]
+        );
+        let wire: serde_json::Value =
+            serde_json::from_str(&serde_json::to_string(&accepted).unwrap()).unwrap();
+        assert_eq!(wire["tick"], (1u64 << 54).to_string());
+        assert_eq!(wire["seqs"][1], (u64::MAX - 1).to_string());
+        let empty = sim.submit_checked(&[]);
+        let CheckedSubmission::Accepted(empty) = empty else {
+            panic!("empty batches allocate no sequences")
+        };
+        assert!(empty.seqs.is_empty());
+        let zero = sim.run_until_stop_observed(0);
+        assert_eq!(zero.checksum, None);
+        assert!(zero.actions.is_empty() && zero.player_lifecycle.is_empty());
     }
 }

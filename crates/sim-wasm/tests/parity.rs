@@ -232,8 +232,16 @@ fn playthrough_fixture_matches_every_tick_and_stage() {
             let reply = wasm
                 .submit_checked_json(&serde_json::to_string(&payloads).unwrap())
                 .unwrap();
+            let receipt: Value = serde_json::from_str(&reply).unwrap();
+            let seqs: Vec<_> = core
+                .inputs()
+                .for_tick(Tick(tick))
+                .iter()
+                .map(|input| input.seq.0.to_string())
+                .collect();
             assert_eq!(
-                reply, r#"{"ok":true}"#,
+                receipt,
+                serde_json::json!({"ok":true,"tick":tick.to_string(),"seqs":seqs}),
                 "seedP-playthrough: checked submit at tick {tick}"
             );
         }
@@ -241,7 +249,10 @@ fn playthrough_fixture_matches_every_tick_and_stage() {
             !matches!(core.player_node_state(), Some((_, false))),
             "seedP-playthrough: missing Player_Node choice at tick {tick}"
         );
-        let checksum = core.step();
+        let observed = core.run_until_stop_observed(1);
+        let checksum = observed
+            .checksum
+            .expect("one completed fixture tick has a checksum");
         let after = core.last_stops();
         for outcome in core.last_outcomes() {
             assert_eq!(
@@ -275,8 +286,7 @@ fn playthrough_fixture_matches_every_tick_and_stage() {
         }
 
         let reasons = after.labels();
-        let native_reply =
-            serde_json::json!({"ran": 1, "checksum": checksum.to_hex_string(), "stops": reasons});
+        let native_reply = serde_json::to_value(&observed).unwrap();
         let reply: Value = serde_json::from_str(&wasm.run_until_stop(1)).unwrap();
         assert_eq!(
             wasm.tick(),
@@ -482,6 +492,8 @@ fn stop_and_checked_submission_are_identical_on_native_and_wasm() {
             .unwrap()
             .contains(&Value::String("player_node".into()))
     );
+    assert!(first["actions"].as_array().unwrap().is_empty());
+    assert!(first["player_lifecycle"].as_array().unwrap().is_empty());
     let tick = sim.tick();
     assert_eq!(tick, first["ran"].as_u64().unwrap());
     let snapshot: Value = serde_json::from_str(&sim.snapshot()).unwrap();
@@ -496,7 +508,13 @@ fn stop_and_checked_submission_are_identical_on_native_and_wasm() {
     let chosen = serde_json::json!([{"ChoosePlayer":{"node":node,"option":option}}]).to_string();
     let stopped_snapshot = sim.snapshot();
     let stopped_checksums = sim.checksums_json(0, u64::MAX);
-    assert_eq!(sim.submit_checked_json(&chosen).unwrap(), r#"{"ok":true}"#);
+    let receipt: Value = serde_json::from_str(&sim.submit_checked_json(&chosen).unwrap()).unwrap();
+    let replay: Value = serde_json::from_str(&sim.export_replay_json().unwrap()).unwrap();
+    let seq = &replay["inputs"].as_array().unwrap().last().unwrap()["seq"];
+    assert_eq!(
+        receipt,
+        serde_json::json!({"ok":true,"tick":tick.to_string(),"seqs":[seq]})
+    );
     assert_eq!(
         sim.player_node_state_json(),
         format!(r#"{{"pending":true,"node":"{}","answered":true}}"#, node)
@@ -518,6 +536,8 @@ fn stop_and_checked_submission_are_identical_on_native_and_wasm() {
     let next = sim.run_until_stop_json(1);
     let next: Value = serde_json::from_str(&next).unwrap();
     assert_eq!(next["ran"], 1);
+    assert!(next["actions"].as_array().unwrap().is_empty());
+    assert!(next["player_lifecycle"].as_array().unwrap().is_empty());
     assert_eq!(sim.tick(), tick + 1);
     assert_eq!(sim.player_node_state_json(), r#"{"pending":false}"#);
     assert_eq!(
@@ -541,7 +561,7 @@ fn checked_wasm_payloads_reject_malformed_json_without_queuing() {
     );
     assert_eq!(
         sim.run_until_stop_json(0),
-        r#"{"ran":0,"checksum":"","stops":[]}"#
+        r#"{"ran":0,"checksum":"","stops":[],"actions":[],"player_lifecycle":[]}"#
     );
     assert_eq!(sim.tick(), 0);
     assert_eq!(sim.checksums_json(0, 0), "[]");
@@ -574,13 +594,10 @@ fn extended_snapshot_and_stop_replies_match_core_on_every_fixture_tick() {
         );
         for (tick, expected) in file.checksums.iter().enumerate() {
             let reply = wasm.run_until_stop(1);
-            let checksum = core.step();
+            let observed = core.run_until_stop_observed(1);
+            let checksum = observed.checksum.unwrap();
             assert_eq!(&checksum, expected, "fixture {name}: tick {tick}");
-            let expected_reply = format!(
-                r#"{{"ran":1,"checksum":"{}","stops":{}}}"#,
-                checksum.to_hex_string(),
-                serde_json::to_string(&core.last_stops().labels()).unwrap()
-            );
+            let expected_reply = serde_json::to_string(&observed).unwrap();
             assert_eq!(
                 reply, expected_reply,
                 "fixture {name}: tick {tick} stop reply"
@@ -632,4 +649,158 @@ fn core_run_resolves_an_unanswered_player_node_by_default() {
         .find(|entry| entry["tick"] == choice_tick && entry["source"] == "rules_default")
         .unwrap();
     assert_eq!(&entry["applied"], default);
+}
+
+#[wasm_bindgen_test(unsupported = test)]
+fn real_waiting_wasm_batch_retains_early_applied_and_rejected_actions() {
+    use sim_core::ids::Tick;
+    use sim_core::input::InputPayload;
+    use sim_core::replay::ReplayFile;
+    use sim_core::tick::Sim;
+    use sim_core::world::WorldConfig;
+
+    let file = ReplayFile::from_json_str(include_str!(
+        "../../../fixtures/parity/seedP-playthrough.replay.json"
+    ))
+    .unwrap();
+    let mut core = Sim::new(file.seed, WorldConfig::try_from(file.config).unwrap()).unwrap();
+    let mut wasm =
+        WasmSim::create(file.seed, &serde_json::to_string(&file.config).unwrap()).unwrap();
+    // Branch after the recorded Dream resolves, before queuing the affordable claim.
+    let prepared_tick = 5_374;
+    for input in file
+        .inputs
+        .iter()
+        .filter(|input| input.tick < prepared_tick)
+    {
+        core.submit(Tick(input.tick), input.payload.into()).unwrap();
+        wasm.submit_json(
+            &serde_json::json!({"tick":input.tick.to_string(),"payload":input.payload}).to_string(),
+        )
+        .unwrap();
+    }
+    for (tick, expected) in file
+        .checksums
+        .iter()
+        .take(usize::try_from(prepared_tick).unwrap())
+        .enumerate()
+    {
+        assert_eq!(
+            core.step(),
+            *expected,
+            "prepared native fixture tick {tick}"
+        );
+        assert_eq!(
+            wasm.step_hex(),
+            expected.to_hex_string(),
+            "prepared WASM fixture tick {tick}"
+        );
+    }
+    assert_eq!(core.world().tick(), Tick(prepared_tick));
+    assert!(
+        sim_core::underworld::slots::path_status(
+            core.world(),
+            sim_core::underworld::slots::SlotRef::ImportedVessel
+        )
+        .executable(),
+        "the actual recorded claim point has at least its 100-joss price"
+    );
+    let account = core.world().joss()[&core.world().souls().player];
+    assert!(account.balance >= core.world().params().imported_price);
+    assert!(
+        account.balance >= core.world().params().haunt_price.checked_add(1).unwrap(),
+        "the actual balance covers Bribe first, then Haunt"
+    );
+    assert_eq!(
+        account.capped_spent_in(core.world().tick()),
+        0,
+        "the prefix has no Haunt/Rebuild spend"
+    );
+    let snapshot_text = wasm.snapshot();
+    assert_eq!(
+        snapshot_text,
+        sim_core::snapshot::snapshot_json(core.world())
+    );
+    let snapshot: Value = serde_json::from_str(&snapshot_text).unwrap();
+    let view = &snapshot["underworld_view"]["actions"];
+    assert_eq!(view["version"], 1);
+    let target = view["haunt"]["targets"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|entry| entry["availability"]["eligible"] == true && entry["target"] != 1)
+        .expect("the delivered underworld fixture has an eligible connected target")["target"]
+        .as_u64()
+        .unwrap();
+    let tick = core.world().tick();
+    let payload = InputPayload::Haunt {
+        target: sim_core::ids::PersonId(target),
+    };
+    let checked_payloads = [InputPayload::Bribe { amount: 1 }, payload];
+    let receipt = core.submit_checked(&checked_payloads);
+    assert!(
+        matches!(
+            &receipt,
+            sim_core::observations::CheckedSubmission::Accepted(_)
+        ),
+        "the authoritative queued-prefix validator admits both ordered actions"
+    );
+    let checked = wasm
+        .submit_checked_json(
+            &serde_json::json!([{"Bribe":{"amount":"1"}},{"Haunt":{"target":target.to_string()}}])
+                .to_string(),
+        )
+        .unwrap();
+    assert_eq!(checked, serde_json::to_string(&receipt).unwrap());
+    for (payload, wire) in [
+        (
+            payload,
+            serde_json::json!({"Haunt":{"target":target.to_string()}}),
+        ),
+        (
+            InputPayload::Bribe { amount: 0 },
+            serde_json::json!({"Bribe":{"amount":"0"}}),
+        ),
+    ] {
+        core.submit(tick, payload).unwrap();
+        wasm.submit_json(
+            &serde_json::json!({"tick":tick.0.to_string(),"payload":wire}).to_string(),
+        )
+        .unwrap();
+    }
+    let report = core.run_until_stop_observed(3);
+    assert_eq!(report.ran, 3);
+    assert!(core.last_outcomes().is_empty());
+    let wire = wasm.run_until_stop_json(3);
+    assert_eq!(wire, serde_json::to_string(&report).unwrap());
+    let wire: Value = serde_json::from_str(&wire).unwrap();
+    assert_eq!(wire["actions"].as_array().unwrap().len(), 4);
+    assert_eq!(wire["actions"][0]["kind"], "bribe");
+    assert_eq!(wire["actions"][0]["state"], "applied");
+    assert!(wire["actions"][0]["ruling"].is_object());
+    assert_eq!(wire["actions"][1]["kind"], "haunt");
+    assert_eq!(wire["actions"][1]["state"], "applied");
+    assert_eq!(wire["actions"][1]["mood_delta"], "-15");
+    assert_eq!(wire["actions"][2]["reason"], "rate_limited");
+    assert_eq!(wire["actions"][3]["reason"], "bad_amount");
+    assert!(
+        wire["actions"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|action| action["tick"] == tick.0.to_string())
+    );
+    assert_eq!(
+        wasm.snapshot(),
+        sim_core::snapshot::snapshot_json(core.world())
+    );
+    let empty: Value = serde_json::from_str(&wasm.run_until_stop_json(0)).unwrap();
+    assert_eq!(empty["checksum"], wire["checksum"]);
+    assert!(empty["actions"].as_array().unwrap().is_empty());
+    assert!(empty["player_lifecycle"].as_array().unwrap().is_empty());
+    let receipt: Value = serde_json::from_str(&wasm.submit_checked_json("[]").unwrap()).unwrap();
+    assert_eq!(
+        receipt,
+        serde_json::json!({"ok":true,"tick":wasm.tick().to_string(),"seqs":[]})
+    );
 }

@@ -11,7 +11,114 @@
 
 use serde::Serialize;
 
+use crate::ids::PersonId;
+use crate::observations::{decimal, person, reason};
 use crate::world::{Life, SoulPlace, World};
+
+#[derive(Debug, Eq, PartialEq, Serialize)]
+pub struct Availability {
+    pub eligible: bool,
+    #[serde(serialize_with = "availability_reason")]
+    pub reason: Option<crate::world::RejectReason>,
+}
+fn availability_reason<S: serde::Serializer>(
+    value: &Option<crate::world::RejectReason>,
+    s: S,
+) -> Result<S::Ok, S::Error> {
+    match value {
+        Some(value) => reason(value, s),
+        None => s.serialize_none(),
+    }
+}
+impl Availability {
+    fn from_validation(result: Result<PersonId, crate::world::RejectReason>) -> Self {
+        Self {
+            eligible: result.is_ok(),
+            reason: result.err(),
+        }
+    }
+}
+#[derive(Debug, Eq, PartialEq, Serialize)]
+pub struct CappedSpendView {
+    #[serde(serialize_with = "decimal")]
+    pub cap_year: u64,
+    #[serde(serialize_with = "decimal")]
+    pub yearly_cap: u64,
+    #[serde(serialize_with = "decimal")]
+    pub spent: u64,
+    #[serde(serialize_with = "decimal")]
+    pub remaining: u64,
+}
+#[derive(Debug, Eq, PartialEq, Serialize)]
+pub struct BribeView {
+    #[serde(serialize_with = "decimal")]
+    pub min_amount: u64,
+    #[serde(serialize_with = "decimal")]
+    pub max_amount: u64,
+    pub availability: Availability,
+}
+#[derive(Debug, Eq, PartialEq, Serialize)]
+pub struct HauntTargetView {
+    #[serde(serialize_with = "person")]
+    pub target: PersonId,
+    pub availability: Availability,
+}
+#[derive(Debug, Eq, PartialEq, Serialize)]
+pub struct HauntView {
+    #[serde(serialize_with = "decimal")]
+    pub price: u64,
+    pub targets: Vec<HauntTargetView>,
+}
+/// Current applied-World eligibility, without queued-prefix reservation or mutation.
+#[derive(Debug, Eq, PartialEq, Serialize)]
+pub struct ActionView {
+    pub version: u8,
+    pub capped_spend: CappedSpendView,
+    pub bribe: BribeView,
+    pub haunt: HauntView,
+}
+impl ActionView {
+    pub fn inspect(world: &World, connected: &[PersonId]) -> Self {
+        use crate::underworld::{hauntings, joss, magistrate};
+        let tick = world.tick();
+        let account = world
+            .joss()
+            .get(&world.souls().player)
+            .copied()
+            .unwrap_or_default();
+        let yearly_cap = world.params().yearly_cap;
+        let spent = account.capped_spent_in(tick);
+        Self {
+            version: 1,
+            capped_spend: CappedSpendView {
+                cap_year: joss::cap_year(tick),
+                yearly_cap,
+                spent,
+                remaining: yearly_cap.saturating_sub(spent),
+            },
+            bribe: BribeView {
+                min_amount: magistrate::MIN_BRIBE_AMOUNT,
+                max_amount: account.balance,
+                availability: Availability::from_validation(magistrate::validate(
+                    world,
+                    magistrate::MIN_BRIBE_AMOUNT,
+                )),
+            },
+            haunt: HauntView {
+                price: world.params().haunt_price,
+                targets: connected
+                    .iter()
+                    .map(|&target| HauntTargetView {
+                        target,
+                        availability: Availability::from_validation(hauntings::validate(
+                            world, target,
+                        )),
+                    })
+                    .collect(),
+            },
+        }
+    }
+}
 
 /// Largest integer a JavaScript number represents exactly (2^53). `wealth` is a JSON
 /// number, so every balance must stay below it (design "Snapshot").
@@ -162,6 +269,7 @@ struct UnderworldViewDto {
     ghost_traits: TraitsDto,
     slots: Vec<UnderworldSlotDto>,
     base_traits: Vec<BaseTraitsDto>,
+    actions: ActionView,
 }
 
 #[derive(Serialize)]
@@ -613,10 +721,8 @@ pub fn snapshot_json(world: &World) -> String {
         .collect();
     let underworld_view = world.player_wait().map(|wait| {
         use crate::underworld::slots::{SlotRef, base_traits, path_status};
-        let connected = crate::underworld::ghosts::connected(world, wait.ghost)
-            .into_iter()
-            .map(|id| id.0)
-            .collect();
+        let connected = crate::underworld::ghosts::connected(world, wait.ghost);
+        let actions = ActionView::inspect(world, &connected);
         let mut slots = world
             .slots()
             .values()
@@ -662,10 +768,11 @@ pub fn snapshot_json(world: &World) -> String {
             .collect();
         UnderworldViewDto {
             dream_price: world.params().dream_price.to_string(),
-            connected,
+            connected: connected.into_iter().map(|id| id.0).collect(),
             ghost_traits,
             slots,
             base_traits,
+            actions,
         }
     });
     let last_dream = world

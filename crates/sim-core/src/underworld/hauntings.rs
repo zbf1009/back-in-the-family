@@ -11,13 +11,8 @@ use crate::ids::PersonId;
 use crate::underworld::{ghosts, joss, player};
 use crate::world::{AppendRefused, Life, RejectReason, World};
 
-/// Applies one `Haunt` input in step 2a (design "Inputs", rejection table order).
-///
-/// `official_person` comes first (R15.9), then `no_ghost`, `not_waiting`,
-/// `unknown_person`, `dead_person`, `not_connected`, `rate_limited` (one applied
-/// haunting per tick, OP-U5 A), `insufficient_joss` and `yearly_cap`. The Event is
-/// appended before the spend, so a refused append leaves the balance untouched.
-pub(crate) fn apply(world: &mut World, target: PersonId) -> Result<(), RejectReason> {
+/// Checks the authoritative input order without mutating the World.
+pub(crate) fn validate(world: &World, target: PersonId) -> Result<PersonId, RejectReason> {
     if target == world.magistrate.id {
         return Err(RejectReason::OfficialPerson);
     }
@@ -48,6 +43,19 @@ pub(crate) fn apply(world: &mut World, target: PersonId) -> Result<(), RejectRea
     if !joss::capped_spend_allowed(&account, price, tick, yearly_cap) {
         return Err(RejectReason::YearlyCap);
     }
+    if !world.log.has_room(1) {
+        return Err(RejectReason::IdExhausted);
+    }
+    Ok(ghost)
+}
+
+/// Appends the validated event before charging the shared capped-spend budget.
+pub(crate) fn apply(world: &mut World, target: PersonId) -> Result<(), RejectReason> {
+    let ghost = validate(world, target)?;
+    let price = world.params.haunt_price;
+    let yearly_cap = world.params.yearly_cap;
+    let tick = world.tick;
+    let player_soul = world.souls.player;
     if let Err(refused) = world.append(
         EventKind::Haunting {
             ghost,

@@ -118,13 +118,11 @@ pub const RULING_OPTIONS: [NodeOption; 3] = [
     NodeOption::Deny,
 ];
 
-/// Applies one `Bribe` input in step 2a (design "Inputs", rejection table order).
-///
-/// `no_ghost`, `not_waiting`, `bad_amount`, `insufficient_joss` and `node_pending` are
-/// checked in that order (R6.2). A valid Bribe appends both Events atomically,
-/// spends the amount attributed to the offering, then fires the ruling node (R6.1).
-/// No money comes back on a `deny` (R6.7).
-pub(crate) fn apply(world: &mut World, trigger: InputSeq, amount: u64) -> Result<(), RejectReason> {
+/// The rule's smallest positive Bribe amount.
+pub const MIN_BRIBE_AMOUNT: u64 = 1;
+
+/// Checks the authoritative input order without spending, appending or firing.
+pub(crate) fn validate(world: &World, amount: u64) -> Result<PersonId, RejectReason> {
     player::require_waiting(world)?;
     let Some(ghost) = world.player_wait.as_ref().map(|wait| wait.ghost) else {
         return Err(RejectReason::NotWaiting);
@@ -140,6 +138,15 @@ pub(crate) fn apply(world: &mut World, trigger: InputSeq, amount: u64) -> Result
     if ruling_pending(world) {
         return Err(RejectReason::NodePending);
     }
+    if !world.log.has_room(2) {
+        return Err(RejectReason::IdExhausted);
+    }
+    Ok(ghost)
+}
+
+/// Commits the atomic event pair, then spends and fires the same-tick ruling.
+pub(crate) fn apply(world: &mut World, trigger: InputSeq, amount: u64) -> Result<(), RejectReason> {
+    let ghost = validate(world, amount)?;
     let magistrate = world.magistrate.id;
     let mut tags = EventTags::empty();
     tags.insert(EventTag::JossPaper);

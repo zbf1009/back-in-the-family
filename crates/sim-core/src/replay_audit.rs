@@ -189,7 +189,7 @@ pub fn audit(file: &ReplayFile) -> Result<ReplayAudit, ReplayError> {
     let mut observed = BTreeMap::new();
     for (tick, &expected) in (0u64..).zip(&file.checksums) {
         let start = sim.world().nodes().resolved.len();
-        let actual = sim.step_observing_inputs(&mut |world, input| {
+        let actual = sim.step_observing_inputs(&mut |world: &World, input: &TickInput| {
             observe_input(&mut observed, world, input);
         });
         check_checksum(Tick(tick), expected, actual)?;

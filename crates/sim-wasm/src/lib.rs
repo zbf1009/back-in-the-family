@@ -96,15 +96,8 @@ impl WasmSim {
 
     /// Plain-Rust body of `run_until_stop`; the JSON field order is part of its reply.
     pub fn run_until_stop_json(&mut self, max: u32) -> String {
-        let result = self.inner.run_until_stop(max);
-        let checksum = result
-            .checksum
-            .map_or_else(String::new, |c| c.to_hex_string());
-        let stops = serde_json::to_string(&result.stops.labels()).expect("stop labels serialize");
-        format!(
-            r#"{{"ran":{},"checksum":"{}","stops":{}}}"#,
-            result.ran, checksum, stops
-        )
+        let result = self.inner.run_until_stop_observed(max);
+        serde_json::to_string(&result).expect("the typed run report serializes")
     }
 
     /// Preflight the current-tick payload array before queuing any of it.
@@ -112,14 +105,8 @@ impl WasmSim {
         let inputs: Vec<sim_core::replay::ReplayPayload> =
             serde_json::from_str(inputs_json).map_err(|e| e.to_string())?;
         let payloads: Vec<_> = inputs.into_iter().map(Into::into).collect();
-        Ok(match self.inner.try_submit_all(&payloads) {
-            Ok(_) => String::from(r#"{"ok":true}"#),
-            Err((index, reason)) => format!(
-                r#"{{"ok":false,"index":{},"reason":"{}"}}"#,
-                index,
-                reason.label()
-            ),
-        })
+        let result = self.inner.submit_checked(&payloads);
+        Ok(serde_json::to_string(&result).expect("the typed checked receipt serializes"))
     }
 
     /// Tick `from..=to` of the already recorded checksum history.
