@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "identity": {
+    "sourceCommit": "cab87be498a12cf4043c3c326b1dbc2ba1ff4991",
+    "runId": "45321550513",
+    "runAttempt": "1"
+  },
+  "workerSHA256": "8c7c456869320982e7092dfaf5d23f2fd106da8c77fcc3860285dc3e317f649e",
+  "assetsSHA256": "7f34d8705fd9dbd04459521ab62c86f334a3c96d669e972674f5261428e015ac",
+  "wasmSHA256": "d24e5dbd20777472fa502799f1dc9f2ec1b3f631be35f6d1e28c8ebb37dca8a3",
+  "configSHA256": "97931ee168997998a1280d210eda98e60f0f5c27bd9b52c8c244d6692dd3fd21",
+  "metadataSHA256": "42f89cd7d1188dc1758b8813d38bf05c08efa6bbd7748948cfab8164dbf96a33",
+  "schemaSHA256": "57b91625cbaa059d39c30033c8f06df7a334348ccf019267e32ff3defd835d57",
+  "toolchain": {
+    "node": "v26.7.0",
+    "pnpm": "10.33.1",
+    "wrangler": "4.157.0"
+  }
+}
