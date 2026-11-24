@@ -6,6 +6,8 @@
 //! else: the target's Mood moves by the fixed `-15` of the Event's `mood_delta` row
 //! (LS-R14.2), so Mood still changes only through an Event (R5.2, R5.4).
 
+use std::cell::OnceCell;
+
 use crate::events::{CausedBy, Event, EventKind, EventTags};
 use crate::ids::{PersonId, Tick};
 use crate::underworld::{ghosts, joss, player};
@@ -13,10 +15,11 @@ use crate::world::{AppendRefused, Life, RejectReason, World};
 
 /// Borrowed facts shared by every target in one read-only action inspection.
 /// Errors remain deferred until their position in the authoritative input order.
+/// The target-independent tail is evaluated only after a target passes the prefix.
 pub(crate) struct HauntInspection<'a> {
     world: &'a World,
     waiting_ghost: Result<PersonId, RejectReason>,
-    tail: Result<(), RejectReason>,
+    tail: OnceCell<Result<(), RejectReason>>,
 }
 
 impl<'a> HauntInspection<'a> {
@@ -24,7 +27,7 @@ impl<'a> HauntInspection<'a> {
         Self {
             world,
             waiting_ghost,
-            tail: validate_tail(world),
+            tail: OnceCell::new(),
         }
     }
 
@@ -34,23 +37,39 @@ impl<'a> HauntInspection<'a> {
             return Err(RejectReason::OfficialPerson);
         }
         let ghost = self.waiting_ghost?;
-        let Some(person) = world.persons.get(&target) else {
-            return Err(RejectReason::UnknownPerson);
-        };
-        if matches!(person.life, Life::Dead { .. }) {
-            return Err(RejectReason::DeadPerson);
-        }
-        if !ghosts::is_connected(world, target, ghost) {
-            return Err(RejectReason::NotConnected);
-        }
-        self.tail?;
+        validate_target_prefix(world, target, ghost)?;
+        (*self.tail.get_or_init(|| validate_tail(world)))?;
         Ok(ghost)
     }
 }
 
 /// Checks the authoritative input order without mutating the World.
 pub(crate) fn validate(world: &World, target: PersonId) -> Result<PersonId, RejectReason> {
-    HauntInspection::new(world, player::waiting_ghost(world)).validate(target)
+    if target == world.magistrate.id {
+        return Err(RejectReason::OfficialPerson);
+    }
+    let ghost = player::waiting_ghost(world)?;
+    validate_target_prefix(world, target, ghost)?;
+    validate_tail(world)?;
+    Ok(ghost)
+}
+
+/// Cheap target checks after the authoritative waiting check.
+fn validate_target_prefix(
+    world: &World,
+    target: PersonId,
+    ghost: PersonId,
+) -> Result<(), RejectReason> {
+    let Some(person) = world.persons.get(&target) else {
+        return Err(RejectReason::UnknownPerson);
+    };
+    if matches!(person.life, Life::Dead { .. }) {
+        return Err(RejectReason::DeadPerson);
+    }
+    if !ghosts::is_connected(world, target, ghost) {
+        return Err(RejectReason::NotConnected);
+    }
+    Ok(())
 }
 
 /// The target-independent tail, shared by inspection and apply.
@@ -126,7 +145,7 @@ mod tests {
     use super::*;
     use crate::events::EventKind;
     use crate::ids::{InputSeq, Tick};
-    use crate::input::{InputPayload, TickInput};
+    use crate::input::{InputOutcome, InputPayload, TickInput};
     use crate::params::Params;
     use crate::underworld::player::start_wait;
     use crate::values::Mood;
@@ -203,6 +222,182 @@ mod tests {
             })
             .collect();
         world.step(&inputs);
+    }
+
+    #[test]
+    fn official_targets_precede_no_ghost_and_not_waiting() {
+        for waiting_error in [RejectReason::NoGhost, RejectReason::NotWaiting] {
+            let mut w = world(quiet());
+            if waiting_error == RejectReason::NotWaiting {
+                kill_player(&mut w);
+                w.player_wait = None;
+            }
+            assert_eq!(player::waiting_ghost(&w), Err(waiting_error));
+            let official = w.magistrate.id;
+            let before = crate::checksum::Checksum::of(&w);
+            assert_eq!(validate(&w, official), Err(RejectReason::OfficialPerson));
+            assert_eq!(apply(&mut w, official), Err(RejectReason::OfficialPerson));
+            assert_eq!(crate::checksum::Checksum::of(&w), before);
+        }
+    }
+
+    #[test]
+    fn inspection_early_rejections_do_not_initialize_tail() {
+        let unknown = PersonId(u64::MAX);
+        for waiting_error in [RejectReason::NoGhost, RejectReason::NotWaiting] {
+            let mut w = world(quiet());
+            if waiting_error == RejectReason::NotWaiting {
+                kill_player(&mut w);
+                w.player_wait = None;
+            }
+            let inspection = HauntInspection::new(&w, player::waiting_ghost(&w));
+            assert_eq!(inspection.tail.get(), None);
+            assert_eq!(
+                inspection.validate(w.magistrate.id),
+                Err(RejectReason::OfficialPerson)
+            );
+            assert_eq!(inspection.tail.get(), None);
+            assert_eq!(inspection.validate(unknown), Err(waiting_error));
+            assert_eq!(inspection.tail.get(), None);
+            assert_eq!(validate(&w, unknown), Err(waiting_error));
+        }
+
+        let mut w = world(quiet());
+        let ghost = kill_player(&mut w);
+        let unrelated = w
+            .persons
+            .values()
+            .find(|person| {
+                matches!(person.life, Life::Alive { .. })
+                    && !w.relations.contains_key(&(person.id, ghost))
+            })
+            .map(|person| person.id)
+            .expect("the town has unrelated Residents");
+        give_joss(&mut w, 0);
+        w.params.yearly_cap = 0;
+        w.log.exhaust_ids_leaving(0);
+        let cases = [
+            (w.magistrate.id, RejectReason::OfficialPerson),
+            (unknown, RejectReason::UnknownPerson),
+            (ghost, RejectReason::DeadPerson),
+            (unrelated, RejectReason::NotConnected),
+        ];
+        {
+            let inspection = HauntInspection::new(&w, player::waiting_ghost(&w));
+            assert_eq!(inspection.tail.get(), None);
+            for (target, reason) in cases {
+                assert_eq!(inspection.validate(target), Err(reason));
+                assert_eq!(inspection.tail.get(), None);
+                assert_eq!(validate(&w, target), Err(reason));
+            }
+        }
+        let before = crate::checksum::Checksum::of(&w);
+        for (target, reason) in cases {
+            assert_eq!(apply(&mut w, target), Err(reason));
+            assert_eq!(crate::checksum::Checksum::of(&w), before);
+        }
+    }
+
+    #[test]
+    fn inspection_initializes_and_reuses_tail_for_legal_prefixes() {
+        for balance in [0, 100] {
+            let mut w = world(quiet());
+            let ghost = kill_player(&mut w);
+            let first = connected(&w, ghost);
+            let second = w
+                .persons
+                .values()
+                .find(|person| person.id != first && matches!(person.life, Life::Alive { .. }))
+                .map(|person| person.id)
+                .expect("the town has another living Resident");
+            let relation = w.relations[&(first, ghost)].clone();
+            w.relations.insert((second, ghost), relation);
+            give_joss(&mut w, balance);
+            let expected_tail = if balance == 0 {
+                Err(RejectReason::InsufficientJoss)
+            } else {
+                Ok(())
+            };
+            let expected = expected_tail.map(|()| ghost);
+            let inspection = HauntInspection::new(&w, player::waiting_ghost(&w));
+            assert_eq!(inspection.tail.get(), None);
+            assert_eq!(inspection.validate(first), expected);
+            let cached_tail = inspection
+                .tail
+                .get()
+                .expect("the legal prefix queries the tail");
+            assert_eq!(*cached_tail, expected_tail);
+            assert_eq!(inspection.validate(second), expected);
+            assert!(std::ptr::eq(cached_tail, inspection.tail.get().unwrap()));
+            assert_eq!(*inspection.tail.get().unwrap(), expected_tail);
+        }
+    }
+
+    #[test]
+    fn raw_repeated_illegal_haunts_preserve_every_outcome() {
+        for rejection in [
+            RejectReason::NoGhost,
+            RejectReason::NotWaiting,
+            RejectReason::UnknownPerson,
+        ] {
+            let mut w = world(quiet());
+            if rejection != RejectReason::NoGhost {
+                kill_player(&mut w);
+                if rejection == RejectReason::NotWaiting {
+                    w.player_wait = None;
+                }
+            }
+            let official = w.magistrate.id;
+            let unknown = PersonId(u64::MAX);
+            let cases = [
+                (official, RejectReason::OfficialPerson),
+                (unknown, rejection),
+                (official, RejectReason::OfficialPerson),
+                (unknown, rejection),
+                (unknown, rejection),
+                (official, RejectReason::OfficialPerson),
+            ];
+            let inputs: Vec<_> = cases
+                .iter()
+                .enumerate()
+                .map(|(index, &(target, _))| TickInput {
+                    tick: w.tick,
+                    seq: InputSeq(u64::try_from(index).unwrap()),
+                    payload: InputPayload::Haunt { target },
+                })
+                .collect();
+            let expected: Vec<_> = cases
+                .iter()
+                .enumerate()
+                .map(|(index, &(_, reason))| InputOutcome {
+                    seq: InputSeq(u64::try_from(index).unwrap()),
+                    result: Err(reason),
+                })
+                .collect();
+            let mut replayed = w.clone();
+            let (checksum, outcomes) = w.step_with_outcomes(&inputs);
+            let (replayed_checksum, replayed_outcomes) = replayed.step_with_outcomes(&inputs);
+            assert_eq!(outcomes, expected);
+            assert_eq!(replayed_outcomes, expected);
+            assert_eq!(checksum, replayed_checksum);
+            assert_eq!(
+                w.rejections().count_by_reason,
+                std::collections::BTreeMap::from([
+                    (RejectReason::OfficialPerson, 3),
+                    (rejection, 3),
+                ])
+            );
+            assert_eq!(
+                w.rejections().last,
+                Some((Tick(0), InputSeq(5), RejectReason::OfficialPerson))
+            );
+            assert!(
+                !w.log()
+                    .events()
+                    .iter()
+                    .any(|event| matches!(event.kind, EventKind::Haunting { .. }))
+            );
+        }
     }
 
     #[test]
