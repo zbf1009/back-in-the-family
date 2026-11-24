@@ -1,7 +1,7 @@
 // Task 14.1: one real-control playthrough; the harness never submits an input.
 import { readFileSync } from 'node:fs';
 import { test, expect, type Page } from '@playwright/test';
-import type { Reply, WorkerMessage, PauseReason } from '../../src/shared/protocol.ts';
+import type { Reply, RequestTicket, WorkerMessage, PauseReason } from '../../src/shared/protocol.ts';
 import type { TraitName, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 
 const FIXTURE = 'seedP-playthrough.replay.json';
@@ -42,7 +42,7 @@ interface Observation {
 }
 // Node-only tsconfig: declare just the browser surface used by evaluate callbacks.
 declare const window: {
-  __simHarness?: { request(request: Record<string, unknown>): Promise<Reply> };
+  __simHarness?: { request(request: Record<string, unknown>): RequestTicket };
   __playthrough: Observation;
   Worker: new (url: string, options?: { type?: string }) => {
     addEventListener(type: 'message', listener: (event: { data: WorkerMessage }) => void): void;
@@ -59,7 +59,7 @@ declare const PerformanceObserver: new (callback: (list: { getEntries(): LongTas
 async function request(page: Page, type: 'world-snapshot' | 'run' | 'checksums', extra: Record<string, unknown> = {}): Promise<Reply> {
   return page.evaluate(async (args) => {
     if (!window.__simHarness) throw new Error('test harness is missing');
-    return window.__simHarness.request(args);
+    return window.__simHarness.request(args).reply;
   }, { type, ...extra });
 }
 
@@ -193,6 +193,7 @@ async function customization(page: Page, world: WorldSnapshot): Promise<void> {
 }
 
 test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel rebirth`, async ({ page, baseURL }, testInfo) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
   test.setTimeout(B);
   expect(stages.last_tick).toBe(fixture.ticks);
   expect(fixture.checksums).toHaveLength(Number(stages.last_tick));
@@ -310,8 +311,13 @@ test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel r
         expect(world.player_node.options.map(option => option.id)).toContain(input.payload.ChoosePlayer?.option);
         const option = page.getByTestId(`option-${input.payload.ChoosePlayer!.option}`);
         await expect(option).toBeEnabled();
+        if (index === 0) {
+          await expect(page.getByTestId('stakes')).toBeVisible();
+          await page.screenshot({ path: new URL('../../../target/life-in-view-evidence/c2-current-choice.png', import.meta.url).pathname });
+        }
         await option.click();
         await expect(page.getByTestId('choice-recorded')).toBeVisible();
+        await expect(page.getByTestId('choice-recorded')).toContainText('not applied yet');
       }
       if (stage.reasons.includes('player_died')) {
         await expect(page.getByTestId('scene-close')).toBeVisible();

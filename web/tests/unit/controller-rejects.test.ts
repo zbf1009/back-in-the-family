@@ -154,6 +154,8 @@ function runCommands(commands: readonly Command[]): Outcome {
       tick: tick?.toString() ?? null, checksum, tps: null,
       speed: last?.snapshot.speed ?? 1,
       playerNode: sim ? JSON.parse(sim.player_node_state()) : { pending: false },
+      // Each preceding command/frame completed its successful collector post.
+      actions: [], playerLifecycle: [],
     };
     const mutatingBefore = totalMutatingCalls(handles);
     controller.handle(req);

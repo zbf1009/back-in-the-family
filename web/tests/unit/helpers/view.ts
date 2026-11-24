@@ -36,6 +36,9 @@ export function waitingSnapshot(births = 0, patch: Partial<UnderworldView> = {})
     player_wait: { ghost: ghost.id, access_from: '499', claim: null, carry_over: null },
     joss: snapshot.joss.map(account => account.soul_id === snapshot.player_soul ? { ...account, balance: '500' } : account),
     underworld_view: { dream_price: '20', connected: [1, 3], ghost_traits: ghost.traits, slots,
+      actions: { version: 1, capped_spend: { cap_year: '1', yearly_cap: '120', spent: '0', remaining: '120' },
+        bribe: { min_amount: '1', max_amount: '500', availability: { eligible: true, reason: null } },
+        haunt: { price: '40', targets: [1, 3].map(target => ({ target, availability: { eligible: true as const, reason: null } })) } },
       base_traits: [null, ...TRAITS].map(carry_over => ({ carry_over: carry_over as TraitName | null, traits: { ...ghost.traits } })), ...patch },
   };
 }

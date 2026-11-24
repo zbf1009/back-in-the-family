@@ -39,8 +39,41 @@ export type Needed =
   | { kind: 'joss_short' | 'cap_room_short'; amount: string }
   | { kind: 'named'; name: string };
 export interface PathStatus { announced: boolean; claimable: boolean; affordable: boolean; needed: Needed[] }
+export type BribeBlocked = 'no_ghost' | 'not_waiting' | 'bad_amount'
+  | 'insufficient_joss' | 'node_pending' | 'id_exhausted';
+export type HauntBlocked = 'official_person' | 'no_ghost' | 'not_waiting'
+  | 'unknown_person' | 'dead_person' | 'not_connected' | 'rate_limited'
+  | 'insufficient_joss' | 'yearly_cap' | 'id_exhausted';
+export type Eligibility<R extends string> =
+  | { eligible: true; reason: null } | { eligible: false; reason: R };
+export interface ActionView {
+  version: 1;
+  capped_spend: { cap_year: string; yearly_cap: string; spent: string; remaining: string };
+  bribe: { min_amount: string; max_amount: string; availability: Eligibility<BribeBlocked> };
+  haunt: { price: string; targets: { target: number; availability: Eligibility<HauntBlocked> }[] };
+}
+export interface SubmissionReceipt { tick: string; seqs: string[] }
+export type RulingOption = 'grant_next_slot' | 'grant_later_slot' | 'deny';
+export interface RulingRecord {
+  node: string; magistrate: number; applied: RulingOption;
+  source: 'external' | 'rules_default'; rules_default: RulingOption;
+}
+export type CoreActionResult = { input_seq: string; tick: string } & (
+  | { kind: 'bribe'; state: 'rejected'; reason: BribeBlocked; amount: string }
+  | { kind: 'haunt'; state: 'rejected'; reason: HauntBlocked; target: number }
+  | { kind: 'bribe'; state: 'applied'; amount: string;
+      offering_event: string; appeal_event: string; ghost: number; ruling: RulingRecord | null }
+  | { kind: 'haunt'; state: 'applied'; target: number; ghost: number;
+      event: string; price: string; intensity: string; mood_delta: string }
+);
+export type ActionResult = CoreActionResult & { worldId: number; requestId: number | null };
+export interface PlayerLifecycleFact {
+  event: string; tick: string; kind: 'birth' | 'death' | 'possession' | 'rebuild';
+  body: number; name: string; origin: Origin;
+}
 export interface UnderworldView {
   dream_price: string;
+  actions: ActionView;
   connected: number[];
   ghost_traits: Traits;
   slots: { slot: Slot; kind: 'birth_slot' | 'imported_vessel' | 'rebuilt_body'; price: string; birth: string | null; status: PathStatus }[];

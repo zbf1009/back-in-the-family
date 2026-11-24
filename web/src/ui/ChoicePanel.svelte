@@ -1,16 +1,18 @@
 <script lang="ts">
-  import { nodeOptionsEnabled, type UiState } from '../main/ui-state.ts';
+  import { decisionBusy, type UiState } from '../main/ui-state.ts';
   import type { PlayerOption } from '../shared/world-snapshot.ts';
   import { viewModel } from '../main/view-model.ts';
-  const { ui, onChoose }: { ui: UiState; onChoose: (node: string, option: PlayerOption) => Promise<void> } = $props();
+  const { ui, onChoose }: { ui: UiState; onChoose: (worldId: number, node: string, option: PlayerOption) => Promise<void> } = $props();
   const view = $derived(viewModel(ui));
-  const answered = $derived(ui.playerNode.pending && ui.playerNode.answered);
-  const enabled = $derived(nodeOptionsEnabled(ui));
+  const currentAction = $derived(ui.actions.find(action => action.request?.type === 'choose' && action.worldId === ui.worldId
+    && ui.playerNode.pending && action.request.node === ui.playerNode.node
+    && (action.phase === 'sending' || action.phase === 'queued' || action.phase === 'unknown')));
 </script>
 
 <section class="choice-panel" aria-labelledby="choice-heading" data-testid="choice-panel">
   <h2 id="choice-heading">A choice to make</h2>
   {#if view?.choice}
+    {@const choice = view.choice}
     <p class="family">{view.choice.family}</p>
     <div class="stakes" data-testid="stakes">
       <h3>Stakes</h3>
@@ -22,7 +24,7 @@
       {#each view.choice.options as option (option.id)}
         <div class="option" data-testid={`option-preview-${option.id}`}>
           <button type="button" data-testid={`option-${option.id}`}
-            disabled={!enabled} onclick={() => onChoose(view!.choice!.id, option.id)}>{option.id}</button>
+            onclick={() => onChoose(choice.worldId, choice.id, option.id)}>{option.id}</button>
           <ul aria-label={`${option.id} preview`}>
             {#each option.preview as effect, index (index)}
               <li>{effect.person}: {effect.delta} {effect.unit}{effect.what.startsWith('trait:') ? ` (${effect.what})` : effect.what === 'debt' ? ' (debt)' : ''}</li>
@@ -33,9 +35,12 @@
         </div>
       {/each}
     </div>
-    {#if answered}
-      <p class="recorded" data-testid="choice-recorded" role="status">Choice recorded. Use Run or Step to continue.</p>
-    {/if}
+  {:else if currentAction?.phase === 'queued'}
+    <p class="recorded" data-testid="choice-recorded" role="status">Choice queued, not applied yet. Use Run or Step to continue.</p>
+  {:else if currentAction !== undefined}
+    <p class="recorded" role="status">{currentAction.phase === 'unknown' ? 'Choice completion unknown. No retry was sent.' : 'Choice submitting.'} Request {currentAction.requestId}.</p>
+  {:else if decisionBusy(ui)}
+    <p class="empty">Waiting for the current decision.</p>
   {:else}
     <p class="empty">{view === null ? 'Create a World to meet the town.' : 'The town is quiet. Run to continue.'}</p>
   {/if}

@@ -10,7 +10,7 @@ function session(patch: Partial<DecisionStatus> = {}): DecisionStatus {
 }
 function snapshot(ui: UiState, decision: DecisionStatus): Snapshot {
   return { worldId: ui.worldId, runState: ui.runState, tick: ui.tick, checksum: ui.checksum,
-    tps: ui.tps, speed: ui.speed, playerNode: ui.playerNode, decision };
+    tps: ui.tps, speed: ui.speed, actions: [], playerLifecycle: [], playerNode: ui.playerNode, decision };
 }
 function held(runState: 'paused' | 'running' = 'paused'): UiState {
   const ui = { ...uiFor(waitingSnapshot()), runState };
@@ -48,7 +48,7 @@ test('running hold retains native Run State while Pause is temporarily unavailab
 });
 
 test('Dream send has a narrow command hold before the pending status without locking Create', () => {
-  const ui = reduce(uiFor(waitingSnapshot()), { type: 'request-sent', request: { type: 'dream', id: 0, dreamer: 1, intent: 'warn' } });
+  const ui = reduce(uiFor(waitingSnapshot()), { type: 'request-sent', request: { type: 'dream', id: 1, dreamer: 1, intent: 'warn' } });
   assert.equal(decisionBusy(ui), true); assert.equal(controls(ui).create, true);
   assert.equal(ui.scene, null); assert.equal(ui.underworldRecorded, null);
 });
@@ -84,7 +84,9 @@ test('completed request cannot be resurrected by a stale pending status', () => 
   const done = reply(ui, { type: 'dream', id: 12, dreamer: 1, intent: 'warn' }, session({
     outcome: { requestId: 12, worldId: 1, kind: 'fallback', reason: 'timeout' },
   }));
-  assert.strictEqual(reduce(done, { type: 'status', snapshot: snapshot(ui, ui.decision!) }), done);
+  const observed = reduce(done, { type: 'status', snapshot: snapshot(ui, ui.decision!) });
+  assert.deepEqual(observed.decision, done.decision); assert.equal(decisionBusy(observed), false);
+  assert.equal(observed.tick, done.tick); assert.equal(observed.world, done.world);
 });
 
 test('older outcome and read reply cannot overwrite a newer same-tick decision', () => {
@@ -93,10 +95,13 @@ test('older outcome and read reply cannot overwrite a newer same-tick decision',
     pending: { requestId: 20, worldId: 1, tick: ui.tick!, trigger: '63' }, spent: 2,
   })) });
   const old = session({ outcome: { requestId: 12, worldId: 1, kind: 'fallback', reason: 'manual' } });
-  assert.strictEqual(reply(newer, { type: 'dream', id: 12, dreamer: 1, intent: 'warn' }, old), newer);
+  const delayed = reply(newer, { type: 'dream', id: 12, dreamer: 1, intent: 'warn' }, old);
+  assert.deepEqual(delayed.decision, newer.decision); assert.equal(delayed.tick, newer.tick);
+  assert.equal(delayed.underworldRecorded, newer.underworldRecorded);
   const read = reply(newer, { type: 'world-snapshot', id: 13 }, old, { world: waitingSnapshot() });
   assert.deepEqual(read.decision, newer.decision); assert.equal(read.tick, newer.tick);
-  assert.strictEqual(reduce(newer, { type: 'status', snapshot: snapshot(ui, old) }), newer);
+  const observed = reduce(newer, { type: 'status', snapshot: snapshot(ui, old) });
+  assert.deepEqual(observed.decision, newer.decision); assert.equal(observed.tick, newer.tick);
 });
 
 test('World replacement clears outcome and hold but retains worker-owned wait cap and spent', () => {
@@ -117,6 +122,7 @@ test('typed Dream preview rejection never displays arbitrary error text or recor
       message: { type: 'reply', id: 12, ok: false, kind: 'preview-error', error: 'provider secret', previewError,
         snapshot: snapshot(ui, session()) } });
     assert.ok(next.error); assert.doesNotMatch(next.error!, /provider secret/);
+    assert.equal(next.actions[0]!.error, next.error);
     assert.equal(next.tick, ui.tick); assert.equal(next.underworldRecorded, null); assert.equal(next.scene, null);
   }
 });
@@ -172,15 +178,19 @@ for (const priorOutcome of [false, true]) {
     });
     assert.equal(oldRead.tick, ui.tick); assert.equal(oldRead.checksum, ui.checksum);
     assert.equal(oldRead.error, ui.error); assert.deepEqual(oldRead.decision, retained);
-    assert.strictEqual(reduce(ui, { type: 'reply', request: dream,
-      message: { type: 'reply', id: 20, ok: true, snapshot: failed.snapshot } }), ui);
+    const duplicate = reduce(ui, { type: 'reply', request: dream,
+      message: { type: 'reply', id: 20, ok: true, snapshot: failed.snapshot } });
+    assert.deepEqual(duplicate.decision, ui.decision); assert.equal(duplicate.error, ui.error);
+    assert.equal(duplicate.actions.find(action => action.requestId === dream.id)?.phase, 'rejected');
     for (const decision of [
       { ...retained, pending: { requestId: 20, worldId: 1, tick: ui.tick!, trigger: '63' } },
       { ...retained, outcome: { requestId: 20, worldId: 1, kind: 'fallback' as const, reason: 'manual' as const } },
       { ...retained, outcome: { requestId: 10, worldId: 1, kind: 'fallback' as const, reason: 'manual' as const } },
       ...(priorOutcome ? [{ ...retained, pending: { requestId: 12, worldId: 1, tick: ui.tick!, trigger: '61' } }] : []),
     ]) {
-      assert.strictEqual(reduce(ui, { type: 'status', snapshot: snapshot(before, decision) }), ui);
+      const observed = reduce(ui, { type: 'status', snapshot: snapshot(before, decision) });
+      assert.deepEqual(observed.decision, ui.decision); assert.equal(observed.tick, ui.tick);
+      assert.equal(observed.error, ui.error); assert.equal(decisionBusy(observed), false);
     }
     ui = reduce(ui, { type: 'status', snapshot: snapshot(before, retained) });
     assert.equal(ui.error, 'Dream was not recorded. Check the available dreamer and joss paper.');
@@ -218,8 +228,11 @@ for (const priorOutcome of [false, true]) {
       ...retained, pending: { requestId: 25, worldId: 1, tick: ui.tick!, trigger: '65' },
     } } });
     assert.equal(decisionBusy(newer), true); assert.equal(controls(newer).run, false);
-    assert.strictEqual(reduce(newer, { type: 'reply', request: dream, message: failed }), newer);
-    assert.strictEqual(reduce(newer, { type: 'status', snapshot: stepSnapshot }), newer);
+    const delayed = reduce(newer, { type: 'reply', request: dream, message: failed });
+    assert.deepEqual(delayed.decision, newer.decision); assert.equal(delayed.tick, newer.tick);
+    assert.equal(delayed.error, newer.error);
+    const observed = reduce(newer, { type: 'status', snapshot: stepSnapshot });
+    assert.deepEqual(observed.decision, newer.decision); assert.equal(decisionBusy(observed), true);
     const fresh = { ...stepSnapshot, worldId: 2, tick: '0', checksum: null, decision: { ...retained, pending: null, outcome: null } };
     const replaced = reply(newer, { type: 'create-world', id: 30, seed: '2', config: '{}' }, fresh.decision, { snapshot: fresh });
     assert.equal(replaced.worldId, 2); assert.equal(replaced.tick, '0'); assert.equal(replaced.checksum, null);
@@ -228,3 +241,46 @@ for (const priorOutcome of [false, true]) {
     assert.strictEqual(reduce(replaced, { type: 'status', snapshot: stepSnapshot }), replaced);
   });
 }
+
+test('LV-C2: stale decision subtrees preserve older same-world facts without rolling back the live World', () => {
+  const world = pendingSnapshot('debt_due');
+  let ui = uiFor(world);
+  const terminal = session({ outcome: { requestId: 30, worldId: 1, kind: 'fallback', reason: 'manual' } });
+  ui = reduce(ui, { type: 'status', snapshot: snapshot(ui, terminal) });
+  const retainedDecision = ui.decision;
+  const old = session({ pending: { requestId: 10, worldId: 1, tick: '499', trigger: '60' } });
+  const action = { worldId: 1, requestId: null, input_seq: '70', tick: '499', kind: 'haunt' as const,
+    state: 'rejected' as const, reason: 'rate_limited' as const, target: 1 };
+  const fact = { event: '80', tick: '499', kind: 'death' as const, body: 20, name: 'Earlier Body', origin: 'native' as const };
+  const carrier: Snapshot = { ...snapshot(ui, old), tick: '499', checksum: 'aaaaaaaaaaaaaaaa', actions: [action], playerLifecycle: [fact],
+    stop: { reasons: ['player_died'], world: { ...world, tick: '499' } } };
+  ui = reduce(ui, { type: 'status', snapshot: carrier });
+  assert.equal(ui.world, world); assert.equal(ui.tick, '500'); assert.equal(ui.decision, retainedDecision);
+  assert.deepEqual(ui.actions.map(row => row.result), [action]); assert.deepEqual(ui.playerLifecycle, [fact]);
+  const read: Request = { type: 'world-snapshot', id: 40 };
+  ui = reduce(ui, { type: 'reply', request: read, worldId: 1, message: {
+    type: 'reply', id: 40, ok: true, snapshot: carrier, world: carrier.stop!.world,
+  } });
+  assert.equal(ui.world, world); assert.equal(ui.tick, '500'); assert.equal(ui.actions.length, 1);
+  assert.equal(ui.playerLifecycle.length, 1); assert.equal(nodeOptionsEnabled(ui), true);
+  const before = ui;
+  ui = reduce(ui, { type: 'status', snapshot: { ...carrier, worldId: 0,
+    actions: [{ ...action, worldId: 0, input_seq: '71' }], playerLifecycle: [{ ...fact, event: '81' }] } });
+  assert.equal(ui, before);
+});
+
+test('LV-C2: a fresh live stop with a stale decision subtree still adopts its World and observations', () => {
+  let ui = uiFor(pendingSnapshot('inheritance'));
+  const terminal = session({ outcome: { requestId: 30, worldId: 1, kind: 'fallback', reason: 'manual' } });
+  ui = reduce(ui, { type: 'status', snapshot: snapshot(ui, terminal) });
+  const retainedDecision = ui.decision;
+  const world = { ...waitingSnapshot(), tick: '501' };
+  const fact = { event: '90', tick: '501', kind: 'death' as const, body: 20, name: 'Body', origin: 'native' as const };
+  ui = reduce(ui, { type: 'status', snapshot: { ...snapshot(ui, session({
+    pending: { requestId: 10, worldId: 1, tick: '499', trigger: '60' },
+  })), tick: '501', playerNode: { pending: false }, playerLifecycle: [fact],
+    stop: { reasons: ['player_died'], world } } });
+  assert.equal(ui.tick, '501'); assert.equal(ui.world, world); assert.equal(ui.world!.player.place, 'waiting');
+  assert.equal(ui.decision, retainedDecision); assert.deepEqual(ui.playerLifecycle, [fact]);
+  assert.equal(ui.scene!.entries[0]!.kind, 'funeral'); assert.equal(nodeOptionsEnabled(ui), false);
+});

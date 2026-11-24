@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect, type BrowserContext, type Page, type Route, type TestInfo } from '@playwright/test';
-import type { Reply, RequestWithoutId, Snapshot } from '../../src/shared/protocol.ts';
+import type { Reply, RequestTicket, RequestWithoutId, Snapshot } from '../../src/shared/protocol.ts';
 import type { WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import { DECISION_CONTRACT } from '../../src/shared/decision-contract.ts';
 import { DECISION_CONFIG_VERSION, isDecisionRequest, isModelDecision, type DecisionRequest, type ModelDecision } from '../../src/shared/decision.ts';
@@ -20,7 +20,7 @@ const fixture = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seedU-
 };
 // Node-only typecheck: only the actual protocol/read-only browser hook.
 declare const window: {
-  __simHarness?: { request(request: RequestWithoutId): Promise<Reply>; exportReplay(): Promise<Reply> };
+  __simHarness?: { request(request: RequestWithoutId): RequestTicket; exportReplay(): RequestTicket };
   scrollTo(x: number, y: number): void;
   readonly scrollY: number;
 };
@@ -87,7 +87,7 @@ async function offlineFake(context: BrowserContext, options: {
 async function request(page: Page, value: RequestWithoutId): Promise<Reply> {
   return page.evaluate(async value => {
     if (!window.__simHarness) throw Error('Worker_Protocol harness is missing');
-    return window.__simHarness.request(value);
+    return window.__simHarness.request(value).reply;
   }, value);
 }
 async function readWorld(page: Page): Promise<WorldSnapshot> {
@@ -110,27 +110,27 @@ async function waiting(page: Page): Promise<void> {
     const harness = window.__simHarness;
     if (!harness) throw Error('Worker_Protocol harness is missing');
     for (const input of prefix) {
-      const reply = await harness.request({ type: 'submit', input: JSON.stringify(input) });
+      const reply = await harness.request({ type: 'submit', input: JSON.stringify(input) }).reply;
       if (!reply.ok) throw Error(`fixture submit failed: ${reply.kind}`);
     }
     for (let tick = 0; tick < ticks; tick++) {
-      let reply = await harness.request({ type: 'step' });
+      let reply = await harness.request({ type: 'step' }).reply;
       if (!reply.ok && reply.kind === 'node_unanswered') {
-        const read = await harness.request({ type: 'world-snapshot' });
+        const read = await harness.request({ type: 'world-snapshot' }).reply;
         if (!read.ok || !read.world?.player_node) throw Error('fixture node is missing');
         const node = read.world.player_node;
-        const chosen = await harness.request({ type: 'choose', node: node.id, option: node.rules_default });
+        const chosen = await harness.request({ type: 'choose', node: node.id, option: node.rules_default }).reply;
         if (!chosen.ok) throw Error('native fixture default was rejected');
-        reply = await harness.request({ type: 'step' });
+        reply = await harness.request({ type: 'step' }).reply;
       }
       if (!reply.ok) throw Error(`fixture step failed: ${reply.kind}`);
     }
-    const finalRead = await harness.request({ type: 'world-snapshot' });
+    const finalRead = await harness.request({ type: 'world-snapshot' }).reply;
     if (!finalRead.ok) throw Error('fixture final read failed');
     if (finalRead.snapshot.playerNode.pending && !finalRead.snapshot.playerNode.answered) {
       const node = finalRead.world?.player_node;
       if (!node) throw Error('fixture final node is missing');
-      const chosen = await harness.request({ type: 'choose', node: node.id, option: node.rules_default });
+      const chosen = await harness.request({ type: 'choose', node: node.id, option: node.rules_default }).reply;
       if (!chosen.ok) throw Error('native final fixture default was rejected');
     }
   }, { prefix, ticks: WAITING_TICK - 1 });
@@ -187,7 +187,7 @@ async function capture(page: Page, info: TestInfo, name: string, fullPage = fals
 async function evidence(page: Page, info: TestInfo, kind: 'acceptance' | 'fallback'): Promise<void> {
   const exported = await page.evaluate(async () => {
     if (!window.__simHarness) throw Error('read-only export hook is missing');
-    return window.__simHarness.exportReplay();
+    return window.__simHarness.exportReplay().reply;
   });
   expect(exported.ok).toBe(true);
   if (!exported.ok || exported.replay === undefined) throw Error('live WASM export is missing');
@@ -481,7 +481,7 @@ test('offline fake both families share one completed tick with trigger-sequence 
 
   const exported = await page.evaluate(async () => {
     if (!window.__simHarness) throw Error('read-only export hook is missing');
-    return window.__simHarness.exportReplay();
+    return window.__simHarness.exportReplay().reply;
   });
   expect(exported.ok).toBe(true);
   if (!exported.ok || exported.replay === undefined) throw Error('live WASM export is missing');

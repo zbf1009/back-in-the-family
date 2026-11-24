@@ -15,8 +15,8 @@
 
 import type { DecisionStatus, Request, RunState, Snapshot, WorkerMessage } from '../shared/protocol.ts';
 import { type SeedProblem, seedProblemMessage } from '../shared/seed.ts';
-import type { WorldSnapshot } from '../shared/world-snapshot.ts';
-import { nextScene, sceneQueue, type SceneQueue } from './scene-queue.ts';
+import type { ActionResult, PlayerLifecycleFact, SubmissionReceipt, WorldSnapshot } from '../shared/world-snapshot.ts';
+import { closeScene, retireNode, sceneQueue, type SceneClose, type SceneQueue } from './scene-queue.ts';
 import { initialUnderworldForm, type UnderworldForm } from './customization.ts';
 
 /**
@@ -26,6 +26,18 @@ import { initialUnderworldForm, type UnderworldForm } from './customization.ts';
  * without the DOM lib.
  */
 type ReplyMessage = Extract<WorkerMessage, { type: 'reply' }>;
+
+export type ActionPhase = 'sending' | 'deciding' | 'queued' | 'unknown' | 'applied' | 'rejected' | 'cancelled';
+export interface UiAction {
+  worldId: number;
+  requestId: number | null;
+  inputSeq: string | null;
+  request: Request | null;
+  phase: ActionPhase;
+  submission: SubmissionReceipt | null;
+  result: ActionResult | null;
+  error: string | null;
+}
 
 /**
  * Everything the page displays, derived only from events. `tick`, `checksum`,
@@ -53,10 +65,18 @@ export interface UiState {
   /** Latest completed World Snapshot; presentation never computes an outcome. */
   world: WorldSnapshot | null;
   /** One outstanding read, or the tick whose read failed; never both. */
-  worldRead: { state: 'pending' | 'failed'; worldId: number; tick: string } | null;
+  worldRead: { state: 'pending' | 'failed'; worldId: number; tick: string; requestId: number } | null;
   /** Running statuses since a World carrier or the last read request, capped at ten. */
   worldStatuses: number;
   scene: SceneQueue | null;
+  sceneEpisode: { worldId: number; tick: string } | null;
+  actions: UiAction[];
+  settledOmitted: number;
+  observedActions: ReadonlySet<string>;
+  settledRequests: ReadonlySet<number>;
+  playerLifecycle: PlayerLifecycleFact[];
+  observedLifecycle: ReadonlySet<string>;
+  lifecycleEpisode: string | null;
   underworldRecorded: { worldId: number; tick: string } | null;
   underworldForm: UnderworldForm;
   /** Worker-owned page-session preference, budget and request/World binding. */
@@ -65,6 +85,7 @@ export interface UiState {
   decisionRequestId: number;
   /** Only the brief interval before the worker announces a decision or replies. */
   decisionSending: number | null;
+  decisionSendingRequestId: number | null;
   /** Error area text; non-empty while the last reply-or-fatal event was a failure (R5.8). */
   error: string | null;
   /** Seed validation message; set by a rejected seed, cleared by a sent create-world (R3.3). */
@@ -87,13 +108,14 @@ export interface UiState {
  *   step pending flags and to clear the seed message on a create-world (R3.8, R4.10).
  */
 export type UiEvent =
-  | { type: 'reply'; request: Request; message: ReplyMessage }
+  | { type: 'reply'; request: Request; message: ReplyMessage; worldId?: number }
   | { type: 'status'; snapshot: Snapshot }
   | { type: 'fatal' | 'worker-error'; error: string }
   | { type: 'seed-invalid'; problem: SeedProblem }
-  | { type: 'request-sent'; request: Request }
-  | { type: 'world-read-failed'; worldId: number; tick: string; error: string }
-  | { type: 'scene-close' }
+  | { type: 'request-sent'; request: Request; worldId?: number }
+  | { type: 'request-failed'; request: Request; worldId: number; error: string }
+  | { type: 'validation-error'; error: string }
+  | { type: 'scene-close'; expected: SceneClose }
   | { type: 'underworld-form'; form: UnderworldForm };
 
 /** The initial display state: no world, Speed 1 selected, everything else empty (R4.4, R5.2). */
@@ -110,11 +132,20 @@ export function initialUiState(): UiState {
     worldRead: null,
     worldStatuses: 0,
     scene: null,
+    sceneEpisode: null,
+    actions: [],
+    settledOmitted: 0,
+    observedActions: new Set(),
+    settledRequests: new Set(),
+    playerLifecycle: [],
+    observedLifecycle: new Set(),
+    lifecycleEpisode: null,
     underworldRecorded: null,
     underworldForm: initialUnderworldForm(),
     decision: null,
     decisionRequestId: 0,
     decisionSending: null,
+    decisionSendingRequestId: null,
     error: null,
     seedMessage: null,
     createPending: false,
@@ -137,114 +168,121 @@ export function initialUiState(): UiState {
 export function reduce(s: UiState, e: UiEvent): UiState {
   switch (e.type) {
     case 'request-sent': {
-      // A create-world clears the seed message (the seed was accepted) and marks
-      // the create control busy (R3.3, R3.8). A step marks the step control busy
-      // (R4.10). A World read records its origin before App sends the request.
+      const worldId = e.worldId ?? s.worldId;
+      if (worldId !== s.worldId || s.runState === 'failed') return s;
+      let next = recordSent(s, e.request, worldId);
       switch (e.request.type) {
-        case 'create-world':
-          return { ...s, seedMessage: null, createPending: true };
-        case 'step':
-          return { ...s, stepPending: true };
+        case 'create-world': return { ...next, seedMessage: null, createPending: true };
+        case 'step': return { ...next, stepPending: true };
         case 'dream':
         case 'bribe':
-          return { ...s, decisionSending: s.worldId };
+          if (e.request.id <= s.decisionRequestId && s.decision?.pending?.requestId !== e.request.id
+            || s.settledRequests.has(e.request.id)
+            || next.actions.some(action => action.requestId === e.request.id && terminal(action.phase))) return next;
+          return { ...next, decisionSending: worldId, decisionSendingRequestId: e.request.id };
         case 'world-snapshot':
-          return s.worldRead?.state === 'pending' || s.tick === null ? s : {
-            ...s, worldRead: { state: 'pending', worldId: s.worldId, tick: s.tick }, worldStatuses: 0,
+          return s.worldRead?.state === 'pending' || s.tick === null ? next : {
+            ...next, worldRead: { state: 'pending', worldId, tick: s.tick, requestId: e.request.id }, worldStatuses: 0,
           };
-        default:
-          return s;
+        default: return next;
       }
     }
-
     case 'reply': {
-      const triggerReply = e.request.type === 'dream' || e.request.type === 'bribe';
-      const decisionReply = triggerReply || ['use-rules-now', 'decision-status', 'set-decision-wait', 'export-replay'].includes(e.request.type);
-      if (decisionReply && e.message.snapshot.worldId !== s.worldId) return s;
-      const read = e.request.type === 'world-snapshot' ? s.worldRead : null;
-      const cleared = e.request.type === 'world-snapshot' ? { ...s, worldRead: null } : clearPending(s, e.request);
-      const staleReply = e.message.snapshot.worldId === s.worldId && (e.message.id < s.decisionRequestId
-        || (triggerReply && e.message.id === s.decisionRequestId && s.decision?.pending?.requestId !== e.message.id));
-      if (staleReply || (!triggerReply && staleDecision(s, e.message.snapshot))) return cleared;
-      // Finish the old read without adopting its values or error after replacement.
-      if (e.request.type === 'world-snapshot'
-        && (e.message.snapshot.worldId !== s.worldId || (read !== null && read.worldId !== s.worldId))) {
-        return cleared;
+      const message = e.message;
+      const replacing = e.request.type === 'create-world' && message.ok && message.snapshot.worldId > s.worldId;
+      if (e.request.type === 'world-snapshot' && message.snapshot.worldId !== s.worldId
+        && s.worldRead?.worldId === message.snapshot.worldId && s.worldRead.requestId === e.request.id) return { ...s, worldRead: null };
+      if (!replacing && (message.snapshot.worldId < s.worldId || message.ok && message.snapshot.worldId !== s.worldId
+        || e.worldId !== undefined && e.worldId !== s.worldId)) return s;
+      if (s.runState === 'failed') return s;
+      const read = e.request.type === 'world-snapshot' && s.worldRead?.requestId === e.request.id ? s.worldRead : null;
+      let next = clearPending(s, e.request);
+      if (read !== null) next = { ...next, worldRead: null };
+      if (replacing) next = {
+        ...next, worldId: message.snapshot.worldId, world: null,
+        tick: null, checksum: null, tps: null, playerNode: { pending: false },
+        worldRead: next.worldRead?.state === 'pending' ? next.worldRead : null, worldStatuses: 0,
+        stepPending: false,
+        scene: null, sceneEpisode: null, underworldRecorded: null, underworldForm: initialUnderworldForm(),
+        actions: [], settledOmitted: 0, observedActions: new Set(), settledRequests: new Set(),
+        playerLifecycle: [], observedLifecycle: new Set(), lifecycleEpisode: null,
+        decision: null, decisionRequestId: 0, decisionSending: null, decisionSendingRequestId: null,
+      };
+      if (message.snapshot.worldId === next.worldId) next = ingest(next, message.snapshot);
+      next = recordReply(next, e.request, message);
+      const trigger = e.request.type === 'dream' || e.request.type === 'bribe';
+      const staleTrigger = trigger && (message.id < next.decisionRequestId
+        || message.id === next.decisionRequestId && next.decision?.pending?.requestId !== message.id);
+      if (!staleTrigger && message.snapshot.worldId === next.worldId) {
+        next = { ...next, ...decisionFields(next, message.snapshot, trigger ? message.id : 0) };
       }
-      if (e.message.ok) {
-        const replaced = e.message.snapshot.worldId !== s.worldId;
-        const next = {
-          ...cleared, ...fromSnapshot(e.message.snapshot), ...decisionFields(s, e.message.snapshot, triggerReply ? e.message.id : 0), error: null,
-          world: replaced ? null : s.world,
-          worldStatuses: replaced ? 0 : cleared.worldStatuses,
-          worldRead: replaced && cleared.worldRead?.state === 'failed' ? null : cleared.worldRead,
-          underworldForm: replaced ? initialUnderworldForm() : cleared.underworldForm,
-          decisionSending: replaced || e.request.type === 'dream' || e.request.type === 'bribe' ? null : cleared.decisionSending,
-        };
-        const world = e.message.world ?? e.message.snapshot.stop?.world;
-        let adopted = expirePresentation(world === undefined ? next : withWorld(next, world));
-        if (e.request.type === 'choose' && adopted.scene?.entries[0]?.node === e.request.node) {
-          adopted = { ...adopted, scene: nextScene(adopted.scene) };
+      if (next.decisionSendingRequestId === message.id) next = { ...next, decisionSending: null, decisionSendingRequestId: null };
+      if (message.ok) {
+        if (message.snapshot.worldId !== next.worldId) return next;
+        const oldFrame = olderFrame(next, message.snapshot);
+        if (!oldFrame) next = { ...next, ...fromSnapshot(message.snapshot),
+          playerNode: retainedPlayerNode(next, message.snapshot) };
+        const world = message.world ?? message.snapshot.stop?.world;
+        if (world !== undefined) next = withWorld(next, world);
+        next = expirePresentation(next);
+        if (e.request.type === 'choose') next = { ...next, scene: retireNode(next.scene, e.request.node) };
+        if (!staleTrigger && (e.request.type === 'dream' || e.request.type === 'claim') && next.tick !== null && !oldFrame) {
+          next = { ...next, underworldRecorded: { worldId: next.worldId, tick: next.tick } };
         }
-        if ((e.request.type === 'dream' || e.request.type === 'claim') && adopted.tick !== null) {
-          adopted = { ...adopted, underworldRecorded: { worldId: adopted.worldId, tick: adopted.tick } };
-        }
-        return adopted;
+        return { ...next, error: oldFrame || staleTrigger ? s.error : null };
       }
-      // Failures keep the completed display; a failed read is not retried at its tick.
+      if (staleTrigger) return next;
       const tick = read?.tick ?? s.tick;
-      return {
-        ...cleared, ...decisionFields(s, e.message.snapshot, triggerReply ? e.message.id : 0),
-        decisionSending: e.request.type === 'dream' || e.request.type === 'bribe' ? null : cleared.decisionSending,
-        error: e.request.type === 'dream' ? dreamFailure(e.message) : e.message.error,
-        worldRead: e.request.type === 'world-snapshot' && tick !== null
-          ? { state: 'failed', worldId: s.worldId, tick } : cleared.worldRead,
-      };
+      return { ...next, error: e.request.type === 'dream' ? dreamFailure(message) : message.error,
+        worldRead: e.request.type === 'world-snapshot' && tick !== null && (s.worldRead === null || read !== null)
+          ? { state: 'failed', worldId: s.worldId, tick, requestId: e.request.id } : next.worldRead };
     }
-
     case 'status': {
-      // Drop a status from a world we have already replaced (R3.7).
-      if (e.snapshot.worldId !== s.worldId || staleDecision(s, e.snapshot)) {
-        return s;
-      }
-      // A status never carries an error and never clears one: the error area is
-      // governed by replies and fatals only (R5.8). Adopt the live values.
-      const next = {
-        ...s, ...fromSnapshot(e.snapshot), ...decisionFields(s, e.snapshot),
+      if (e.snapshot.worldId !== s.worldId || s.runState === 'failed') return s;
+      let next = ingest(s, e.snapshot);
+      next = { ...next, ...decisionFields(next, e.snapshot) };
+      if (olderFrame(next, e.snapshot)) return next;
+      next = { ...next, ...fromSnapshot(e.snapshot),
+        playerNode: retainedPlayerNode(next, e.snapshot),
         worldStatuses: e.snapshot.runState === 'running' && e.snapshot.stop === undefined
-          ? Math.min(s.worldStatuses + 1, 10) : s.worldStatuses,
-      };
-      const adopted = expirePresentation(e.snapshot.stop === undefined ? next : withWorld(next, e.snapshot.stop.world));
-      if (e.snapshot.stop === undefined) return adopted;
-      const entries = sceneQueue(e.snapshot.stop.reasons, e.snapshot.stop.world);
-      return { ...adopted, scene: entries.length === 0 ? null : {
-        worldId: e.snapshot.worldId, tick: e.snapshot.tick!, world: e.snapshot.stop.world, reasons: e.snapshot.stop.reasons, entries,
+          ? Math.min(s.worldStatuses + 1, 10) : s.worldStatuses };
+      if (e.snapshot.stop !== undefined) next = withWorld(next, e.snapshot.stop.world);
+      next = expirePresentation(next);
+      if (e.snapshot.stop === undefined || next.sceneEpisode?.worldId === next.worldId && next.sceneEpisode.tick === next.tick) return next;
+      const entries = sceneQueue(e.snapshot.stop.reasons, e.snapshot.stop.world)
+        .filter(entry => entry.node === null || !next.actions.some(action => action.request?.type === 'choose'
+          && action.request.node === entry.node && action.phase === 'queued'));
+      return { ...next, sceneEpisode: { worldId: next.worldId, tick: next.tick! }, scene: entries.length === 0 ? null : {
+        worldId: next.worldId, tick: next.tick!, world: e.snapshot.stop.world, reasons: e.snapshot.stop.reasons, entries,
       } };
     }
-
+    case 'request-failed': {
+      if (e.request.type === 'world-snapshot' && e.worldId !== s.worldId && s.worldRead?.worldId === e.worldId
+        && s.worldRead.requestId === e.request.id) {
+        return { ...s, worldRead: null };
+      }
+      if (e.worldId !== s.worldId || s.runState === 'failed') return s;
+      if (e.request.type === 'world-snapshot' && s.worldRead?.requestId !== e.request.id) return s;
+      let next = clearPending(s, e.request);
+      const action = next.actions.find(row => row.requestId === e.request.id);
+      if (action !== undefined && terminal(action.phase)) return next;
+      next = { ...next, actions: next.actions.map<UiAction>(row => row.requestId === e.request.id && !terminal(row.phase)
+        ? { ...row, phase: 'unknown', error: e.error } : row) };
+      if (next.decisionSendingRequestId === e.request.id) next = { ...next, decisionSending: null, decisionSendingRequestId: null };
+      if (e.request.type === 'world-snapshot' && next.worldRead?.worldId === e.worldId && next.worldRead.requestId === e.request.id) {
+        next = { ...next, worldRead: { ...next.worldRead, state: 'failed' } };
+      }
+      return gameplay(e.request) ? next : { ...next, error: 'Completion unknown. No retry was sent.' };
+    }
     case 'fatal':
-    case 'worker-error': {
-      // The worker can no longer be trusted. Go to `failed`, show the text, and
-      // keep the last completed tick and checksum (R2.8, R2.9, R5.9).
-      return { ...s, runState: 'failed', error: e.error, decisionSending: null,
+    case 'worker-error':
+      return { ...s, runState: 'failed', error: e.error, createPending: false, stepPending: false, worldRead: null,
+        actions: s.actions.filter(action => terminal(action.phase)), decisionSending: null, decisionSendingRequestId: null,
         decision: s.decision === null ? null : { ...s.decision, pending: null } };
-    }
-
-    case 'seed-invalid': {
-      // The seed field was rejected before any request; name the problem and
-      // leave the world, Run_State, tick and checksum untouched (R3.3).
-      return { ...s, seedMessage: seedProblemMessage(e.problem) };
-    }
-    case 'world-read-failed': {
-      const read = s.worldRead;
-      if (read?.state !== 'pending' || read.worldId !== e.worldId || read.tick !== e.tick) return s;
-      if (e.worldId !== s.worldId) return { ...s, worldRead: null };
-      return { ...s, error: e.error, worldRead: { state: 'failed', worldId: e.worldId, tick: e.tick } };
-    }
-    case 'scene-close':
-      return s.scene?.entries[0]?.node === null ? { ...s, scene: nextScene(s.scene) } : s;
-    case 'underworld-form':
-      return { ...s, underworldForm: e.form };
+    case 'seed-invalid': return { ...s, seedMessage: seedProblemMessage(e.problem) };
+    case 'validation-error': return { ...s, error: e.error };
+    case 'scene-close': return { ...s, scene: closeScene(s.scene, e.expected) };
+    case 'underworld-form': return { ...s, underworldForm: e.form };
   }
 }
 
@@ -258,6 +296,7 @@ export function worldSnapshotNeeded(s: UiState): boolean {
 
 /** A World carrier is authoritative and starts a new running-status allowance. */
 function withWorld(s: UiState, world: WorldSnapshot): UiState {
+  if (s.world !== null && BigInt(world.tick) < BigInt(s.world.tick)) return s;
   let form = s.underworldForm;
   if (s.world?.player_wait?.ghost !== world.player_wait?.ghost) {
     form = { ...initialUnderworldForm(), carryOver: world.player_wait?.carry_over ?? null };
@@ -276,10 +315,17 @@ function expirePresentation(s: UiState): UiState {
   return scene === s.scene && recorded === s.underworldRecorded ? s : { ...s, scene, underworldRecorded: recorded };
 }
 
-export function nodeOptionsEnabled(s: UiState): boolean {
-  return !decisionBusy(s) && s.world?.player_node !== null && s.world?.player_node !== undefined
-    && s.scene?.entries[0]?.node === s.world.player_node.id && s.playerNode.pending && !s.playerNode.answered;
+/** One coherent live-world decision, independent of historical presentation. */
+export function currentDecision(s: UiState): WorldSnapshot['player_node'] {
+  const node = s.world?.player_node;
+  if (s.worldId === 0 || s.runState === 'failed' || s.createPending || decisionBusy(s) || node == null
+    || !s.playerNode.pending || s.playerNode.node !== node.id || s.playerNode.answered
+    || s.actions.some(action => action.worldId === s.worldId && action.request?.type === 'choose'
+      && action.request.node === node.id && !terminal(action.phase))) return null;
+  return node;
 }
+
+export function nodeOptionsEnabled(s: UiState): boolean { return currentDecision(s) !== null; }
 
 /**
  * Which controls are enabled in the given state (R3.8, R4.7-R4.10).
@@ -338,6 +384,8 @@ function staleDecision(s: UiState, snapshot: Snapshot): boolean {
 }
 
 function decisionFields(s: UiState, snapshot: Snapshot, requestId = 0): Pick<UiState, 'decision' | 'decisionRequestId'> {
+  const completedCurrent = requestId !== 0 && requestId === s.decision?.pending?.requestId && snapshot.decision?.pending === null;
+  if (!completedCurrent && staleDecision(s, snapshot)) return { decision: s.decision, decisionRequestId: Math.max(s.decisionRequestId, requestId) };
   if (snapshot.decision === undefined) return {
     decision: snapshot.worldId === s.worldId ? s.decision : null,
     decisionRequestId: Math.max(snapshot.worldId === s.worldId ? s.decisionRequestId : 0, requestId),
@@ -352,6 +400,93 @@ function dreamFailure(message: Extract<ReplyMessage, { ok: false }>): string {
   if (message.previewError?.kind === 'no_node') return 'Dream was not recorded: no decision is available.';
   if (message.previewError?.kind === 'malformed') return 'Dream was not recorded: decision data is unavailable.';
   return 'Dream was not recorded. Check the available dreamer and joss paper.';
+}
+
+function terminal(phase: ActionPhase): boolean { return phase === 'applied' || phase === 'rejected' || phase === 'cancelled'; }
+
+function gameplay(request: Request): boolean {
+  return ['choose', 'choose-and-run', 'dream', 'bribe', 'haunt', 'claim', 'carry-over', 'submit'].includes(request.type);
+}
+
+function recordSent(s: UiState, request: Request, worldId: number): UiState {
+  if (!gameplay(request)) return s;
+  const prior = s.actions.find(action => action.requestId === request.id);
+  if (prior === undefined && s.settledRequests.has(request.id)) return s;
+  return { ...s, actions: prior === undefined ? [...s.actions, {
+    worldId, requestId: request.id, inputSeq: null, request,
+    phase: request.type === 'dream' || request.type === 'bribe' ? 'deciding' : 'sending',
+    submission: null, result: null, error: null,
+  }] : s.actions.map(action => action === prior ? { ...action, request } : action) };
+}
+
+function recordReply(s: UiState, request: Request, message: ReplyMessage): UiState {
+  if (!gameplay(request) || message.snapshot.worldId !== s.worldId) return s;
+  if ((request.type === 'dream' || request.type === 'bribe') && request.id < s.decisionRequestId
+    && !s.actions.some(action => action.requestId === request.id && terminal(action.phase))) return s;
+  let next = recordSent(s, request, s.worldId);
+  next = { ...next, actions: next.actions.map<UiAction>(action => {
+    if (action.requestId !== request.id) return action;
+    if (terminal(action.phase)) return message.ok ? { ...action, submission: message.submission ?? action.submission } : action;
+    return message.ok ? { ...action, phase: 'queued', submission: message.submission ?? null,
+      inputSeq: message.submission?.seqs[0] ?? action.inputSeq, error: null }
+      : { ...action, phase: message.kind === 'cancelled' ? 'cancelled' : 'rejected',
+        error: request.type === 'dream' ? dreamFailure(message) : message.error };
+  }) };
+  if (!message.ok) next = { ...next, settledRequests: new Set([...next.settledRequests, request.id]) };
+  return limitSettled(next);
+}
+
+function limitSettled(s: UiState): UiState {
+  const settled = s.actions.filter(action => terminal(action.phase));
+  if (settled.length <= 20) return s;
+  const remove = new Set(settled.slice(0, settled.length - 20));
+  return { ...s, actions: s.actions.filter(action => !remove.has(action)), settledOmitted: s.settledOmitted + remove.size };
+}
+
+/** Observations are merged before either decision or live-frame freshness gates. */
+function ingest(s: UiState, snapshot: Snapshot): UiState {
+  if (snapshot.worldId !== s.worldId) return s;
+  if (snapshot.actions.length === 0 && snapshot.playerLifecycle.length === 0) return s;
+  let actions = s.actions;
+  const settledRequests = new Set(s.settledRequests);
+  const observedActions = new Set(s.observedActions);
+  for (const result of snapshot.actions) {
+    if (result.worldId !== s.worldId || observedActions.has(result.input_seq)) continue;
+    if (result.requestId !== null) settledRequests.add(result.requestId);
+    observedActions.add(result.input_seq);
+    const prior = actions.find(action => action.inputSeq === result.input_seq
+      || result.requestId !== null && action.requestId === result.requestId);
+    const settled: UiAction = { worldId: result.worldId, requestId: result.requestId, inputSeq: result.input_seq,
+      request: prior?.request ?? null, phase: result.state, submission: prior?.submission ?? null, result,
+      error: result.state === 'rejected' ? result.reason : null };
+    actions = prior === undefined ? [...actions, settled] : [...actions.filter(action => action !== prior), settled];
+  }
+  const observedLifecycle = new Set(s.observedLifecycle);
+  const fresh = snapshot.playerLifecycle.filter(fact => {
+    if (observedLifecycle.has(fact.event)) return false;
+    observedLifecycle.add(fact.event); return true;
+  });
+  // A delivered batch may contain birth and death at different ticks. Keep its complete episode.
+  const newEpisode = fresh.length > 0 && snapshot.tick !== null
+    && (s.lifecycleEpisode === null || BigInt(snapshot.tick) > BigInt(s.lifecycleEpisode));
+  const playerLifecycle = [...(newEpisode ? [] : s.playerLifecycle), ...fresh]
+    .sort((a, b) => BigInt(a.event) < BigInt(b.event) ? -1 : BigInt(a.event) > BigInt(b.event) ? 1 : 0);
+  const sendingSettled = s.decisionSendingRequestId !== null && settledRequests.has(s.decisionSendingRequestId);
+  return limitSettled({ ...s, actions, observedActions, settledRequests, playerLifecycle, observedLifecycle,
+    lifecycleEpisode: newEpisode ? snapshot.tick : s.lifecycleEpisode,
+    decisionSending: sendingSettled ? null : s.decisionSending,
+    decisionSendingRequestId: sendingSettled ? null : s.decisionSendingRequestId });
+}
+
+function olderFrame(s: UiState, snapshot: Snapshot): boolean {
+  return s.tick !== null && snapshot.tick !== null && BigInt(snapshot.tick) < BigInt(s.tick);
+}
+
+/** An accepted exact-node answer cannot be rolled back by a delayed same-tick carrier. */
+function retainedPlayerNode(s: UiState, snapshot: Snapshot): Snapshot['playerNode'] {
+  if (s.tick === snapshot.tick && s.playerNode.pending && s.playerNode.answered && snapshot.playerNode.pending
+    && s.playerNode.node === snapshot.playerNode.node) return s.playerNode;
+  return snapshot.playerNode;
 }
 
 // --- status formatters (R5.1-R5.3, R5.6) -----------------------------------

@@ -19,12 +19,15 @@
 // return wasm;`), so calling `loadWasm()` more than once per process is safe and
 // initialises the module only once.
 
+import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 // The glue is plain JavaScript with a companion .d.ts; Node runs it directly and
 // the type-checker reads `sim_wasm.d.ts` for the types below.
 import initSyncDefault, { initSync, WasmSim } from '../../../../target/wasm-pkg/sim_wasm.js';
 import type { SimHandle } from '../../../src/worker/controller.ts';
+import type { CheckedSubmission } from '../../../src/shared/protocol.ts';
+import type { SubmissionReceipt } from '../../../src/shared/world-snapshot.ts';
 
 // `initSyncDefault` is the async default export; we only use the named
 // `initSync`. Referencing the default keeps the import used and documents that
@@ -63,4 +66,18 @@ export function loadWasm(): void {
 export function createSim(seed: bigint, config: string): SimHandle {
   loadWasm();
   return new WasmSim(seed, config);
+}
+
+/** Assert acceptance against the actual replay suffix, never a predicted trigger. */
+export function checkedReceipt(sim: WasmSim, payloads: unknown[]): SubmissionReceipt {
+  const before = JSON.parse(sim.export_replay()).inputs.length as number;
+  const tick = sim.tick().toString();
+  const result: CheckedSubmission = JSON.parse(sim.submit_checked(JSON.stringify(payloads)));
+  assert.ok(result.ok, 'the actual checked payload vector must be admitted');
+  const inputs = JSON.parse(sim.export_replay()).inputs.slice(before) as { tick: string; seq: string; payload: unknown }[];
+  assert.equal(sim.tick().toString(), tick, 'checked admission does not advance time');
+  assert.deepEqual(inputs.map(input => input.payload), payloads);
+  assert.deepEqual(inputs.map(input => input.tick), payloads.map(() => tick));
+  assert.deepEqual(result, { ok: true, tick, seqs: inputs.map(input => input.seq) });
+  return { tick: result.tick, seqs: result.seqs };
 }

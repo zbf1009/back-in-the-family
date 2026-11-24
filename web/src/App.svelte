@@ -17,7 +17,8 @@
   // `state` collides with the `$state` rune call (`$state(...)` reads as a store
   // auto-subscription when a `state` binding is in scope).
 
-  import type { SimClient, ReplyMessage } from './main/sim-client.ts';
+  import { untrack } from 'svelte';
+  import type { SimClient } from './main/sim-client.ts';
   import type { EventBridge } from './main/bridge.ts';
   import type { Request, RequestWithoutId } from './shared/protocol.ts';
   import {
@@ -26,6 +27,7 @@
     controls,
     worldSnapshotNeeded,
     decisionBusy,
+    currentDecision,
     decisionNotice,
     formatTick,
     formatChecksum,
@@ -35,7 +37,7 @@
     type UiState,
   } from './main/ui-state.ts';
   import { parseSeed } from './shared/seed.ts';
-  import { SPEEDS } from './shared/speeds.ts';
+  import { isSpeed, SPEEDS } from './shared/speeds.ts';
   import type { PlayerOption, Slot } from './shared/world-snapshot.ts';
   import TownView from './ui/TownView.svelte';
   import IdentityPanel from './ui/IdentityPanel.svelte';
@@ -46,6 +48,7 @@
   import Dream from './ui/scenes/Dream.svelte';
   import Birth from './ui/scenes/Birth.svelte';
   import { claimRequest, dreamRequest, type UnderworldForm } from './main/customization.ts';
+  import { underworldView, viewModel } from './main/view-model.ts';
   import ChroniclePanel from './ui/ChroniclePanel.svelte';
   // World_Config field is prefilled with text identical to the fixture file
   // (R3.1). Vite's `?raw` import yields the file's bytes verbatim, so the textarea
@@ -71,58 +74,67 @@
   const currentScene = $derived(ui.scene?.entries[0] ?? null);
   const held = $derived(decisionBusy(ui));
   const notice = $derived(decisionNotice(ui));
+  const decision = $derived(currentDecision(ui));
+  const feedback = $derived(viewModel(ui));
+  const onClose = $derived.by(() => {
+    const queue = ui.scene;
+    const entry = queue?.entries[0];
+    return () => {
+      if (queue !== null && entry !== undefined) dispatch({ type: 'scene-close',
+        expected: { worldId: queue.worldId, tick: queue.tick, entry } });
+    };
+  });
 
   // Fold one event into the state. Assigning a fresh object keeps the rune reactive.
   function dispatch(event: UiEvent): void {
     ui = reduce(ui, event);
-    if (worldSnapshotNeeded(ui)) void refreshWorld();
+    if (worldSnapshotNeeded(ui)) void sendRequest({ type: 'world-snapshot' });
   }
 
-  async function refreshWorld(): Promise<void> {
+  async function sendRequest(input: RequestWithoutId): Promise<void> {
     const worldId = ui.worldId;
-    const request: Request = { type: 'world-snapshot', id: 0 };
-    const tick = ui.tick!;
-    dispatch({ type: 'request-sent', request });
+    let request: Request | undefined;
     try {
-      settle(request, await client.request({ type: 'world-snapshot' }));
+      const ticket = client.request(input);
+      request = { ...input, id: ticket.requestId } as Request;
+      dispatch({ type: 'request-sent', request, worldId });
+      dispatch({ type: 'reply', request, worldId, message: await ticket.reply });
     } catch (error) {
-      dispatch({ type: 'world-read-failed', worldId, tick, error: String(error) });
+      if (request !== undefined) dispatch({ type: 'request-failed', request, worldId, error: String(error) });
+      else if (worldId === ui.worldId) dispatch({ type: 'validation-error', error: String(error) });
     }
   }
 
-  async function onChoose(node: string, option: PlayerOption): Promise<void> {
-    const request: Request = { type: 'choose', id: 0, node, option };
-    dispatch({ type: 'request-sent', request });
-    settle(request, await client.request({ type: 'choose', node, option }));
+  async function onChoose(worldId: number, node: string, option: PlayerOption): Promise<void> {
+    const live = currentDecision(ui);
+    if (ui.worldId !== worldId || live === null || live.id !== node || !live.options.some(entry => entry.id === option)) return;
+    await sendRequest({ type: 'choose', node: live.id, option });
   }
 
-  async function sendUnderworld(requestWithoutId: RequestWithoutId | null): Promise<void> {
-    if (requestWithoutId === null || held) return;
-    const request: Request = { ...requestWithoutId, id: 0 };
-    dispatch({ type: 'request-sent', request });
-    settle(request, await client.request(requestWithoutId));
+  async function sendUnderworld(input: RequestWithoutId | null): Promise<void> {
+    if (input === null || held || ui.createPending || ui.runState === 'failed' || ui.world?.player.place !== 'waiting') return;
+    await sendRequest(input);
   }
 
   function onForm(form: UnderworldForm): void { dispatch({ type: 'underworld-form', form }); }
-  function onClose(): void { dispatch({ type: 'scene-close' }); }
   async function onDream(): Promise<void> {
-    if (ui.world === null || held) return;
+    if (ui.world === null || held || !underworldView(ui)?.dreamEnabled) return;
     await sendUnderworld(dreamRequest(ui.world, ui.underworldForm));
   }
 
   async function onWaitChange(event: Event): Promise<void> {
     const seconds = Number((event.currentTarget as HTMLSelectElement).value);
-    const request: Request = { type: 'set-decision-wait', id: 0, seconds };
-    settle(request, await client.setDecisionWait(seconds));
+    if (!Number.isInteger(seconds) || seconds < 0 || seconds > 10) return;
+    await sendRequest({ type: 'set-decision-wait', seconds });
   }
 
   async function onUseRules(): Promise<void> {
     const pending = ui.decision?.pending;
     if (pending == null || pending.worldId !== ui.worldId) return;
-    const request: Request = { type: 'use-rules-now', id: 0, requestId: pending.requestId, worldId: pending.worldId };
-    settle(request, await client.useRulesNow(pending.requestId, pending.worldId));
+    await sendRequest({ type: 'use-rules-now', requestId: pending.requestId, worldId: pending.worldId });
   }
   async function onClaim(slot: Slot): Promise<void> {
+    if (!underworldView(ui)?.slots.some(entry => entry.slot === slot && entry.claimEnabled)) return;
     await sendUnderworld(claimRequest(ui.underworldForm, slot));
   }
 
@@ -133,8 +145,7 @@
   $effect(() => {
     bridge.dispatch = dispatch;
     // Read page-session diagnostics before creation; no simulation mutation.
-    const request: Request = { type: 'decision-status', id: 0 };
-    void client.decisionStatus().then(message => settle(request, message));
+    void untrack(() => sendRequest({ type: 'decision-status' }));
     return () => {
       bridge.dispatch = null;
     };
@@ -145,49 +156,39 @@
   // sent (clears the seed message, disables Create) and calls createWorld with the
   // seed string exactly as entered and the config text unchanged (R3.2).
   async function onCreate(): Promise<void> {
+    if (!controls(ui).create) return;
     const result = parseSeed(seed);
     if (!result.ok) {
       dispatch({ type: 'seed-invalid', problem: result.problem });
       return;
     }
-    const request: Request = { type: 'create-world', id: 0, seed, config };
-    dispatch({ type: 'request-sent', request });
-    settle(request, await client.createWorld({ seed, config }));
+    await sendRequest({ type: 'create-world', seed, config });
   }
 
   async function onRun(): Promise<void> {
-    const request: Request = { type: 'run', id: 0 };
-    dispatch({ type: 'request-sent', request });
-    settle(request, await client.run());
+    if (!controls(ui).run) return;
+    await sendRequest({ type: 'run' });
   }
 
   async function onPause(): Promise<void> {
-    const request: Request = { type: 'pause', id: 0 };
-    dispatch({ type: 'request-sent', request });
-    settle(request, await client.pause());
+    if (!controls(ui).pause) return;
+    await sendRequest({ type: 'pause' });
   }
 
   // Step disables itself through `controls` (stepPending) until the reply arrives (R4.10).
   async function onStep(): Promise<void> {
-    const request: Request = { type: 'step', id: 0 };
-    dispatch({ type: 'request-sent', request });
-    settle(request, await client.step());
+    if (!controls(ui).step) return;
+    await sendRequest({ type: 'step' });
   }
 
   // Speed is a selection from the fixed SPEEDS list (R4.4); the select offers no
   // other value. Changing it sends a set-speed request.
   async function onSpeedChange(event: Event): Promise<void> {
     const value = Number((event.currentTarget as HTMLSelectElement).value);
-    const request: Request = { type: 'set-speed', id: 0, speed: value };
-    dispatch({ type: 'request-sent', request });
-    settle(request, await client.setSpeed({ speed: value }));
+    if (held || !isSpeed(value)) return;
+    await sendRequest({ type: 'set-speed', speed: value });
   }
 
-  // Feed a reply back through the reducer, carrying the originating request so the
-  // reducer clears the matching pending flag (create/step) (R3.8, R4.10).
-  function settle(request: Request, message: ReplyMessage): void {
-    dispatch({ type: 'reply', request, message });
-  }
 </script>
 
 <main>
@@ -267,6 +268,18 @@
     {#if ui.decision !== null}
       <p class="decision-diagnostics" data-testid="decision-diagnostics">Config: {ui.decision.config} · {ui.decision.enabled ? 'enabled' : 'disabled'} · Requests: {ui.decision.spent}/{ui.decision.sessionCap ?? '—'}</p>
     {/if}
+    {#if ui.world !== null && ui.world.tick !== ui.tick}
+      <p data-testid="world-as-of">World resources and eligibility as of tick {ui.world.tick}.</p>
+    {/if}
+    {#each feedback?.actions ?? [] as action, index (action.requestId ?? `input-${action.inputSeq}-${index}`)}
+      <p role="status" data-testid="action-feedback" data-phase={action.phase}>{action.text}</p>
+    {/each}
+    {#if (feedback?.settledOmitted ?? 0) > 0}
+      <p data-testid="settled-omitted">{feedback!.settledOmitted} older settled results omitted. Chronicle remains available.</p>
+    {/if}
+    {#each feedback?.playerLifecycle ?? [] as fact (fact.event)}
+      <p data-testid="lifecycle-feedback">{fact.kind} at tick {fact.tick}: {fact.name} · body {fact.body} · {fact.origin} · event {fact.event}</p>
+    {/each}
   </section>
   <section class="inputs">
     <label>
@@ -299,7 +312,8 @@
     <aside class="right-column">
       {#if ui.world?.player.place === 'waiting'}
         <UnderworldPanel {ui} {onForm} {onDream} {onClaim} />
-      {:else}
+      {/if}
+      {#if decision !== null || ui.world?.player.place !== 'waiting'}
         <ChoicePanel {ui} onChoose={onChoose} />
       {/if}
     </aside>

@@ -23,7 +23,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 import { readFileSync } from 'node:fs';
-import type { WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import type { ActionResult, PlayerLifecycleFact, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import {
   initialUiState,
   reduce,
@@ -77,6 +77,8 @@ function snapshotArb(): fc.Arbitrary<Snapshot> {
     checksum: checksumArb,
     tps: fc.oneof(fc.constant<number | null>(null), fc.nat({ max: 100000 })),
     speed: fc.constantFrom(1, 7, 30, 90, 365),
+    actions: fc.constant<Snapshot['actions']>([]),
+    playerLifecycle: fc.constant<Snapshot['playerLifecycle']>([]),
     playerNode: fc.oneof(
       fc.constant({ pending: false } as const),
       fc.record({ pending: fc.constant(true as const), node: fc.nat().map(String), answered: fc.boolean() }),
@@ -168,16 +170,28 @@ test('Property 7: the reducer keeps the display honest over arbitrary event sequ
 
         switch (e.type) {
           case 'reply': {
-            if (e.message.ok) {
-              // A successful reply adopts the whole snapshot and clears the error (R5.8).
-              const snap = e.message.snapshot;
-              assert.equal(next.tick, snap.tick, 'ok reply must adopt snapshot tick');
-              assert.equal(next.checksum, snap.checksum, 'ok reply must adopt snapshot checksum');
-              assert.equal(next.worldId, snap.worldId, 'ok reply must adopt snapshot worldId');
-              assert.equal(next.runState, snap.runState, 'ok reply must adopt snapshot runState');
-              assert.equal(next.speed, snap.speed, 'ok reply must adopt snapshot speed');
-              assert.equal(next.error, null, 'ok reply must clear the error area (R5.8)');
+            const snap = e.message.snapshot;
+            const replacement = e.request.type === 'create-world' && e.message.ok && snap.worldId > prev.worldId;
+            const ignored = prev.runState === 'failed' || snap.worldId < prev.worldId
+              || e.message.ok && !replacement && snap.worldId !== prev.worldId;
+            const older = !replacement && prev.tick !== null && snap.tick !== null && BigInt(snap.tick) < BigInt(prev.tick);
+            if (ignored) {
+              assert.strictEqual(next, prev, 'old generations and post-fatal callbacks cannot change the live state');
+              break;
+            }
+            if (e.message.ok && !older) {
+              assert.equal(next.tick, snap.tick, 'fresh ok reply must adopt snapshot tick');
+              assert.equal(next.checksum, snap.checksum, 'fresh ok reply must adopt snapshot checksum');
+              assert.equal(next.worldId, snap.worldId, 'fresh ok reply must adopt snapshot worldId');
+              assert.equal(next.runState, snap.runState, 'fresh ok reply must adopt snapshot runState');
+              assert.equal(next.speed, snap.speed, 'fresh ok reply must adopt snapshot speed');
+              assert.equal(next.error, null, 'fresh ok reply must clear the error area (R5.8)');
               adopted = snapPair(snap);
+            } else if (e.message.ok) {
+              assert.deepEqual(pair(next), pair(prev), 'older frames never roll the completed display back');
+              assert.equal(next.worldId, prev.worldId);
+              assert.equal(next.runState, prev.runState);
+              assert.equal(next.error, prev.error);
             } else {
               // A failure reply never changes the displayed tick/checksum/worldId
               // (R3.6, R5.9); it only sets the error text from the reply.
@@ -191,7 +205,7 @@ test('Property 7: the reducer keeps the display honest over arbitrary event sequ
             // regardless of success (R3.8, R4.10).
             if (e.request.type === 'create-world') {
               assert.equal(next.createPending, false, 'reply to create-world clears createPending');
-              assert.equal(next.stepPending, prev.stepPending, 'reply to create-world leaves stepPending');
+              assert.equal(next.stepPending, replacement ? false : prev.stepPending, 'replacement clears old-world Step; otherwise Create leaves it');
             } else if (e.request.type === 'step') {
               assert.equal(next.stepPending, false, 'reply to step clears stepPending');
               assert.equal(next.createPending, prev.createPending, 'reply to step leaves createPending');
@@ -203,7 +217,8 @@ test('Property 7: the reducer keeps the display honest over arbitrary event sequ
           }
 
           case 'status': {
-            if (e.snapshot.worldId !== prev.worldId) {
+            if (e.snapshot.worldId !== prev.worldId || prev.runState === 'failed'
+              || prev.tick !== null && e.snapshot.tick !== null && BigInt(e.snapshot.tick) < BigInt(prev.tick)) {
               // A status from a replaced world is dropped: nothing changes (R3.7).
               assert.deepEqual(next, prev, 'status with mismatched worldId must change nothing (R3.7)');
             } else {
@@ -244,6 +259,10 @@ test('Property 7: the reducer keeps the display honest over arbitrary event sequ
             // create-world sets createPending (and clears the seed message); step
             // sets stepPending; neither touches the displayed tick/checksum/worldId
             // (R3.8, R4.10).
+            if (prev.runState === 'failed') {
+              assert.strictEqual(next, prev, 'post-fatal request callbacks are ignored');
+              break;
+            }
             if (e.request.type === 'create-world') {
               assert.equal(next.createPending, true, 'request-sent create-world sets createPending');
               assert.equal(next.seedMessage, null, 'request-sent create-world clears the seed message');
@@ -282,9 +301,9 @@ test('Property 7: example -- failure after success keeps the adopted tick/checks
   s = reduce(s, { type: 'request-sent', request: { type: 'create-world', id: 1, seed: '7', config: '{}' } });
   assert.equal(s.createPending, true);
 
-  // A fatal first, to put an error on screen and go to failed.
-  s = reduce(s, { type: 'fatal', error: 'boom' });
-  assert.equal(s.runState, 'failed');
+  // A local failure is cleared only by a successful reply.
+  s = reduce(s, { type: 'validation-error', error: 'boom' });
+  assert.equal(s.runState, 'no-world');
   assert.equal(s.error, 'boom');
   assert.equal(s.tick, null);
   assert.equal(s.checksum, null);
@@ -297,7 +316,7 @@ test('Property 7: example -- failure after success keeps the adopted tick/checks
     checksum: null,
     tps: null,
     speed: 1,
-    playerNode: { pending: false },
+    actions: [], playerLifecycle: [], playerNode: { pending: false },
   };
   s = reduce(s, { type: 'reply', request: { type: 'create-world', id: 1, seed: '7', config: '{}' }, message: { type: 'reply', id: 1, ok: true, snapshot: snap } });
   assert.equal(s.error, null, 'success clears the error');
@@ -306,7 +325,7 @@ test('Property 7: example -- failure after success keeps the adopted tick/checks
   assert.equal(s.worldId, 1);
 
   // Step forward via a matching status to a real checksum.
-  const running: Snapshot = { worldId: 1, runState: 'running', tick: '5', checksum: 'a1b2c3d4e5f60718', tps: 3, speed: 1, playerNode: { pending: false } };
+  const running: Snapshot = { worldId: 1, runState: 'running', tick: '5', checksum: 'a1b2c3d4e5f60718', tps: 3, speed: 1, actions: [], playerLifecycle: [], playerNode: { pending: false } };
   s = reduce(s, { type: 'status', snapshot: running });
   assert.equal(s.tick, '5');
   assert.equal(s.checksum, 'a1b2c3d4e5f60718');
@@ -316,7 +335,7 @@ test('Property 7: example -- failure after success keeps the adopted tick/checks
   s = reduce(s, {
     type: 'reply',
     request: { type: 'step', id: 2 },
-    message: { type: 'reply', id: 2, ok: false, kind: 'invalid-state', error: 'cannot step while running', snapshot: { worldId: 9, runState: 'paused', tick: '999', checksum: '0000000000000000', tps: null, speed: 1, playerNode: { pending: false } } },
+    message: { type: 'reply', id: 2, ok: false, kind: 'invalid-state', error: 'cannot step while running', snapshot: { worldId: 9, runState: 'paused', tick: '999', checksum: '0000000000000000', tps: null, speed: 1, actions: [], playerLifecycle: [], playerNode: { pending: false } } },
   });
   assert.equal(s.tick, before.tick, 'failure keeps the tick');
   assert.equal(s.checksum, before.checksum, 'failure keeps the checksum');
@@ -325,13 +344,13 @@ test('Property 7: example -- failure after success keeps the adopted tick/checks
 
   // A status for a different world (worldId 2) is dropped entirely (R3.7).
   const stale = { ...s };
-  s = reduce(s, { type: 'status', snapshot: { worldId: 2, runState: 'running', tick: '42', checksum: 'ffffffffffffffff', tps: 10, speed: 7, playerNode: { pending: false } } });
+  s = reduce(s, { type: 'status', snapshot: { worldId: 2, runState: 'running', tick: '42', checksum: 'ffffffffffffffff', tps: 10, speed: 7, actions: [], playerLifecycle: [], playerNode: { pending: false } } });
   assert.deepEqual(s, stale, 'mismatched status changes nothing');
 });
 
 test('R8.9: run and step disable exactly for an unanswered node in otherwise enabled states', () => {
   fc.assert(fc.property(snapshotArb(), fc.boolean(), fc.boolean(), (snap, stepPending, createPending) => {
-    const s = { ...initialUiState(), ...snap, stepPending, createPending };
+    const s = { ...initialUiState(), ...snap, actions: [], stepPending, createPending };
     const buttons = controls(s);
     const unanswered = snap.playerNode.pending && !snap.playerNode.answered;
     assert.equal(buttons.run, snap.runState === 'paused' && !unanswered);
@@ -344,7 +363,7 @@ test('R8.9: run and step disable exactly for an unanswered node in otherwise ena
 test('R8.9: stop, accepted choice, rejection and replacement keep UI gate in sync', () => {
   let s: UiState = { ...initialUiState(), worldId: 1, runState: 'paused' };
   const snap: Snapshot = { worldId: 1, runState: 'paused', tick: '641', checksum: '048d7b26bfabc97c',
-    speed: 1, tps: null, playerNode: { pending: true, node: '1', answered: false } };
+    speed: 1, tps: null, actions: [], playerLifecycle: [], playerNode: { pending: true, node: '1', answered: false } };
   s = reduce(s, { type: 'status', snapshot: snap });
   assert.equal(controls(s).run, false);
   assert.equal(controls(s).step, false);
@@ -365,7 +384,7 @@ test('R8.9: stop, accepted choice, rejection and replacement keep UI gate in syn
 test('R9.2: reducer adopts only completed World carriers and preserves them between stops', () => {
   const world: WorldSnapshot = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seed1-pairwise.snapshot-500.json', import.meta.url), 'utf8'));
   const snapshot: Snapshot = { worldId: 1, runState: 'paused', tick: '500', checksum: 'a1b2c3d4e5f60718',
-    speed: 1, tps: null, playerNode: { pending: false } };
+    speed: 1, tps: null, actions: [], playerLifecycle: [], playerNode: { pending: false } };
   const request: Request = { type: 'world-snapshot', id: 1 };
   let s = reduce({ ...initialUiState(), worldId: 1 }, { type: 'reply', request,
     message: { type: 'reply', id: 1, ok: true, snapshot, world } });
@@ -388,7 +407,7 @@ test('R9.2: reducer adopts only completed World carriers and preserves them betw
 test('R9.9: a manual pause adopts stop.world and reply.world takes precedence', () => {
   const world: WorldSnapshot = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seed1-pairwise.snapshot-500.json', import.meta.url), 'utf8'));
   const paused: Snapshot = { worldId: 1, runState: 'paused', tick: '500', checksum: 'a1b2c3d4e5f60718',
-    speed: 1, tps: null, playerNode: { pending: false }, stop: { reasons: ['user'], world } };
+    speed: 1, tps: null, actions: [], playerLifecycle: [], playerNode: { pending: false }, stop: { reasons: ['user'], world } };
   const running: UiState = { ...initialUiState(), worldId: 1, runState: 'running', tick: '400', world: { ...world, tick: '400' } };
   const request: Request = { type: 'pause', id: 1 };
   const stopped = reduce(running, { type: 'reply', request, message: { type: 'reply', id: 1, ok: true, snapshot: paused } });
@@ -408,7 +427,7 @@ function deliveryState(tick = '0', runState: RunState = 'paused'): UiState {
 
 function deliverySnapshot(s: UiState): Snapshot {
   return { worldId: s.worldId, runState: s.runState, tick: s.tick, checksum: s.checksum,
-    tps: s.tps, speed: s.speed, playerNode: s.playerNode };
+    tps: s.tps, speed: s.speed, actions: [], playerLifecycle: [], playerNode: s.playerNode };
 }
 
 function deliveryReply(s: UiState, request: Request, snapshot: Snapshot, world?: WorldSnapshot): UiState {
@@ -418,7 +437,7 @@ function deliveryReply(s: UiState, request: Request, snapshot: Snapshot, world?:
 function startWorldRead(s: UiState): UiState {
   assert.equal(worldSnapshotNeeded(s), true);
   const next = reduce(s, { type: 'request-sent', request: { type: 'world-snapshot', id: 99 } });
-  assert.deepEqual(next.worldRead, { state: 'pending', worldId: s.worldId, tick: s.tick });
+  assert.deepEqual(next.worldRead, { state: 'pending', worldId: s.worldId, tick: s.tick, requestId: 99 });
   assert.equal(worldSnapshotNeeded(next), false);
   return next;
 }
@@ -502,7 +521,7 @@ test('R9.9: a failed running read consumes ten statuses before the next attempt'
   let s = deliveryState('0', 'running');
   for (let index = 0; index < 10; index++) s = runningStatus(s);
   s = finishWorldRead(startWorldRead(s), false);
-  assert.deepEqual(s.worldRead, { state: 'failed', worldId: 1, tick: '10' });
+  assert.deepEqual(s.worldRead, { state: 'failed', worldId: 1, tick: '10', requestId: 99 });
   assert.equal(worldSnapshotNeeded(s), false);
   for (let index = 1; index <= 9; index++) {
     s = runningStatus(s);
@@ -552,12 +571,12 @@ test('R9.9: replacement waits for the old read and ignores its World or rejectio
 
 test('R9.9: a transport failure marks its read tick and a stale failure cannot affect a new World', () => {
   let s = startWorldRead({ ...deliveryState('1'), world: null });
-  s = reduce(s, { type: 'world-read-failed', worldId: 1, tick: '1', error: 'reply timeout' });
-  assert.equal(s.error, 'reply timeout');
+  s = reduce(s, { type: 'request-failed', request: { type: 'world-snapshot', id: 99 }, worldId: 1, error: 'reply timeout' });
+  assert.equal(s.error, 'Completion unknown. No retry was sent.');
   assert.equal(worldSnapshotNeeded(s), false);
   s = startWorldRead({ ...deliveryState('1'), world: null });
   s = deliveryReply(s, { type: 'create-world', id: 2, seed: '2', config: '{}' }, { ...deliverySnapshot(s), worldId: 2, tick: '0' });
-  s = reduce(s, { type: 'world-read-failed', worldId: 1, tick: '1', error: 'old timeout' });
+  s = reduce(s, { type: 'request-failed', request: { type: 'world-snapshot', id: 99 }, worldId: 1, error: 'old timeout' });
   assert.equal(s.error, null);
   assert.equal(worldSnapshotNeeded(s), true);
 });
@@ -603,7 +622,7 @@ test('R9.9: generated event sequences keep reads single-flight, spaced and pause
           break;
         case 'transport-fail':
           if (outstanding !== null) {
-            s = reduce(s, { type: 'world-read-failed', ...outstanding, error: 'reply timeout' });
+            s = reduce(s, { type: 'request-failed', request: { type: 'world-snapshot', id: 99 }, worldId: outstanding.worldId, error: 'reply timeout' });
             outstanding = null;
           }
           break;
@@ -632,27 +651,27 @@ test('R9.9: generated event sequences keep reads single-flight, spaced and pause
   }), { numRuns: RUNS });
 });
 
-test('R10.9: earlier scenes hold options back but do not hold Run or Step', () => {
+test('LV-C2: current options remain available behind historical scenes without changing Run or Step', () => {
   const world = { ...waitingSnapshot(), player_node: pendingSnapshot('inheritance').player_node };
   let ui = uiFor(world);
-  const snapshot: Snapshot = { worldId: 1, runState: 'paused', tick: world.tick, checksum: null, speed: 1, tps: null, playerNode: ui.playerNode };
+  const snapshot: Snapshot = { worldId: 1, runState: 'paused', tick: world.tick, checksum: null, speed: 1, tps: null, actions: [], playerLifecycle: [], playerNode: ui.playerNode };
   ui = reduce(ui, { type: 'status', snapshot: { ...snapshot, stop: { reasons: ['player_died', 'dream_resolved', 'player_reborn', 'player_node'], world } } });
-  assert.equal(nodeOptionsEnabled(ui), false);
+  assert.equal(nodeOptionsEnabled(ui), true);
   const shell = controls(ui);
   for (let index = 0; index < 3; index++) {
-    ui = reduce(ui, { type: 'scene-close' });
+    ui = reduce(ui, { type: 'scene-close', expected: { worldId: ui.scene!.worldId, tick: ui.scene!.tick, entry: ui.scene!.entries[0]! } });
     assert.deepEqual(controls(ui), shell);
   }
   assert.equal(nodeOptionsEnabled(ui), true);
   const before = ui.scene;
-  ui = reduce(ui, { type: 'scene-close' });
+  ui = reduce(ui, { type: 'scene-close', expected: { worldId: ui.scene!.worldId, tick: ui.scene!.tick, entry: ui.scene!.entries[0]! } });
   assert.equal(ui.scene, before, 'a node scene has no independent close');
 });
 
 test('R11.13: an accepted claim records its tick, rejection keeps it, and replacement clears it', () => {
   const world = waitingSnapshot();
   let ui = uiFor(world);
-  const snapshot: Snapshot = { worldId: 1, runState: 'paused', tick: world.tick, checksum: null, speed: 1, tps: null, playerNode: { pending: false } };
+  const snapshot: Snapshot = { worldId: 1, runState: 'paused', tick: world.tick, checksum: null, speed: 1, tps: null, actions: [], playerLifecycle: [], playerNode: { pending: false } };
   const request: Request = { type: 'claim', id: 1, slot: 'imported_vessel', carryOver: null };
   ui = reduce(ui, { type: 'reply', request, message: { type: 'reply', id: 1, ok: true, snapshot, world } });
   assert.deepEqual(ui.underworldRecorded, { worldId: 1, tick: world.tick });
@@ -664,4 +683,126 @@ test('R11.13: an accepted claim records its tick, rejection keeps it, and replac
     type: 'reply', id: 2, ok: true, snapshot: { ...snapshot, worldId: 2, tick: '0' },
   } });
   assert.equal(ui.underworldRecorded, null);
+});
+
+test('LV-C2: terminal action facts survive delayed queued replies and request-sent in either order', () => {
+  for (const sendFirst of [false, true]) {
+    let ui = uiFor(waitingSnapshot());
+    const request: Request = { type: 'bribe', id: 23, amount: '18446744073709551614' };
+    const action: ActionResult = { worldId: 1, requestId: 23, input_seq: '100', tick: '501', kind: 'bribe', state: 'applied',
+      amount: request.amount, ghost: 2, offering_event: '90', appeal_event: '91',
+      ruling: { node: '30', magistrate: 9, applied: 'deny', source: 'rules_default', rules_default: 'deny' } };
+    if (sendFirst) ui = reduce(ui, { type: 'request-sent', request, worldId: 1 });
+    ui = reduce(ui, { type: 'status', snapshot: { ...deliverySnapshot(ui), tick: '501', actions: [action] } });
+    if (!sendFirst) ui = reduce(ui, { type: 'request-sent', request, worldId: 1 });
+    assert.equal(ui.actions.length, 1); assert.equal(ui.actions[0]!.phase, 'applied');
+    assert.equal(ui.decisionSending, null);
+    ui = reduce(ui, { type: 'reply', request, worldId: 1, message: {
+      type: 'reply', id: 23, ok: true, submission: { tick: '500', seqs: ['100', '101'] },
+      snapshot: { ...deliverySnapshot(ui), tick: '500' },
+    } });
+    assert.equal(ui.actions[0]!.phase, 'applied'); assert.equal(ui.actions[0]!.result, action);
+    assert.equal(ui.actions[0]!.requestId, 23); assert.equal(ui.actions[0]!.inputSeq, '100');
+    assert.deepEqual(ui.actions[0]!.submission, { tick: '500', seqs: ['100', '101'] });
+    assert.equal(ui.tick, '501');
+    const terminal = ui.actions[0]!.result;
+    ui = reduce(ui, { type: 'request-failed', request, worldId: 1, error: 'late timeout' });
+    assert.equal(ui.actions[0]!.phase, 'applied'); assert.equal(ui.actions[0]!.result, terminal);
+  }
+});
+
+test('LV-C2: settled display retains twenty while pending and unknown actions remain unbounded and empty leaves are idempotent', () => {
+  let ui = uiFor(waitingSnapshot());
+  for (let index = 0; index < 60; index++) {
+    const request: Request = { type: 'haunt', id: 100 + index, target: 1 };
+    ui = reduce(ui, { type: 'request-sent', request, worldId: 1 });
+    if (index % 2 === 0) ui = reduce(ui, { type: 'request-failed', request, worldId: 1, error: 'timeout' });
+  }
+  const actions: ActionResult[] = Array.from({ length: 25 }, (_, index) => ({
+    worldId: 1, requestId: null, input_seq: String(index + 1), tick: '501', kind: 'haunt', state: 'rejected',
+    reason: 'rate_limited', target: 1,
+  }));
+  const carrier = { ...deliverySnapshot(ui), tick: '501', actions };
+  ui = reduce(ui, { type: 'status', snapshot: carrier });
+  assert.equal(ui.actions.filter(action => action.phase === 'sending' || action.phase === 'unknown').length, 60);
+  assert.equal(ui.actions.filter(action => action.phase === 'rejected').length, 20);
+  assert.equal(ui.settledOmitted, 5);
+  assert.deepEqual(ui.actions.filter(action => action.result !== null).map(action => action.inputSeq),
+    Array.from({ length: 20 }, (_, index) => String(index + 6)));
+  const retained = ui.actions;
+  ui = reduce(ui, { type: 'status', snapshot: carrier });
+  ui = reduce(ui, { type: 'status', snapshot: { ...carrier, tick: '502', actions: [], playerLifecycle: [] } });
+  assert.deepEqual(ui.actions, retained); assert.equal(ui.settledOmitted, 5);
+  assert.equal(ui.observedActions.size, 25); assert.equal(ui.tick, '502');
+});
+
+test('LV-C2: complete same-batch birth and death facts merge once without turning a waiting Soul into a living body', () => {
+  let ui = uiFor(waitingSnapshot());
+  const facts: PlayerLifecycleFact[] = [
+    { event: '80', tick: '498', kind: 'birth', body: 20, name: 'New Body', origin: 'native' },
+    { event: '81', tick: '500', kind: 'death', body: 20, name: 'New Body', origin: 'native' },
+  ];
+  const snapshot: Snapshot = { ...deliverySnapshot(ui), playerLifecycle: facts,
+    stop: { reasons: ['player_died', 'player_reborn'], world: ui.world! } };
+  ui = reduce(ui, { type: 'status', snapshot });
+  const episode = ui.scene;
+  ui = reduce(ui, { type: 'status', snapshot });
+  ui = reduce(ui, { type: 'status', snapshot: { ...deliverySnapshot(ui), tick: '501' } });
+  assert.deepEqual(ui.playerLifecycle, facts); assert.equal(ui.observedLifecycle.size, 2);
+  assert.equal(ui.world!.player.place, 'waiting'); assert.equal(ui.world!.player.body, null);
+  assert.deepEqual(episode!.entries.map(entry => entry.kind), ['funeral', 'birth']);
+});
+
+test('LV-C2: successful Create resets old action form and lifecycle bindings while late callbacks cannot overwrite the new World', () => {
+  let ui = uiFor(waitingSnapshot());
+  const old: Request = { type: 'haunt', id: 1, target: 1 };
+  ui = reduce(ui, { type: 'request-sent', request: old, worldId: 1 });
+  ui = reduce(ui, { type: 'underworld-form', form: { ...ui.underworldForm, carryOver: 'greed',
+    customization: { kind: 'Set', trait: 'warmth', value: 3 } } });
+  const oldSnapshot = deliverySnapshot(ui);
+  const create: Request = { type: 'create-world', id: 2, seed: '2', config: '{}' };
+  const freshWorld = { ...deliveryWorld, tick: '0' };
+  ui = reduce(ui, { type: 'reply', request: create, worldId: 1, message: {
+    type: 'reply', id: 2, ok: true, snapshot: { ...oldSnapshot, worldId: 2, tick: '0' }, world: freshWorld,
+  } });
+  assert.equal(ui.worldId, 2); assert.equal(ui.world, freshWorld); assert.equal(ui.actions.length, 0);
+  assert.equal(ui.underworldForm.customization, null); assert.equal(ui.underworldForm.carryOver, null);
+  assert.equal(ui.playerLifecycle.length, 0); assert.equal(ui.decisionSending, null);
+  const replaced = ui;
+  ui = reduce(ui, { type: 'request-failed', request: old, worldId: 1, error: 'old timeout' });
+  ui = reduce(ui, { type: 'reply', request: old, worldId: 1, message: {
+    type: 'reply', id: 1, ok: false, kind: 'rejected', error: 'old failure', snapshot: oldSnapshot,
+  } });
+  ui = reduce(ui, { type: 'status', snapshot: oldSnapshot });
+  assert.equal(ui, replaced);
+});
+
+test('LV-C2: a stale issued read failure cannot fail or release a newer same-world read', () => {
+  let ui = startWorldRead({ ...deliveryState('0'), world: null });
+  ui = finishWorldRead(ui);
+  ui = reduce(ui, { type: 'status', snapshot: { ...deliverySnapshot(ui), tick: '1' } });
+  ui = reduce(ui, { type: 'request-sent', request: { type: 'world-snapshot', id: 100 }, worldId: 1 });
+  const current = ui;
+  ui = reduce(ui, { type: 'request-failed', request: { type: 'world-snapshot', id: 99 }, worldId: 1, error: 'old timeout' });
+  assert.equal(ui, current);
+  assert.deepEqual(ui.worldRead, { state: 'pending', worldId: 1, tick: '1', requestId: 100 });
+});
+
+test('LV-C2: an evicted terminal request cannot be resurrected by delayed sending or queued admission', () => {
+  let ui = uiFor(waitingSnapshot());
+  const actions: ActionResult[] = Array.from({ length: 25 }, (_, index) => ({
+    worldId: 1, requestId: index + 1, input_seq: String(index + 1), tick: '501', kind: 'haunt', state: 'rejected',
+    reason: 'rate_limited', target: 1,
+  }));
+  ui = reduce(ui, { type: 'status', snapshot: { ...deliverySnapshot(ui), tick: '501', actions } });
+  const request: Request = { type: 'haunt', id: 1, target: 1 };
+  ui = reduce(ui, { type: 'request-sent', request, worldId: 1 });
+  ui = reduce(ui, { type: 'reply', request, worldId: 1, message: {
+    type: 'reply', id: 1, ok: true, submission: { tick: '500', seqs: ['1'] },
+    snapshot: { ...deliverySnapshot(ui), tick: '500' },
+  } });
+  assert.equal(ui.actions.length, 20); assert.equal(ui.settledOmitted, 5);
+  assert.equal(ui.actions.some(action => action.requestId === 1), false);
+  assert.ok(ui.actions.every(action => action.phase === 'rejected'));
+  assert.equal(ui.tick, '501');
 });

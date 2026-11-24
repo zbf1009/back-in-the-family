@@ -10,6 +10,7 @@ import { DecisionBridge, DecisionFailure, type DecisionPreview, type DecisionWas
 import { actualSim, ControlledDecisionClient, DecisionClock, HandlerDecisionClient, config, mapping, modelDecision,
   realPreviews, settle, transportPaddedWasm, wasm } from './helpers/decision.ts';
 import { FakeFrameScheduler } from './helpers/fakes.ts';
+import { checkedReceipt } from './helpers/wasm.ts';
 
 class Frames extends FakeFrameScheduler {
   readonly callbacks: (() => void)[] = [];
@@ -17,12 +18,13 @@ class Frames extends FakeFrameScheduler {
 }
 class Port implements SimHandle {
   tickValue = 0n;
+  nextSeq = 0n;
   readonly batches: unknown[][] = [];
   readonly checkedAttempts: unknown[][] = [];
   rejectPair = false;
   rejectTrigger = false;
   preview = realPreviews()[0]!;
-  snapshot(): string { return JSON.stringify({ tick: this.tickValue.toString() }); }
+  snapshot(): string { return JSON.stringify({ tick: this.tickValue.toString(), underworld_view: null }); }
   tick(): bigint { return this.tickValue; }
   player_node_state(): string { return '{"pending":false}'; }
   checksums(): string { return '[]'; }
@@ -30,11 +32,12 @@ class Port implements SimHandle {
   submit_checked(input: string): string {
     const batch: unknown[] = JSON.parse(input); this.checkedAttempts.push(batch);
     if (this.rejectTrigger || (this.rejectPair && batch.length === 2)) return '{"ok":false,"index":0,"reason":"illegal_option"}';
-    this.batches.push(batch); return '{"ok":true}';
+    this.batches.push(batch);
+    return JSON.stringify({ ok: true, tick: String(this.tickValue), seqs: batch.map(() => String(this.nextSeq++)) });
   }
   step(): string { this.tickValue++; return '0000000000000001'; }
   run_ticks(n: number): string { this.tickValue += BigInt(n); return '0000000000000001'; }
-  run_until_stop(n: number): string { this.tickValue += BigInt(n); return JSON.stringify({ ran: n, checksum: '0000000000000001', stops: [] }); }
+  run_until_stop(n: number): string { this.tickValue += BigInt(n); return JSON.stringify({ ran: n, checksum: '0000000000000001', stops: [], actions: [], player_lifecycle: [] }); }
   export_replay(): string { return JSON.stringify({ tick: this.tickValue.toString(), inputs: this.batches }); }
 }
 async function setup(options: { ready?: boolean; cap?: number; enabled?: boolean; wasm?: DecisionWasm } = {}) {
@@ -389,7 +392,9 @@ test('real WASM supported skips prove eligibility without a production preview a
         assert.equal(resolved.snapshot.decision?.pending, null);
         assert.ok(resolved.snapshot.decision?.outcome?.kind === 'fallback');
         assert.equal(resolved.snapshot.decision.outcome.reason, reason);
-        assert.deepEqual(JSON.parse(direct.submit_checked(JSON.stringify([trigger]))), { ok: true });
+        const receipt = checkedReceipt(direct, [trigger]);
+        assert.ok(resolved.ok);
+        assert.deepEqual(resolved.submission, receipt);
         assert.equal(live.export_replay(), direct.export_replay(), 'checked skip queues only the real trigger');
         controller.handle({ type: 'decision-metrics', id: 4 });
         const metricsReply = messages.find((message): message is Reply => message.type === 'reply' && message.id === 4)!;

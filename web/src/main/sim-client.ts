@@ -13,7 +13,7 @@
 // by sending Worker_Protocol messages to the Sim_Worker (R2.2, R2.3, R6.2). It
 // therefore belongs to tsconfig.app.json (lib DOM).
 
-import type { Request, RequestWithoutId, Snapshot, WorkerMessage } from '../shared/protocol.ts';
+import type { Request, RequestWithoutId, RequestTicket, Snapshot, WorkerMessage } from '../shared/protocol.ts';
 
 /** A `reply` message from the worker: the resolved value of every request Promise. */
 export type ReplyMessage = Extract<WorkerMessage, { type: 'reply' }>;
@@ -57,11 +57,8 @@ interface Pending {
 
 /**
  * The Main_Thread client. Construct one per page; it owns the single Sim_Worker.
- * Typed methods send each Request kind and return a Promise that resolves with
- * the matching reply message (whether `ok: true` or `ok: false`) or rejects on
- * the 30 s timeout. A failure reply is a resolved Promise, not a rejection: the
- * reducer decides how to display it (R2.9, R5.8). The Promise rejects only when
- * no reply ever arrives.
+ * Typed methods return the real issued request ID and its matching reply Promise.
+ * A failure reply resolves normally; only transport failure rejects the Promise.
  */
 export class SimClient {
   readonly #worker: Worker;
@@ -100,48 +97,48 @@ export class SimClient {
   // --- typed request methods -----------------------------------------------
 
   /** Create a world from a Seed (decimal string) and a World_Config text (R2.6, R3.2). */
-  createWorld(args: RequestArgs<Extract<Request, { type: 'create-world' }>>): Promise<ReplyMessage> {
+  createWorld(args: RequestArgs<Extract<Request, { type: 'create-world' }>>): RequestTicket {
     return this.#send({ type: 'create-world', ...args });
   }
 
   /** Start running ticks (R4.2). */
-  run(): Promise<ReplyMessage> {
+  run(): RequestTicket {
     return this.#send({ type: 'run' });
   }
 
   /** Stop running ticks (R4.6). */
-  pause(): Promise<ReplyMessage> {
+  pause(): RequestTicket {
     return this.#send({ type: 'pause' });
   }
 
   /** Run exactly one tick (R4.1). */
-  step(): Promise<ReplyMessage> {
+  step(): RequestTicket {
     return this.#send({ type: 'step' });
   }
 
   /** Set the playback multiplier (first-playable R8.1). */
-  setSpeed(args: RequestArgs<Extract<Request, { type: 'set-speed' }>>): Promise<ReplyMessage> {
+  setSpeed(args: RequestArgs<Extract<Request, { type: 'set-speed' }>>): RequestTicket {
     return this.#send({ type: 'set-speed', ...args });
   }
 
   /** Submit one input in the `input_json` shape `WasmSim.submit` accepts (R2.6). */
-  submit(args: RequestArgs<Extract<Request, { type: 'submit' }>>): Promise<ReplyMessage> {
+  submit(args: RequestArgs<Extract<Request, { type: 'submit' }>>): RequestTicket {
     return this.#send({ type: 'submit', ...args });
   }
 
   /** Forward a complete typed protocol request through the same Worker path. */
-  request(req: RequestWithoutId): Promise<ReplyMessage> {
+  request(req: RequestWithoutId): RequestTicket {
     return this.#send(req);
   }
 
   /** Read-only status and future-operation wait preference for the Dream UI. */
-  decisionStatus(): Promise<ReplyMessage> { return this.#send({ type: 'decision-status' }); }
-  setDecisionWait(seconds: number): Promise<ReplyMessage> { return this.#send({ type: 'set-decision-wait', seconds }); }
-  useRulesNow(requestId: number, worldId: number): Promise<ReplyMessage> {
+  decisionStatus(): RequestTicket { return this.#send({ type: 'decision-status' }); }
+  setDecisionWait(seconds: number): RequestTicket { return this.#send({ type: 'set-decision-wait', seconds }); }
+  useRulesNow(requestId: number, worldId: number): RequestTicket {
     return this.#send({ type: 'use-rules-now', requestId, worldId });
   }
   /** Actual live v5 export for local evidence, not a reconstructed replay. */
-  exportReplay(): Promise<ReplyMessage> { return this.#send({ type: 'export-replay' }); }
+  exportReplay(): RequestTicket { return this.#send({ type: 'export-replay' }); }
 
   /** Terminate the worker and reject every still-pending request (page teardown). */
   dispose(): void {
@@ -151,28 +148,32 @@ export class SimClient {
 
   // --- internals ------------------------------------------------------------
 
-  /**
-   * Assign the next id, register a pending entry with its 30 s timeout, post the
-   * request to the worker, and return the Promise that settles on the reply
-   * (R2.7, R9.13).
-   */
-  #send(req: RequestWithoutId): Promise<ReplyMessage> {
-    if (this.#failure !== null) return Promise.reject(new Error(this.#failure));
+  /** Issue a request at the sole transport-ID allocation point. */
+  #send(req: RequestWithoutId): RequestTicket {
+    if (this.#failure !== null) throw new Error(this.#failure);
     const id = this.#nextId++;
     const full = { ...req, id } as Request;
     const label = requestLabel(full);
-    return new Promise<ReplyMessage>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        // The caller never got a reply; drop the entry so a late reply is ignored.
-        this.#pending.delete(id);
-        this.#replies.delete(id);
-        if (this.#decision?.requestId === id) this.#decision = null;
-        this.#flushReplies();
-        reject(new Error(`sim worker did not reply to ${label} within ${REPLY_TIMEOUT_MS} ms`));
-      }, REPLY_TIMEOUT_MS);
-      this.#pending.set(id, { resolve, reject, timeout, label, type: full.type });
+    let resolve!: Pending['resolve'];
+    let reject!: Pending['reject'];
+    const reply = new Promise<ReplyMessage>((accept, fail) => { resolve = accept; reject = fail; });
+    const timeout = setTimeout(() => {
+      this.#pending.delete(id);
+      this.#replies.delete(id);
+      if (this.#decision?.requestId === id) this.#decision = null;
+      this.#flushReplies();
+      reject(new Error(`sim worker did not reply to ${label} within ${REPLY_TIMEOUT_MS} ms`));
+    }, REPLY_TIMEOUT_MS);
+    this.#pending.set(id, { resolve, reject, timeout, label, type: full.type });
+    try {
       this.#worker.postMessage(full);
-    });
+    } catch (error) {
+      clearTimeout(timeout);
+      this.#pending.delete(id);
+      this.#replies.delete(id);
+      throw error;
+    }
+    return { requestId: id, reply };
   }
 
   #settleFailure(error: string): void {
@@ -247,12 +248,14 @@ export class SimClient {
         this.#flushReplies();
         return;
       }
-      case 'status':
-        if (this.#failure !== null || msg.snapshot.worldId < this.#worldId || !this.#observeDecision(msg.snapshot)) return;
-        this.#worldId = msg.snapshot.worldId;
+      case 'status': {
+        if (this.#failure !== null || msg.snapshot.worldId < this.#worldId) return;
+        const snapshot = this.#observeDecision(msg.snapshot) ? msg.snapshot : { ...msg.snapshot, decision: undefined };
+        this.#worldId = snapshot.worldId;
         this.#flushReplies();
-        this.#handlers.onStatus?.(msg.snapshot);
+        this.#handlers.onStatus?.(snapshot);
         return;
+      }
       case 'fatal':
         if (this.#failure !== null) return;
         this.#settleFailure(msg.error);

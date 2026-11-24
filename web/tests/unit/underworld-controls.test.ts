@@ -83,3 +83,18 @@ test('Incomplete or repeated-Trait customization cannot construct a Rebuilt clai
   assert.equal(claimRequest(ui.underworldForm, 'rebuilt_body'), null);
   assert.deepEqual(claimRequest(ui.underworldForm, 'imported_vessel'), { type: 'claim', slot: 'imported_vessel', carryOver: null });
 });
+
+test('LV-C2: world replacement and fatal state gate underworld inputs but an older same-generation tick does not', () => {
+  const ui = uiFor(waitingSnapshot());
+  const live = underworldView(ui)!;
+  assert.equal(live.dreamEnabled, true);
+  assert.ok(live.slots.some(slot => slot.claimEnabled));
+  for (const blocked of [{ ...ui, createPending: true }, { ...ui, runState: 'failed' as const }, { ...ui, worldId: 0 }]) {
+    const view = underworldView(blocked)!;
+    assert.equal(view.dreamEnabled, false); assert.ok(view.slots.every(slot => !slot.claimEnabled));
+    assert.ok(view.dreamReasons.includes('World controls are unavailable.'));
+    assert.equal(view.balance, live.balance); assert.equal(view.dreamPrice, live.dreamPrice);
+  }
+  const older = underworldView({ ...ui, tick: '501', runState: 'running' })!;
+  assert.deepEqual(older, live);
+});

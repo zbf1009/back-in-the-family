@@ -30,26 +30,20 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test, expect, type Page } from '@playwright/test';
 import { readFixture } from './global-setup.ts';
+import type { RequestTicket, RequestWithoutId } from '../../src/shared/protocol.ts';
 
 // --- browser-side types for page.evaluate callbacks -------------------------
 //
 // The evaluate callbacks below run in the browser, but this spec is type-checked
 // under tsconfig.node.json (Node lib, no DOM), so the browser globals they touch
-// are declared here with just the surface this file uses. The real shapes are
-// the Worker_Protocol reply (src/main/sim-client.ts) and the harness
-// (src/main/harness.ts), which belong to the DOM tsconfig; redeclaring the
-// minimal subset keeps this Node-checked file self-contained without pulling the
-// DOM lib into the shared config.
-
-/** The Worker_Protocol reply, as the harness resolves it (subset used here). */
-type HarnessReply =
-  | { ok: true; snapshot: { tick: string | null; checksum: string | null } }
-  | { ok: false; kind: string; error: string; snapshot: { tick: string | null; checksum: string | null } };
+// are declared here with just the surface this file uses.
+// The harness returns the DOM-free shared ticket contract; only browser globals
+// are declared locally, so Node checking uses the same public reply grammar.
 
 /** window.__simHarness as installed with ?harness=1 (subset used here). */
 interface BrowserWindow {
   __simHarness?: {
-    request(req: Record<string, unknown>): Promise<HarnessReply>;
+    request(req: RequestWithoutId): RequestTicket;
   };
 }
 declare const window: BrowserWindow;
@@ -172,17 +166,17 @@ async function protocolRun(
       throw new Error('window.__simHarness is not installed');
     }
 
-    const created = await harness.request({ type: 'create-world', seed, config });
+    const created = await harness.request({ type: 'create-world', seed, config }).reply;
     if (!created.ok) throw new Error(`harness reply ok:false for create-world: ${created.error}`);
 
     for (let i = 0; i < inputs.length; i++) {
-      const reply = await harness.request({ type: 'submit', input: inputs[i]! });
+      const reply = await harness.request({ type: 'submit', input: inputs[i]! }).reply;
       if (!reply.ok) throw new Error(`harness reply ok:false for submit #${i}: ${reply.error}`);
     }
 
     const checksums: (string | null)[] = [];
     for (let n = 0; n < tickCount; n++) {
-      const reply = await harness.request({ type: 'step' });
+      const reply = await harness.request({ type: 'step' }).reply;
       if (!reply.ok) {
         if (reply.kind === 'node_unanswered') break;
         throw new Error(`harness reply ok:false for step #${n + 1}: ${reply.error}`);
@@ -206,13 +200,13 @@ async function referenceRun(
     if (harness === undefined) {
       throw new Error('window.__simHarness is not installed');
     }
-    const created = await harness.request({ type: 'create-world', seed, config });
+    const created = await harness.request({ type: 'create-world', seed, config }).reply;
     if (!created.ok) {
       throw new Error(`harness reply ok:false for reference create-world: ${created.error}`);
     }
     const checksums: (string | null)[] = [];
     for (let n = 0; n < tickCount; n++) {
-      const reply = await harness.request({ type: 'step' });
+      const reply = await harness.request({ type: 'step' }).reply;
       if (!reply.ok) {
         if (reply.kind === 'node_unanswered') break;
         throw new Error(`harness reply ok:false for reference step #${n + 1}: ${reply.error}`);

@@ -44,6 +44,8 @@ function assertSnapshotWellFormed(m: WorkerMessage, context: string): void {
     return; // fatal carries no snapshot
   }
   const { tick, checksum } = m.snapshot;
+  assert.ok(Array.isArray(m.snapshot.actions), `${context}: required action facts are present`);
+  assert.ok(Array.isArray(m.snapshot.playerLifecycle), `${context}: required lifecycle facts are present`);
   // tick: null (only when no world) or a decimal string without leading zeros.
   if (tick !== null) {
     assert.match(tick, DECIMAL_NO_LEADING_ZERO, `${context}: tick not a clean decimal string: ${JSON.stringify(tick)}`);
@@ -64,7 +66,7 @@ function assertReplyWellFormed(reply: ReplyMessage): void {
   assert.equal(typeof reply.id, 'number');
   assert.ok(reply.snapshot !== null && typeof reply.snapshot === 'object', 'reply carries a snapshot');
   if (reply.ok === true) {
-    // ok: true -> snapshot only, no error fields.
+    // ok: true -> snapshot and optional checked receipt, no error fields.
     assert.ok(!('kind' in reply), 'ok reply has no kind');
     assert.ok(!('error' in reply), 'ok reply has no error');
   } else {

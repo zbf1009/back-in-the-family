@@ -10,7 +10,7 @@
 // SimHandle call (R6.5).
 
 import type { CheckedSubmission, DecisionNotice, DecisionPreviewError, ErrorKind, PlayerNodeState, Reply, Request, Snapshot, StopPayload, RunUntilStopResult, WorkerMessage } from '../shared/protocol.ts';
-import type { WorldSnapshot } from '../shared/world-snapshot.ts';
+import type { ActionResult, PlayerLifecycleFact, SubmissionReceipt, WorldSnapshot } from '../shared/world-snapshot.ts';
 import { parseSeed } from '../shared/seed.ts';
 import { isSpeed, SPEEDS, type Speed } from '../shared/speeds.ts';
 import { TpsWindow } from './tps.ts';
@@ -87,7 +87,7 @@ export class SimController {
   readonly #createSim: Deps['createSim'];
   readonly #scheduler: FrameScheduler;
   readonly #clock: Clock;
-  readonly #post: (m: WorkerMessage) => void;
+  readonly #emit: (m: WorkerMessage) => void;
 
   /** The live world and its id, or null when no world exists (`no-world`). */
   #world: World | null = null;
@@ -103,6 +103,9 @@ export class SimController {
   readonly #decision: Deps['decision'];
   #decisionPending: PendingDecision | null = null;
   #decisionOutcome: DecisionNotice | null = null;
+  #actions: ActionResult[] = [];
+  #playerLifecycle: PlayerLifecycleFact[] = [];
+  readonly #actionRequests = new Map<string, { worldId: number; requestId: number }>();
   #cancelDecisionStatus: (() => void) | null = null;
   /** The Ticks_Per_Second window; reset on each run (R2.12, R5.6). */
   readonly #tps = new TpsWindow();
@@ -139,7 +142,7 @@ export class SimController {
     this.#createSim = deps.createSim;
     this.#scheduler = deps.scheduler;
     this.#clock = deps.clock;
-    this.#post = deps.post;
+    this.#emit = deps.post;
     this.#decision = deps.decision;
   }
 
@@ -248,6 +251,7 @@ export class SimController {
       case 'choose':
       case 'choose-and-run':
       case 'carry-over':
+      case 'haunt':
       case 'claim':
         this.#checkedSubmit(req);
         return;
@@ -333,6 +337,9 @@ export class SimController {
     this.#runState = 'paused';
     this.#lastChecksum = null; // no tick has run for the new world yet (R3.5)
     this.#decisionOutcome = null;
+    this.#actions = [];
+    this.#playerLifecycle = [];
+    this.#actionRequests.clear();
     this.#lastTick = handle.tick();
     this.#refreshPending();
     this.#post(this.#okReply(req));
@@ -368,7 +375,7 @@ export class SimController {
       this.#stopLoop();
       this.#runState = 'paused';
       try {
-        stop = { reasons: ['user'], world: JSON.parse(this.#world.handle.snapshot()) };
+        stop = { reasons: ['user'], world: this.#readWorld(this.#world.handle) };
       } catch (e) {
         this.fail(errorText(e));
         this.#post(this.#failReply(req, 'invalid-state', errorText(e)));
@@ -389,16 +396,17 @@ export class SimController {
       return;
     }
     // paused: run exactly one tick (R4.1).
+    let result: RunUntilStopResult;
     try {
-      this.#stepTick();
-      this.#post(this.#okReply(req));
+      result = this.#advance(1);
     } catch (e) {
-      // A throw from run_until_stop() is a Rust panic: the instance is unusable.
-      // Still answer the step request exactly once after entering the fatal path.
+      // A throw from run_until_stop() is a Rust panic or an interface error.
       this.fail(errorText(e));
       this.#post(this.#failReply(req, 'invalid-state', errorText(e)));
       return;
     }
+    this.#publishAdvance(result, this.#clock.now());
+    this.#post(this.#failed ? this.#failReply(req, 'invalid-state', this.#failError) : this.#okReply(req));
   }
 
   #setSpeed(req: Request & { type: 'set-speed' }): void {
@@ -451,12 +459,13 @@ export class SimController {
       JSON.parse(this.#world.handle.player_node_state());
   }
 
-  #worldSnapshot(req: Request): void {
+  #worldSnapshot(req: Request, submission?: SubmissionReceipt): void {
     if (this.#world === null) {
       this.#post(this.#noWorldReply(req));
       return;
     }
-    this.#post({ ...this.#okReply(req), world: JSON.parse(this.#world.handle.snapshot()) });
+    this.#post({ ...this.#okReply(req), ...(submission === undefined ? {} : { submission }),
+      world: this.#readWorld(this.#world.handle) });
   }
 
   #startDecision(req: Extract<Request, { type: 'dream' | 'bribe' }>): void {
@@ -481,35 +490,36 @@ export class SimController {
     };
     this.#decisionPending = pending;
     this.#stopLoop();
+    let preview: DecisionPreview | { ok: false; error: DecisionPreviewError };
     try {
-      const preview: DecisionPreview | { ok: false; error: DecisionPreviewError } =
-        JSON.parse(decision.previewNode(pending.world.handle, JSON.stringify(payload)));
-      if (!preview.ok) {
-        decision.bridge.metrics?.rejected(pending.family);
-        this.#closeDecision(pending, true);
-        this.#post({ ...this.#unchangedReply(req, preview.error.kind === 'rejected' ? 'rejected' : 'preview-error',
-          preview.error.kind === 'rejected' ? preview.error.reason : preview.error.kind), previewError: preview.error });
-        return;
-      }
-      pending.trigger = preview.trigger;
-      pending.family = preview.family;
-      pending.defaultOrdinal = preview.option_ids.indexOf(preview.rules_default);
-      decision.bridge.metrics?.eligible(preview.family);
-      const spent = decision.bridge.status().spent;
-      const operation = decision.bridge.decide(preview, pending.abort.signal);
-      pending.attempted = decision.bridge.status().spent > spent;
-      if (pending.attempted) {
-        this.#decisionOutcome = null;
-        this.#lastStatusTime = this.#clock.now();
-        this.#post({ type: 'status', snapshot: this.#snapshot(this.#lastStatusTime) });
-        this.#scheduleDecisionStatus(pending);
-      }
-      void operation.then(
-        outcome => this.#finishDecision(pending, outcome),
-        error => { if (this.#decisionPending === pending) this.fail(errorText(error)); },
-      );
+      preview = JSON.parse(decision.previewNode(pending.world.handle, JSON.stringify(payload)));
     } catch (error) {
       this.fail(errorText(error));
+      return;
+    }
+    if (!preview.ok) {
+      decision.bridge.metrics?.rejected(pending.family);
+      this.#closeDecision(pending, true);
+      this.#post({ ...this.#unchangedReply(req, preview.error.kind === 'rejected' ? 'rejected' : 'preview-error',
+        preview.error.kind === 'rejected' ? preview.error.reason : preview.error.kind), previewError: preview.error });
+      return;
+    }
+    pending.trigger = preview.trigger;
+    pending.family = preview.family;
+    pending.defaultOrdinal = preview.option_ids.indexOf(preview.rules_default);
+    decision.bridge.metrics?.eligible(preview.family);
+    const spent = decision.bridge.status().spent;
+    const operation = decision.bridge.decide(preview, pending.abort.signal);
+    pending.attempted = decision.bridge.status().spent > spent;
+    void operation.then(
+      outcome => this.#finishDecision(pending, outcome),
+      error => { if (this.#decisionPending === pending) this.fail(errorText(error)); },
+    );
+    if (pending.attempted) {
+      this.#decisionOutcome = null;
+      this.#lastStatusTime = this.#clock.now();
+      this.#post({ type: 'status', snapshot: this.#snapshot(this.#lastStatusTime) });
+      this.#scheduleDecisionStatus(pending);
     }
   }
 
@@ -527,74 +537,85 @@ export class SimController {
   #finishDecision(pending: PendingDecision, outcome: DecisionOutcome, manual = false): void {
     // Identity also distinguishes successive decisions in the same World/tick.
     if (this.#failed || this.#decisionPending !== pending || this.#world !== pending.world) return;
+    let current: DecisionPreview | { ok: false; error: DecisionPreviewError } | undefined;
+    let tick: bigint;
     try {
-      if (pending.world.handle.tick() !== pending.tick || this.#lastTick !== pending.tick) {
-        this.#closeDecision(pending, true);
-        this.#decision?.bridge.metrics?.aborted(pending.family);
-        this.#post(this.#failReply(pending.request, 'invalid-state', 'decision tick changed'));
-        return;
+      tick = pending.world.handle.tick();
+      if (tick === pending.tick && this.#lastTick === pending.tick && outcome.kind === 'model') {
+        current = JSON.parse(this.#decision!.previewNode(pending.world.handle, JSON.stringify(pending.payload)));
       }
-      let payloads = [pending.payload];
-      let notice: DecisionNotice = { requestId: pending.request.id, worldId: pending.world.worldId,
-        kind: 'fallback', reason: manual ? 'manual' : outcome.kind === 'fallback' ? outcome.reason : 'invalid_response' };
-      if (outcome.kind === 'model') {
-        // Rust rechecks the predicted assignment immediately before checked commit.
-        const current: DecisionPreview | { ok: false; error: DecisionPreviewError } = JSON.parse(
-          this.#decision!.previewNode(pending.world.handle, JSON.stringify(pending.payload)));
-        if (!current.ok || current.trigger !== pending.trigger) {
-          this.#closeDecision(pending, true);
-          this.#decision?.bridge.metrics?.aborted(pending.family);
-          this.#post(this.#failReply(pending.request, 'invalid-state', 'decision trigger changed'));
-          return;
-        }
-        pending.modelOrdinal = current.option_ids.indexOf(outcome.decision.choice);
-        pending.modelAgrees = outcome.decision.choice === current.rules_default;
-        payloads = [pending.payload, { Choose: { node: { Trigger: { seq: pending.trigger } },
-          option: outcome.decision.choice, fingerprint: outcome.decision.fingerprint } }];
-        notice = { requestId: pending.request.id, worldId: pending.world.worldId, kind: 'model',
-          option: outcome.decision.choice, usage: outcome.decision.usage };
-      }
-      this.#submitDecision(pending.request, payloads, notice, pending);
     } catch (error) {
       this.fail(errorText(error));
+      return;
     }
+    if (tick !== pending.tick || this.#lastTick !== pending.tick) {
+      this.#closeDecision(pending, true);
+      this.#decision?.bridge.metrics?.aborted(pending.family);
+      this.#post(this.#failReply(pending.request, 'invalid-state', 'decision tick changed'));
+      return;
+    }
+    let payloads = [pending.payload];
+    let notice: DecisionNotice = { requestId: pending.request.id, worldId: pending.world.worldId,
+      kind: 'fallback', reason: manual ? 'manual' : outcome.kind === 'fallback' ? outcome.reason : 'invalid_response' };
+    if (outcome.kind === 'model') {
+      // Preview guards the model choice; only checked acceptance binds input identity.
+      if (current === undefined || !current.ok || current.trigger !== pending.trigger) {
+        this.#closeDecision(pending, true);
+        this.#decision?.bridge.metrics?.aborted(pending.family);
+        this.#post(this.#failReply(pending.request, 'invalid-state', 'decision trigger changed'));
+        return;
+      }
+      pending.modelOrdinal = current.option_ids.indexOf(outcome.decision.choice);
+      pending.modelAgrees = outcome.decision.choice === current.rules_default;
+      payloads = [pending.payload, { Choose: { node: { Trigger: { seq: pending.trigger } },
+        option: outcome.decision.choice, fingerprint: outcome.decision.fingerprint } }];
+      notice = { requestId: pending.request.id, worldId: pending.world.worldId, kind: 'model',
+        option: outcome.decision.choice, usage: outcome.decision.usage };
+    }
+    this.#submitDecision(pending.request, payloads, notice, pending);
   }
 
   #submitDecision(req: Request, payloads: unknown[], notice: DecisionNotice, pending?: PendingDecision): void {
+    const world = pending?.world ?? this.#world!;
+    let result: CheckedSubmission;
     try {
-      let result: CheckedSubmission = JSON.parse(this.#world!.handle.submit_checked(JSON.stringify(payloads)));
+      result = this.#checked(world, req, payloads);
       if (!result.ok && payloads.length === 2) {
-        result = JSON.parse(this.#world!.handle.submit_checked(JSON.stringify([payloads[0]])));
-        notice = { requestId: req.id, worldId: this.#world!.worldId, kind: 'fallback', reason: 'invalid_response' };
-      }
-      const family = pending?.family ?? (req.type === 'dream' ? 'dream_interpretation' : 'magistrate_ruling');
-      const metrics = this.#decision?.bridge.metrics;
-      if (!result.ok) metrics?.rejected(family);
-      else {
-        // checked* records atomic queue acceptance, not the later World resolution.
-        // Supported Dream/Bribe rules guarantee a node on successful apply. Their
-        // checked trigger therefore proves eligibility without adding a preview;
-        // this is an opportunity count, not a direct NodeRecord/source reading.
-        // A valid model preview already counted the same opportunity.
-        if (pending === undefined) metrics?.eligible(family);
-        if (notice.kind === 'model' && pending !== undefined) {
-          metrics?.checkedModel(family, pending.modelOrdinal, pending.modelAgrees);
-        } else if (notice.kind === 'fallback') {
-          metrics?.checkedFallback(family, notice.reason, pending?.defaultOrdinal ?? null);
-          if (pending?.attempted !== true) metrics?.skip(family, notice.reason);
-        }
+        result = this.#checked(world, req, [payloads[0]]);
+        notice = { requestId: req.id, worldId: world.worldId, kind: 'fallback', reason: 'invalid_response' };
       }
       this.#refreshPending();
-      this.#decisionOutcome = notice;
-      if (pending !== undefined) this.#closeDecision(pending, true);
-      if (!result.ok) {
-        this.#post(this.#failReply(req, 'rejected', result.reason));
-        return;
-      }
-      this.#worldSnapshot(req);
     } catch (error) {
       this.fail(errorText(error));
+      return;
     }
+    const family = pending?.family ?? (req.type === 'dream' ? 'dream_interpretation' : 'magistrate_ruling');
+    const metrics = this.#decision?.bridge.metrics;
+    if (!result.ok) metrics?.rejected(family);
+    else {
+      // Queue acceptance proves the supported trigger's eligibility, not resolution.
+      if (pending === undefined) metrics?.eligible(family);
+      if (notice.kind === 'model' && pending !== undefined) {
+        metrics?.checkedModel(family, pending.modelOrdinal, pending.modelAgrees);
+      } else if (notice.kind === 'fallback') {
+        metrics?.checkedFallback(family, notice.reason, pending?.defaultOrdinal ?? null);
+        if (pending?.attempted !== true) metrics?.skip(family, notice.reason);
+      }
+    }
+    this.#decisionOutcome = notice;
+    if (pending !== undefined) this.#closeDecision(pending, true);
+    if (!result.ok) {
+      this.#post(this.#failReply(req, 'rejected', result.reason));
+      return;
+    }
+    let snapshotWorld: WorldSnapshot;
+    try {
+      snapshotWorld = this.#readWorld(world.handle);
+    } catch (error) {
+      this.fail(errorText(error));
+      return;
+    }
+    this.#post({ ...this.#okReply(req), submission: { tick: result.tick, seqs: result.seqs }, world: snapshotWorld });
   }
 
   #closeDecision(pending: PendingDecision, resume: boolean): void {
@@ -614,7 +635,7 @@ export class SimController {
     }
   }
 
-  #checkedSubmit(req: Extract<Request, { type: 'choose' | 'choose-and-run' | 'claim' | 'carry-over' }>): void {
+  #checkedSubmit(req: Extract<Request, { type: 'choose' | 'choose-and-run' | 'claim' | 'carry-over' | 'haunt' }>): void {
     if (this.#world === null) {
       this.#post(this.#noWorldReply(req));
       return;
@@ -632,6 +653,9 @@ export class SimController {
       case 'carry-over':
         payloads = [{ CarryOver: { trait_name: req.trait } }];
         break;
+      case 'haunt':
+        payloads = [{ Haunt: { target: String(req.target) } }];
+        break;
       case 'claim': {
         const slot = req.slot === 'imported_vessel' ? 'ImportedVessel' :
           req.slot === 'rebuilt_body' ? 'RebuiltBody' : { Birth: req.slot.slice('birth:'.length) };
@@ -642,7 +666,7 @@ export class SimController {
     }
     let result: CheckedSubmission;
     try {
-      result = JSON.parse(this.#world.handle.submit_checked(JSON.stringify(payloads)));
+      result = this.#checked(this.#world, req, payloads);
     } catch (e) {
       this.#refreshPending();
       this.#post(this.#failReply(req, 'sim-error', errorText(e)));
@@ -654,15 +678,21 @@ export class SimController {
       return;
     }
     if (req.type === 'choose-and-run') {
+      let batch: RunUntilStopResult;
       try {
-        this.#stepTick();
+        batch = this.#advance(1);
       } catch (e) {
         this.fail(errorText(e));
         this.#post(this.#failReply(req, 'invalid-state', errorText(e)));
         return;
       }
+      this.#publishAdvance(batch, this.#clock.now());
+      if (this.#failed) {
+        this.#post(this.#failReply(req, 'invalid-state', this.#failError));
+        return;
+      }
     }
-    this.#worldSnapshot(req);
+    this.#worldSnapshot(req, { tick: result.tick, seqs: result.seqs });
   }
 
   #checksums(req: Extract<Request, { type: 'checksums' }>): void {
@@ -680,14 +710,26 @@ export class SimController {
     this.#post({ ...this.#okReply(req), checksums });
   }
 
-  #stepTick(): void {
-    const result = this.#advance(1);
+  /** One publication owner for paused Step, choose-and-run and running batches. */
+  #publishAdvance(result: RunUntilStopResult, now: number): boolean {
     if (result.stops.length > 0) {
       this.#runState = 'paused';
       this.#stopLoop();
-      const stop = this.#stopPayload(result);
-      this.#post({ type: 'status', snapshot: { ...this.#snapshot(this.#clock.now()), stop } });
+      let stop: StopPayload;
+      try {
+        stop = this.#stopPayload(result);
+      } catch (error) {
+        this.fail(errorText(error));
+        return true;
+      }
+      this.#post({ type: 'status', snapshot: { ...this.#snapshot(now), stop } });
+      return true;
     }
+    if (this.#actions.length > 0 || this.#playerLifecycle.length > 0) {
+      this.#lastStatusTime = now;
+      this.#post({ type: 'status', snapshot: this.#snapshot(now) });
+    }
+    return false;
   }
 
   // --- run loop -------------------------------------------------------------
@@ -714,24 +756,18 @@ export class SimController {
       this.#anchorMs = now;
       this.#ranSinceAnchor = 0;
     }
+    let result: RunUntilStopResult | undefined;
     try {
       if (budget.run > 0) {
-        const result = this.#advance(budget.run);
+        result = this.#advance(budget.run);
         this.#ranSinceAnchor += result.ran;
-        if (result.stops.length > 0) {
-          this.#runState = 'paused';
-          this.#stopLoop();
-          const stop = this.#stopPayload(result);
-          // A stop is exactly one status, even inside the normal throttle window.
-          this.#post({ type: 'status', snapshot: { ...this.#snapshot(now), stop } });
-          return;
-        }
       }
     } catch (e) {
       this.#toFatal(e);
       return;
     }
-    this.#tps.addSample(now, this.#lastTick);
+    if (result === undefined || result.stops.length === 0) this.#tps.addSample(now, this.#lastTick);
+    if (result !== undefined && this.#publishAdvance(result, now)) return;
     if (this.#lastStatusTime === null || now - this.#lastStatusTime >= 100) {
       this.#lastStatusTime = now;
       this.#post({ type: 'status', snapshot: this.#snapshot(now) });
@@ -741,6 +777,17 @@ export class SimController {
 
   #advance(max: number): RunUntilStopResult {
     const result: RunUntilStopResult = JSON.parse(this.#world!.handle.run_until_stop(max));
+    if (!Array.isArray(result.actions) || !Array.isArray(result.player_lifecycle)) {
+      throw new Error('WASM interface error: required actions/player_lifecycle batch leaves');
+    }
+    const worldId = this.#world!.worldId;
+    for (const action of result.actions) {
+      const binding = this.#actionRequests.get(action.input_seq);
+      this.#actions.push({ ...action, worldId,
+        requestId: binding?.worldId === worldId ? binding.requestId : null });
+      this.#actionRequests.delete(action.input_seq);
+    }
+    for (const fact of result.player_lifecycle) this.#playerLifecycle.push(fact);
     if (result.ran > 0) this.#lastChecksum = result.checksum;
     this.#lastTick = this.#world!.handle.tick();
     this.#refreshPending();
@@ -748,7 +795,7 @@ export class SimController {
   }
 
   #stopPayload(result: RunUntilStopResult): StopPayload {
-    const world: WorldSnapshot = JSON.parse(this.#world!.handle.snapshot());
+    const world = this.#readWorld(this.#world!.handle);
     return { reasons: result.stops, world };
   }
 
@@ -766,6 +813,46 @@ export class SimController {
   }
 
   // --- snapshots and replies ------------------------------------------------
+  /** Successful transport transfers these arrays; construction alone never drains. */
+  #post(message: WorkerMessage): void {
+    this.#emit(message);
+    if (message.type === 'fatal') return;
+    if (message.snapshot.actions === this.#actions) this.#actions = [];
+    if (message.snapshot.playerLifecycle === this.#playerLifecycle) this.#playerLifecycle = [];
+  }
+
+  #readWorld(handle: SimHandle): WorldSnapshot {
+    const world: WorldSnapshot = JSON.parse(handle.snapshot());
+    if (world.underworld_view !== null) {
+      const actions = world.underworld_view?.actions;
+      if (actions?.version !== 1 || actions.capped_spend == null ||
+        actions.bribe == null || actions.haunt == null ||
+        !Array.isArray(actions.haunt.targets) || typeof actions.haunt.price !== 'string' ||
+        typeof actions.bribe.min_amount !== 'string' || typeof actions.bribe.max_amount !== 'string' ||
+        actions.bribe.availability == null || typeof actions.bribe.availability.eligible !== 'boolean' ||
+        actions.bribe.availability.reason === undefined ||
+        ['cap_year', 'yearly_cap', 'spent', 'remaining'].some(key =>
+          typeof actions.capped_spend[key as keyof typeof actions.capped_spend] !== 'string') ||
+        actions.haunt.targets.some(target => target == null || typeof target.target !== 'number' ||
+          target.availability == null || typeof target.availability.eligible !== 'boolean' ||
+          target.availability.reason === undefined)) {
+        throw new Error('WASM interface error: required ActionView version 1 leaves');
+      }
+    }
+    return world;
+  }
+
+  #checked(world: World, req: Request, payloads: unknown[]): CheckedSubmission {
+    const result: CheckedSubmission = JSON.parse(world.handle.submit_checked(JSON.stringify(payloads)));
+    if (result.ok && (typeof result.tick !== 'string' || !Array.isArray(result.seqs) ||
+      result.seqs.length !== payloads.length || result.seqs.some(seq => typeof seq !== 'string'))) {
+      throw new Error('WASM interface error: required checked tick/seqs receipt');
+    }
+    if (result.ok && (req.type === 'bribe' || req.type === 'haunt')) {
+      this.#actionRequests.set(result.seqs[0], { worldId: world.worldId, requestId: req.id });
+    }
+    return result;
+  }
 
   /**
    * The current worker state as a Snapshot. `now` is used only for the
@@ -783,6 +870,8 @@ export class SimController {
       tps: this.#runState === 'running' && this.#decisionPending === null ? this.#tps.ticksPerSecond(now) : null,
       speed: this.#speed,
       playerNode: this.#pending,
+      actions: this.#actions,
+      playerLifecycle: this.#playerLifecycle,
       ...(this.#decision === undefined ? {} : { decision: {
         ...this.#decision.bridge.status(),
         pending: this.#decisionPending === null ? null : {

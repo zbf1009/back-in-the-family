@@ -43,7 +43,7 @@ class StopSim implements SimHandle {
     this.interval = interval; this.reasons = reasons;
   }
   tick(): bigint { return this.current; }
-  snapshot(): string { return JSON.stringify({ tick: String(this.current), chronicle: this.resolved }); }
+  snapshot(): string { return JSON.stringify({ tick: String(this.current), chronicle: this.resolved, underworld_view: null }); }
   player_node_state(): string { return JSON.stringify(this.pending); }
   checksums(from: bigint, to: bigint): string { return JSON.stringify(this.history.slice(Number(from), Number(to + 1n))); }
   submit(input: string): void {
@@ -64,7 +64,8 @@ class StopSim implements SimHandle {
       this.pending = { pending: true, node: choose.node, answered: true };
       this.acceptedAt.push(Number(this.current));
     }
-    return '{"ok":true}';
+    return JSON.stringify({ ok: true, tick: String(this.current),
+      seqs: payloads.map((_payload: unknown, index: number) => String(this.inputs.length - payloads.length + index)) });
   }
   step(): string { return JSON.parse(this.run_until_stop(1)).checksum; }
   run_ticks(n: number): string { for (let k = 0; k < n; k++) this.step(); return this.history.at(-1) ?? ''; }
@@ -85,7 +86,7 @@ class StopSim implements SimHandle {
         break;
       }
     }
-    return JSON.stringify({ ran, checksum: this.history.at(-1) ?? '', stops });
+    return JSON.stringify({ ran, checksum: this.history.at(-1) ?? '', stops, actions: [], player_lifecycle: [] });
   }
 }
 

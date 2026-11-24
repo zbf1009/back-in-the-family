@@ -2,7 +2,7 @@
 //
 // When the page URL carries `?harness=1`, `main.ts` calls `installHarness` with
 // the one SimClient the page already uses. This exposes `window.__simHarness`,
-// a thin promise-returning wrapper that submits requests through that SAME
+// a thin ticket-returning wrapper that submits requests through that SAME
 // SimClient and the SAME Sim_Worker as the page controls. The Smoke_Test drives
 // the Worker_Protocol through it (to create a world, submit the fixture inputs,
 // step and compare checksums) while the page-control checks drive the buttons;
@@ -16,8 +16,8 @@
 // only types from the shared protocol and the client plus the SimClient value; the
 // `window` typing is a module augmentation declared here with `declare global`.
 
-import type { RequestWithoutId } from '../shared/protocol.ts';
-import type { ReplyMessage, SimClient } from './sim-client.ts';
+import type { RequestTicket, RequestWithoutId } from '../shared/protocol.ts';
+import type { SimClient } from './sim-client.ts';
 
 /** Caller fields of the shared, discriminated protocol request. */
 type HarnessRequest = RequestWithoutId;
@@ -25,15 +25,15 @@ type HarnessRequest = RequestWithoutId;
 /** The shape exposed on `window.__simHarness`, used by the Smoke_Test (DA-3). */
 export interface SimHarness {
   /**
-   * Route one Worker_Protocol request through the page's own SimClient and
-   * resolve with the worker's reply (whether `ok: true` or `ok: false`). Rejects
-   * only on the client's 30 s timeout (R9.13). The `id` is assigned by the client.
+   * Route through the page's own SimClient and return its real issued ID and
+   * reply Promise. Worker rejection resolves normally; transport failure rejects
+   * the Promise, while failure before issuance throws without creating a ticket.
    */
-  request(req: HarnessRequest): Promise<ReplyMessage>;
+  request(req: HarnessRequest): RequestTicket;
   /** Read the live WASM v5 export; never reconstruct inputs in JavaScript. */
-  exportReplay(): Promise<ReplyMessage>;
+  exportReplay(): RequestTicket;
   /** Detached bounded page-session counters, outside the World and v5 replay. */
-  decisionMetrics(): Promise<ReplyMessage>;
+  decisionMetrics(): RequestTicket;
 }
 
 declare global {
@@ -50,13 +50,13 @@ declare global {
  */
 export function installHarness(client: SimClient): void {
   window.__simHarness = {
-    request(req: HarnessRequest): Promise<ReplyMessage> {
+    request(req: HarnessRequest): RequestTicket {
       return client.request(req);
     },
-    exportReplay(): Promise<ReplyMessage> {
+    exportReplay(): RequestTicket {
       return client.exportReplay();
     },
-    decisionMetrics(): Promise<ReplyMessage> {
+    decisionMetrics(): RequestTicket {
       return client.request({ type: 'decision-metrics' });
     },
   };

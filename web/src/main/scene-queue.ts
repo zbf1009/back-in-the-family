@@ -28,3 +28,18 @@ export function nextScene(queue: SceneQueue | null): SceneQueue | null {
   if (queue === null || queue.entries.length <= 1) return null;
   return { ...queue, entries: queue.entries.slice(1) };
 }
+
+/** Admission retires only this node, even behind unrelated historical scenes. */
+export function retireNode(queue: SceneQueue | null, node: string): SceneQueue | null {
+  if (queue === null || !queue.entries.some(entry => entry.node === node)) return queue;
+  const entries = queue.entries.filter(entry => entry.node !== node);
+  return entries.length === 0 ? null : { ...queue, entries };
+}
+
+export type SceneClose = Pick<SceneQueue, 'worldId' | 'tick'> & { entry: SceneEntry };
+
+/** Retained entry identity makes late and duplicate close callbacks harmless. */
+export function closeScene(queue: SceneQueue | null, expected: SceneClose): SceneQueue | null {
+  return queue !== null && queue.worldId === expected.worldId && queue.tick === expected.tick
+    && queue.entries[0] === expected.entry && expected.entry.node === null ? nextScene(queue) : queue;
+}

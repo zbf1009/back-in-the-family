@@ -5,11 +5,12 @@ import { WasmSim, verify_replay } from '../../../target/wasm-pkg/sim_wasm.js';
 import { SimController, type SimHandle } from '../../src/worker/controller.ts';
 import { DecisionBridge, type DecisionPreview, type DecisionWasm } from '../../src/worker/decision-bridge.ts';
 import { PROJECT_REQUEST_BYTE_CAP, isDecisionError } from '../../src/shared/decision.ts';
-import type { Reply, Request, WorkerMessage } from '../../src/shared/protocol.ts';
+import type { Reply, Request, RunUntilStopResult, WorkerMessage } from '../../src/shared/protocol.ts';
 import { PLAY_RATE, SPEEDS } from '../../src/shared/speeds.ts';
 import { actualSim, ControlledDecisionClient, DecisionClock, HandlerDecisionClient, config, mapping,
   modelDecision, realPreviews, settle, transportPaddedWasm, wasm } from './helpers/decision.ts';
 import { FakeFrameScheduler } from './helpers/fakes.ts';
+import { checkedReceipt } from './helpers/wasm.ts';
 
 class Frames extends FakeFrameScheduler {
   readonly callbacks: (() => void)[] = [];
@@ -17,24 +18,27 @@ class Frames extends FakeFrameScheduler {
 }
 class Port implements SimHandle {
   tickValue = 0n;
+  nextSeq = 0n;
   readonly batches: unknown[][] = [];
   readonly raw: string[] = [];
   previews = 0;
   reject: string | null = null;
   previewResult: unknown = realPreviews()[0]!;
-  snapshot(): string { return JSON.stringify({ tick: this.tickValue.toString() }); }
+  snapshot(): string { return JSON.stringify({ tick: this.tickValue.toString(), underworld_view: null }); }
   tick(): bigint { return this.tickValue; }
   player_node_state(): string { return '{"pending":false}'; }
   checksums(): string { return '[]'; }
   submit(input: string): void { this.raw.push(input); }
   submit_checked(input: string): string {
     if (this.reject !== null) return JSON.stringify({ ok: false, index: 0, reason: this.reject });
-    this.batches.push(JSON.parse(input)); return '{"ok":true}';
+    const payloads: unknown[] = JSON.parse(input);
+    this.batches.push(payloads);
+    return JSON.stringify({ ok: true, tick: String(this.tickValue), seqs: payloads.map(() => String(this.nextSeq++)) });
   }
   preview_node(): string { this.previews++; return JSON.stringify(this.previewResult); }
   step(): string { this.tickValue++; return '0000000000000001'; }
   run_ticks(n: number): string { this.tickValue += BigInt(n); return '0000000000000001'; }
-  run_until_stop(n: number): string { this.tickValue += BigInt(n); return JSON.stringify({ ran: n, checksum: '0000000000000001', stops: [] }); }
+  run_until_stop(n: number): string { this.tickValue += BigInt(n); return JSON.stringify({ ran: n, checksum: '0000000000000001', stops: [], actions: [], player_lifecycle: [] }); }
   export_replay(): string { return JSON.stringify({ ticks: this.tickValue.toString(), inputs: this.batches }); }
 }
 async function setup(options: { ready?: boolean; enabled?: boolean; cap?: number; port?: Port; wasm?: DecisionWasm } = {}) {
@@ -74,6 +78,7 @@ test('decision holds every competing mutation unchanged while reads overtake and
     { type: 'dream', id: 10, dreamer: 31, intent: 'warn' }, { type: 'bribe', id: 11, amount: '1' },
     { type: 'claim', id: 12, slot: 'imported_vessel', carryOver: null },
     { type: 'carry-over', id: 13, trait: 'warmth' }, { type: 'submit', id: 14, input: '{}' },
+    { type: 'haunt', id: 21, target: 31 },
   ];
   for (const request of requests) {
     h.send(request); const reply = h.reply(request.id);
@@ -262,15 +267,18 @@ test('actual WASM completed model/fallback streams match direct per-tick checksu
       assert.equal(decisionReply.snapshot.decision?.outcome?.kind, accepted ? 'model' : 'fallback');
       const payloads = accepted ? [trigger, { Choose: { node: { Trigger: { seq: preview.trigger } }, option: choice,
         fingerprint: modelDecision(choice).fingerprint } }] : [trigger];
-      assert.deepEqual(JSON.parse(direct.submit_checked(JSON.stringify(payloads))), { ok: true });
+      const receipt = checkedReceipt(direct, payloads);
+      assert.ok(decisionReply.ok);
+      assert.deepEqual(decisionReply.submission, receipt);
       assert.equal(live.tick(), direct.tick());
       const alternate = accepted ? [trigger] : [trigger, { Choose: {
         node: { Trigger: { seq: preview.trigger } }, option: choice, fingerprint: modelDecision(choice).fingerprint,
       } }];
-      assert.deepEqual(JSON.parse(opposite.submit_checked(JSON.stringify(alternate))), { ok: true });
+      checkedReceipt(opposite, alternate);
       controller.handle({ type: 'step', id: 3 });
       assert.equal(live.tick(), 1655n, 'the controller, not a direct test call, completed the firing tick');
       const checksum = direct.run_until_stop(1);
+      const batch: RunUntilStopResult = JSON.parse(checksum);
       const reply = messages.find((message): message is Reply => message.type === 'reply' && message.id === 3)!;
       assert.equal(reply.snapshot.tick, direct.tick().toString());
       assert.equal(reply.snapshot.checksum, JSON.parse(checksum).checksum);
@@ -281,9 +289,19 @@ test('actual WASM completed model/fallback streams match direct per-tick checksu
         assert.ok(stopped?.type === 'status' && stopped.snapshot.stop!.reasons.includes('dream_resolved'));
         assert.equal(liveSnapshot.last_dream.tick, '1654');
       }
-      // NodeRecord.source is not exported by snapshot. Existing C1 Rust/WASM
-      // enum assertions establish the source meaning; same-option checksums here
-      // independently catch accidentally using the other source in the controller.
+      if (family === 'bribe') {
+        const delivered = messages.find(message => message.type === 'status' && message.snapshot.actions.length > 0);
+        assert.ok(delivered?.type === 'status');
+        assert.deepEqual(delivered.snapshot.actions, batch.actions.map(action => ({ ...action,
+          worldId: decisionReply.snapshot.worldId, requestId: decisionReply.id })));
+        const action = delivered.snapshot.actions[0]!;
+        assert.equal(action.input_seq, receipt.seqs[0]);
+        assert.ok(action.kind === 'bribe' && action.state === 'applied' && action.ruling);
+        assert.equal(action.ruling.source, accepted ? 'external' : 'rules_default');
+        assert.equal(action.ruling.applied, choice);
+      }
+      // Current World remains separate from the exact source in the action receipt.
+      // Same-option checksums independently catch using the wrong source.
       assert.notEqual(JSON.parse(opposite.run_until_stop(1)).checksum, reply.snapshot.checksum);
       const liveReplay = JSON.parse(live.export_replay());
       const directReplay = JSON.parse(direct.export_replay());
@@ -371,7 +389,8 @@ test('atomic pair rejection falls back only to the original checked trigger', as
   h.port.submit_checked = input => {
     const payloads: unknown[] = JSON.parse(input); attempted.push(payloads);
     if (payloads.length === 2) return '{"ok":false,"index":1,"reason":"illegal_option"}';
-    h.port.batches.push(payloads); return '{"ok":true}';
+    h.port.batches.push(payloads);
+    return JSON.stringify({ ok: true, tick: String(h.port.tickValue), seqs: payloads.map(() => String(h.port.nextSeq++)) });
   };
   h.dream(); h.client.attempts[0]!.response.resolve(modelDecision(realPreviews()[0]!.option_ids[0]!)); await settle();
   assert.equal(attempted.length, 2);
@@ -562,8 +581,10 @@ test('actual WASM completed 16384 model and 16385 HTTP fallback streams match di
         fingerprint: modelDecision().fingerprint } }];
       const expected = exact ? pair : [trigger];
       assert.deepEqual(checkedAttempts, [expected], 'only the controller calls the real atomic checked submission');
-      assert.deepEqual(JSON.parse(direct.submit_checked(JSON.stringify(expected))), { ok: true });
-      assert.deepEqual(JSON.parse(opposite.submit_checked(JSON.stringify(exact ? [trigger] : pair))), { ok: true });
+      const receipt = checkedReceipt(direct, expected);
+      const queued = reply(2); assert.ok(queued.ok);
+      assert.deepEqual(queued.submission, receipt);
+      checkedReceipt(opposite, exact ? [trigger] : pair);
       assert.equal(live.export_replay(), direct.export_replay(), 'the queued Rust replay is exactly the direct authoritative path');
       assert.equal(live.tick(), 1654n); assert.equal(frames.isPending, false);
       controller.handle({ type: 'step', id: 3 }); direct.run_until_stop(1);

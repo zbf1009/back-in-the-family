@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import fc from 'fast-check';
 import { viewModel, namesById } from '../../src/main/view-model.ts';
-import { initialUiState } from '../../src/main/ui-state.ts';
+import { currentDecision, initialUiState, reduce } from '../../src/main/ui-state.ts';
 import type { Needed, PlayerOption, Preview, StakeUnit, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 
+import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
 const RUNS = 1000;
 const base: WorldSnapshot = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seed1-pairwise.snapshot-500.json', import.meta.url), 'utf8'));
 const integer = fc.bigInt({ min: -(2n ** 63n), max: 2n ** 63n - 1n }).map(String);
@@ -40,7 +41,7 @@ test('Property 24: Snapshot whole years, signed previews, Stakes and Needed rema
           options: options.map(id => ({ id, preview })), rules_default: 'ask_for_time' },
         underworld_view: null,
       };
-      const ui = { ...initialUiState(), world };
+      const ui = uiFor(world);
       const before = JSON.stringify(ui);
       const view = viewModel(ui)!;
       assert.equal(view.body!.age, age, 'Snapshot age is already whole years (Property 24 alternative)');
@@ -55,6 +56,7 @@ test('Property 24: Snapshot whole years, signed previews, Stakes and Needed rema
       const waiting: WorldSnapshot = { ...world, player_node: null,
         player: { ...world.player, place: 'waiting', body: null },
         underworld_view: { dream_price: '20', connected: [], ghost_traits: base.residents[0]!.traits, base_traits: [],
+          actions: waitingSnapshot().underworld_view!.actions,
           slots: [{ slot: 'rebuilt_body', kind: 'rebuilt_body', price: '400', birth: null,
             status: { announced: true, claimable: false, affordable: false, needed: missing } }] },
       };
@@ -74,4 +76,54 @@ test('Identity separates ties, counts distinct Rememberers and names non-residen
   assert.deepEqual(view.pastLifeTies.map(tie => [tie.name, tie.earlierName, tie.affinity]), [['John Carlson', 'Earlier One', -19], ['John Carlson', 'Earlier Two', 21]]);
   assert.equal(namesById(world).get(200), 'Deceased Creditor');
   assert.equal(viewModel(initialUiState()), null);
+});
+
+test('LV-C2: view-model exposes only the coherent current node and never stale option text', () => {
+  const world = pendingSnapshot('debt_due');
+  const ui = uiFor(world);
+  assert.equal(currentDecision(ui), world.player_node);
+  assert.equal(viewModel(ui)!.choice!.worldId, 1);
+  assert.deepEqual(viewModel(ui)!.choice!.options.map(option => option.id), world.player_node!.options.map(option => option.id));
+  for (const playerNode of [{ pending: false }, { pending: true, node: '11', answered: false },
+    { pending: true, node: '12', answered: true }] as const) {
+    const stale = { ...ui, playerNode };
+    assert.equal(currentDecision(stale), null); assert.equal(viewModel(stale)!.choice, null);
+  }
+  const sending = reduce(ui, { type: 'request-sent', request: { type: 'choose', id: 1, node: '12', option: 'repay_now' }, worldId: 1 });
+  assert.equal(currentDecision(sending), null); assert.equal(viewModel(sending)!.choice, null);
+  const historical = { ...ui, scene: { worldId: 1, tick: ui.tick!, reasons: ['player_died'] as const,
+    world, entries: [{ kind: 'funeral' as const, node: null }] } };
+  assert.equal(currentDecision(historical), world.player_node);
+  assert.equal(viewModel(historical)!.choice!.id, world.player_node!.id);
+});
+
+test('LV-C2: view-model distinguishes real queue receipts from authoritative Bribe and Haunt facts without optimistic resource changes', () => {
+  const world = waitingSnapshot();
+  let ui = uiFor(world);
+  const request = { type: 'haunt' as const, id: 21, target: 1 };
+  ui = reduce(ui, { type: 'request-sent', request, worldId: 1 });
+  ui = reduce(ui, { type: 'reply', request, worldId: 1, message: {
+    type: 'reply', id: 21, ok: true, submission: { tick: '500', seqs: ['70'] },
+    snapshot: { worldId: 1, runState: 'paused', tick: '500', checksum: null, tps: null, speed: 1,
+      playerNode: { pending: false }, actions: [], playerLifecycle: [] },
+  } });
+  let view = viewModel(ui)!;
+  assert.match(view.actions[0]!.text, /queued, not applied yet at tick 500/);
+  assert.match(view.actions[0]!.text, /Request 21 · input 70/);
+  assert.equal(ui.world!.joss, world.joss); assert.equal(ui.world!.underworld_view!.actions, world.underworld_view!.actions);
+  ui = reduce(ui, { type: 'status', snapshot: { worldId: 1, runState: 'paused', tick: '501', checksum: null, tps: null, speed: 1,
+    playerNode: { pending: false }, playerLifecycle: [], actions: [
+      { worldId: 1, requestId: 21, input_seq: '70', tick: '501', kind: 'haunt', state: 'applied', target: 1,
+        ghost: 2, event: '90', price: '43', intensity: '9', mood_delta: '-15' },
+      { worldId: 1, requestId: null, input_seq: '71', tick: '501', kind: 'bribe', state: 'applied', amount: '100',
+        ghost: 2, offering_event: '91', appeal_event: '92', ruling: null },
+    ] } });
+  view = viewModel(ui)!;
+  assert.match(view.actions[0]!.text, /charged 43 joss paper/);
+  assert.match(view.actions[0]!.text, /pre-clamp Mood effect -15/);
+  assert.match(view.actions[0]!.text, /event 90/);
+  assert.match(view.actions[1]!.text, /spent 100 joss paper, offering 91, appeal 92/);
+  assert.match(view.actions[1]!.text, /No ruling was emitted/);
+  assert.doesNotMatch(view.actions[1]!.text, /grant|deny/);
+  assert.equal(ui.world!.joss, world.joss); assert.equal(ui.world!.underworld_view!.actions, world.underworld_view!.actions);
 });

@@ -2,8 +2,8 @@
 //
 // This is the thin glue the design calls for: it loads Sim_Wasm, wires a
 // SimController to the real scheduler, clock and `postMessage`, and routes load
-// failures and uncaught worker errors to `fail()`. All request handling lives in
-// SimController; this file holds no simulation state.
+// failures and uncaught worker errors to `fail()`. SimController parses native
+// receipts/batches and maps only root player_lifecycle to playerLifecycle.
 
 import init, { WasmSim, llm_render_system_one, llm_validate } from 'sim-wasm/sim_wasm.js';
 import wasmUrl from 'sim-wasm/sim_wasm_bg.wasm?url';

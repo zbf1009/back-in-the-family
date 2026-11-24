@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import {
   WasmSim, llm_render_system_one, llm_validate,
 } from '../../../../target/wasm-pkg/sim_wasm.js';
-import { loadWasm } from './wasm.ts';
+import { checkedReceipt, loadWasm } from './wasm.ts';
 import { DECISION_CONTRACT } from '../../../src/shared/decision-contract.ts';
 import { DECISION_CONFIG_VERSION, DECISION_REQUEST_VERSION, isDecisionRequest,
   type DecisionConfig, type DecisionRequest, type ModelDecision } from '../../../src/shared/decision.ts';
@@ -103,10 +103,27 @@ export function actualSim(): WasmSim {
   const gate = JSON.parse(sim.player_node_state());
   if (gate.pending && !gate.answered) {
     const node = JSON.parse(sim.snapshot()).player_node;
-    assert.deepEqual(JSON.parse(sim.submit_checked(JSON.stringify([
-      { ChoosePlayer: { node: gate.node, option: node.rules_default } },
-    ]))), { ok: true });
+    checkedReceipt(sim, [{ ChoosePlayer: { node: gate.node, option: node.rules_default } }]);
   }
+  return sim;
+}
+
+/** Real seedP after Dream, without the future CarryOver/ImportedVessel claim. */
+export function waitingSim(): WasmSim {
+  loadWasm();
+  const replay = JSON.parse(readFileSync(new URL('../../../../fixtures/parity/seedP-playthrough.replay.json', import.meta.url), 'utf8')) as {
+    seed: string; config: unknown; checksums: string[]; inputs: { tick: string; payload: unknown }[];
+  };
+  const sim = new WasmSim(BigInt(replay.seed), JSON.stringify(replay.config));
+  for (const input of replay.inputs) {
+    if (BigInt(input.tick) >= 5374n) break;
+    sim.submit(JSON.stringify({ tick: input.tick, payload: input.payload }));
+  }
+  sim.run_ticks(5374);
+  assert.equal(sim.tick(), 5374n);
+  assert.deepEqual(JSON.parse(sim.checksums(0n, 5373n)), replay.checksums.slice(0, 5374));
+  assert.equal(JSON.parse(sim.export_replay()).inputs.length, 4, 'no future claim is queued');
+  assert.ok(JSON.parse(sim.snapshot()).underworld_view !== null);
   return sim;
 }
 

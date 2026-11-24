@@ -1,4 +1,4 @@
-import type { UiState } from './ui-state.ts';
+import { currentDecision, type UiAction, type UiState } from './ui-state.ts';
 import type { Needed, Preview, Stakes, WorldSnapshot } from '../shared/world-snapshot.ts';
 import { customizationInput } from './customization.ts';
 
@@ -42,6 +42,7 @@ export function viewModel(ui: UiState) {
   const world = ui.world;
   if (world === null) return null;
   const names = namesById(world);
+  const node = currentDecision(ui);
   const body = world.residents.find(person => person.id === world.player.body);
   return {
     body: body === undefined ? null : {
@@ -53,17 +54,21 @@ export function viewModel(ui: UiState) {
     pastLifeTies: world.player.past_life_ties.map(tie => ({
       ...tie, name: names.get(tie.rememberer)!, earlierName: names.get(tie.earlier_body)!,
     })),
-    choice: world.player_node === null ? null : {
-      id: world.player_node.id,
-      family: world.player_node.family,
-      stakes: stakesView(world.player_node.stakes, world),
-      options: world.player_node.options.map(option => ({
+    choice: node === null ? null : {
+      worldId: ui.worldId,
+      id: node.id,
+      family: node.family,
+      stakes: stakesView(node.stakes, world),
+      options: node.options.map(option => ({
         id: option.id, preview: option.preview.map(entry => previewView(entry, world)),
       })),
     },
     needed: world.underworld_view?.slots.map(slot => ({
       slot: slot.slot, lines: slot.status.needed.map(neededText),
     })) ?? [],
+    actions: ui.actions.map(action => ({ ...action, text: actionText(action, ui.tick) })),
+    settledOmitted: ui.settledOmitted,
+    playerLifecycle: ui.playerLifecycle,
   };
 }
 
@@ -75,16 +80,39 @@ export function underworldView(ui: UiState) {
   const balance = world.joss.find(account => account.soul_id === world.player_soul)!.balance;
   const low = BigInt(balance) < BigInt(view.dream_price);
   const nobody = view.connected.length === 0;
+  const live = ui.worldId !== 0 && ui.runState !== 'failed' && !ui.createPending && world.player.place === 'waiting';
   return {
     balance, dreamPrice: view.dream_price,
     connected: view.connected.map(id => ({ id, name: names.get(id)! })),
     ghostTraits: view.ghost_traits,
-    dreamEnabled: !low && !nobody,
-    dreamReasons: [...(low ? ['Not enough joss paper for a dream.'] : []), ...(nobody ? ['No connected people.'] : [])],
+    dreamEnabled: live && !low && !nobody,
+    dreamReasons: [...(!live ? ['World controls are unavailable.'] : []),
+      ...(low ? ['Not enough joss paper for a dream.'] : []), ...(nobody ? ['No connected people.'] : [])],
     slots: view.slots.map(slot => ({
       ...slot, needed: slot.status.needed.map(neededText),
-      claimEnabled: slot.status.claimable && slot.status.affordable
+      claimEnabled: live && slot.status.claimable && slot.status.affordable
         && (slot.slot !== 'rebuilt_body' || customizationInput(ui.underworldForm.customization) !== null),
     })),
   };
+}
+
+function actionText(action: UiAction, tick: string | null): string {
+  const name = action.request?.type ?? action.result?.kind ?? 'Input';
+  const identity = `Request ${action.requestId ?? 'untracked'}${action.inputSeq === null ? '' : ` · input ${action.inputSeq}`}`;
+  if (action.phase === 'sending' || action.phase === 'deciding') return `${name}: ${action.phase}. ${identity}`;
+  if (action.phase === 'unknown') return `${name}: completion unknown. No retry was sent. ${identity}`;
+  if (action.phase === 'queued') {
+    if (action.request?.type !== 'bribe' && action.request?.type !== 'haunt' && action.submission !== null
+      && tick !== null && BigInt(tick) > BigInt(action.submission.tick)) {
+      return `${name}: admission queued at tick ${action.submission.tick}; consult Chronicle for completed outcomes. ${identity}`;
+    }
+    return `${name}: queued, not applied yet${action.submission === null ? '' : ` at tick ${action.submission.tick}`}. Use Run or Step to continue. ${identity}`;
+  }
+  const result = action.result;
+  if (result === null) return `${name}: ${action.phase}${action.error === null ? '' : ` (${action.error})`}. ${identity}`;
+  if (result.state === 'rejected') return `${result.kind}: rejected at tick ${result.tick} (${result.reason}). ${identity}`;
+  if (result.kind === 'haunt') return `haunt: applied at tick ${result.tick}, target ${result.target}, charged ${result.price} joss paper; intensity ${result.intensity}, pre-clamp Mood effect ${result.mood_delta}, event ${result.event}. ${identity}`;
+  const ruling = result.ruling === null ? 'No ruling was emitted.'
+    : `Ruling ${result.ruling.applied}, source ${result.ruling.source}, node ${result.ruling.node}.`;
+  return `bribe: applied at tick ${result.tick}, spent ${result.amount} joss paper, offering ${result.offering_event}, appeal ${result.appeal_event}. ${ruling} ${identity}`;
 }
