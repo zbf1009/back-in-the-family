@@ -48,7 +48,7 @@
   import Dream from './ui/scenes/Dream.svelte';
   import Birth from './ui/scenes/Birth.svelte';
   import { claimRequest, dreamRequest, type UnderworldForm } from './main/customization.ts';
-  import { underworldView, viewModel } from './main/view-model.ts';
+  import { feedbackView, underworldView } from './main/view-model.ts';
   import ChroniclePanel from './ui/ChroniclePanel.svelte';
   // World_Config field is prefilled with text identical to the fixture file
   // (R3.1). Vite's `?raw` import yields the file's bytes verbatim, so the textarea
@@ -75,7 +75,7 @@
   const held = $derived(decisionBusy(ui));
   const notice = $derived(decisionNotice(ui));
   const decision = $derived(currentDecision(ui));
-  const feedback = $derived(viewModel(ui));
+  const feedback = $derived(feedbackView(ui));
   const onClose = $derived.by(() => {
     const queue = ui.scene;
     const entry = queue?.entries[0];
@@ -93,6 +93,7 @@
 
   async function sendRequest(input: RequestWithoutId): Promise<void> {
     const worldId = ui.worldId;
+    const tick = ui.tick;
     let request: Request | undefined;
     try {
       const ticket = client.request(input);
@@ -101,7 +102,9 @@
       dispatch({ type: 'reply', request, worldId, message: await ticket.reply });
     } catch (error) {
       if (request !== undefined) dispatch({ type: 'request-failed', request, worldId, error: String(error) });
-      else if (worldId === ui.worldId) dispatch({ type: 'validation-error', error: String(error) });
+      else if (input.type === 'world-snapshot' && tick !== null) {
+        dispatch({ type: 'world-read-start-failed', worldId, tick, error: String(error) });
+      } else if (worldId === ui.worldId) dispatch({ type: 'validation-error', error: String(error) });
     }
   }
 
@@ -271,13 +274,13 @@
     {#if ui.world !== null && ui.world.tick !== ui.tick}
       <p data-testid="world-as-of">World resources and eligibility as of tick {ui.world.tick}.</p>
     {/if}
-    {#each feedback?.actions ?? [] as action, index (action.requestId ?? `input-${action.inputSeq}-${index}`)}
+    {#each feedback.actions as action, index (action.requestId ?? `input-${action.inputSeq}-${index}`)}
       <p role="status" data-testid="action-feedback" data-phase={action.phase}>{action.text}</p>
     {/each}
-    {#if (feedback?.settledOmitted ?? 0) > 0}
-      <p data-testid="settled-omitted">{feedback!.settledOmitted} older settled results omitted. Chronicle remains available.</p>
+    {#if feedback.settledOmitted > 0}
+      <p data-testid="settled-omitted">{feedback.settledOmitted} older settled results omitted. Chronicle remains available.</p>
     {/if}
-    {#each feedback?.playerLifecycle ?? [] as fact (fact.event)}
+    {#each feedback.playerLifecycle as fact (fact.event)}
       <p data-testid="lifecycle-feedback">{fact.kind} at tick {fact.tick}: {fact.name} · body {fact.body} · {fact.origin} · event {fact.event}</p>
     {/each}
   </section>

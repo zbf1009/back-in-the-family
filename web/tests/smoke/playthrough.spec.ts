@@ -313,7 +313,7 @@ test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel r
         await expect(option).toBeEnabled();
         if (index === 0) {
           await expect(page.getByTestId('stakes')).toBeVisible();
-          await page.screenshot({ path: new URL('../../../target/life-in-view-evidence/c2-current-choice.png', import.meta.url).pathname });
+          await page.screenshot({ path: new URL('../../../target/life-in-view-evidence/c2-review-current-choice.png', import.meta.url).pathname });
         }
         await option.click();
         await expect(page.getByTestId('choice-recorded')).toBeVisible();

@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test, expect, type BrowserContext, type Page, type Route, type TestInfo } from '@playwright/test';
-import type { Reply, RequestTicket, RequestWithoutId, Snapshot } from '../../src/shared/protocol.ts';
+import type { Reply, Request, RequestTicket, RequestWithoutId, Snapshot, WorkerMessage } from '../../src/shared/protocol.ts';
 import type { WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import { DECISION_CONTRACT } from '../../src/shared/decision-contract.ts';
 import { DECISION_CONFIG_VERSION, isDecisionRequest, isModelDecision, type DecisionRequest, type ModelDecision } from '../../src/shared/decision.ts';
@@ -18,11 +18,23 @@ const REPOSITORY_DIRECTORY = fileURLToPath(new URL('../../../', import.meta.url)
 const fixture = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seedU-underworld.replay.json', import.meta.url), 'utf8')) as {
   seed: string; config: unknown; inputs: { tick: string; seq: string; payload: unknown }[];
 };
-// Node-only typecheck: only the actual protocol/read-only browser hook.
+interface ReadFaultWorker {
+  postMessage(message: Request, ...options: unknown[]): void;
+  addEventListener(type: 'message', listener: (event: { data: WorkerMessage }) => void, options?: { capture: boolean }): void;
+}
+interface ReadFaultProbe {
+  failWorldReads: boolean;
+  sent: { id: number; type: Request['type'] }[];
+  replies: { id: number; type: Request['type']; worldId: number; tick: string | null; ok: boolean }[];
+  failures: { worldId: number; tick: string | null }[];
+}
+// Node-only typecheck: the actual protocol hook and controlled transport probe.
 declare const window: {
   __simHarness?: { request(request: RequestWithoutId): RequestTicket; exportReplay(): RequestTicket };
   scrollTo(x: number, y: number): void;
   readonly scrollY: number;
+  Worker: { prototype: ReadFaultWorker };
+  __c2ReadFault?: ReadFaultProbe;
 };
 
 async function offlineFake(context: BrowserContext, options: {
@@ -528,4 +540,91 @@ test('offline fake both families share one completed tick with trigger-sequence 
   };
   await writeFile(info.outputPath('both-families.manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   await info.attach('offline-fake-both-families-v5', { path, contentType: 'application/json' });
+});
+
+test('LV-C2 controlled preissuance World-read transport fault stays bound to the paused tick without recursion or automatic retry', async ({ page, context }, info) => {
+  await offlineFake(context, { enabled: false });
+  const pageErrors: string[] = [];
+  page.on('pageerror', error => pageErrors.push(error.message));
+  const fault = 'controlled World-read postMessage failure';
+  // Controlled synchronous transport fault, not a naturally observed failure.
+  // All other messages still reach the page's actual SimClient/Worker/WASM.
+  await page.addInitScript(({ fault }) => {
+    const probe: ReadFaultProbe = window.__c2ReadFault = { failWorldReads: false, sent: [], replies: [], failures: [] };
+    const attached = new WeakSet<ReadFaultWorker>();
+    const frames = new WeakMap<ReadFaultWorker, { worldId: number; tick: string | null }>();
+    const addEventListener = window.Worker.prototype.addEventListener;
+    window.Worker.prototype.addEventListener = function(this: ReadFaultWorker, type, listener, options) {
+      if (type === 'message' && !attached.has(this)) {
+        attached.add(this);
+        // Register first: capture does not reorder listeners on a Worker.
+        // This only records native evidence; it never writes UiState or the DOM.
+        addEventListener.call(this, 'message', ({ data }) => {
+          if (data.type === 'fatal') return;
+          frames.set(this, { worldId: data.snapshot.worldId, tick: data.snapshot.tick });
+          if (data.type === 'reply') {
+            const sent = probe.sent.find(entry => entry.id === data.id);
+            if (sent !== undefined) probe.replies.push({ id: data.id, type: sent.type,
+              worldId: data.snapshot.worldId, tick: data.snapshot.tick, ok: data.ok });
+          }
+        });
+      }
+      addEventListener.call(this, type, listener, options);
+    };
+    const postMessage = window.Worker.prototype.postMessage;
+    window.Worker.prototype.postMessage = function(this: ReadFaultWorker, message, ...options) {
+      probe.sent.push({ id: message.id, type: message.type });
+      if (message.type === 'world-snapshot' && probe.failWorldReads) {
+        const frame = frames.get(this);
+        if (frame === undefined) throw Error('controlled World-read fault has no native frame');
+        probe.failures.push(frame);
+        throw Error(fault);
+      }
+      postMessage.call(this, message, ...options);
+    };
+  }, { fault });
+  await open(page);
+  await create(page);
+  await expect(page.getByTestId('current-name')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__c2ReadFault!.replies.filter(reply => reply.type === 'world-snapshot').length)).toBe(1);
+  await page.evaluate(() => { window.__c2ReadFault!.failWorldReads = true; });
+  await page.getByTestId('step').click();
+  await expect(page.getByTestId('tick')).toHaveText('1');
+  await expect(page.getByTestId('run-state')).toHaveText('paused');
+  await expect(page.getByTestId('error')).toHaveText(`Error: ${fault}`);
+  await expect(page.getByTestId('world-as-of')).toHaveText('World resources and eligibility as of tick 0.');
+  await expect(page.getByTestId('step')).toBeEnabled();
+  await expect(page.getByTestId('run')).toBeEnabled();
+  await expect(page.getByTestId('action-feedback')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__c2ReadFault!.failures)).toEqual([{ worldId: 1, tick: '1' }]);
+  await capture(page, info, 'c2-preissue-read-fault-1280x720.png');
+
+  // Real preference controls dispatch fresh request/reply events at this same
+  // tick. The failed read demand must stay suppressed through every dispatch.
+  await page.getByTestId('decision-wait').selectOption('0');
+  await expect.poll(() => page.evaluate(() => window.__c2ReadFault!.replies.filter(reply => reply.type === 'set-decision-wait' && reply.ok).length)).toBe(1);
+  await page.getByTestId('speed').selectOption('7');
+  await expect.poll(() => page.evaluate(() => window.__c2ReadFault!.replies.filter(reply => reply.type === 'set-speed' && reply.ok).length)).toBe(1);
+  const native = await request(page, { type: 'decision-status' });
+  expect(native.ok).toBe(true);
+  expect(native.snapshot.worldId).toBe(1);
+  expect(native.snapshot.tick).toBe('1');
+  expect(native.snapshot.runState).toBe('paused');
+  await expect(page.getByTestId('checksum')).toHaveText(native.snapshot.checksum!);
+  await expect(page.getByTestId('tick')).toHaveText('1');
+  await expect(page.getByTestId('world-as-of')).toHaveText('World resources and eligibility as of tick 0.');
+  const observed = await page.evaluate(() => window.__c2ReadFault!);
+  expect(observed.failWorldReads).toBe(true);
+  expect(observed.failures).toEqual([{ worldId: 1, tick: '1' }]);
+  expect(observed.sent.filter(message => message.type === 'world-snapshot')).toHaveLength(2); // Initial successful read + exactly one failed start.
+  expect(observed.sent.filter(message => message.type === 'create-world')).toHaveLength(1);
+  expect(observed.sent.filter(message => message.type === 'step')).toHaveLength(1);
+  expect(observed.sent.filter(message => message.type === 'run')).toHaveLength(0);
+  expect(observed.replies.filter(reply => reply.type === 'step')).toEqual([
+    { id: observed.sent.find(message => message.type === 'step')!.id, type: 'step', worldId: 1, tick: '1', ok: true },
+  ]);
+  expect(pageErrors).toEqual([]);
+  await info.attach('controlled-preissuance-world-read-fault', { contentType: 'application/json', body: Buffer.from(JSON.stringify({
+    mode: 'controlled-postMessage-fault-not-natural-production-trigger', observed, nativeSnapshot: native.snapshot,
+  }, null, 2)) });
 });

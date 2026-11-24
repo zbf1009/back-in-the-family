@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import fc from 'fast-check';
-import { viewModel, namesById } from '../../src/main/view-model.ts';
+import { feedbackView, viewModel, namesById } from '../../src/main/view-model.ts';
 import { currentDecision, initialUiState, reduce } from '../../src/main/ui-state.ts';
 import type { Needed, PlayerOption, Preview, StakeUnit, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 
@@ -97,7 +97,7 @@ test('LV-C2: view-model exposes only the coherent current node and never stale o
   assert.equal(viewModel(historical)!.choice!.id, world.player_node!.id);
 });
 
-test('LV-C2: view-model distinguishes real queue receipts from authoritative Bribe and Haunt facts without optimistic resource changes', () => {
+test('LV-C2: feedbackView distinguishes real queue receipts from authoritative Bribe and Haunt facts without optimistic resource changes', () => {
   const world = waitingSnapshot();
   let ui = uiFor(world);
   const request = { type: 'haunt' as const, id: 21, target: 1 };
@@ -107,7 +107,7 @@ test('LV-C2: view-model distinguishes real queue receipts from authoritative Bri
     snapshot: { worldId: 1, runState: 'paused', tick: '500', checksum: null, tps: null, speed: 1,
       playerNode: { pending: false }, actions: [], playerLifecycle: [] },
   } });
-  let view = viewModel(ui)!;
+  let view = feedbackView(ui);
   assert.match(view.actions[0]!.text, /queued, not applied yet at tick 500/);
   assert.match(view.actions[0]!.text, /Request 21 · input 70/);
   assert.equal(ui.world!.joss, world.joss); assert.equal(ui.world!.underworld_view!.actions, world.underworld_view!.actions);
@@ -118,7 +118,7 @@ test('LV-C2: view-model distinguishes real queue receipts from authoritative Bri
       { worldId: 1, requestId: null, input_seq: '71', tick: '501', kind: 'bribe', state: 'applied', amount: '100',
         ghost: 2, offering_event: '91', appeal_event: '92', ruling: null },
     ] } });
-  view = viewModel(ui)!;
+  view = feedbackView(ui);
   assert.match(view.actions[0]!.text, /charged 43 joss paper/);
   assert.match(view.actions[0]!.text, /pre-clamp Mood effect -15/);
   assert.match(view.actions[0]!.text, /event 90/);
@@ -126,4 +126,66 @@ test('LV-C2: view-model distinguishes real queue receipts from authoritative Bri
   assert.match(view.actions[1]!.text, /No ruling was emitted/);
   assert.doesNotMatch(view.actions[1]!.text, /grant|deny/);
   assert.equal(ui.world!.joss, world.joss); assert.equal(ui.world!.underworld_view!.actions, world.underworld_view!.actions);
+});
+
+test('LV-C2: feedbackView preserves authoritative same-world actions and lifecycle before a World Snapshot arrives', () => {
+  const create = { type: 'create-world' as const, id: 1, seed: '1', config: '{}' };
+  const snapshot = { worldId: 1, runState: 'paused' as const, tick: '0', checksum: null, tps: null, speed: 1,
+    playerNode: { pending: false as const }, actions: [], playerLifecycle: [] };
+  let ui = reduce(initialUiState(), { type: 'request-sent', request: create, worldId: 0 });
+  ui = reduce(ui, { type: 'reply', request: create, worldId: 0,
+    message: { type: 'reply', id: 1, ok: true, snapshot } });
+  const request = { type: 'haunt' as const, id: 2, target: 31 };
+  ui = reduce(ui, { type: 'request-sent', request, worldId: 1 });
+  ui = reduce(ui, { type: 'reply', request, worldId: 1,
+    message: { type: 'reply', id: 2, ok: true, snapshot, submission: { tick: '0', seqs: ['70'] } } });
+  assert.equal(ui.world, null);
+  assert.match(feedbackView(ui).actions[0]!.text, /queued, not applied yet at tick 0/);
+  const fact = { event: '92', tick: '1', kind: 'possession' as const, body: 31, name: 'Recorded Body', origin: 'possessed' as const };
+  ui = reduce(ui, { type: 'status', snapshot: { ...snapshot, tick: '1', playerLifecycle: [fact], actions: [
+    { worldId: 1, requestId: 2, input_seq: '70', tick: '1', kind: 'haunt', state: 'applied', target: 31,
+      ghost: 2, event: '91', price: '43', intensity: '9', mood_delta: '-15' },
+  ] } });
+  const view = feedbackView(ui);
+  assert.equal(ui.world, null);
+  assert.equal(viewModel(ui), null);
+  assert.equal(view.actions[0]!.text, 'haunt: applied at tick 1, target 31, charged 43 joss paper; intensity 9, pre-clamp Mood effect -15, event 91. Request 2 · input 70');
+  assert.deepEqual(view.playerLifecycle, [fact]);
+  assert.equal(view.playerLifecycle, ui.playerLifecycle);
+  assert.equal(view.settledOmitted, 0);
+});
+
+test('LV-C2: World projection excludes feedback while feedbackView retains unresolved rows and the latest twenty settled results', () => {
+  let ui = uiFor(waitingSnapshot());
+  const unknown = { type: 'haunt' as const, id: 1, target: 31 };
+  ui = reduce(ui, { type: 'request-sent', request: unknown, worldId: 1 });
+  ui = reduce(ui, { type: 'request-failed', request: unknown, worldId: 1, error: 'controlled transport failure' });
+  const queued = { type: 'claim' as const, id: 2, slot: 'imported_vessel' as const, carryOver: null };
+  ui = reduce(ui, { type: 'request-sent', request: queued, worldId: 1 });
+  const snapshot = { worldId: 1, runState: 'paused' as const, tick: '500', checksum: null, tps: null, speed: 1,
+    playerNode: { pending: false as const }, actions: [], playerLifecycle: [] };
+  ui = reduce(ui, { type: 'reply', request: queued, worldId: 1,
+    message: { type: 'reply', id: 2, ok: true, snapshot, submission: { tick: '500', seqs: ['70'] } } });
+  const sending = { type: 'haunt' as const, id: 3, target: 31 };
+  ui = reduce(ui, { type: 'request-sent', request: sending, worldId: 1 });
+  ui = reduce(ui, { type: 'status', snapshot: { ...snapshot, tick: '501', actions: Array.from({ length: 21 }, (_, index) => ({
+    worldId: 1, requestId: null, input_seq: String(100 + index), tick: '501', kind: 'bribe' as const,
+    state: 'rejected' as const, reason: 'bad_amount' as const, amount: '0',
+  })) } });
+  const before = ui.actions;
+  const worldView = viewModel(ui)!;
+  assert.equal(Object.hasOwn(worldView, 'actions'), false);
+  assert.equal(Object.hasOwn(worldView, 'settledOmitted'), false);
+  assert.equal(Object.hasOwn(worldView, 'playerLifecycle'), false);
+  const view = feedbackView(ui);
+  assert.equal(view.actions.length, 23);
+  assert.deepEqual(view.actions.slice(0, 3).map(action => action.phase), ['unknown', 'queued', 'sending']);
+  assert.equal(view.actions[0]!.text, 'haunt: completion unknown. No retry was sent. Request 1');
+  assert.equal(view.actions[1]!.text, 'claim: admission queued at tick 500; consult Chronicle for completed outcomes. Request 2 · input 70');
+  assert.equal(view.actions[2]!.text, 'haunt: sending. Request 3');
+  assert.equal(view.actions[3]!.text, 'bribe: rejected at tick 501 (bad_amount). Request untracked · input 101');
+  assert.equal(view.actions[22]!.inputSeq, '120');
+  assert.equal(view.settledOmitted, 1);
+  assert.equal(ui.actions, before);
+  assert.notEqual(view.actions, ui.actions);
 });

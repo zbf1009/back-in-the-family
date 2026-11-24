@@ -18,6 +18,7 @@ import { type SeedProblem, seedProblemMessage } from '../shared/seed.ts';
 import type { ActionResult, PlayerLifecycleFact, SubmissionReceipt, WorldSnapshot } from '../shared/world-snapshot.ts';
 import { closeScene, retireNode, sceneQueue, type SceneClose, type SceneQueue } from './scene-queue.ts';
 import { initialUnderworldForm, type UnderworldForm } from './customization.ts';
+import { addObservation, emptyObservationIndex, hasObservation, type ObservationIndex } from './observation-index.ts';
 
 /**
  * A Worker_Protocol `reply` message, derived from the shared union. This is the
@@ -65,17 +66,18 @@ export interface UiState {
   /** Latest completed World Snapshot; presentation never computes an outcome. */
   world: WorldSnapshot | null;
   /** One outstanding read, or the tick whose read failed; never both. */
-  worldRead: { state: 'pending' | 'failed'; worldId: number; tick: string; requestId: number } | null;
+  worldRead: ({ state: 'pending'; worldId: number; tick: string; requestId: number }
+    | { state: 'failed'; worldId: number; tick: string; requestId?: number }) | null;
   /** Running statuses since a World carrier or the last read request, capped at ten. */
   worldStatuses: number;
   scene: SceneQueue | null;
   sceneEpisode: { worldId: number; tick: string } | null;
   actions: UiAction[];
   settledOmitted: number;
-  observedActions: ReadonlySet<string>;
-  settledRequests: ReadonlySet<number>;
+  observedActions: ObservationIndex;
+  settledRequests: ObservationIndex;
   playerLifecycle: PlayerLifecycleFact[];
-  observedLifecycle: ReadonlySet<string>;
+  observedLifecycle: ObservationIndex;
   lifecycleEpisode: string | null;
   underworldRecorded: { worldId: number; tick: string } | null;
   underworldForm: UnderworldForm;
@@ -84,7 +86,6 @@ export interface UiState {
   /** Newest observed pending/handled trigger; rejection may retain an older carrier. */
   decisionRequestId: number;
   /** Only the brief interval before the worker announces a decision or replies. */
-  decisionSending: number | null;
   decisionSendingRequestId: number | null;
   /** Error area text; non-empty while the last reply-or-fatal event was a failure (R5.8). */
   error: string | null;
@@ -114,6 +115,7 @@ export type UiEvent =
   | { type: 'seed-invalid'; problem: SeedProblem }
   | { type: 'request-sent'; request: Request; worldId?: number }
   | { type: 'request-failed'; request: Request; worldId: number; error: string }
+  | { type: 'world-read-start-failed'; worldId: number; tick: string; error: string }
   | { type: 'validation-error'; error: string }
   | { type: 'scene-close'; expected: SceneClose }
   | { type: 'underworld-form'; form: UnderworldForm };
@@ -135,16 +137,15 @@ export function initialUiState(): UiState {
     sceneEpisode: null,
     actions: [],
     settledOmitted: 0,
-    observedActions: new Set(),
-    settledRequests: new Set(),
+    observedActions: emptyObservationIndex(),
+    settledRequests: emptyObservationIndex(),
     playerLifecycle: [],
-    observedLifecycle: new Set(),
+    observedLifecycle: emptyObservationIndex(),
     lifecycleEpisode: null,
     underworldRecorded: null,
     underworldForm: initialUnderworldForm(),
     decision: null,
     decisionRequestId: 0,
-    decisionSending: null,
     decisionSendingRequestId: null,
     error: null,
     seedMessage: null,
@@ -177,9 +178,9 @@ export function reduce(s: UiState, e: UiEvent): UiState {
         case 'dream':
         case 'bribe':
           if (e.request.id <= s.decisionRequestId && s.decision?.pending?.requestId !== e.request.id
-            || s.settledRequests.has(e.request.id)
+            || hasObservation(s.settledRequests, String(e.request.id))
             || next.actions.some(action => action.requestId === e.request.id && terminal(action.phase))) return next;
-          return { ...next, decisionSending: worldId, decisionSendingRequestId: e.request.id };
+          return { ...next, decisionSendingRequestId: e.request.id };
         case 'world-snapshot':
           return s.worldRead?.state === 'pending' || s.tick === null ? next : {
             ...next, worldRead: { state: 'pending', worldId, tick: s.tick, requestId: e.request.id }, worldStatuses: 0,
@@ -204,9 +205,9 @@ export function reduce(s: UiState, e: UiEvent): UiState {
         worldRead: next.worldRead?.state === 'pending' ? next.worldRead : null, worldStatuses: 0,
         stepPending: false,
         scene: null, sceneEpisode: null, underworldRecorded: null, underworldForm: initialUnderworldForm(),
-        actions: [], settledOmitted: 0, observedActions: new Set(), settledRequests: new Set(),
-        playerLifecycle: [], observedLifecycle: new Set(), lifecycleEpisode: null,
-        decision: null, decisionRequestId: 0, decisionSending: null, decisionSendingRequestId: null,
+        actions: [], settledOmitted: 0, observedActions: emptyObservationIndex(), settledRequests: emptyObservationIndex(),
+        playerLifecycle: [], observedLifecycle: emptyObservationIndex(), lifecycleEpisode: null,
+        decision: null, decisionRequestId: 0, decisionSendingRequestId: null,
       };
       if (message.snapshot.worldId === next.worldId) next = ingest(next, message.snapshot);
       next = recordReply(next, e.request, message);
@@ -216,7 +217,7 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       if (!staleTrigger && message.snapshot.worldId === next.worldId) {
         next = { ...next, ...decisionFields(next, message.snapshot, trigger ? message.id : 0) };
       }
-      if (next.decisionSendingRequestId === message.id) next = { ...next, decisionSending: null, decisionSendingRequestId: null };
+      if (next.decisionSendingRequestId === message.id) next = { ...next, decisionSendingRequestId: null };
       if (message.ok) {
         if (message.snapshot.worldId !== next.worldId) return next;
         const oldFrame = olderFrame(next, message.snapshot);
@@ -268,16 +269,19 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       if (action !== undefined && terminal(action.phase)) return next;
       next = { ...next, actions: next.actions.map<UiAction>(row => row.requestId === e.request.id && !terminal(row.phase)
         ? { ...row, phase: 'unknown', error: e.error } : row) };
-      if (next.decisionSendingRequestId === e.request.id) next = { ...next, decisionSending: null, decisionSendingRequestId: null };
+      if (next.decisionSendingRequestId === e.request.id) next = { ...next, decisionSendingRequestId: null };
       if (e.request.type === 'world-snapshot' && next.worldRead?.worldId === e.worldId && next.worldRead.requestId === e.request.id) {
         next = { ...next, worldRead: { ...next.worldRead, state: 'failed' } };
       }
       return gameplay(e.request) ? next : { ...next, error: 'Completion unknown. No retry was sent.' };
     }
+    case 'world-read-start-failed':
+      if (e.worldId !== s.worldId || e.tick !== s.tick || s.runState === 'failed' || s.worldRead?.state === 'pending') return s;
+      return { ...s, error: e.error, worldRead: { state: 'failed', worldId: e.worldId, tick: e.tick }, worldStatuses: 0 };
     case 'fatal':
     case 'worker-error':
       return { ...s, runState: 'failed', error: e.error, createPending: false, stepPending: false, worldRead: null,
-        actions: s.actions.filter(action => terminal(action.phase)), decisionSending: null, decisionSendingRequestId: null,
+        actions: s.actions.filter(action => terminal(action.phase)), decisionSendingRequestId: null,
         decision: s.decision === null ? null : { ...s.decision, pending: null } };
     case 'seed-invalid': return { ...s, seedMessage: seedProblemMessage(e.problem) };
     case 'validation-error': return { ...s, error: e.error };
@@ -325,8 +329,6 @@ export function currentDecision(s: UiState): WorldSnapshot['player_node'] {
   return node;
 }
 
-export function nodeOptionsEnabled(s: UiState): boolean { return currentDecision(s) !== null; }
-
 /**
  * Which controls are enabled in the given state (R3.8, R4.7-R4.10).
  *
@@ -357,7 +359,7 @@ export function controls(s: UiState): {
 
 /** No new pause state: only competing commands are held; Create and reads remain available. */
 export function decisionBusy(s: UiState): boolean {
-  return s.decisionSending === s.worldId || s.decision?.pending?.worldId === s.worldId;
+  return s.decisionSendingRequestId !== null || s.decision?.pending?.worldId === s.worldId;
 }
 
 /** Fixed UI copy never includes provider text, options, usage, or quality claims. */
@@ -411,7 +413,7 @@ function gameplay(request: Request): boolean {
 function recordSent(s: UiState, request: Request, worldId: number): UiState {
   if (!gameplay(request)) return s;
   const prior = s.actions.find(action => action.requestId === request.id);
-  if (prior === undefined && s.settledRequests.has(request.id)) return s;
+  if (prior === undefined && hasObservation(s.settledRequests, String(request.id))) return s;
   return { ...s, actions: prior === undefined ? [...s.actions, {
     worldId, requestId: request.id, inputSeq: null, request,
     phase: request.type === 'dream' || request.type === 'bribe' ? 'deciding' : 'sending',
@@ -421,8 +423,6 @@ function recordSent(s: UiState, request: Request, worldId: number): UiState {
 
 function recordReply(s: UiState, request: Request, message: ReplyMessage): UiState {
   if (!gameplay(request) || message.snapshot.worldId !== s.worldId) return s;
-  if ((request.type === 'dream' || request.type === 'bribe') && request.id < s.decisionRequestId
-    && !s.actions.some(action => action.requestId === request.id && terminal(action.phase))) return s;
   let next = recordSent(s, request, s.worldId);
   next = { ...next, actions: next.actions.map<UiAction>(action => {
     if (action.requestId !== request.id) return action;
@@ -432,7 +432,7 @@ function recordReply(s: UiState, request: Request, message: ReplyMessage): UiSta
       : { ...action, phase: message.kind === 'cancelled' ? 'cancelled' : 'rejected',
         error: request.type === 'dream' ? dreamFailure(message) : message.error };
   }) };
-  if (!message.ok) next = { ...next, settledRequests: new Set([...next.settledRequests, request.id]) };
+  if (!message.ok) next = { ...next, settledRequests: addObservation(next.settledRequests, String(request.id)) };
   return limitSettled(next);
 }
 
@@ -448,34 +448,95 @@ function ingest(s: UiState, snapshot: Snapshot): UiState {
   if (snapshot.worldId !== s.worldId) return s;
   if (snapshot.actions.length === 0 && snapshot.playerLifecycle.length === 0) return s;
   let actions = s.actions;
-  const settledRequests = new Set(s.settledRequests);
-  const observedActions = new Set(s.observedActions);
+  let settledOmitted = s.settledOmitted;
+  let settledRequests = s.settledRequests;
+  let observedActions = s.observedActions;
+  let buffer: UiAction[] | null = null;
+  type Link = { position: number; previous: Link | null; next: Link | null };
+  type Chain = { first: Link; last: Link };
+  const bySeq = new Map<string, Chain>();
+  const byRequest = new Map<number, Chain>();
+  const seqLinks: (Link | null)[] = [];
+  const requestLinks: (Link | null)[] = [];
+  const removed = new Set<number>();
+  let settledCount = 0;
+  function append<K>(index: Map<K, Chain>, key: K, position: number): Link {
+    const chain = index.get(key);
+    const link: Link = { position, previous: chain?.last ?? null, next: null };
+    if (chain === undefined) index.set(key, { first: link, last: link });
+    else { chain.last.next = link; chain.last = link; }
+    return link;
+  }
+  function unlink<K>(index: Map<K, Chain>, key: K, link: Link): void {
+    const chain = index.get(key)!;
+    if (link.previous !== null) link.previous.next = link.next;
+    else if (link.next !== null) chain.first = link.next;
+    if (link.next !== null) link.next.previous = link.previous;
+    else if (link.previous !== null) chain.last = link.previous;
+    if (link.previous === null && link.next === null) index.delete(key);
+  }
+  function indexRow(row: UiAction, position: number): void {
+    seqLinks.push(row.inputSeq === null ? null : append(bySeq, row.inputSeq, position));
+    requestLinks.push(row.requestId === null ? null : append(byRequest, row.requestId, position));
+    if (terminal(row.phase)) settledCount++;
+  }
   for (const result of snapshot.actions) {
-    if (result.worldId !== s.worldId || observedActions.has(result.input_seq)) continue;
-    if (result.requestId !== null) settledRequests.add(result.requestId);
-    observedActions.add(result.input_seq);
-    const prior = actions.find(action => action.inputSeq === result.input_seq
-      || result.requestId !== null && action.requestId === result.requestId);
+    if (result.worldId !== s.worldId || hasObservation(observedActions, result.input_seq)) continue;
+    if (buffer === null) {
+      buffer = s.actions.slice();
+      for (let position = 0; position < buffer.length; position++) indexRow(buffer[position]!, position);
+    }
+    if (result.requestId !== null) settledRequests = addObservation(settledRequests, String(result.requestId));
+    observedActions = addObservation(observedActions, result.input_seq);
+    const seqPosition = bySeq.get(result.input_seq)?.first.position;
+    const requestPosition = result.requestId === null ? undefined : byRequest.get(result.requestId)?.first.position;
+    // Match either identity, retaining the first row in current delivery order.
+    const position = seqPosition === undefined ? requestPosition
+      : requestPosition === undefined ? seqPosition : Math.min(seqPosition, requestPosition);
+    const prior = position === undefined ? undefined : buffer[position];
+    if (position !== undefined && prior !== undefined) {
+      removed.add(position);
+      if (prior.inputSeq !== null) unlink(bySeq, prior.inputSeq, seqLinks[position]!);
+      if (prior.requestId !== null) unlink(byRequest, prior.requestId, requestLinks[position]!);
+      if (terminal(prior.phase)) settledCount--;
+    }
     const settled: UiAction = { worldId: result.worldId, requestId: result.requestId, inputSeq: result.input_seq,
       request: prior?.request ?? null, phase: result.state, submission: prior?.submission ?? null, result,
       error: result.state === 'rejected' ? result.reason : null };
-    actions = prior === undefined ? [...actions, settled] : [...actions.filter(action => action !== prior), settled];
+    indexRow(settled, buffer.length);
+    buffer.push(settled);
   }
-  const observedLifecycle = new Set(s.observedLifecycle);
-  const fresh = snapshot.playerLifecycle.filter(fact => {
-    if (observedLifecycle.has(fact.event)) return false;
-    observedLifecycle.add(fact.event); return true;
-  });
+  if (buffer !== null) {
+    let discard = Math.max(0, settledCount - 20);
+    settledOmitted += discard;
+    let retained = 0;
+    for (let position = 0; position < buffer.length; position++) {
+      if (removed.has(position)) continue;
+      const row = buffer[position]!;
+      if (discard > 0 && terminal(row.phase)) { discard--; continue; }
+      buffer[retained++] = row;
+    }
+    buffer.length = retained;
+    actions = buffer;
+  }
+  let observedLifecycle = s.observedLifecycle;
+  const fresh: PlayerLifecycleFact[] = [];
+  for (const fact of snapshot.playerLifecycle) {
+    const root = addObservation(observedLifecycle, fact.event);
+    if (root === observedLifecycle) continue;
+    observedLifecycle = root;
+    fresh.push(fact);
+  }
   // A delivered batch may contain birth and death at different ticks. Keep its complete episode.
   const newEpisode = fresh.length > 0 && snapshot.tick !== null
     && (s.lifecycleEpisode === null || BigInt(snapshot.tick) > BigInt(s.lifecycleEpisode));
-  const playerLifecycle = [...(newEpisode ? [] : s.playerLifecycle), ...fresh]
+  const playerLifecycle = fresh.length === 0 ? s.playerLifecycle : [...(newEpisode ? [] : s.playerLifecycle), ...fresh]
     .sort((a, b) => BigInt(a.event) < BigInt(b.event) ? -1 : BigInt(a.event) > BigInt(b.event) ? 1 : 0);
-  const sendingSettled = s.decisionSendingRequestId !== null && settledRequests.has(s.decisionSendingRequestId);
-  return limitSettled({ ...s, actions, observedActions, settledRequests, playerLifecycle, observedLifecycle,
+  const sendingSettled = s.decisionSendingRequestId !== null && hasObservation(settledRequests, String(s.decisionSendingRequestId));
+  if (actions === s.actions && observedLifecycle === s.observedLifecycle && !sendingSettled) return s;
+  return { ...s, actions, settledOmitted, observedActions, settledRequests, playerLifecycle, observedLifecycle,
     lifecycleEpisode: newEpisode ? snapshot.tick : s.lifecycleEpisode,
-    decisionSending: sendingSettled ? null : s.decisionSending,
-    decisionSendingRequestId: sendingSettled ? null : s.decisionSendingRequestId });
+    decisionSendingRequestId: sendingSettled ? null : s.decisionSendingRequestId };
 }
 
 function olderFrame(s: UiState, snapshot: Snapshot): boolean {

@@ -5,7 +5,7 @@ import { REPLY_TIMEOUT_MS, SimClient } from '../../src/main/sim-client.ts';
 import type { DecisionStatus, Reply, Request, RequestTicket, Snapshot, WorkerMessage } from '../../src/shared/protocol.ts';
 import { settle } from './helpers/decision.ts';
 import { installHarness } from '../../src/main/harness.ts';
-import { reduce } from '../../src/main/ui-state.ts';
+import { decisionBusy, reduce } from '../../src/main/ui-state.ts';
 import { uiFor, waitingSnapshot } from './helpers/view.ts';
 
 class WorkerPort extends EventTarget {
@@ -303,3 +303,71 @@ test('LV-C2: client filters only a closed decision subtree and preserves action 
   worker.emit({ type: 'status', snapshot: carrier });
   assert.equal(statuses.length, 1); client.dispose();
 });
+
+for (const newerPending of [false, true]) {
+  test(`LV-C2: FIFO-delayed Dream admission preserves a newer ${newerPending ? 'pending hold' : 'Bribe outcome'} and live World`, async t => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const worker = new WorkerPort();
+    let ui = uiFor(waitingSnapshot());
+    const client = new SimClient({ onStatus: snapshot => { ui = reduce(ui, { type: 'status', snapshot }); } }, worker as unknown as Worker);
+    const ordinary = client.run();
+    const timeout = assert.rejects(ordinary.reply, /run \(id 1\).*30000 ms/);
+    t.mock.timers.tick(1);
+    const dream = client.request({ type: 'dream', dreamer: 1, intent: 'warn' });
+    const dreamRequest = worker.requests[1]!;
+    ui = reduce(ui, { type: 'request-sent', request: dreamRequest, worldId: 1 });
+    const delivered: number[] = [];
+    const dreamCompletion = dream.reply.then(message => {
+      delivered.push(message.id);
+      ui = reduce(ui, { type: 'reply', request: dreamRequest, worldId: 1, message });
+    });
+    const oldDecision: DecisionStatus = { ...decision, pending: null,
+      outcome: { requestId: dream.requestId, worldId: 1, kind: 'fallback', reason: 'manual' } };
+    const oldSnapshot: Snapshot = { ...snapshot, tick: '500', decision: oldDecision };
+    const receipt = { tick: '500', seqs: ['18446744073709551614', '18446744073709551615'] };
+    worker.emit({ type: 'reply', id: dream.requestId, ok: true, snapshot: oldSnapshot, submission: receipt,
+      world: waitingSnapshot() });
+    await settle(); assert.deepEqual(delivered, [] as number[]);
+    assert.equal(ui.actions.find(row => row.requestId === dream.requestId)!.phase, 'deciding');
+    t.mock.timers.tick(1);
+    const bribe = client.request({ type: 'bribe', amount: '0' });
+    const bribeRequest = worker.requests[2]!;
+    ui = reduce(ui, { type: 'request-sent', request: bribeRequest, worldId: 1 });
+    const newerDecision: DecisionStatus = { ...decision, pending: null, spent: 2,
+      outcome: { requestId: bribe.requestId, worldId: 1, kind: 'fallback', reason: 'manual' } };
+    const world = { ...waitingSnapshot(), tick: '501' };
+    const newerSnapshot: Snapshot = { ...snapshot, tick: '501', decision: newerDecision, actions: [{ worldId: 1,
+      requestId: bribe.requestId, input_seq: '90', tick: '501', kind: 'bribe', state: 'rejected', reason: 'bad_amount', amount: '0' }],
+      stop: { reasons: ['user'], world } };
+    worker.emit({ type: 'status', snapshot: newerSnapshot });
+    const bribeCompletion = bribe.reply.then(message => {
+      delivered.push(message.id);
+      ui = reduce(ui, { type: 'reply', request: bribeRequest, worldId: 1, message });
+    });
+    worker.emit({ type: 'reply', id: bribe.requestId, ok: true, snapshot: newerSnapshot, submission: { tick: '501', seqs: ['90'] } });
+    let holdCompletion: Promise<unknown> | null = null;
+    if (newerPending) {
+      t.mock.timers.tick(1);
+      const hold = client.request({ type: 'bribe', amount: '1' });
+      ui = reduce(ui, { type: 'request-sent', request: worker.requests[3]!, worldId: 1 });
+      holdCompletion = assert.rejects(hold.reply, /sim client disposed/);
+      worker.emit({ type: 'status', snapshot: { ...newerSnapshot, actions: [], decision: { ...newerDecision,
+        pending: { requestId: hold.requestId, worldId: 1, tick: '501', trigger: '91' } } } });
+    }
+    ui = reduce(ui, { type: 'validation-error', error: 'Keep the newer error.' });
+    const retained = ui;
+    await settle(); assert.deepEqual(delivered, []);
+    t.mock.timers.tick(REPLY_TIMEOUT_MS - (newerPending ? 3 : 2));
+    await Promise.all([timeout, dreamCompletion, bribeCompletion]);
+    assert.deepEqual(delivered, [dream.requestId, bribe.requestId]);
+    const row = ui.actions.find(action => action.requestId === dream.requestId)!;
+    assert.equal(row.phase, 'queued'); assert.equal(row.submission, receipt); assert.equal(row.inputSeq, receipt.seqs[0]);
+    assert.equal(row.request, dreamRequest); assert.equal(row.result, null); assert.equal(row.error, null);
+    assert.equal(ui.tick, '501'); assert.equal(ui.world, world); assert.equal(ui.decision, retained.decision);
+    assert.equal(ui.error, retained.error); assert.equal(ui.underworldRecorded, retained.underworldRecorded);
+    assert.equal(ui.decisionSendingRequestId, retained.decisionSendingRequestId); assert.equal(decisionBusy(ui), newerPending);
+    assert.equal(retained.actions.find(action => action.requestId === dream.requestId)!.phase, 'deciding');
+    assert.deepEqual(worker.requests.map(request => request.type), newerPending ? ['run', 'dream', 'bribe', 'bribe'] : ['run', 'dream', 'bribe']);
+    client.dispose(); if (holdCompletion !== null) await holdCompletion;
+  });
+}

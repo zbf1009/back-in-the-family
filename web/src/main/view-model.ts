@@ -66,6 +66,12 @@ export function viewModel(ui: UiState) {
     needed: world.underworld_view?.slots.map(slot => ({
       slot: slot.slot, lines: slot.status.needed.map(neededText),
     })) ?? [],
+  };
+}
+
+/** Receipt and observation feedback does not depend on a World Snapshot. */
+export function feedbackView(ui: UiState) {
+  return {
     actions: ui.actions.map(action => ({ ...action, text: actionText(action, ui.tick) })),
     settledOmitted: ui.settledOmitted,
     playerLifecycle: ui.playerLifecycle,

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { controls, decisionBusy, decisionNotice, initialUiState, nodeOptionsEnabled, reduce, worldSnapshotNeeded } from '../../src/main/ui-state.ts';
+import { controls, currentDecision, decisionBusy, decisionNotice, initialUiState, reduce, worldSnapshotNeeded } from '../../src/main/ui-state.ts';
 import type { UiState } from '../../src/main/ui-state.ts';
 import type { DecisionStatus, Reply, Request, Snapshot } from '../../src/shared/protocol.ts';
 import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
@@ -38,7 +38,7 @@ test('paused decision disables competing Run Step and choices but not Create or 
   assert.equal(worldSnapshotNeeded({ ...ui, world: null }), true);
   const world = pendingSnapshot('debt_due');
   const choice = { ...uiFor(world), decision: ui.decision, scene: { worldId: 1, tick: world.tick, world, reasons: ['player_node'] as const, entries: [{ kind: 'choice' as const, node: world.player_node!.id }] } };
-  assert.equal(nodeOptionsEnabled({ ...choice, scene: { ...choice.scene, reasons: ['player_node'] } }), false);
+  assert.equal(currentDecision({ ...choice, scene: { ...choice.scene, reasons: ['player_node'] } }) !== null, false);
 });
 
 test('running hold retains native Run State while Pause is temporarily unavailable', () => {
@@ -262,7 +262,7 @@ test('LV-C2: stale decision subtrees preserve older same-world facts without rol
     type: 'reply', id: 40, ok: true, snapshot: carrier, world: carrier.stop!.world,
   } });
   assert.equal(ui.world, world); assert.equal(ui.tick, '500'); assert.equal(ui.actions.length, 1);
-  assert.equal(ui.playerLifecycle.length, 1); assert.equal(nodeOptionsEnabled(ui), true);
+  assert.equal(ui.playerLifecycle.length, 1); assert.equal(currentDecision(ui) !== null, true);
   const before = ui;
   ui = reduce(ui, { type: 'status', snapshot: { ...carrier, worldId: 0,
     actions: [{ ...action, worldId: 0, input_seq: '71' }], playerLifecycle: [{ ...fact, event: '81' }] } });
@@ -282,5 +282,35 @@ test('LV-C2: a fresh live stop with a stale decision subtree still adopts its Wo
     stop: { reasons: ['player_died'], world } } });
   assert.equal(ui.tick, '501'); assert.equal(ui.world, world); assert.equal(ui.world!.player.place, 'waiting');
   assert.equal(ui.decision, retainedDecision); assert.deepEqual(ui.playerLifecycle, [fact]);
-  assert.equal(ui.scene!.entries[0]!.kind, 'funeral'); assert.equal(nodeOptionsEnabled(ui), false);
+  assert.equal(ui.scene!.entries[0]!.kind, 'funeral'); assert.equal(currentDecision(ui) !== null, false);
+});
+
+test('LV-C2: stale Dream admission can enrich retained terminal metadata but cannot revive evicted requests or a newer hold', () => {
+  let ui = uiFor(waitingSnapshot());
+  for (let id = 1; id <= 25; id++) {
+    const request: Request = { type: 'dream', id, dreamer: 1, intent: 'warn' };
+    ui = reduce(ui, { type: 'request-sent', request, worldId: 1 });
+    ui = reduce(ui, { type: 'reply', request, worldId: 1, message: { type: 'reply', id, ok: false,
+      kind: id === 25 ? 'cancelled' : 'rejected', error: 'not recorded', snapshot: snapshot(ui, session()) } });
+  }
+  assert.equal(ui.actions.length, 20); assert.equal(ui.settledOmitted, 5);
+  const holdRequest: Request = { type: 'bribe', id: 30, amount: '1' };
+  ui = reduce(ui, { type: 'request-sent', request: holdRequest, worldId: 1 });
+  ui = reduce(ui, { type: 'status', snapshot: snapshot(ui, session({
+    pending: { requestId: 30, worldId: 1, tick: ui.tick!, trigger: '90' },
+  })) });
+  const retained = ui;
+  for (const id of [1, 25]) {
+    const request: Request = { type: 'dream', id, dreamer: 1, intent: 'warn' };
+    ui = reduce(ui, { type: 'reply', request, worldId: 1, message: { type: 'reply', id, ok: true,
+      snapshot: snapshot(ui, session({ outcome: { requestId: id, worldId: 1, kind: 'fallback', reason: 'manual' } })),
+      submission: { tick: ui.tick!, seqs: [String(id)] } } });
+  }
+  assert.equal(ui.actions.length, 21); assert.equal(ui.settledOmitted, 5);
+  assert.equal(ui.actions.some(row => row.requestId === 1), false);
+  const terminal = ui.actions.find(row => row.requestId === 25)!;
+  assert.equal(terminal.phase, 'cancelled'); assert.deepEqual(terminal.submission, { tick: ui.tick!, seqs: ['25'] });
+  assert.equal(ui.decision, retained.decision); assert.equal(ui.decisionSendingRequestId, 30);
+  assert.equal(decisionBusy(ui), true); assert.equal(ui.error, retained.error); assert.equal(ui.world, retained.world);
+  assert.equal(retained.actions.find(row => row.requestId === 25)!.submission, null);
 });

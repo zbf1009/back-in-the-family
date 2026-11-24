@@ -29,10 +29,11 @@ import {
   reduce,
   controls,
   worldSnapshotNeeded,
-  nodeOptionsEnabled,
+  currentDecision,
   type UiEvent,
   type UiState,
 } from '../../src/main/ui-state.ts';
+import { hasObservation } from '../../src/main/observation-index.ts';
 import type { Request, RunState, Snapshot, WorkerMessage } from '../../src/shared/protocol.ts';
 import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
 
@@ -656,13 +657,13 @@ test('LV-C2: current options remain available behind historical scenes without c
   let ui = uiFor(world);
   const snapshot: Snapshot = { worldId: 1, runState: 'paused', tick: world.tick, checksum: null, speed: 1, tps: null, actions: [], playerLifecycle: [], playerNode: ui.playerNode };
   ui = reduce(ui, { type: 'status', snapshot: { ...snapshot, stop: { reasons: ['player_died', 'dream_resolved', 'player_reborn', 'player_node'], world } } });
-  assert.equal(nodeOptionsEnabled(ui), true);
+  assert.equal(currentDecision(ui) !== null, true);
   const shell = controls(ui);
   for (let index = 0; index < 3; index++) {
     ui = reduce(ui, { type: 'scene-close', expected: { worldId: ui.scene!.worldId, tick: ui.scene!.tick, entry: ui.scene!.entries[0]! } });
     assert.deepEqual(controls(ui), shell);
   }
-  assert.equal(nodeOptionsEnabled(ui), true);
+  assert.equal(currentDecision(ui) !== null, true);
   const before = ui.scene;
   ui = reduce(ui, { type: 'scene-close', expected: { worldId: ui.scene!.worldId, tick: ui.scene!.tick, entry: ui.scene!.entries[0]! } });
   assert.equal(ui.scene, before, 'a node scene has no independent close');
@@ -696,7 +697,7 @@ test('LV-C2: terminal action facts survive delayed queued replies and request-se
     ui = reduce(ui, { type: 'status', snapshot: { ...deliverySnapshot(ui), tick: '501', actions: [action] } });
     if (!sendFirst) ui = reduce(ui, { type: 'request-sent', request, worldId: 1 });
     assert.equal(ui.actions.length, 1); assert.equal(ui.actions[0]!.phase, 'applied');
-    assert.equal(ui.decisionSending, null);
+    assert.equal(ui.decisionSendingRequestId, null);
     ui = reduce(ui, { type: 'reply', request, worldId: 1, message: {
       type: 'reply', id: 23, ok: true, submission: { tick: '500', seqs: ['100', '101'] },
       snapshot: { ...deliverySnapshot(ui), tick: '500' },
@@ -733,7 +734,8 @@ test('LV-C2: settled display retains twenty while pending and unknown actions re
   ui = reduce(ui, { type: 'status', snapshot: carrier });
   ui = reduce(ui, { type: 'status', snapshot: { ...carrier, tick: '502', actions: [], playerLifecycle: [] } });
   assert.deepEqual(ui.actions, retained); assert.equal(ui.settledOmitted, 5);
-  assert.equal(ui.observedActions.size, 25); assert.equal(ui.tick, '502');
+  for (const action of actions) assert.equal(hasObservation(ui.observedActions, action.input_seq), true);
+  assert.equal(hasObservation(ui.observedActions, '26'), false); assert.equal(ui.tick, '502');
 });
 
 test('LV-C2: complete same-batch birth and death facts merge once without turning a waiting Soul into a living body', () => {
@@ -748,7 +750,9 @@ test('LV-C2: complete same-batch birth and death facts merge once without turnin
   const episode = ui.scene;
   ui = reduce(ui, { type: 'status', snapshot });
   ui = reduce(ui, { type: 'status', snapshot: { ...deliverySnapshot(ui), tick: '501' } });
-  assert.deepEqual(ui.playerLifecycle, facts); assert.equal(ui.observedLifecycle.size, 2);
+  assert.deepEqual(ui.playerLifecycle, facts);
+  for (const fact of facts) assert.equal(hasObservation(ui.observedLifecycle, fact.event), true);
+  assert.equal(hasObservation(ui.observedLifecycle, '82'), false);
   assert.equal(ui.world!.player.place, 'waiting'); assert.equal(ui.world!.player.body, null);
   assert.deepEqual(episode!.entries.map(entry => entry.kind), ['funeral', 'birth']);
 });
@@ -767,7 +771,7 @@ test('LV-C2: successful Create resets old action form and lifecycle bindings whi
   } });
   assert.equal(ui.worldId, 2); assert.equal(ui.world, freshWorld); assert.equal(ui.actions.length, 0);
   assert.equal(ui.underworldForm.customization, null); assert.equal(ui.underworldForm.carryOver, null);
-  assert.equal(ui.playerLifecycle.length, 0); assert.equal(ui.decisionSending, null);
+  assert.equal(ui.playerLifecycle.length, 0); assert.equal(ui.decisionSendingRequestId, null);
   const replaced = ui;
   ui = reduce(ui, { type: 'request-failed', request: old, worldId: 1, error: 'old timeout' });
   ui = reduce(ui, { type: 'reply', request: old, worldId: 1, message: {
@@ -805,4 +809,137 @@ test('LV-C2: an evicted terminal request cannot be resurrected by delayed sendin
   assert.equal(ui.actions.some(action => action.requestId === 1), false);
   assert.ok(ui.actions.every(action => action.phase === 'rejected'));
   assert.equal(ui.tick, '501');
+});
+
+test('LV-C2: a thousand-result batch indexes pending rows once and keeps exact settled metadata', () => {
+  let identityReads = 0;
+  const pending = Array.from({ length: 1500 }, (_, index) => {
+    const request: Request = { type: 'haunt', id: 2000 + index, target: 1 };
+    return Object.freeze({
+      worldId: 1, get requestId() { identityReads++; return request.id; },
+      get inputSeq() { identityReads++; return null; }, request,
+      phase: index % 2 === 0 ? 'sending' as const : 'unknown' as const,
+      submission: null, result: null, error: index % 2 === 0 ? null : 'timeout',
+    });
+  });
+  const admitted = Array.from({ length: 20 }, (_, index) => {
+    const request: Request = { type: 'haunt', id: 981 + index, target: 1 };
+    return Object.freeze({ worldId: 1, requestId: request.id, inputSeq: String(10980 + index), request,
+      phase: 'queued' as const, submission: { tick: '499', seqs: [String(10980 + index)] }, result: null, error: null });
+  });
+  const previous: UiState = { ...deliveryState('502'), actions: [...pending, ...admitted] };
+  Object.freeze(previous.actions);
+  const results: ActionResult[] = Array.from({ length: 1000 }, (_, index) => ({
+    worldId: 1, requestId: index + 1, input_seq: String(10000 + index), tick: '501', kind: 'haunt', state: 'rejected',
+    reason: 'rate_limited', target: 1,
+  }));
+  const next = reduce(previous, { type: 'status', snapshot: { ...deliverySnapshot(previous), tick: '501',
+    actions: [...results, results[0]!, { ...results[0]!, worldId: 2, input_seq: '99999' }] } });
+  assert.ok(identityReads <= 8 * previous.actions.length, `pending identity reads ${identityReads} must be linear in retained rows`);
+  assert.equal(next.actions.length, 1520); assert.equal(next.settledOmitted, 980);
+  assert.deepEqual(next.actions.slice(0, pending.length), pending);
+  assert.equal(next.actions.filter(row => row.phase === 'unknown').length, 750);
+  for (let index = 0; index < 20; index++) {
+    const row = next.actions[pending.length + index]!;
+    assert.equal(row.request, admitted[index]!.request); assert.equal(row.submission, admitted[index]!.submission);
+    assert.equal(row.result, results[980 + index]); assert.equal(row.inputSeq, String(10980 + index));
+    assert.equal(row.requestId, 981 + index); assert.equal(row.phase, 'rejected'); assert.equal(row.error, 'rate_limited');
+  }
+  for (const result of results) {
+    assert.equal(hasObservation(next.observedActions, result.input_seq), true);
+    assert.equal(hasObservation(next.settledRequests, String(result.requestId)), true);
+  }
+  assert.equal(hasObservation(next.observedActions, '99999'), false);
+  assert.equal(previous.actions.length, 1520); assert.equal(previous.actions[1500], admitted[0]);
+  assert.equal(previous.settledOmitted, 0); assert.equal(previous.observedActions, null);
+  assert.equal(next.tick, '502'); assert.equal(next.world, previous.world);
+});
+
+test('LV-C2: batch identity collisions retain first-match metadata and terminal delivery order', () => {
+  const firstRequest: Request = { type: 'haunt', id: 40, target: 1 };
+  const laterRequest: Request = { type: 'haunt', id: 50, target: 1 };
+  const first = { worldId: 1, requestId: 40, inputSeq: '70', request: firstRequest, phase: 'queued' as const,
+    submission: { tick: '499', seqs: ['70'] }, result: null, error: null };
+  const later = { ...first, requestId: 50, inputSeq: '71', request: laterRequest, submission: { tick: '498', seqs: ['71'] } };
+  const another = { ...later, inputSeq: '72', submission: { tick: '497', seqs: ['72'] } };
+  const before: UiState = { ...deliveryState(), actions: [first, later, another] };
+  const results: ActionResult[] = ['70', '73', '74'].map(input_seq => ({ worldId: 1, requestId: 50, input_seq,
+    tick: '499', kind: 'haunt', state: 'rejected', reason: 'rate_limited', target: 1 }));
+  const next = reduce(before, { type: 'status', snapshot: { ...deliverySnapshot(before), actions: [...results, results[0]!] } });
+  assert.deepEqual(next.actions.map(row => row.inputSeq), ['70', '73', '74']);
+  assert.deepEqual(next.actions.map(row => row.submission), [first.submission, later.submission, another.submission]);
+  assert.deepEqual(next.actions.map(row => row.request), [firstRequest, laterRequest, laterRequest]);
+  assert.deepEqual(next.actions.map(row => row.result), results);
+  assert.deepEqual(before.actions, [first, later, another]);
+});
+
+test('LV-C2: immutable lifetime roots share duplicates and unrelated carriers without forgetting old facts', () => {
+  const original = deliveryState();
+  const action: ActionResult = { worldId: 1, requestId: 77, input_seq: '18446744073709551615', tick: '499', kind: 'haunt',
+    state: 'rejected', reason: 'rate_limited', target: 1 };
+  const fact: PlayerLifecycleFact = { event: '18446744073709551614', tick: '499', kind: 'death', body: 2, name: 'Body', origin: 'native' };
+  const actionsOnly = reduce(original, { type: 'status', snapshot: { ...deliverySnapshot(original), actions: [action] } });
+  assert.equal(actionsOnly.observedLifecycle, original.observedLifecycle);
+  assert.equal(actionsOnly.playerLifecycle, original.playerLifecycle);
+  const lifecycleOnly = reduce(actionsOnly, { type: 'status', snapshot: { ...deliverySnapshot(actionsOnly), playerLifecycle: [fact] } });
+  assert.equal(lifecycleOnly.actions, actionsOnly.actions); assert.equal(lifecycleOnly.observedActions, actionsOnly.observedActions);
+  assert.equal(lifecycleOnly.settledRequests, actionsOnly.settledRequests);
+  const duplicate = reduce(lifecycleOnly, { type: 'status', snapshot: { ...deliverySnapshot(lifecycleOnly), actions: [action], playerLifecycle: [fact] } });
+  assert.equal(duplicate.actions, lifecycleOnly.actions); assert.equal(duplicate.playerLifecycle, lifecycleOnly.playerLifecycle);
+  assert.equal(duplicate.observedActions, lifecycleOnly.observedActions); assert.equal(duplicate.settledRequests, lifecycleOnly.settledRequests);
+  assert.equal(duplicate.observedLifecycle, lifecycleOnly.observedLifecycle);
+  const newerFact: PlayerLifecycleFact = { ...fact, event: '90', tick: '501', kind: 'birth' };
+  const newEpisode = reduce(duplicate, { type: 'status', snapshot: { ...deliverySnapshot(duplicate), tick: '501', playerLifecycle: [newerFact] } });
+  assert.deepEqual(newEpisode.playerLifecycle, [newerFact]);
+  const late = reduce(newEpisode, { type: 'status', snapshot: { ...deliverySnapshot(newEpisode), tick: '499', actions: [action], playerLifecycle: [fact] } });
+  assert.equal(late.actions, newEpisode.actions); assert.equal(late.playerLifecycle, newEpisode.playerLifecycle);
+  assert.equal(hasObservation(late.observedLifecycle, fact.event), true);
+  assert.equal(hasObservation(lifecycleOnly.observedLifecycle, newerFact.event), false);
+  assert.equal(hasObservation(original.observedActions, action.input_seq), false);
+  const sent = reduce(late, { type: 'request-sent', worldId: 1, request: { type: 'haunt', id: 78, target: 1 } });
+  assert.equal(sent.observedActions, late.observedActions); assert.equal(sent.settledRequests, late.settledRequests);
+  const failed = reduce(sent, { type: 'reply', worldId: 1, request: { type: 'haunt', id: 78, target: 1 }, message: {
+    type: 'reply', id: 78, ok: false, kind: 'rejected', error: 'rate_limited', snapshot: deliverySnapshot(sent),
+  } });
+  assert.equal(failed.observedActions, sent.observedActions); assert.equal(failed.observedLifecycle, sent.observedLifecycle);
+  assert.equal(hasObservation(failed.settledRequests, '77'), true); assert.equal(hasObservation(failed.settledRequests, '78'), true);
+  assert.equal(hasObservation(sent.settledRequests, '78'), false);
+  const failedAgain = reduce(failed, { type: 'reply', worldId: 1, request: { type: 'haunt', id: 78, target: 1 }, message: {
+    type: 'reply', id: 78, ok: false, kind: 'rejected', error: 'rate_limited', snapshot: deliverySnapshot(failed),
+  } });
+  assert.equal(failedAgain.settledRequests, failed.settledRequests);
+});
+
+test('LV-C2: pre-issuance World read failure suppresses same-tick demand without a fabricated ticket', () => {
+  const before = { ...deliveryState('10'), world: null };
+  assert.equal(worldSnapshotNeeded(before), true);
+  const failed = reduce(before, { type: 'world-read-start-failed', worldId: 1, tick: '10', error: 'transport unavailable' });
+  assert.deepEqual(failed.worldRead, { state: 'failed', worldId: 1, tick: '10' });
+  assert.equal(failed.error, 'transport unavailable'); assert.equal(worldSnapshotNeeded(failed), false);
+  assert.equal(failed.actions, before.actions); assert.equal(failed.world, before.world); assert.equal(failed.tick, before.tick);
+  const nextTick = reduce(failed, { type: 'status', snapshot: { ...deliverySnapshot(failed), tick: '11' } });
+  assert.equal(worldSnapshotNeeded(nextTick), true);
+  const pending = startWorldRead(nextTick);
+  for (const event of [
+    { type: 'world-read-start-failed' as const, worldId: 1, tick: '10', error: 'old tick' },
+    { type: 'world-read-start-failed' as const, worldId: 2, tick: '11', error: 'old world' },
+    { type: 'world-read-start-failed' as const, worldId: 1, tick: '11', error: 'pending read' },
+  ]) assert.equal(reduce(pending, event), pending);
+  const replaced = deliveryReply(failed, { type: 'create-world', id: 101, seed: '2', config: '{}' },
+    { ...deliverySnapshot(failed), worldId: 2, tick: '10' });
+  assert.equal(reduce(replaced, { type: 'world-read-start-failed', worldId: 1, tick: '10', error: 'old world' }), replaced);
+  const fatal = reduce(before, { type: 'fatal', error: 'dead worker' });
+  assert.equal(reduce(fatal, { type: 'world-read-start-failed', worldId: 1, tick: '10', error: 'late' }), fatal);
+});
+
+test('LV-C2: a pre-issuance running read failure retains the ten-status spacing and frozen-tick guard', () => {
+  const before = { ...deliveryState('10', 'running'), worldStatuses: 10 };
+  const failed = reduce(before, { type: 'world-read-start-failed', worldId: 1, tick: '10', error: 'transport unavailable' });
+  assert.equal(failed.worldStatuses, 0); assert.equal(worldSnapshotNeeded(failed), false);
+  let ui = failed;
+  for (let index = 1; index <= 9; index++) { ui = runningStatus(ui); assert.equal(worldSnapshotNeeded(ui), false); }
+  assert.equal(worldSnapshotNeeded(runningStatus(ui)), true);
+  ui = failed;
+  for (let index = 0; index < 10; index++) ui = runningStatus(ui, false);
+  assert.equal(worldSnapshotNeeded(ui), false); assert.equal(worldSnapshotNeeded(runningStatus(ui)), true);
 });

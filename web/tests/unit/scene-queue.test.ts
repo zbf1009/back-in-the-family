@@ -5,7 +5,7 @@ import fc from 'fast-check';
 import type { PauseReason, Request, Snapshot } from '../../src/shared/protocol.ts';
 import type { PlayerFamily, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import { sceneQueue } from '../../src/main/scene-queue.ts';
-import { controls, currentDecision, nodeOptionsEnabled, reduce, type UiState } from '../../src/main/ui-state.ts';
+import { controls, currentDecision, reduce, type UiState } from '../../src/main/ui-state.ts';
 import { underworldView, viewModel } from '../../src/main/view-model.ts';
 import { pendingSnapshot, snapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
 
@@ -38,14 +38,14 @@ test('Property 25: stop order and accepted actions keep one current entry withou
       const requests: Request[] = [];
       for (const action of actions) {
         assert.deepEqual(ui.scene?.entries ?? [], left);
-        assert.equal(nodeOptionsEnabled(ui), family !== null && !answered);
+        assert.equal(currentDecision(ui) !== null, family !== null && !answered);
         assert.deepEqual(controls(ui), controls({ ...ui, scene: null }), 'an overlay changes no Run/Step enablement');
         const before = ui;
         if (action === 'close') {
           if (ui.scene !== null) ui = reduce(ui, { type: 'scene-close',
             expected: { worldId: ui.scene.worldId, tick: ui.scene.tick, entry: ui.scene.entries[0]! } });
           if (left[0]?.node === null) left.shift();
-        } else if (nodeOptionsEnabled(ui)) {
+        } else if (currentDecision(ui) !== null) {
           const request: Request = { type: 'choose', id: requests.length + 1, node: '12', option: world.player_node!.options[0]!.id };
           requests.push(request);
           ui = reduce(ui, { type: 'reply', request, message: action === 'accept'
@@ -80,7 +80,7 @@ test('R10.12: a Step stop status replaces the queue before its reply without cle
   ui = reduce(ui, { type: 'reply', request: { type: 'step', id: 1 }, message: { type: 'reply', id: 1, ok: true, snapshot: stopped } });
   assert.equal(ui.scene, queue);
   assert.equal(ui.scene!.entries[0]!.kind, 'inheritance');
-  assert.equal(nodeOptionsEnabled(ui), true);
+  assert.equal(currentDecision(ui) !== null, true);
 });
 
 test('R10.12/R11.13: an accepted Dream fallback records with the funeral open and no control disablement', () => {
