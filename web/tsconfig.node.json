@@ -14,5 +14,5 @@
     "skipLibCheck": true,
     "noEmit": true
   },
-  "include": ["vite.config.ts", "playwright.config.ts", "scripts/**/*.ts", "tests/**/*.ts", "../scripts/check-decision-contract.ts", "../scripts/tests/decision-contract.test.ts"]
+  "include": ["vite.config.ts", "playwright*.config.ts", "scripts/**/*.ts", "tests/**/*.ts", "../scripts/check-decision-contract.ts", "../scripts/tests/decision-contract.test.ts"]
 }

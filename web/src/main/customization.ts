@@ -13,6 +13,16 @@ export interface UnderworldForm {
   customization: CustomizationForm | null;
 }
 
+export function parseBribeAmount(value: string): { ok: true; value: string } | { ok: false; error: string } {
+  if (value.length === 0 || (value.length > 1 && value[0] === '0') || /[^0-9]/.test(value)) {
+    return { ok: false, error: 'Use a canonical decimal amount: digits only, without spaces, signs or leading zeros.' };
+  }
+  if (value.length > 20 || BigInt(value) > 18446744073709551615n) {
+    return { ok: false, error: 'The amount exceeds the maximum u64 value (18446744073709551615).' };
+  }
+  return { ok: true, value };
+}
+
 export function blankCustomization(kind: 'Set' | 'Adjust'): CustomizationForm {
   return kind === 'Set' ? { kind, trait: null, value: null }
     : { kind, first: null, firstDelta: null, second: null, secondDelta: null };

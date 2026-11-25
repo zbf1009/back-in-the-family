@@ -35,14 +35,14 @@ const exec = promisify(execFile);
 const SHA = /^[a-f0-9]{64}$/;
 export const SOURCE_INPUT_PATHS = ['Cargo.toml', 'Cargo.lock', 'crates/sim-core/Cargo.toml', 'crates/sim-wasm/Cargo.toml',
   'rust-toolchain.toml', 'mise.toml', '.cargo/config.toml', 'web/package.json', 'web/pnpm-lock.yaml',
-  'web/vite.config.ts', 'web/tsconfig.app.json', 'web/tsconfig.worker.json', 'web/tsconfig.node.json', 'web/index.html', 'web/assets/ASSETS.json',
+  'web/vite.config.ts', 'web/tsconfig.app.json', 'web/tsconfig.worker.json', 'web/tsconfig.node.json', 'web/index.html',
   'web/wrangler.jsonc', 'worker-api/package.json', 'worker-api/wrangler.jsonc', 'worker-api/tsconfig.json', 'worker-api/runtime-configuration.d.ts',
   'scripts/wasm-build.sh', 'scripts/web-build.sh', 'scripts/worker-build.sh', 'scripts/gates.sh',
   'scripts/check-decision-contract.ts', 'scripts/tests/decision-contract.test.ts', 'scripts/artifact-inputs.ts',
   'scripts/artifact-licenses.ts', 'scripts/check-artifact.ts', 'scripts/artifact-sdk-lock.ts',
   'scripts/check-artifact-sdk.mjs', 'scripts/check-artifact-sdk-native.mjs', 'scripts/prepare-artifact-sdk-cache.mjs',
   'scripts/prepare-artifact-metadata.sh', 'scripts/stage-artifact.ts', 'LICENSE'];
-export const SOURCE_INPUT_DIRECTORIES = ['web/src', 'crates/sim-core/src', 'crates/sim-wasm/src', 'worker-api/src'];
+export const SOURCE_INPUT_DIRECTORIES = ['web/src', 'web/public', 'web/assets', 'crates/sim-core/src', 'crates/sim-wasm/src', 'worker-api/src'];
 export const METADATA_INPUT_PATHS = { 'package.json': 'worker-api/artifact-deploy/package.json',
   'pnpm-lock.yaml': 'worker-api/artifact-deploy/pnpm-lock.yaml', NOTICE: 'worker-api/artifact-deploy/NOTICE', LICENSE: 'LICENSE' };
 const media = ['.png', '.gif', '.webp', '.jpg', '.svg', '.ttf', '.otf', '.woff', '.woff2', '.mp3', '.ogg', '.wav'];

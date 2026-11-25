@@ -9,9 +9,8 @@
   // simulation only by calling SimClient methods, which send Worker_Protocol
   // messages (R2.2, R6.2).
   //
-  // The page keeps the shell controls and renders town, identity, choices and
-  // Chronicle from reducer-owned World Snapshots. Choices submit one option;
-  // only the existing Run and Step controls advance the simulation (R10.10).
+  // Life-first presentation derives from reducer-owned World Snapshots. Only
+  // existing Run/Step controls advance time; artwork and disclosures do not.
   //
   // Note: the reactive state variable is named `ui`, not `state`. A variable named
   // `state` collides with the `$state` rune call (`$state(...)` reads as a store
@@ -39,17 +38,11 @@
   import { parseSeed } from './shared/seed.ts';
   import { isSpeed, SPEEDS } from './shared/speeds.ts';
   import type { PlayerOption, Slot } from './shared/world-snapshot.ts';
-  import TownView from './ui/TownView.svelte';
-  import IdentityPanel from './ui/IdentityPanel.svelte';
-  import ChoicePanel from './ui/ChoicePanel.svelte';
-  import UnderworldPanel from './ui/UnderworldPanel.svelte';
-  import Funeral from './ui/scenes/Funeral.svelte';
-  import Inheritance from './ui/scenes/Inheritance.svelte';
-  import Dream from './ui/scenes/Dream.svelte';
-  import Birth from './ui/scenes/Birth.svelte';
-  import { claimRequest, dreamRequest, type UnderworldForm } from './main/customization.ts';
-  import { feedbackView, underworldView } from './main/view-model.ts';
-  import ChroniclePanel from './ui/ChroniclePanel.svelte';
+  import LifeSurface from './ui/LifeSurface.svelte';
+  import { loadLifeSprites, type SpriteSet } from './art/sprites.ts';
+  import './ui/life.css';
+  import { claimRequest, dreamRequest, parseBribeAmount, type UnderworldForm } from './main/customization.ts';
+  import { feedbackView, identitySummary, underworldView } from './main/view-model.ts';
   // World_Config field is prefilled with text identical to the fixture file
   // (R3.1). Vite's `?raw` import yields the file's bytes verbatim, so the textarea
   // starts equal to fixtures/configs/pairwise.json. The path is relative to this
@@ -67,14 +60,18 @@
   // The editable fields. The seed starts empty; the config starts as the fixture.
   let seed = $state('');
   let config = $state(pairwiseConfig);
+  let sprites: SpriteSet | null = $state(null);
+  let assetError: string | null = $state(null);
+  let setupOpen = $state(true);
+  let setupWorld = 0;
+  const identity = $derived(identitySummary(ui));
 
   // Worker Snapshot.playerNode disables Run/Step until an accepted choice;
   // the Worker enforces the same gate even for direct harness requests.
   const buttons = $derived(controls(ui));
-  const currentScene = $derived(ui.scene?.entries[0] ?? null);
+  const activeWorld = $derived(ui.worldId);
   const held = $derived(decisionBusy(ui));
   const notice = $derived(decisionNotice(ui));
-  const decision = $derived(currentDecision(ui));
   const feedback = $derived(feedbackView(ui));
   const onClose = $derived.by(() => {
     const queue = ui.scene;
@@ -141,6 +138,41 @@
     await sendUnderworld(claimRequest(ui.underworldForm, slot));
   }
 
+  async function onBribe(worldId: number, amount: string): Promise<void> {
+    if (worldId !== ui.worldId) return;
+    const parsed = parseBribeAmount(amount);
+    if (!parsed.ok) {
+      dispatch({ type: 'validation-error', error: parsed.error });
+      return;
+    }
+    if (!ui.world?.underworld_view?.actions.bribe.availability.eligible) return;
+    await sendUnderworld({ type: 'bribe', amount: parsed.value });
+  }
+
+  async function onHaunt(worldId: number, target: number): Promise<void> {
+    if (worldId !== ui.worldId) return;
+    const entry = ui.world?.underworld_view?.actions.haunt.targets.find(entry => entry.target === target);
+    if (entry?.availability.eligible !== true) return;
+    await sendUnderworld({ type: 'haunt', target });
+  }
+
+  $effect(() => {
+    let mounted = true;
+    void loadLifeSprites().then(loaded => {
+      if (mounted) sprites = loaded;
+    }, error => {
+      if (mounted) assetError = String(error);
+    });
+    return () => { mounted = false; };
+  });
+
+  $effect(() => {
+    if (activeWorld !== setupWorld) {
+      setupWorld = activeWorld;
+      if (setupWorld !== 0) setupOpen = false;
+    }
+  });
+
   // The SimClient's worker-initiated events (status, fatal, worker error) were
   // registered on the client at construction in main.ts to forward through this
   // bridge. Point the bridge at this component's reducer while it is mounted, so a
@@ -194,179 +226,127 @@
 
 </script>
 
-<main>
-  <h1>Back in the Family</h1>
-  <div class="play-layout">
-    <aside class="left-column">
-      <IdentityPanel {ui} />
-      <ChroniclePanel {ui} />
-    </aside>
-    <div class="centre-column">
-
-
-  <section class="controls">
-    <button type="button" data-testid="create" disabled={!buttons.create} onclick={onCreate}>
-      Create
-    </button>
-    <button type="button" data-testid="run" disabled={!buttons.run} onclick={onRun}>Run</button>
-    <button type="button" data-testid="pause" disabled={!buttons.pause} onclick={onPause}>
-      Pause
-    </button>
-    <button type="button" data-testid="step" disabled={!buttons.step} onclick={onStep}>Step</button>
-
-    <label>
-      Speed
-      <select data-testid="speed" disabled={held} value={ui.speed} onchange={onSpeedChange}>
-        {#each SPEEDS as speed (speed)}
-          <option value={speed}>{speed}</option>
-        {/each}
-      </select>
-    </label>
-  </section>
-
-  <div class="town-stage">
-    <TownView {ui} />
-    {#if currentScene !== null && currentScene.kind !== 'choice'}
-      <div class="scene-slot">
-        {#if currentScene.kind === 'funeral'}<Funeral {ui} {onClose} />
-        {:else if currentScene.kind === 'inheritance'}<Inheritance {ui} {onClose} />
-        {:else if currentScene.kind === 'dream'}<Dream {ui} {onClose} />
-        {:else}<Birth {ui} {onClose} />{/if}
-      </div>
-    {/if}
-  </div>
-
-  <section class="status">
-    <div>
-      <span class="label">Tick</span>
-      <span data-testid="tick">{formatTick(ui)}</span>
+<main data-testid="life-app" data-assets={assetError !== null ? 'error' : sprites === null ? 'loading' : 'ready'}>
+  <header class="life-header" data-testid="life-header">
+    <div class="header-identity">
+      <h1>Back in the Family</h1>
+      {#if identity !== null}
+        <strong class="body-name" data-testid="life-name">{identity.name}</strong>
+        <p><span data-testid="life-soul">Soul {identity.soul}</span> · {identity.status}
+          {#if identity.body !== null} · body {identity.body}{/if}
+          {#if identity.age !== null} · {identity.age} years{/if}
+          {#if identity.origin !== null} · {identity.origin}{/if}
+        </p>
+      {:else}
+        <p>Create a world to begin this Soul's life.</p>
+      {/if}
     </div>
-    <div>
-      <span class="label">Checksum</span>
-      <span data-testid="checksum">{formatChecksum(ui)}</span>
+    <div class="header-actions">
+      <section class="controls" aria-label="Simulation controls">
+        <button type="button" data-testid="run" disabled={!buttons.run} onclick={onRun}>Run</button>
+        <button type="button" data-testid="pause" disabled={!buttons.pause} onclick={onPause}>Pause</button>
+        <button type="button" data-testid="step" disabled={!buttons.step} onclick={onStep}>Step</button>
+        <label>Speed <select data-testid="speed" disabled={held} value={ui.speed} onchange={onSpeedChange}>
+          {#each SPEEDS as speed (speed)}<option value={speed}>{speed}</option>{/each}
+        </select></label>
+      </section>
+      <p class="clock">Tick <span data-testid="tick">{formatTick(ui)}</span> · <span data-testid="run-state">{formatRunState(ui)}</span></p>
+      <a href="#current-action">Back to current action</a>
     </div>
-    <div>
-      <span class="label">Run_State</span>
-      <span data-testid="run-state">{formatRunState(ui)}</span>
-    </div>
-    <div>
-      <span class="label">Ticks_Per_Second</span>
-      <span data-testid="tps">{formatTps(ui)}</span>
-    </div>
-  </section>
-  <section class="decision-controls" aria-label="Decision controls" data-testid="decision-controls">
-    <label>Decision wait (seconds)
-      <select data-testid="decision-wait" value={ui.decision?.waitSeconds ?? DEFAULT_DECISION_WAIT_SECONDS} onchange={onWaitChange}>
-        {#each Array.from({ length: 11 }, (_, seconds) => seconds) as seconds (seconds)}
-          <option value={seconds}>{seconds === 0 ? '0 — rules immediately' : seconds}</option>
-        {/each}
-      </select>
-    </label>
-    {#if ui.decision?.pending?.worldId === ui.worldId}
-      <button type="button" data-testid="use-rules-now" onclick={onUseRules}>Use rules now</button>
-    {/if}
+  </header>
+
+  <section class="decision-status" aria-label="Decision controls" data-testid="decision-controls">
     <p role="status" data-testid="decision-notice" data-outcome={held ? 'pending' : notice === null ? '' : ui.decision?.outcome?.kind ?? ''}>
       {held ? 'Decision pending. Time is held.' : notice ?? ''}
     </p>
-    {#if ui.decision !== null}
-      <p class="decision-diagnostics" data-testid="decision-diagnostics">Config: {ui.decision.config} · {ui.decision.enabled ? 'enabled' : 'disabled'} · Requests: {ui.decision.spent}/{ui.decision.sessionCap ?? '—'}</p>
-    {/if}
-    {#if ui.world !== null && ui.world.tick !== ui.tick}
-      <p data-testid="world-as-of">World resources and eligibility as of tick {ui.world.tick}.</p>
-    {/if}
-    {#each feedback.actions as action, index (action.requestId ?? `input-${action.inputSeq}-${index}`)}
-      <p role="status" data-testid="action-feedback" data-phase={action.phase}>{action.text}</p>
-    {/each}
-    {#if feedback.settledOmitted > 0}
-      <p data-testid="settled-omitted">{feedback.settledOmitted} older settled results omitted. Chronicle remains available.</p>
-    {/if}
-    {#each feedback.playerLifecycle as fact (fact.event)}
-      <p data-testid="lifecycle-feedback">{fact.kind} at tick {fact.tick}: {fact.name} · body {fact.body} · {fact.origin} · event {fact.event}</p>
-    {/each}
-  </section>
-  <section class="inputs">
-    <label>
-      Seed
-      <input
-        type="text"
-        inputmode="numeric"
-        data-testid="seed"
-        bind:value={seed}
-        placeholder="0 to 18446744073709551615"
-      />
-    </label>
-
-    <label>
-      World_Config
-      <textarea data-testid="config" rows="4" bind:value={config}></textarea>
-    </label>
-
-    {#if ui.seedMessage !== null}
-      <p class="seed-message" data-testid="seed-message">{ui.seedMessage}</p>
+    {#if ui.decision?.pending?.worldId === ui.worldId}
+      <button type="button" data-testid="use-rules-now" onclick={onUseRules}>Use rules now</button>
     {/if}
   </section>
-
+  {#if assetError !== null}
+    <p role="alert" class="error" data-testid="art-error">Visual assets unavailable: {assetError}. Factual text and actions remain available.</p>
+  {:else if sprites === null}
+    <p role="status" class="muted" data-testid="art-loading">Loading selected scene art…</p>
+  {/if}
   {#if ui.error !== null && ui.world?.player.place !== 'waiting'}
     <p class="error" data-testid="error">{ui.error}</p>
+  {:else}<p class="error" data-testid="error"></p>{/if}
+
+  {#if ui.world !== null}
+    <LifeSurface {ui} {sprites} {feedback} {onChoose} {onForm} {onDream} {onClaim} {onBribe} {onHaunt} {onClose} />
   {:else}
-    <p class="error" data-testid="error"></p>
+    <section id="current-action" class="begin-life" tabindex="-1">
+      <h2>A life is waiting to begin</h2>
+      <p>Create a world below. Run and Step advance time; choices and underworld actions are recorded before they take effect.</p>
+    </section>
   {/if}
-    </div>
-    <aside class="right-column">
-      {#if ui.world?.player.place === 'waiting'}
-        <UnderworldPanel {ui} {onForm} {onDream} {onClaim} />
+
+  <section class="setup-and-details" aria-label="World setup and technical information">
+    <details data-testid="world-setup" bind:open={setupOpen}>
+      <summary>World setup — Create, Seed and World_Config</summary>
+      <div class="inputs">
+        <label>Seed <input type="text" inputmode="numeric" data-testid="seed" bind:value={seed} placeholder="0 to 18446744073709551615" /></label>
+        <label class="config-input">World_Config <textarea data-testid="config" rows="4" bind:value={config}></textarea></label>
+      </div>
+      {#if ui.seedMessage !== null}<p class="error" data-testid="seed-message">{ui.seedMessage}</p>{/if}
+      <button type="button" data-testid="create" disabled={!buttons.create} onclick={onCreate}>Create</button>
+      <p class="muted">A successful Create replaces the current world; local disclosures do not advance time.</p>
+    </details>
+    <details data-testid="technical-details">
+      <summary>Technical and decision details</summary>
+      <div class="technical-fields">
+        <p>Checksum <span data-testid="checksum">{formatChecksum(ui)}</span></p>
+        <p>Ticks_Per_Second <span data-testid="tps">{formatTps(ui)}</span></p>
+        <label>Decision wait (seconds)
+          <select data-testid="decision-wait" value={ui.decision?.waitSeconds ?? DEFAULT_DECISION_WAIT_SECONDS} onchange={onWaitChange}>
+            {#each Array.from({ length: 11 }, (_, seconds) => seconds) as seconds (seconds)}
+              <option value={seconds}>{seconds === 0 ? '0 — rules immediately' : seconds}</option>
+            {/each}
+          </select>
+        </label>
+      </div>
+      {#if ui.decision !== null}
+        <p class="muted" data-testid="decision-diagnostics">Config: {ui.decision.config} · {ui.decision.enabled ? 'enabled' : 'disabled'} · Requests: {ui.decision.spent}/{ui.decision.sessionCap ?? '—'}</p>
       {/if}
-      {#if decision !== null || ui.world?.player.place !== 'waiting'}
-        <ChoicePanel {ui} onChoose={onChoose} />
-      {/if}
-    </aside>
-  </div>
+    </details>
+  </section>
 </main>
 
 <style>
-  :global(*) { box-sizing: border-box; }
-  :global(body) { margin: 0; background: #f8f7f2; color: #252525; font-family: system-ui, sans-serif; font-size: 14px; }
-  :global(::selection) { background: #d7d2bd; color: #111111; }
-  :global(:focus-visible) { outline: 2px solid #252525; outline-offset: 3px; }
-  :global(button), :global(input), :global(select), :global(textarea) { font: inherit; color: inherit; border: 1px solid #858585; border-radius: 4px; background: #fffefa; }
-  :global(button) { cursor: pointer; padding: 6px 10px; font-weight: 600; border-color: #65645e; background: #e2e0d9; }
-  :global(button:hover:not(:disabled)) { background: #d0cdc0; }
-  :global(button:disabled) { color: #65645e; background: #eeede6; cursor: not-allowed; }
-  :global(input), :global(textarea), :global(select) { padding: 5px 7px; caret-color: #252525; }
-  :global([role="region"]) { scrollbar-color: #858585 #eeede6; scrollbar-width: thin; }
-  main { max-width: 1280px; margin: 0 auto; }
-  h1 { margin: 0; height: 40px; padding: 8px 16px; font-size: 20px; line-height: 24px; border-bottom: 1px solid #c6c3b9; }
-  .play-layout { display: grid; grid-template-columns: 300px 620px 360px; }
-  .left-column { display: grid; grid-template-rows: 390px 290px; min-height: 0; border-right: 1px solid #c6c3b9; }
-  .centre-column { min-width: 0; }
-  .right-column { border-left: 1px solid #c6c3b9; }
-  .town-stage { position: relative; }
-  .scene-slot { position: absolute; top: 12px; left: 24px; right: 24px; z-index: 1; }
-  .controls { height: 40px; display: flex; align-items: center; gap: 8px; padding: 3px 12px; }
-  .controls label { margin-left: auto; display: flex; align-items: center; gap: 6px; }
-  .status { padding: 12px 16px 6px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 12px; font-variant-numeric: tabular-nums; }
-  .label { color: #54534f; margin-right: 8px; }
-  .inputs { display: flex; flex-wrap: wrap; align-items: start; gap: 12px; padding: 10px 16px 0; font-size: 12px; }
-  .inputs label { display: flex; flex-direction: column; gap: 5px; }
-  .inputs input { width: 245px; }
-  .inputs textarea { width: 290px; height: 55px; resize: vertical; }
-  .seed-message, .error { color: #9b2520; }
-  .seed-message { margin: 0; }
-  .error { margin: 8px 16px; font-size: 12px; overflow-wrap: anywhere; }
+  main { max-width: 1240px; margin: 0 auto; padding: 20px 24px 32px; }
+  .life-header { display: flex; justify-content: space-between; gap: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--life-border); margin-bottom: 16px; }
+  .header-identity { min-width: 0; }
+  h1 { margin: 0 0 8px; font-size: 22px; }
+  .body-name { font-size: 24px; line-height: 1.3; display: block; }
+  .header-identity p, .clock { margin: 6px 0 0; }
+  .header-actions { flex-shrink: 0; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+  .controls label { display: flex; align-items: center; gap: 6px; }
+  .clock { font-variant-numeric: tabular-nums; }
+  .header-actions a { display: inline-block; margin-top: 6px; }
+  .decision-status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .decision-status p { margin: 0; }
+  .decision-status p:empty { display: none; }
+  .muted { color: var(--life-muted); }
+  .error { color: var(--life-event); overflow-wrap: anywhere; }
   .error:empty { margin: 0; }
-  .decision-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 4px 16px 0; font-size: 12px; }
-  .decision-controls label { display: flex; align-items: center; gap: 6px; }
-  .decision-controls select { width: 155px; }
-  .decision-controls p { margin: 0; }
-  .decision-diagnostics { width: 100%; color: #54534f; font-variant-numeric: tabular-nums; }
-  @media (max-width: 1279px) {
-    .play-layout { grid-template-columns: minmax(240px, 300px) minmax(0, 620px); }
-    .right-column { grid-column: 1 / -1; border-top: 1px solid #c6c3b9; }
-  }
-  @media (max-width: 720px) {
-    .play-layout { display: flex; flex-direction: column; }
-    .centre-column { order: -1; border: 0; }
-    .left-column { grid-template-rows: 340px 240px; }
-    .inputs textarea { max-width: 100%; }
+  .begin-life { max-width: 70ch; margin: 28px 0; }
+  .begin-life h2 { margin: 0 0 12px; }
+  .setup-and-details { margin-top: 28px; padding-top: 12px; border-top: 1px solid var(--life-border); }
+  .setup-and-details details + details { margin-top: 12px; }
+  .inputs { display: flex; flex-wrap: wrap; gap: 16px; margin: 12px 0; }
+  .inputs label { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+  .inputs input { width: 300px; }
+  .config-input { flex: 1; flex-basis: 420px; }
+  .inputs textarea { width: 100%; min-height: 100px; }
+  .technical-fields { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; }
+  .technical-fields p { margin: 8px 0; font-variant-numeric: tabular-nums; }
+  .technical-fields span { overflow-wrap: anywhere; }
+  .technical-fields label { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  @media (max-width: 800px) {
+    main { padding: 16px; }
+    .life-header { display: block; }
+    .header-actions { margin-top: 16px; }
+    .body-name { font-size: 22px; }
   }
 </style>

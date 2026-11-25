@@ -32,7 +32,7 @@ test('Property 26: repeated templates preserve every Snapshot fact and newest-fi
     assert.deepEqual(chronicleLines(ui), lines);
     const ordered = chronicle.map((entry, index) => ({ entry, index })).sort((a, b) =>
       BigInt(a.entry.tick) > BigInt(b.entry.tick) ? -1 : BigInt(a.entry.tick) < BigInt(b.entry.tick) ? 1 : b.index - a.index);
-    assert.deepEqual(lines, ordered.map(({ entry }) => `Tick ${entry.tick} · ${entry.family} · ${entry.stakes.who.map(id => base.residents.find(person => person.id === id)!.name).join(', ')}; ${entry.stakes.amount} ${entry.stakes.unit}; by tick ${entry.stakes.by} · ${entry.applied} · ${entry.source}`));
+    assert.deepEqual(lines, ordered.map(({ entry }) => `Tick ${entry.tick} · ${entry.family} · ${entry.stakes.who.map(id => base.residents.find(person => person.id === id)!.name).join(', ')}; ${entry.stakes.amount} ${entry.stakes.unit}; by tick ${entry.stakes.by} · ${entry.applied} · ${entry.source} · chooser absent: ${entry.chooser_absent ? 'yes' : 'no'} · skipped: none`));
     for (const kind of ['funeral', 'inheritance', 'dream', 'birth'] as const) {
       assert.deepEqual(sceneLines(kind, ui.world), sceneLines(kind, ui.world));
     }
@@ -50,6 +50,26 @@ test('Chronicle tie order, non-resident names and fixed empty-state text', () =>
   assert.deepEqual(chronicleLines(initialUiState()), []);
   assert.deepEqual(chronicleLines({ ...initialUiState(), world: base }), []);
   assert.equal(EMPTY_CHRONICLE, 'Nothing has been written yet.');
+});
+
+test('Chronicle consumers receive actual skipped parts and chooser absence with every named participant', () => {
+  const names = ['Alexandra Alexandra Alexandra — first named participant', 'Alexandra Alexandra Alexandra — second named participant'];
+  const entry: ChronicleEntry = { tick: '18446744073709551615', family: 'debt_due',
+    stakes: { who: [100, 101], amount: '-9223372036854775808', unit: 'money', by: '18446744073709551615' },
+    applied: 'repay_now', source: 'auto_resolved', chooser_absent: true,
+    skipped: [{ part: 0, reason: 'missing_debt' }, { part: 2, reason: 'insufficient_money' }] };
+  const world = { ...base, person_names: names.map((name, index) => ({ id: 100 + index, name })), chronicle: [entry] };
+  const before = JSON.stringify(world);
+  const line = chronicleLines({ ...initialUiState(), world })[0]!;
+  for (const name of names) assert.ok(line.includes(name));
+  assert.ok(line.includes(entry.tick));
+  assert.ok(line.includes(entry.stakes.amount));
+  assert.ok(line.includes(entry.applied));
+  assert.ok(line.includes(entry.source));
+  for (const part of entry.skipped) assert.ok(line.includes(`${part.part}: ${part.reason}`));
+  const present = chronicleLines({ ...initialUiState(), world: { ...world, chronicle: [{ ...entry, chooser_absent: false }] } })[0]!;
+  assert.notEqual(present, line, 'Chooser absence is a distinct reported outcome fact');
+  assert.equal(JSON.stringify(world), before);
 });
 
 test('Scene text uses named Snapshot facts and no third-party trademarks', () => {

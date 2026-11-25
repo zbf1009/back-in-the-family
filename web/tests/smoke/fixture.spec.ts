@@ -133,6 +133,8 @@ async function openHarnessPage(
   await page.goto('/?harness=1');
   // The harness is installed only with ?harness=1; wait for it before any run.
   await page.waitForFunction(() => typeof window.__simHarness !== 'undefined');
+  const technical = page.getByTestId('technical-details');
+  if (await technical.getAttribute('open') === null) await technical.locator('summary').click();
 
   return {
     finish() {
@@ -216,6 +218,10 @@ async function referenceRun(
     return checksums;
   }, args);
 }
+async function openWorldSetup(page: Page): Promise<void> {
+  const disclosure = page.getByTestId('world-setup');
+  if (await disclosure.getAttribute('open') === null) await disclosure.locator('summary').click();
+}
 
 
 // --- the test ---------------------------------------------------------------
@@ -294,6 +300,7 @@ test('built page matches the native fixture and the page controls advance it', a
   // 5. R9.8: page controls -- Create then Step once -> tick 1 and reference
   //    checksum for tick 1 within 5 s. This re-creates the fixture world through
   //    the page buttons (no inputs), so the page shows the no-input reference.
+  await openWorldSetup(page);
   await page.getByTestId('seed').fill(fixture.seed);
   await page.getByTestId('config').fill(CONFIG_JSON);
   await page.getByTestId('create').click();

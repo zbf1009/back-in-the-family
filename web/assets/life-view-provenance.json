@@ -1,0 +1,4874 @@
+{
+  "version": 1,
+  "evidence_root": "/home/kaiki/.cache/back-in-the-family/first-playable/c4-direction",
+  "selected_count": 48,
+  "scope": "Only these selected native crops and bounded original gaps are shipped. No full source sheets, labeled contact sheets, fonts, unselected packs, walking frames or expression matrix.",
+  "packing": {
+    "width": 128,
+    "algorithm": "Stable-order shelf packing per lineage; left to right, wrap before width overflow, row height=max selected crop height, transparent RGBA canvas.",
+    "png": "Pillow PNG, RGBA8, optimize=False, compress_level=9; no labels or resampling."
+  },
+  "atlases": {
+    "urban": {
+      "path": "assets/life-view-urban.png",
+      "width": 128,
+      "height": 48,
+      "source_path": "web/public/assets/life-view-urban.png",
+      "sha256": "0bd6b1bbe15a6f639fa371cbb850402c66798508ba3c8b1b7a52212e0662abca",
+      "bytes": 3424,
+      "selected_count": 19,
+      "source": "RPG Urban Pack",
+      "license": "CC0-1.0"
+    },
+    "roguelike": {
+      "path": "assets/life-view-roguelike.png",
+      "width": 128,
+      "height": 16,
+      "source_path": "web/public/assets/life-view-roguelike.png",
+      "sha256": "772a585e0450e479675a886405589d421c61cff7c1e8cca7a7adbace5d5399df",
+      "bytes": 577,
+      "selected_count": 7,
+      "source": "Roguelike RPG Pack",
+      "license": "CC0-1.0"
+    },
+    "original": {
+      "path": "assets/life-view-original.png",
+      "width": 128,
+      "height": 56,
+      "source_path": "web/public/assets/life-view-original.png",
+      "sha256": "6f4275bb052ca84ae29e860691de925399ea1f6eb628eb43cda1ac9fb885baa2",
+      "bytes": 2167,
+      "selected_count": 22,
+      "source": "project",
+      "license": "Apache-2.0"
+    }
+  },
+  "person_tiles": {
+    "adult": [
+      "adult_1",
+      "adult_2",
+      "adult_3",
+      "adult_4",
+      "adult_5",
+      "adult_6"
+    ],
+    "child": [
+      "child_1",
+      "child_2",
+      "child_3",
+      "child_4"
+    ],
+    "elder": [
+      "elder_1",
+      "elder_2",
+      "elder_3"
+    ],
+    "baby": [
+      "baby"
+    ],
+    "unknown": [
+      "unknown_age"
+    ]
+  },
+  "person_selection": "Cosmetic identity/authoritative whole-year age only; baby <3, child <13, adult <65, elder >=65. Unknown age uses only unknown_age. No sex, skin, kinship or rule RNG facts are inferred.",
+  "source_manifests": {
+    "assets/tiles.json": {
+      "evidence_path": "assets/tiles.json",
+      "bytes": 7637,
+      "sha256": "cb4756f2cdc8d754cdcac28d9a65062226de5439be86c0484c1ec42cad43fe89"
+    },
+    "assets/people.json": {
+      "evidence_path": "assets/people.json",
+      "bytes": 3623,
+      "sha256": "1914abcde1268595812de6be1ba5c7d970444322389464c4ce84cd4f526ef927"
+    },
+    "assets/drawn/manifest.json": {
+      "evidence_path": "assets/drawn/manifest.json",
+      "bytes": 16898,
+      "sha256": "8acfab50270d8d302c749a39d919039d0a93c02faa1b128091d8a8eafa50f0f4"
+    }
+  },
+  "source_files": {
+    "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png": {
+      "evidence_path": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+      "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0",
+      "bytes": 18197,
+      "width": 458,
+      "height": 305,
+      "archive_member": "Tilemap/tilemap.png",
+      "pack": "RPG Urban Pack"
+    },
+    "packs/roguelike-rpg-pack/extracted/Spritesheet/roguelikeSheet_transparent.png": {
+      "evidence_path": "packs/roguelike-rpg-pack/extracted/Spritesheet/roguelikeSheet_transparent.png",
+      "sha256": "808c8d734480bc949b284f3bcc252e87e1ee53b24178791a6838cce6a319c439",
+      "bytes": 94579,
+      "width": 968,
+      "height": 526,
+      "archive_member": "Spritesheet/roguelikeSheet_transparent.png",
+      "pack": "Roguelike RPG Pack"
+    }
+  },
+  "packs": {
+    "RPG Urban Pack": {
+      "id": "rpg-urban-pack",
+      "official_page": "https://kenney.nl/assets/rpg-urban-pack",
+      "version": "1.0",
+      "version_source": "Archive root License.txt: RPG Urban Pack 1.0",
+      "credits": [
+        "Kenney (www.kenney.nl)"
+      ],
+      "license": "CC0-1.0",
+      "archive": {
+        "evidence_path": "packs/rpg-urban-pack/archive.zip",
+        "bytes": 306630,
+        "sha256": "4541d89d639fc7d1e905dd925e55b1c4977a41d983516228db1d57173bb9afaf"
+      },
+      "license_notice": {
+        "path": "web/assets/licenses/rpg-urban-pack-License.txt",
+        "archive_member": "License.txt",
+        "bytes": 607,
+        "sha256": "912065f2d428a62fa4e7b337d292f9eee26051eece4182661cff40310a54f7fa"
+      },
+      "full_license": "web/assets/licenses/CC0-1.0.txt",
+      "source_sheet": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png"
+    },
+    "Roguelike RPG Pack": {
+      "id": "roguelike-rpg-pack",
+      "official_page": "https://kenney.nl/assets/roguelike-rpg-pack",
+      "version": "1.0",
+      "version_source": "Official pack page; archive License.txt names Roguelike pack but gives no version",
+      "credits": [
+        "Kenney Vleugels for Kenney (www.kenney.nl)",
+        "Lynn Evers (Twitter: @EversLynn)"
+      ],
+      "license": "CC0-1.0",
+      "archive": {
+        "evidence_path": "packs/roguelike-rpg-pack/archive.zip",
+        "bytes": 715373,
+        "sha256": "8e7d2378f8f794245645f6d7dc7aeeb246791410a7e512293c594b46a5a9524b"
+      },
+      "license_notice": {
+        "path": "web/assets/licenses/roguelike-rpg-pack-License.txt",
+        "archive_member": "License.txt",
+        "bytes": 666,
+        "sha256": "e3158109ad8580ef266db5b00f97bbed853870a99c0721200ef23880bdfd416e"
+      },
+      "full_license": "web/assets/licenses/CC0-1.0.txt",
+      "source_sheet": "packs/roguelike-rpg-pack/extracted/Spritesheet/roguelikeSheet_transparent.png"
+    }
+  },
+  "full_cc0_license": {
+    "path": "web/assets/licenses/CC0-1.0.txt",
+    "source_url": "https://creativecommons.org/publicdomain/zero/1.0/legalcode.en",
+    "cached_evidence_path": "packs/cc0-legalcode.txt",
+    "bytes": 7048,
+    "sha256": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499"
+  },
+  "original_license": {
+    "path": "LICENSE",
+    "license": "Apache-2.0",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+  },
+  "tiles": [
+    {
+      "id": "adult_1",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "dd32e7eef9e2f8ecd7e2a49da12da03fdf0d7d77821aa3f3a2379d7aabc32fd6",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 408,
+        "y": 17,
+        "w": 16,
+        "h": 16,
+        "selection_name": "adult_green",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected adult_green crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "adult_2",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 16,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "02fc11d8853e38bbe77fa9f09bc28f886e60a1459e74050b84c3a79da010f4fc",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 408,
+        "y": 68,
+        "w": 16,
+        "h": 16,
+        "selection_name": "adult_red",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected adult_red crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "adult_3",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 32,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "84f81a1a31fc26da36d155602e9e79cd20ae3ff83663d6e86da60245916021ac",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 408,
+        "y": 119,
+        "w": 16,
+        "h": 16,
+        "selection_name": "adult_gray",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected adult_gray crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "adult_4",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 48,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "d3ed1fe5dbc2a8662353feace5c88091f57415c55af1942385cded6d066cc3fd",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 408,
+        "y": 170,
+        "w": 16,
+        "h": 16,
+        "selection_name": "adult_brown",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected adult_brown crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "adult_5",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 64,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "c4589a68845a12045ba15da6e44099a8dbed5d93965aa638c3b11e0c26d1fc8c",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 408,
+        "y": 221,
+        "w": 16,
+        "h": 16,
+        "selection_name": "adult_bald",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected adult_bald crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "adult_6",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 80,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "066915e36e8e21bedd1e6d374d9024e38e78cec26745b63c723e17362b6f0cc5",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 408,
+        "y": 272,
+        "w": 16,
+        "h": 16,
+        "selection_name": "adult_dark",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected adult_dark crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "elder_1",
+      "kind": "source_modification",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 96,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "d65045ecc377345e6b55813143e577597eb30b697e2c81d2bd0ab226af3c8ef1",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/elder_1.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "0e05f53f764e6a0aea9b07e68717abcfcfe5f3234679b33636819cb4afedf0a6",
+        "bytes": 408,
+        "manifest_entry": "elder_1"
+      },
+      "note": "Urban adult_green source figure recolored with gray-white hair/sideburns and pale stone head outline; original stance/body retained. Exact source-relative replacement pixels retained below.",
+      "source": {
+        "x": 408,
+        "y": 17,
+        "w": 16,
+        "h": 16,
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0",
+        "rgba_sha256": "dd32e7eef9e2f8ecd7e2a49da12da03fdf0d7d77821aa3f3a2379d7aabc32fd6"
+      },
+      "modification": {
+        "kind": "replace_source_relative_pixels",
+        "coordinates": "Relative to the source crop origin; unchanged source pixels retained exactly.",
+        "changes": [
+          {
+            "x": 6,
+            "y": 1,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 1,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 1,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 1,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 2,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 2,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 3,
+            "y": 3,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 3,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 3,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 3,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 3,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 3,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 3,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 3,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 3,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 12,
+            "y": 3,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 3,
+            "y": 4,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 4,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 4,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 4,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 4,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 4,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 4,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 4,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 4,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 12,
+            "y": 4,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 5,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 5,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 6,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 6,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 9,
+            "from": [
+              54,
+              144,
+              105,
+              255
+            ],
+            "to": [
+              80,
+              80,
+              74,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 9,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 9,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 9,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 3,
+            "y": 10,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 10,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 10,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 10,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 10,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 10,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 10,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 10,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 10,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 11,
+            "from": [
+              54,
+              144,
+              105,
+              255
+            ],
+            "to": [
+              80,
+              80,
+              74,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 11,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 11,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 11,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 11,
+            "from": [
+              66,
+              163,
+              121,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 11,
+            "from": [
+              54,
+              144,
+              105,
+              255
+            ],
+            "to": [
+              80,
+              80,
+              74,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 12,
+            "from": [
+              197,
+              185,
+              147,
+              255
+            ],
+            "to": [
+              137,
+              140,
+              166,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 12,
+            "from": [
+              214,
+              212,
+              170,
+              255
+            ],
+            "to": [
+              170,
+              168,
+              189,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 12,
+            "from": [
+              214,
+              212,
+              170,
+              255
+            ],
+            "to": [
+              170,
+              168,
+              189,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 12,
+            "from": [
+              214,
+              212,
+              170,
+              255
+            ],
+            "to": [
+              170,
+              168,
+              189,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 12,
+            "from": [
+              214,
+              212,
+              170,
+              255
+            ],
+            "to": [
+              170,
+              168,
+              189,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 12,
+            "from": [
+              197,
+              185,
+              147,
+              255
+            ],
+            "to": [
+              137,
+              140,
+              166,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 13,
+            "from": [
+              197,
+              185,
+              147,
+              255
+            ],
+            "to": [
+              137,
+              140,
+              166,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 13,
+            "from": [
+              214,
+              212,
+              170,
+              255
+            ],
+            "to": [
+              170,
+              168,
+              189,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 13,
+            "from": [
+              214,
+              212,
+              170,
+              255
+            ],
+            "to": [
+              170,
+              168,
+              189,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 13,
+            "from": [
+              197,
+              185,
+              147,
+              255
+            ],
+            "to": [
+              137,
+              140,
+              166,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 14,
+            "from": [
+              214,
+              212,
+              170,
+              255
+            ],
+            "to": [
+              170,
+              168,
+              189,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 14,
+            "from": [
+              214,
+              212,
+              170,
+              255
+            ],
+            "to": [
+              170,
+              168,
+              189,
+              255
+            ]
+          }
+        ]
+      },
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "elder_2",
+      "kind": "source_modification",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 112,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "0d2b7af1b3bc003c18164270c042b5962cd9e125f1cfe03ee2d9fda0e6a37bf2",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/elder_2.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "60400a2033dfd71ee54a1114b772c95913b6f3ef1939d6b0c45a1d46bf10d7c8",
+        "bytes": 419,
+        "manifest_entry": "elder_2"
+      },
+      "note": "Urban adult_red source figure recolored with gray-white hair/sideburns and pale stone head outline; original stance/body retained. Exact source-relative replacement pixels retained below.",
+      "source": {
+        "x": 408,
+        "y": 68,
+        "w": 16,
+        "h": 16,
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0",
+        "rgba_sha256": "02fc11d8853e38bbe77fa9f09bc28f886e60a1459e74050b84c3a79da010f4fc"
+      },
+      "modification": {
+        "kind": "replace_source_relative_pixels",
+        "coordinates": "Relative to the source crop origin; unchanged source pixels retained exactly.",
+        "changes": [
+          {
+            "x": 6,
+            "y": 1,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 1,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 1,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 1,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 2,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 2,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 3,
+            "y": 3,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 3,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 3,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 3,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 3,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 3,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 3,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 3,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 3,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 12,
+            "y": 3,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 3,
+            "y": 4,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 4,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 4,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 4,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 4,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 4,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 4,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 4,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 4,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 12,
+            "y": 4,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 5,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 5,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 5,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 5,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 5,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 5,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 6,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 6,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 7,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 7,
+            "from": [
+              197,
+              118,
+              82,
+              255
+            ],
+            "to": [
+              169,
+              169,
+              169,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 8,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 8,
+            "from": [
+              220,
+              134,
+              82,
+              255
+            ],
+            "to": [
+              227,
+              227,
+              227,
+              255
+            ]
+          },
+          {
+            "x": 3,
+            "y": 10,
+            "from": [
+              165,
+              66,
+              64,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 10,
+            "from": [
+              165,
+              66,
+              64,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 10,
+            "from": [
+              194,
+              80,
+              77,
+              255
+            ],
+            "to": [
+              122,
+              119,
+              164,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 10,
+            "from": [
+              194,
+              80,
+              77,
+              255
+            ],
+            "to": [
+              122,
+              119,
+              164,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 10,
+            "from": [
+              194,
+              80,
+              77,
+              255
+            ],
+            "to": [
+              122,
+              119,
+              164,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 10,
+            "from": [
+              194,
+              80,
+              77,
+              255
+            ],
+            "to": [
+              122,
+              119,
+              164,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 10,
+            "from": [
+              165,
+              66,
+              64,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 11,
+            "from": [
+              165,
+              66,
+              64,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 11,
+            "from": [
+              194,
+              80,
+              77,
+              255
+            ],
+            "to": [
+              122,
+              119,
+              164,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 11,
+            "from": [
+              194,
+              80,
+              77,
+              255
+            ],
+            "to": [
+              122,
+              119,
+              164,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 11,
+            "from": [
+              194,
+              80,
+              77,
+              255
+            ],
+            "to": [
+              122,
+              119,
+              164,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 11,
+            "from": [
+              194,
+              80,
+              77,
+              255
+            ],
+            "to": [
+              122,
+              119,
+              164,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 11,
+            "from": [
+              165,
+              66,
+              64,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 12,
+            "from": [
+              122,
+              119,
+              164,
+              255
+            ],
+            "to": [
+              80,
+              80,
+              74,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 12,
+            "from": [
+              160,
+              156,
+              202,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 12,
+            "from": [
+              160,
+              156,
+              202,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 12,
+            "from": [
+              160,
+              156,
+              202,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 12,
+            "from": [
+              160,
+              156,
+              202,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 12,
+            "from": [
+              165,
+              66,
+              64,
+              255
+            ],
+            "to": [
+              92,
+              98,
+              120,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 13,
+            "from": [
+              122,
+              119,
+              164,
+              255
+            ],
+            "to": [
+              80,
+              80,
+              74,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 13,
+            "from": [
+              160,
+              156,
+              202,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 13,
+            "from": [
+              160,
+              156,
+              202,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 13,
+            "from": [
+              122,
+              119,
+              164,
+              255
+            ],
+            "to": [
+              80,
+              80,
+              74,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 14,
+            "from": [
+              160,
+              156,
+              202,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 14,
+            "from": [
+              160,
+              156,
+              202,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          }
+        ]
+      },
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "elder_3",
+      "kind": "source_modification",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 0,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "5983ccdf273b13a36a12d403406c5d3a0dafcab3fa8f0338b9ac39e8978cda8a",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/elder_3.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "66dc67fb924960a20738933cfff68187f725ad5e1fdaf108fff800ca4f42b3ca",
+        "bytes": 402,
+        "manifest_entry": "elder_3"
+      },
+      "note": "Urban adult_bald source figure recolored with gray-white sideburns and pale stone head outline; original stance/body retained. Exact source-relative replacement pixels retained below.",
+      "source": {
+        "x": 408,
+        "y": 221,
+        "w": 16,
+        "h": 16,
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0",
+        "rgba_sha256": "c4589a68845a12045ba15da6e44099a8dbed5d93965aa638c3b11e0c26d1fc8c"
+      },
+      "modification": {
+        "kind": "replace_source_relative_pixels",
+        "coordinates": "Relative to the source crop origin; unchanged source pixels retained exactly.",
+        "changes": [
+          {
+            "x": 5,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 2,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 3,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 3,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 3,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 3,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              134,
+              134,
+              134,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 4,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 4,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 5,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 5,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 3,
+            "y": 6,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 12,
+            "y": 6,
+            "from": [
+              141,
+              82,
+              67,
+              255
+            ],
+            "to": [
+              204,
+              204,
+              204,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 9,
+            "from": [
+              137,
+              140,
+              166,
+              255
+            ],
+            "to": [
+              80,
+              80,
+              74,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 9,
+            "from": [
+              170,
+              168,
+              189,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 9,
+            "from": [
+              170,
+              168,
+              189,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 9,
+            "from": [
+              170,
+              168,
+              189,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 3,
+            "y": 10,
+            "from": [
+              170,
+              168,
+              189,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 4,
+            "y": 10,
+            "from": [
+              170,
+              168,
+              189,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 10,
+            "from": [
+              170,
+              168,
+              189,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 10,
+            "from": [
+              170,
+              168,
+              189,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 11,
+            "y": 10,
+            "from": [
+              170,
+              168,
+              189,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 11,
+            "from": [
+              137,
+              140,
+              166,
+              255
+            ],
+            "to": [
+              80,
+              80,
+              74,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 11,
+            "from": [
+              170,
+              168,
+              189,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 11,
+            "from": [
+              170,
+              168,
+              189,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 11,
+            "from": [
+              170,
+              168,
+              189,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 11,
+            "from": [
+              170,
+              168,
+              189,
+              255
+            ],
+            "to": [
+              96,
+              96,
+              90,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 11,
+            "from": [
+              137,
+              140,
+              166,
+              255
+            ],
+            "to": [
+              80,
+              80,
+              74,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 12,
+            "from": [
+              84,
+              84,
+              78,
+              255
+            ],
+            "to": [
+              122,
+              119,
+              164,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 12,
+            "from": [
+              96,
+              96,
+              90,
+              255
+            ],
+            "to": [
+              160,
+              156,
+              202,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 12,
+            "from": [
+              96,
+              96,
+              90,
+              255
+            ],
+            "to": [
+              160,
+              156,
+              202,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 12,
+            "from": [
+              96,
+              96,
+              90,
+              255
+            ],
+            "to": [
+              160,
+              156,
+              202,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 12,
+            "from": [
+              96,
+              96,
+              90,
+              255
+            ],
+            "to": [
+              160,
+              156,
+              202,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 12,
+            "from": [
+              84,
+              84,
+              78,
+              255
+            ],
+            "to": [
+              122,
+              119,
+              164,
+              255
+            ]
+          },
+          {
+            "x": 5,
+            "y": 13,
+            "from": [
+              84,
+              84,
+              78,
+              255
+            ],
+            "to": [
+              122,
+              119,
+              164,
+              255
+            ]
+          },
+          {
+            "x": 6,
+            "y": 13,
+            "from": [
+              96,
+              96,
+              90,
+              255
+            ],
+            "to": [
+              160,
+              156,
+              202,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 13,
+            "from": [
+              96,
+              96,
+              90,
+              255
+            ],
+            "to": [
+              160,
+              156,
+              202,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 13,
+            "from": [
+              84,
+              84,
+              78,
+              255
+            ],
+            "to": [
+              122,
+              119,
+              164,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 14,
+            "from": [
+              96,
+              96,
+              90,
+              255
+            ],
+            "to": [
+              160,
+              156,
+              202,
+              255
+            ]
+          },
+          {
+            "x": 10,
+            "y": 14,
+            "from": [
+              96,
+              96,
+              90,
+              255
+            ],
+            "to": [
+              160,
+              156,
+              202,
+              255
+            ]
+          }
+        ]
+      },
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "grass",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 16,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "bb6f6a50c805b219d0ee811191a0bf7aa5ef3d52cf5f9d79a4b8d3da7280affc",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 17,
+        "y": 17,
+        "w": 16,
+        "h": 16,
+        "selection_name": "ground_grass",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected ground_grass crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "sidewalk",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 32,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "146b15f9ef471f038110e21ab222b6fd1a1b6ed2ff8ab97dd818385b96adf9a5",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 17,
+        "y": 68,
+        "w": 16,
+        "h": 16,
+        "selection_name": "ground_sidewalk",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected ground_sidewalk crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "road",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 48,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "dfc6612234bca79563c6fc911bbfd42252f84b9783e0ebb111542b247cfdcc80",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 102,
+        "y": 272,
+        "w": 16,
+        "h": 16,
+        "selection_name": "ground_road_corner",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Selected road-corner pavement tile; semantic road ID keeps the selected road crop, not an unrelated ground proxy.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "house_roof",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 64,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "73f0a27ac63112308eda92f4bf01f2e424a490825a1d37a3119d121f35e8cd10",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 306,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "selection_name": "house_roof",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected house_roof crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "house_window",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 80,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "7b2689114eb6ecdb57af3287ddbef83c8416af573895fa7596e0ed927745f012",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 204,
+        "y": 170,
+        "w": 16,
+        "h": 16,
+        "selection_name": "house_window",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected house_window crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "house_door",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 96,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "38957982f73a7c05fe7406ae7e3c51f57b66a8491364a281a67e645b43d16e17",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 255,
+        "y": 170,
+        "w": 16,
+        "h": 16,
+        "selection_name": "house_door",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected house_door crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "tree",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 112,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "e46394c961ea2df7ec41bc9fd7eaef24a0183e284ed006f0fd84fe26cf7caa01",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 374,
+        "y": 204,
+        "w": 16,
+        "h": 16,
+        "selection_name": "tree",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected tree crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "fence",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 0,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "aeefdc94dc0979f41ef898810382c2d824fb892bbc51e6c73eee15ff3e86b343",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 85,
+        "y": 238,
+        "w": 16,
+        "h": 16,
+        "selection_name": "fence",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected fence crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "streetlight_top",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 16,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "7090b9a4a63a0d382cb596350e0d26adce65456c464f8da766aeb2866d1f11ab",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 51,
+        "y": 102,
+        "w": 16,
+        "h": 16,
+        "selection_name": "streetlight_top",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected streetlight_top crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "streetlight_bottom",
+      "kind": "source_crop",
+      "lineage": "RPG Urban Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "urban",
+        "x": 32,
+        "y": 32,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "955f8f4f8e59f68a6ba43de65d52aaf9c0279217b58d3e33b22e6d2eaf209d71",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/rpg-urban-pack/extracted/Tilemap/tilemap.png",
+        "x": 51,
+        "y": 119,
+        "w": 16,
+        "h": 16,
+        "selection_name": "streetlight_pole",
+        "sha256": "c2a4b6c58587a39cef78553347d6d2b51ec6820efb9945fd548c68a0b50cafe0"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected streetlight_pole crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/rpg-urban-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "house_wall",
+      "kind": "source_crop",
+      "lineage": "Roguelike RPG Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "roguelike",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "4ec97df0adeaf1d2388d57078cea3ef4055cd79bdbe741bc494b4fe5b5beb197",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/roguelike-rpg-pack/extracted/Spritesheet/roguelikeSheet_transparent.png",
+        "x": 255,
+        "y": 221,
+        "w": 16,
+        "h": 16,
+        "selection_name": "house_wall",
+        "sha256": "808c8d734480bc949b284f3bcc252e87e1ee53b24178791a6838cce6a319c439"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected house_wall crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/roguelike-rpg-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "grave",
+      "kind": "source_crop",
+      "lineage": "Roguelike RPG Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "roguelike",
+        "x": 16,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "ea1b6b5abac689bcdee735d0589f57818373d9f75cf18620c6985edefc23e782",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/roguelike-rpg-pack/extracted/Spritesheet/roguelikeSheet_transparent.png",
+        "x": 867,
+        "y": 153,
+        "w": 16,
+        "h": 16,
+        "selection_name": "gravestone",
+        "sha256": "808c8d734480bc949b284f3bcc252e87e1ee53b24178791a6838cce6a319c439"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected gravestone crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/roguelike-rpg-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "will",
+      "kind": "source_crop",
+      "lineage": "Roguelike RPG Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "roguelike",
+        "x": 32,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "02e1e9438fffca7e83c020d25cada3a24cde5d57479337ec6ace61e717725fc6",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/roguelike-rpg-pack/extracted/Spritesheet/roguelikeSheet_transparent.png",
+        "x": 697,
+        "y": 255,
+        "w": 16,
+        "h": 16,
+        "selection_name": "paper",
+        "sha256": "808c8d734480bc949b284f3bcc252e87e1ee53b24178791a6838cce6a319c439"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Selected paper/document tile, shown as the factual Will/document prop; no text, fabricated terms or religious object is drawn.",
+      "license_paths": [
+        "web/assets/licenses/roguelike-rpg-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "floor",
+      "kind": "source_crop",
+      "lineage": "Roguelike RPG Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "roguelike",
+        "x": 48,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "3cdc860d710ea225c9a0e11f58134926136a3fc65c88b713bc3198275d47893b",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/roguelike-rpg-pack/extracted/Spritesheet/roguelikeSheet_transparent.png",
+        "x": 119,
+        "y": 68,
+        "w": 16,
+        "h": 16,
+        "selection_name": "floor_wood",
+        "sha256": "808c8d734480bc949b284f3bcc252e87e1ee53b24178791a6838cce6a319c439"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected floor_wood crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/roguelike-rpg-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "wall",
+      "kind": "source_crop",
+      "lineage": "Roguelike RPG Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "roguelike",
+        "x": 64,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "391b66cb53d30c2084232d8592ba49c285759b53fa1fab4667879cbcb03007f7",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/roguelike-rpg-pack/extracted/Spritesheet/roguelikeSheet_transparent.png",
+        "x": 221,
+        "y": 221,
+        "w": 16,
+        "h": 16,
+        "selection_name": "interior_wall",
+        "sha256": "808c8d734480bc949b284f3bcc252e87e1ee53b24178791a6838cce6a319c439"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected interior_wall crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/roguelike-rpg-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "table",
+      "kind": "source_crop",
+      "lineage": "Roguelike RPG Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "roguelike",
+        "x": 80,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "f2dd564bfa9ec3046f458692136f0975396cf7c60c0ea2ee1651e730f6059bc3",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": {
+        "file": "packs/roguelike-rpg-pack/extracted/Spritesheet/roguelikeSheet_transparent.png",
+        "x": 306,
+        "y": 85,
+        "w": 16,
+        "h": 16,
+        "selection_name": "desk",
+        "sha256": "808c8d734480bc949b284f3bcc252e87e1ee53b24178791a6838cce6a319c439"
+      },
+      "modification": {
+        "kind": "none"
+      },
+      "note": "Native selected desk crop from the approved tile manifest.",
+      "license_paths": [
+        "web/assets/licenses/roguelike-rpg-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "candle",
+      "kind": "source_modification",
+      "lineage": "Roguelike RPG Pack",
+      "license": "CC0-1.0",
+      "destination": {
+        "atlas": "roguelike",
+        "x": 96,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "5c9ce29071a696834ec7c65bc0fae9b52322b015edf0e49af73a5c124ad19f1c",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/candle_lit.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "683dc9410eea7c9d7fa61d7ac16a6cae22fdfc38cb7ac41d826cc47b91954c0b",
+        "bytes": 191,
+        "manifest_entry": "candle_lit"
+      },
+      "note": "Selected Roguelike candle retained, with a 3px-high orange/cream flame and dark wick added at top. Exact source-relative replacement pixels retained below; not original lineage.",
+      "source": {
+        "x": 340,
+        "y": 119,
+        "w": 16,
+        "h": 16,
+        "file": "packs/roguelike-rpg-pack/extracted/Spritesheet/roguelikeSheet_transparent.png",
+        "sha256": "808c8d734480bc949b284f3bcc252e87e1ee53b24178791a6838cce6a319c439",
+        "rgba_sha256": "e48e69d7988184bb12fb854d299a96343ebff222b4b7bae1e900b91794a04648"
+      },
+      "modification": {
+        "kind": "replace_source_relative_pixels",
+        "coordinates": "Relative to the source crop origin; unchanged source pixels retained exactly.",
+        "changes": [
+          {
+            "x": 8,
+            "y": 0,
+            "from": [
+              255,
+              255,
+              255,
+              0
+            ],
+            "to": [
+              218,
+              146,
+              62,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 1,
+            "from": [
+              255,
+              255,
+              255,
+              0
+            ],
+            "to": [
+              220,
+              134,
+              82,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 1,
+            "from": [
+              255,
+              255,
+              255,
+              0
+            ],
+            "to": [
+              255,
+              244,
+              201,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 1,
+            "from": [
+              255,
+              255,
+              255,
+              0
+            ],
+            "to": [
+              220,
+              134,
+              82,
+              255
+            ]
+          },
+          {
+            "x": 7,
+            "y": 2,
+            "from": [
+              255,
+              255,
+              255,
+              0
+            ],
+            "to": [
+              220,
+              134,
+              82,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 2,
+            "from": [
+              255,
+              255,
+              255,
+              0
+            ],
+            "to": [
+              220,
+              134,
+              82,
+              255
+            ]
+          },
+          {
+            "x": 9,
+            "y": 2,
+            "from": [
+              255,
+              255,
+              255,
+              0
+            ],
+            "to": [
+              220,
+              134,
+              82,
+              255
+            ]
+          },
+          {
+            "x": 8,
+            "y": 3,
+            "from": [
+              126,
+              114,
+              88,
+              255
+            ],
+            "to": [
+              55,
+              55,
+              51,
+              255
+            ]
+          }
+        ]
+      },
+      "license_paths": [
+        "web/assets/licenses/roguelike-rpg-pack-License.txt",
+        "web/assets/licenses/CC0-1.0.txt"
+      ]
+    },
+    {
+      "id": "child_1",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "d043a118389fe1851f74304bd37e4fbc278a4f49efeb50ea7a354a9a644471f6",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/child_1.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "da074fe838bdb1a54966b14226382de8e0a6ad7eaad3104ea34248c23e5166a4",
+        "bytes": 226,
+        "manifest_entry": "child_1"
+      },
+      "note": "Wholly original child figure, orange hair and green clothing; drawn pixel by pixel. Cosmetic selection does not encode sex.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "child_2",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 16,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "82593ddcef9ae4486dc42e3e16693f60374c09117e8d6c2d09b9f5abbe267bf2",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/child_2.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "f6143fc690280889a36b4c65ae669d5776d51339ae317c6fe422409f383fffea",
+        "bytes": 223,
+        "manifest_entry": "child_2"
+      },
+      "note": "Wholly original child figure, dark hair and red clothing; drawn pixel by pixel. Cosmetic selection does not encode sex.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "child_3",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 32,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "13812e52b84fa67d140a235b100f66f97c210b448a312fc726424caaf4a43dbc",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/child_3.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "5ef4a3f6a5a7eb10df46ea950b0240a5291df9919ec36b7f44fc20514dd307a0",
+        "bytes": 239,
+        "manifest_entry": "child_3"
+      },
+      "note": "Wholly original child figure, brown hair and purple clothing; drawn pixel by pixel. Cosmetic selection does not encode sex.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "child_4",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 48,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "ae4ea873f8f3dfdcf6e9e67c693b7bc568399ed8abd21b0d22862c6624d335c3",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/child_4.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "c068376d500cf763568ef2791d69691bdda834a703b19813f85eb81892c1893e",
+        "bytes": 235,
+        "manifest_entry": "child_4"
+      },
+      "note": "Wholly original child figure, gray-purple hair and blue clothing; drawn pixel by pixel. Cosmetic selection does not encode sex.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "baby",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 64,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "6f0bf797976b7a579f3c52835ca59f5bc65db1f6e50f9279aa972a9b632022e1",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/baby.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "ad8545be9dd60130131bcde7b59ec1bde490d3f70471e3c9cb8065d90eabc0a8",
+        "bytes": 228,
+        "manifest_entry": "baby"
+      },
+      "note": "Wholly original swaddled infant, with distinct head and blanket; not a resized adult. Bottom baseline y=15.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "unknown_age",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 80,
+        "y": 0,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "c7f3f616b7815be0cc0195f463bae07e56efc06689199a760bd58165d2d108e8",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "source": null,
+      "input": null,
+      "note": "New wholly original neutral full-body figure authored from an empty transparent 16x16 canvas. No input sprite, skin/face/hair/sex/age cue or question-mark glyph. Exact pixel recipe retained below.",
+      "creation": {
+        "canvas": {
+          "width": 16,
+          "height": 16,
+          "background": [
+            0,
+            0,
+            0,
+            0
+          ]
+        },
+        "rows": [
+          "................",
+          "......OOOO......",
+          ".....OMMMMO.....",
+          ".....OMMMMO.....",
+          ".....OMMMMO.....",
+          "......OOOO......",
+          "....OOOOOOOO....",
+          "...OMMMMMMMMO...",
+          "...OMMMMMMMMO...",
+          "...OMMMMMMMMO...",
+          "....OSSSSSSO....",
+          ".....OSSSSO.....",
+          ".....OSSOSSO....",
+          ".....OSSOSSO....",
+          "....OOO..OOO....",
+          "....OOO..OOO...."
+        ],
+        "palette": {
+          "O": "#24383c",
+          "M": "#e9eee7",
+          "S": "#4e6263"
+        },
+        "transparent_symbol": ".",
+        "pixel_coordinates": "Rows y=0..15, characters x=0..15; palette colors are opaque RGBA."
+      },
+      "modification": {
+        "kind": "none",
+        "creation": "Wholly original new pixel figure, not a source-derived modification."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "coffin",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 96,
+        "y": 0,
+        "w": 32,
+        "h": 16
+      },
+      "rgba_sha256": "fa9db8f23828874d3f115ba8d281136ad61ffdc834ed3304c9735d85bc679eaa",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/coffin.png",
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 16,
+        "sha256": "7b3e464009c76ca473d59f5918632ed37f12d8ef71b55e6f914c83062ea40652",
+        "bytes": 304,
+        "manifest_entry": "coffin"
+      },
+      "note": "Wholly original horizontal wooden coffin with beveled narrow-foot outline and handles; no cross, inscription or brand. Wood palette sampled from selected pack art, not a copied prop.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "cradle",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 0,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "51f622f27183ed4e27564f16ba6f779d2d0a8b36d527ffabf97d6aef5d006f86",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/cradle.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "a9c65e63478c4e03ec7fddb49f6accfc3b73188bf9d1ddda664f9f35e8e95cca",
+        "bytes": 179,
+        "manifest_entry": "cradle"
+      },
+      "note": "Wholly original side-view wooden cradle with high ends, rail and curved rocker; not a bed or basin proxy.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "cloud",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 16,
+        "y": 16,
+        "w": 32,
+        "h": 16
+      },
+      "rgba_sha256": "4a07106ae6015cc5dfb1576d44d4bf46c5f387fa799556d6641728cde50cf10e",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/cloud.png",
+        "x": 0,
+        "y": 0,
+        "w": 32,
+        "h": 16,
+        "sha256": "1243fee0812f26ec29633030753202d9837a12b9b73bb80479d2400be3abb6c1",
+        "bytes": 223,
+        "manifest_entry": "cloud"
+      },
+      "note": "Wholly original layered pixel cloud with gray rim and pale interior; no source pixels or external picture.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "joss_paper",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 48,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "0bfab5919be14ddf5787f82b58e6db5efed40517c4dead21b7d516ec0357b4cb",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/joss_paper.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "7b6d4864c9a84ccabbcdb243f318c6901f3548331ac78b0579a109be27274e4f",
+        "bytes": 158,
+        "manifest_entry": "joss_paper"
+      },
+      "note": "Wholly original stack of fictional offering papers with orange rectangular decoration; no text, denomination, currency design or Soul gold.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "register",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 64,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "e4226fe428c58f657c50f275a7c8ba06337d2c41b0949a087babf836ffb2c74f",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/register.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "53dc7a7e409a6d9509f87c383058626514850156dac3dcd3fb84db9a74c866e1",
+        "bytes": 191,
+        "manifest_entry": "register"
+      },
+      "note": "Wholly original fictional bound register with blue-gray cover and blank paper label; no legible religious/institutional title.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "seal",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 80,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "c61795eccec02a70689fd3085826553f7043c7218fa4a2bf7f693726f506848a",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/seal.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "92496d808e4621c14083c3166d0c0ce362b3b63daeedda1ad365b55762917d11",
+        "bytes": 189,
+        "manifest_entry": "seal"
+      },
+      "note": "Wholly original wooden-handle red-base stamp; no text, real institutional seal or identifiable imprint.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "night_sky",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 96,
+        "y": 16,
+        "w": 16,
+        "h": 16
+      },
+      "rgba_sha256": "95820541bc0a7b6aa230a02bb348d570d8839c48d355b8711b47c54d2c1cfb83",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/night_sky.png",
+        "x": 0,
+        "y": 0,
+        "w": 16,
+        "h": 16,
+        "sha256": "b602d002a8d08417a775cbd2b835b6265acb6cc006dc3973bd432b6917e7e21c",
+        "bytes": 122,
+        "manifest_entry": "night_sky"
+      },
+      "note": "Wholly original opaque seamless 16x16 night tile, four equal-color edges and paper/blue-gray star pixels; no Soul gold.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "soul_marker",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 0,
+        "y": 32,
+        "w": 24,
+        "h": 24
+      },
+      "rgba_sha256": "559f4a6b4db2e1b3e64f97c1e10659aef6ec8b59295f0432167eb65b7e5e7444",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/soul_marker.png",
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 24,
+        "sha256": "ff82c64fce29f69a16a02debcea5f29f7ce50f9e53b6f15107a799cee56e43dc",
+        "bytes": 272,
+        "manifest_entry": "soul_marker"
+      },
+      "note": "Wholly original 24x24 hollow ring, center (11.5,11.5), #f2c75c body and inner/outer 1px #373733 outlines. Soul-only gold.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "soul_marker_small",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 24,
+        "y": 32,
+        "w": 12,
+        "h": 12
+      },
+      "rgba_sha256": "2e40e40efafeb3242b9a8006daf3212e02dfaac3cf2b1e3c7954d3d26db47c9b",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/soul_marker_small.png",
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 12,
+        "sha256": "7cb363aa1664c669d3b84e40c714401573187c524502c75158a47aa12ced9cc8",
+        "bytes": 192,
+        "manifest_entry": "soul_marker_small"
+      },
+      "note": "Wholly original 12x12 hollow ring, center (5.5,5.5), #f2c75c body and inner/outer 1px #373733 outlines. Soul-only gold.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "affected_marker",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 36,
+        "y": 32,
+        "w": 24,
+        "h": 24
+      },
+      "rgba_sha256": "a03925e707c0976b8aa89fecc1ff39cd6e9dfa18bb77856a29c374366ffa0586",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/affected_marker.png",
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 24,
+        "sha256": "9685dc10d6a87d3c837435fa9917bdd3605b3346dbca64d164878f29733a756a",
+        "bytes": 219,
+        "manifest_entry": "affected_marker"
+      },
+      "note": "Wholly original 24x24 hollow diamond, center (11.5,11.5), #c2504d body and inner/outer 1px #373733 outlines. Shape distinguishes it from Soul.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "affected_marker_small",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 60,
+        "y": 32,
+        "w": 12,
+        "h": 12
+      },
+      "rgba_sha256": "e1ee0ad0d429fcbdff0c28b050f455b4e392a35d97e5579fc2cff4c28b89ed51",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/affected_marker_small.png",
+        "x": 0,
+        "y": 0,
+        "w": 12,
+        "h": 12,
+        "sha256": "e27871e4c007772f4c329ed326021ae1c1bfcd1a93fc2f2704dc13fc4a54a39a",
+        "bytes": 165,
+        "manifest_entry": "affected_marker_small"
+      },
+      "note": "Wholly original 12x12 hollow diamond, center (5.5,5.5), #c2504d body and inner/outer 1px #373733 outlines. Shape distinguishes it from Soul.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "map_pin_self",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 72,
+        "y": 32,
+        "w": 8,
+        "h": 8
+      },
+      "rgba_sha256": "cb2dee9979b73edef16040ca36aa3a61ba0cc7e18fec1e80b8273dc021ca150f",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/map_pin_self.png",
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 8,
+        "sha256": "b1ae9dba2ac3f2c7bcdae870d4fc9eb69864cccc1418d52daf745829f777d6f4",
+        "bytes": 139,
+        "manifest_entry": "map_pin_self"
+      },
+      "note": "Wholly original 8x8 compact status pin, maximum 6x6 ink. Center color #252525; upper rim #868686 and lower rim #373733. Read from existing TINTS, no copied pack pixels or Soul gold.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "map_pin_kin",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 80,
+        "y": 32,
+        "w": 8,
+        "h": 8
+      },
+      "rgba_sha256": "3f897001e4c771c4428f4d6da57060ea68e14518aa2c06506aea2f83085718bd",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/map_pin_kin.png",
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 8,
+        "sha256": "3c3e2b6e63759044651b322cca2744a7d1146631edb18ab74d5ff66d375838fd",
+        "bytes": 148,
+        "manifest_entry": "map_pin_kin"
+      },
+      "note": "Wholly original 8x8 compact status pin, maximum 6x6 ink. Center color #2563a6; upper rim #868686 and lower rim #373733. Read from existing TINTS, no copied pack pixels or Soul gold.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "map_pin_rememberer",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 88,
+        "y": 32,
+        "w": 8,
+        "h": 8
+      },
+      "rgba_sha256": "74ace0808073ab36d84e99133e783b82242c3fbf61da07a5b8b932b4c8aa056e",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/map_pin_rememberer.png",
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 8,
+        "sha256": "8b8adcd6355bb365b3a172d05190207937e0038bc14d63ff9b0e671ffc7d75c2",
+        "bytes": 148,
+        "manifest_entry": "map_pin_rememberer"
+      },
+      "note": "Wholly original 8x8 compact status pin, maximum 6x6 ink. Center color #7851a9; upper rim #868686 and lower rim #373733. Read from existing TINTS, no copied pack pixels or Soul gold.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "map_pin_affected",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 96,
+        "y": 32,
+        "w": 8,
+        "h": 8
+      },
+      "rgba_sha256": "68f8a20d29626b2429bbf06d4e75d8e81590be67e12ad94f3ae9737c7e39ce4b",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/map_pin_affected.png",
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 8,
+        "sha256": "31ebfa6ff6413a88423d0b16c165708652cf6549bc600aa3a601581081c1deef",
+        "bytes": 146,
+        "manifest_entry": "map_pin_affected"
+      },
+      "note": "Wholly original 8x8 compact status pin, maximum 6x6 ink. Center color #b23a48; upper rim #868686 and lower rim #373733. Read from existing TINTS, no copied pack pixels or Soul gold.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    },
+    {
+      "id": "map_pin_neutral",
+      "kind": "project_original",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "destination": {
+        "atlas": "original",
+        "x": 104,
+        "y": 32,
+        "w": 8,
+        "h": 8
+      },
+      "rgba_sha256": "1aee07f3c0ef05f4b8b037e3e9ef9526dc1ba3b3a76002da38d49a5c030de8c4",
+      "pixel_format": "RGBA8 row-major, unpremultiplied alpha",
+      "packing": "Exact native pixels copied; no resampling, rotation, tinting or alpha-mask blend.",
+      "input": {
+        "evidence_path": "assets/drawn/map_pin_neutral.png",
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 8,
+        "sha256": "2597c0a3566fc48dea7da763edb856849dbd8e0efda2aa3bf7b040de03138b85",
+        "bytes": 143,
+        "manifest_entry": "map_pin_neutral"
+      },
+      "note": "Wholly original 8x8 compact status pin, maximum 6x6 ink. Center color #757575; upper rim #868686 and lower rim #373733. Read from existing TINTS, no copied pack pixels or Soul gold.",
+      "source": null,
+      "modification": {
+        "kind": "none",
+        "creation": "Authored from an empty canvas in approved cached original-art preparation; color sampling does not copy source imagery."
+      },
+      "license_paths": [
+        "LICENSE"
+      ]
+    }
+  ]
+}

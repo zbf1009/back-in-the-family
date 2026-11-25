@@ -21,14 +21,25 @@
       <strong>{view === null ? 'No World yet' : 'Between lives'}</strong>
     {/if}
   </div>
+  {#if ui.world !== null}
+    <p class="identity-state" data-testid="identity-state">Soul {ui.world.player_soul} · {ui.world.player.place === 'waiting' ? 'Waiting between lives' : `Current body ${ui.world.player.body}`}</p>
+  {/if}
   <p class="rememberers" data-testid="rememberer-count">Rememberers: {view?.rememberers ?? 0}</p>
   <div class="ties" role="region" aria-label="Family and earlier lives">
     <h3>Blood ties</h3>
     <ul data-testid="blood-ties">
       {#each view?.bloodTies ?? [] as tie (tie.person)}
-        <li>{tie.name} · {tie.kinship.join(', ')}</li>
+        <li>{tie.name} · {tie.kinship.join(', ')} · {tie.affinity} affinity</li>
       {:else}
         <li class="empty">No blood ties.</li>
+      {/each}
+    </ul>
+    <h3>Current-body relations</h3>
+    <ul data-testid="current-relations">
+      {#each view?.relations ?? [] as tie (tie.person)}
+        <li>{tie.name} · {tie.affinity} affinity{tie.kinship.length > 0 ? ` · ${tie.kinship.join(', ')}` : ''}</li>
+      {:else}
+        <li class="empty">No current-body relations.</li>
       {/each}
     </ul>
     <h3>Past-life ties</h3>
@@ -42,7 +53,7 @@
     <h3>Earlier lives</h3>
     <ul data-testid="earlier-lives">
       {#each view?.earlierBodies ?? [] as body (body.id)}
-        <li><span class="earlier-marker" style:color={SOUL_COLOR} role="img" aria-label="Your soul: gold ring">{SOUL_GLYPH}</span> {body.name} · {body.origin}</li>
+        <li><span class="earlier-marker" style:color={SOUL_COLOR} role="img" aria-label="Your soul: gold ring">{SOUL_GLYPH}</span> {body.name} · {body.origin} · body {body.id} · died at tick {body.death}</li>
       {:else}
         <li class="empty">No earlier lives.</li>
       {/each}
@@ -51,18 +62,18 @@
 </section>
 
 <style>
-  .identity { display: flex; flex-direction: column; min-height: 0; padding: 16px; }
-  h2 { margin: 0 0 12px; font-size: 18px; }
+  .identity { min-width: 0; padding: 16px; color: var(--life-ink); font: 15px/1.5 system-ui, sans-serif; }
+  h2 { margin: 0 0 12px; font-size: 21px; line-height: 1.25; }
   .current { display: flex; align-items: center; gap: 10px; }
+  .current > div { min-width: 0; }
   .soul-marker { flex: none; font: bold 32px/1 sans-serif; }
-  strong { font-size: 17px; }
-  .current p { margin: 5px 0 0; font-size: 13px; }
-  .rememberers { margin: 14px 0; font-variant-numeric: tabular-nums; }
-  .ties { min-height: 0; overflow: auto; }
-  h3 { margin: 18px 0 6px; font-size: 14px; }
+  strong { font-size: 17px; overflow-wrap: anywhere; }
+  .current p { margin: 5px 0 0; }
+  .identity-state, .rememberers { margin: 12px 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  h3 { margin: 24px 0 8px; font-size: 15px; }
   h3:first-child { margin-top: 0; }
-  ul { list-style: none; padding: 0; margin: 0; font-size: 13px; }
-  li { margin-bottom: 7px; overflow-wrap: anywhere; }
-  .empty { color: #54534f; }
+  ul { list-style: none; padding: 0; margin: 0; }
+  li { margin-bottom: 10px; overflow-wrap: anywhere; }
+  .empty { color: var(--life-muted); }
   .earlier-marker { font-weight: bold; font-size: 22px; vertical-align: middle; }
 </style>

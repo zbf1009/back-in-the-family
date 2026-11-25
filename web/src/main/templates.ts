@@ -13,7 +13,8 @@ function stakesText(entry: ChronicleEntry, world: WorldSnapshot): string {
 }
 
 export function chronicleLine(entry: ChronicleEntry, world: WorldSnapshot): string {
-  return `Tick ${entry.tick} · ${entry.family} · ${stakesText(entry, world)} · ${entry.applied} · ${entry.source}`;
+  const skipped = entry.skipped.map(part => `part ${part.part}: ${part.reason}`).join('; ');
+  return `Tick ${entry.tick} · ${entry.family} · ${stakesText(entry, world)} · ${entry.applied} · ${entry.source} · chooser absent: ${entry.chooser_absent ? 'yes' : 'no'} · skipped: ${skipped || 'none'}`;
 }
 
 export function chronicleLines(ui: UiState): string[] {

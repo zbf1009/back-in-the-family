@@ -1,37 +1,56 @@
 <script lang="ts">
   import type { UiState } from '../../main/ui-state.ts';
   import { sceneLines, sceneStaging } from '../../main/templates.ts';
-  import { placeholderSprites } from '../../art/sprites.ts';
-  const { ui, onClose }: { ui: UiState; onClose: () => void } = $props();
+  import { resolveVisualKey, type SpriteSet } from '../../art/sprites.ts';
+  const { ui, sprites, onClose }: { ui: UiState; sprites: SpriteSet | null; onClose: () => void } = $props();
   const world = $derived(ui.scene?.world ?? null);
-  const lines = $derived(world === null ? [] : sceneLines('inheritance', world));
-  const stage = $derived(world === null ? null : sceneStaging('inheritance', world));
+  const cue = $derived({ kind: 'inheritance' as const, node: ui.scene?.entries[0]?.node ?? null });
+  const lines = $derived(world === null ? [] : sceneLines(cue, world));
+  const stage = $derived(world === null ? null : sceneStaging(cue, world));
+  const markers = $derived(stage?.markers.slice(0, 4).map(marker => ({ ...marker,
+    visual: resolveVisualKey(marker.person, world!.residents.find(person => person.id === marker.person)?.age ?? null),
+  })) ?? []);
+  const compositionKey = $derived(JSON.stringify([stage?.props, markers.map(marker => [marker.person, marker.visual, marker.tint, marker.soul])]));
   let canvas: HTMLCanvasElement;
+  let renderedKey: string | undefined;
+  let renderedSprites: SpriteSet | null | undefined;
   $effect(() => {
     const ctx = canvas?.getContext('2d');
-    if (!ctx || stage === null) return;
-    ctx.clearRect(0, 0, 520, stage.height);
-    for (const [index, prop] of stage.props.entries()) placeholderSprites.prop(ctx, prop, 200 + index * 40, 30);
-    for (const marker of stage.markers) {
-      placeholderSprites.resident(ctx, marker.x, marker.y, marker.tint);
-      if (marker.soul) placeholderSprites.soulMarker(ctx, marker.x, marker.y);
+    if (!ctx || renderedKey === compositionKey && renderedSprites === sprites) return;
+    renderedKey = compositionKey;
+    renderedSprites = sprites;
+    ctx.clearRect(0, 0, 256, 80);
+    if (stage === null || sprites === null) return;
+    for (let x = 0; x < 256; x += 16) sprites.prop(ctx, 'floor', x, 64);
+    sprites.prop(ctx, 'table', 136, 48);
+    for (const [index, prop] of stage.props.entries()) sprites.prop(ctx, prop, 176 + index * 40, 40);
+    for (const [index, marker] of markers.entries()) {
+      sprites.resident(ctx, 32 + index * 28, 64, marker.tint, marker.visual);
+      if (marker.soul) sprites.soulMarker(ctx, 32 + index * 28, 44);
     }
   });
 </script>
 
 <section class="scene" aria-label="Inheritance scene" data-testid="scene-inheritance">
-  <canvas bind:this={canvas} width="520" height={stage?.height ?? 110} data-testid="scene-inheritance-canvas" aria-label="Scene props and named living people">
-    Scene props and named living people.
+  <canvas bind:this={canvas} width="256" height="80" data-testid="scene-inheritance-canvas" aria-label="Symbolic inheritance illustration; historical facts follow below.">
+    Symbolic inheritance illustration; historical facts follow below.
   </canvas>
+  <p class="picture-note">Historical cue · symbolic illustration, not locations or attendance.</p>
   {#each lines as line, index (index)}<p>{line}</p>{/each}
+  {#if (stage?.people.length ?? 0) > 0}
+    <p>Named living people: {stage!.people.map(id => world!.person_names.find(person => person.id === id)?.name ?? `Person ${id}`).join(', ')}.</p>
+  {/if}
   {#if ui.scene?.entries[0]?.node === null}
     <button type="button" data-testid="scene-close" onclick={onClose}>Close</button>
   {/if}
 </section>
 
 <style>
-  .scene { padding: 16px; background: #fffefa; border: 1px solid #858585; border-radius: 6px; box-shadow: 0 8px 24px #25252526; }
-  canvas { display: block; width: 100%; height: auto; background: #f2f0e9; image-rendering: pixelated; }
-  p { margin: 12px 0; line-height: 1.45; overflow-wrap: anywhere; }
-  button { margin-top: 4px; }
+  .scene { min-width: 0; color: #24383c; }
+  canvas { display: block; width: 256px; height: 80px; background: #f7f6ef; image-rendering: pixelated; }
+  p { margin: 8px 0; line-height: 1.45; overflow-wrap: anywhere; }
+  .picture-note { font-size: 14px; color: #4e6263; }
+  button { min-height: 36px; margin-top: 4px; padding: 6px 14px; color: #24383c; background: #e9eee7; border: 1px solid #4e6263; font: inherit; cursor: pointer; }
+  button:hover { background: #dbe5db; }
+  button:focus-visible { outline: 2px solid #005fcc; outline-offset: 2px; }
 </style>

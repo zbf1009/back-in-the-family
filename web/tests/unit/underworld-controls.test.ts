@@ -92,9 +92,50 @@ test('LV-C2: world replacement and fatal state gate underworld inputs but an old
   for (const blocked of [{ ...ui, createPending: true }, { ...ui, runState: 'failed' as const }, { ...ui, worldId: 0 }]) {
     const view = underworldView(blocked)!;
     assert.equal(view.dreamEnabled, false); assert.ok(view.slots.every(slot => !slot.claimEnabled));
+    assert.equal(view.bribe.enabled, false); assert.ok(view.haunt.targets.every(target => !target.enabled));
     assert.ok(view.dreamReasons.includes('World controls are unavailable.'));
     assert.equal(view.balance, live.balance); assert.equal(view.dreamPrice, live.dreamPrice);
   }
   const older = underworldView({ ...ui, tick: '501', runState: 'running' })!;
   assert.deepEqual(older, live);
+});
+
+test('Haunt consumers retain negative-affinity targets and invalidate removed or blocked targets independently', () => {
+  const world = waitingSnapshot();
+  const ghost = world.player_wait!.ghost;
+  world.player.earlier_bodies = [...world.player.earlier_bodies, { id: 100, name: 'An earlier body', origin: 'native', death: '400' }];
+  world.player.past_life_ties = [
+    { rememberer: 1, earlier_body: ghost, affinity: -51 },
+    { rememberer: 3, earlier_body: ghost, affinity: 29 },
+    { rememberer: 1, earlier_body: 100, affinity: 88 },
+  ];
+  const actions = world.underworld_view!.actions;
+  actions.haunt.price = '9007199254740993';
+  actions.capped_spend = { cap_year: '18446744073709551615', yearly_cap: '18446744073709551615', spent: '18446744073709551606', remaining: '9' };
+  const ui = uiFor(world);
+  const before = JSON.stringify(ui);
+  const initial = underworldView(ui)!;
+  assert.deepEqual(initial.haunt.targets.map(target => [target.id, target.affinity, target.enabled]), [[1, -51, true], [3, 29, true]]);
+  assert.equal(initial.haunt.price, '9007199254740993');
+  assert.deepEqual(initial.cappedSpend, actions.capped_spend);
+  assert.equal(initial.bribe.enabled, true, 'Bribe is not gated by the shared capped-spend room');
+  const blockedWorld = { ...world, underworld_view: { ...world.underworld_view!, actions: { ...actions,
+    haunt: { ...actions.haunt, targets: [
+      { target: 1, availability: { eligible: false as const, reason: 'rate_limited' as const } },
+      actions.haunt.targets[1]!,
+    ] },
+  } } };
+  const blocked = underworldView({ ...ui, world: blockedWorld })!;
+  assert.equal(blocked.haunt.targets[0]!.enabled, false);
+  assert.equal(blocked.haunt.targets[0]!.availability.reason, 'rate_limited');
+  assert.equal(blocked.haunt.targets[1]!.enabled, true);
+  assert.equal(blocked.dreamEnabled, true);
+  assert.ok(blocked.slots.some(slot => slot.claimEnabled));
+  const removedWorld = { ...world, underworld_view: { ...world.underworld_view!, connected: [3], actions: { ...actions,
+    haunt: { ...actions.haunt, targets: [actions.haunt.targets[1]!] },
+  } } };
+  const removed = underworldView({ ...ui, world: removedWorld })!;
+  assert.deepEqual(removed.haunt.targets.map(target => target.id), [3]);
+  assert.equal(removed.haunt.targets[0]!.enabled, true);
+  assert.equal(JSON.stringify(ui), before);
 });

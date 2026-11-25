@@ -93,12 +93,11 @@ async function assertSDK(sdk: string): Promise<void> {
 export async function fixtureProject(parent: string, additionalPaths: readonly string[] = []): Promise<string> {
   const project = join(parent, 'source');
   await mkdir(project);
-  const paths = [...new Set([...SOURCE_INPUT_PATHS, ...Object.values(METADATA_INPUT_PATHS), 'README.md', ...cliPaths, ...additionalPaths])];
-  for (const path of paths) await copiedFile(join(root, path), join(project, path));
+  const paths = [...SOURCE_INPUT_PATHS, ...Object.values(METADATA_INPUT_PATHS), 'README.md', ...cliPaths, ...additionalPaths];
   for (const directory of SOURCE_INPUT_DIRECTORIES) {
-    await mkdir(join(project, directory), { recursive: true });
-    await copyBytes(join(project, directory), await readClosedTree(join(root, directory)));
+    for (const file of await readClosedTree(join(root, directory))) paths.push(`${directory}/${file.path}`);
   }
+  for (const path of [...new Set(paths)].sort()) await copiedFile(join(root, path), join(project, path));
   // JSON is plain safe YAML; bind a complete selection before the source commit.
   const sdkLock = selectSdkLock(await readFile(join(project, 'web/pnpm-lock.yaml'), 'utf8'),
     await readFile(join(project, 'worker-api/artifact-deploy/package.json'), 'utf8'));

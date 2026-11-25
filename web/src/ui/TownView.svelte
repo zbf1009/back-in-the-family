@@ -1,71 +1,95 @@
 <script lang="ts">
   import type { UiState } from '../main/ui-state.ts';
   import { townDrawList } from '../main/town-layout.ts';
-  import { placeholderSprites, TINTS, SOUL_COLOR } from '../art/sprites.ts';
+  import { resolveVisualKey, TINTS, type SpriteSet } from '../art/sprites.ts';
 
-  const { ui }: { ui: UiState } = $props();
-  let canvas: HTMLCanvasElement;
-  const drawing = $derived(ui.world === null ? null : townDrawList(ui.world));
+  const { ui, sprites }: { ui: UiState; sprites: SpriteSet | null } = $props();
+  let canvas: HTMLCanvasElement | undefined = $state();
+  const world = $derived(ui.world);
+  const drawing = $derived(world === null ? null : townDrawList(world));
+  const people = $derived(new Map(world?.residents.map(person => [person.id, person]) ?? []));
+  const markers = $derived(drawing?.residents.map(marker => ({
+    ...marker, visual: resolveVisualKey(marker.person, people.get(marker.person)?.age ?? null),
+  })) ?? []);
+  const height = $derived(Math.max(120, (drawing?.height ?? 0) + 32 + Math.ceil((drawing?.graves.length ?? 0) / 12) * 28));
+  const compositionKey = $derived(JSON.stringify([
+    drawing?.houses, markers.map(marker => [marker.person, marker.x, marker.y, marker.tint, marker.visual, marker.soul]),
+    drawing?.graves.map(body => body.id), height,
+  ]));
+  let renderedKey: string | undefined;
+  let renderedSprites: SpriteSet | null | undefined;
+  let renderedCanvas: HTMLCanvasElement | undefined;
 
   $effect(() => {
     const ctx = canvas?.getContext('2d');
-    if (!ctx) return;
-    ctx.clearRect(0, 0, 620, 460);
-    ctx.fillStyle = '#f2f0e9';
-    ctx.fillRect(0, 0, 620, 460);
-    if (drawing === null) return;
-    ctx.save();
-    const scale = Math.min(1, 380 / drawing.height);
-    ctx.scale(1, scale);
-    for (const house of drawing.houses) {
-      placeholderSprites.house(ctx, house.x, house.y, house.w, house.h);
-      ctx.fillStyle = '#454545';
-      ctx.font = '10px sans-serif';
-      ctx.fillText(`House ${house.id}`, house.x + 7, house.y + 15);
+    if (!ctx || renderedKey === compositionKey && renderedSprites === sprites && renderedCanvas === canvas) return;
+    renderedKey = compositionKey;
+    renderedSprites = sprites;
+    renderedCanvas = canvas;
+    ctx.clearRect(0, 0, 620, height);
+    if (drawing === null || sprites === null) return;
+    for (const house of drawing.houses) sprites.house(ctx, house.x, house.y, house.w, house.h);
+    for (const marker of markers) {
+      sprites.resident(ctx, marker.x, marker.y + 10, marker.tint, marker.visual);
+      if (marker.soul) sprites.soulMarker(ctx, marker.x, marker.y - 8);
     }
-    for (const marker of drawing.residents) {
-      placeholderSprites.resident(ctx, marker.x, marker.y, marker.tint);
-      if (marker.soul) placeholderSprites.soulMarker(ctx, marker.x, marker.y);
-    }
-    ctx.restore();
-    ctx.fillStyle = '#454545';
-    ctx.font = '12px sans-serif';
-    ctx.fillText('Earlier lives · graveyard', 16, 405);
-    for (const [index, body] of drawing.graves.entries()) {
-      const x = 22 + index % 6 * 100;
-      const y = 425 + Math.floor(index / 6) * 22;
-      placeholderSprites.grave(ctx, x, y);
-      ctx.fillStyle = '#252525';
-      ctx.fillText(body.name, x + 10, y + 4, 78);
+    for (const [index] of drawing.graves.entries()) {
+      sprites.grave(ctx, 22 + index % 12 * 50, drawing.height + 28 + Math.floor(index / 12) * 28);
     }
   });
 </script>
 
 <section class="town" aria-label="Town view">
-  <canvas bind:this={canvas} width="620" height="460" data-testid="town-view"
-    aria-label={drawing === null ? 'Town view: no World created' : `Town view: ${drawing.residents.length} living Residents grouped by Household`}>
-    Living Residents are grouped by Household. The gold ring marks your soul.
-  </canvas>
   {#if drawing === null}
-    <p class="empty">Create a World to meet the town.</p>
+    <p>Create a World to meet the town.</p>
+  {:else}
+    <p class="map-note">Living Residents grouped by Household; positions are illustrative, not locations. Scroll to explore the map.</p>
+    <a href="#town-map-scroll">Scroll town map with arrow keys</a>
+    <div id="town-map-scroll" class="map-scroll" tabindex="-1" role="region" aria-label="Scrollable pixel town map">
+      <canvas bind:this={canvas} width="620" {height} data-testid="town-view"
+        aria-label={`Town view: ${markers.length} living Residents grouped by Household. Full names and markers follow below.`}>
+        Living Residents are grouped by Household. Full names and markers follow below.
+      </canvas>
+    </div>
+    <div class="legend" aria-label="Town marker legend">
+      <span>Unmarked: neutral</span>
+      <span style:color={TINTS.kin}>Blue side marker: blood tie</span>
+      <span style:color={TINTS.rememberer}>Purple side marker: rememberer</span>
+      <span style:color={TINTS.affected}>Red asset marker: affected by choice previews</span>
+      <span>Gold asset marker: your Soul</span>
+    </div>
+    <div class="town-names" aria-label="Town residents and earlier lives">
+      {#each drawing.houses as house (house.id)}
+        <details>
+          <summary>Household {house.id} · {markers.filter(marker => marker.household === house.id).length} living</summary>
+          <ul>
+            {#each markers.filter(marker => marker.household === house.id) as marker (marker.person)}
+              {@const person = people.get(marker.person)}
+              <li>{person?.name ?? `Person ${marker.person}`} · {person === undefined ? 'age unknown' : `age ${person.age}`} · {marker.soul ? 'your Soul' : marker.tint === 'kin' ? 'blood tie' : marker.tint === 'rememberer' ? 'rememberer' : marker.tint === 'affected' ? 'affected by choice previews' : 'neutral'}</li>
+            {/each}
+          </ul>
+        </details>
+      {/each}
+      {#if drawing.graves.length > 0}
+        <details>
+          <summary>Earlier lives · {drawing.graves.length} graves</summary>
+          <ul>{#each drawing.graves as body (body.id)}<li>{body.name} · {body.origin} · died at tick {body.death}</li>{/each}</ul>
+        </details>
+      {/if}
+    </div>
   {/if}
-  <div class="legend" aria-label="Town marker legend">
-    <span><i class="swatch" style:background={TINTS.neutral} aria-hidden="true"></i>Neutral</span>
-    <span><i class="swatch" style:background={TINTS.kin} aria-hidden="true"></i>Blood tie</span>
-    <span><i class="swatch" style:background={TINTS.rememberer} aria-hidden="true"></i>Rememberer</span>
-    <span><i class="swatch affected" style:background={TINTS.affected} aria-hidden="true"></i>Affected (diamond)</span>
-    <span><i class="soul-swatch" style:border-color={SOUL_COLOR} aria-hidden="true"></i>Your soul</span>
-  </div>
 </section>
 
 <style>
-  .town { position: relative; }
-  canvas { display: block; width: 620px; height: 460px; image-rendering: pixelated; }
-  .empty { position: absolute; top: 190px; width: 100%; text-align: center; }
-  .legend { display: flex; flex-wrap: wrap; gap: 10px 16px; margin: 10px 16px; font-size: 12px; color: #454545; }
-  .legend span { display: inline-flex; align-items: center; gap: 6px; }
-  .swatch { width: 8px; height: 8px; display: inline-block; }
-  .affected { transform: rotate(45deg); }
-  .soul-swatch { width: 12px; height: 12px; border: 2px solid; border-radius: 50%; }
-  @media (max-width: 1279px) { canvas { max-width: 100%; height: auto; } }
+  .town { min-width: 0; color: #24383c; }
+  .map-note, .legend { color: #4e6263; font-size: 14px; line-height: 1.45; }
+  .map-scroll { overflow: auto; max-height: 360px; background: #f7f6ef; scrollbar-color: #4e6263 #e9eee7; }
+  .map-scroll:focus-visible, summary:focus-visible { outline: 2px solid #005fcc; outline-offset: 2px; }
+  canvas { display: block; width: 620px; image-rendering: pixelated; }
+  .legend { display: grid; gap: 6px; margin: 12px 0; }
+  .town-names { font-size: 14px; }
+  details { border-top: 1px solid #c1cdc4; padding: 8px 0; }
+  summary { cursor: pointer; overflow-wrap: anywhere; }
+  ul { padding-left: 20px; }
+  li { margin: 6px 0; line-height: 1.45; overflow-wrap: anywhere; }
 </style>

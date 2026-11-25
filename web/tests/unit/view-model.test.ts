@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import fc from 'fast-check';
-import { feedbackView, viewModel, namesById } from '../../src/main/view-model.ts';
+import { feedbackView, identitySummary, viewModel, namesById } from '../../src/main/view-model.ts';
 import { currentDecision, initialUiState, reduce } from '../../src/main/ui-state.ts';
 import type { Needed, PlayerOption, Preview, StakeUnit, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 
@@ -48,8 +48,11 @@ test('Property 24: Snapshot whole years, signed previews, Stakes and Needed rema
       assert.equal(view.body!.name, world.residents.find(person => person.id === world.player.body)!.name);
       assert.equal(view.body!.origin, world.residents.find(person => person.id === world.player.body)!.origin);
       assert.deepEqual(view.choice!.stakes, { who: preview.map(entry => namesById(world).get(entry.person)), amount, unit, by: String(now + 1n), days: '1' });
+      assert.equal(view.choice!.fired, String(now - 1n));
+      assert.equal(view.choice!.choiceTick, String(now));
+      assert.equal(view.choice!.resolves, String(now));
       for (const option of view.choice!.options) {
-        assert.deepEqual(option.preview, preview.map(entry => ({ person: namesById(world).get(entry.person),
+        assert.deepEqual(option.preview, preview.map(entry => ({ person: namesById(world).get(entry.person), personId: entry.person,
           delta: entry.delta[0] === '-' ? entry.delta : '+' + entry.delta, what: entry.what,
           unit: entry.what.startsWith('trait:') ? 'trait_points' : entry.what === 'debt' ? 'money' : entry.what })));
       }
@@ -73,9 +76,36 @@ test('Identity separates ties, counts distinct Rememberers and names non-residen
   const view = viewModel({ ...initialUiState(), world })!;
   assert.equal(view.rememberers, 1);
   assert.equal(view.bloodTies.length, base.player.blood_ties.length);
+  assert.deepEqual(view.relations, world.player.relations.map(tie => ({ ...tie, name: namesById(world).get(tie.person) })));
   assert.deepEqual(view.pastLifeTies.map(tie => [tie.name, tie.earlierName, tie.affinity]), [['John Carlson', 'Earlier One', -19], ['John Carlson', 'Earlier Two', 21]]);
   assert.equal(namesById(world).get(200), 'Deceased Creditor');
   assert.equal(viewModel(initialUiState()), null);
+});
+
+test('The identity header preserves a high-u64 Soul and separates current life from a retained earlier body', () => {
+  const living = structuredClone(base);
+  living.player_soul = '18446744073709551615';
+  const body = living.residents.find(person => person.id === living.player.body)!;
+  body.name = 'Alexandria Alexandria Alexandria — the current body, not an earlier life';
+  const summary = identitySummary(uiFor(living))!;
+  assert.equal(summary.soul, '18446744073709551615');
+  assert.equal(summary.body, body.id);
+  assert.equal(summary.name, body.name);
+  assert.equal(summary.status, 'living');
+  assert.equal(summary.age, body.age);
+  assert.equal(summary.origin, body.origin);
+  const waiting = waitingSnapshot();
+  waiting.player_soul = living.player_soul;
+  waiting.player.earlier_bodies[0]!.name = body.name;
+  const between = identitySummary(uiFor(waiting))!;
+  assert.equal(between.soul, summary.soul);
+  assert.equal(between.status, 'waiting');
+  assert.equal(between.body, null);
+  assert.equal(between.age, null);
+  assert.equal(between.origin, null);
+  assert.notEqual(between.name, body.name);
+  assert.ok(between.name.includes(summary.soul));
+  assert.equal(identitySummary(initialUiState()), null);
 });
 
 test('LV-C2: view-model exposes only the coherent current node and never stale option text', () => {
@@ -149,7 +179,12 @@ test('LV-C2: feedbackView preserves authoritative same-world actions and lifecyc
   const view = feedbackView(ui);
   assert.equal(ui.world, null);
   assert.equal(viewModel(ui), null);
-  assert.equal(view.actions[0]!.text, 'haunt: applied at tick 1, target 31, charged 43 joss paper; intensity 9, pre-clamp Mood effect -15, event 91. Request 2 · input 70');
+  assert.equal(view.actions[0]!.phase, 'applied');
+  assert.equal(view.actions[0]!.requestId, 2);
+  assert.equal(view.actions[0]!.inputSeq, '70');
+  for (const fact of [/target 31/, /charged 43 joss paper/, /intensity 9/, /pre-clamp Mood effect -15/, /event 91/, /ghost 2/]) {
+    assert.match(view.actions[0]!.text, fact);
+  }
   assert.deepEqual(view.playerLifecycle, [fact]);
   assert.equal(view.playerLifecycle, ui.playerLifecycle);
   assert.equal(view.settledOmitted, 0);
@@ -180,10 +215,12 @@ test('LV-C2: World projection excludes feedback while feedbackView retains unres
   const view = feedbackView(ui);
   assert.equal(view.actions.length, 23);
   assert.deepEqual(view.actions.slice(0, 3).map(action => action.phase), ['unknown', 'queued', 'sending']);
-  assert.equal(view.actions[0]!.text, 'haunt: completion unknown. No retry was sent. Request 1');
-  assert.equal(view.actions[1]!.text, 'claim: admission queued at tick 500; consult Chronicle for completed outcomes. Request 2 · input 70');
-  assert.equal(view.actions[2]!.text, 'haunt: sending. Request 3');
-  assert.equal(view.actions[3]!.text, 'bribe: rejected at tick 501 (bad_amount). Request untracked · input 101');
+  assert.deepEqual(view.actions.slice(0, 3).map(action => action.requestId), [1, 2, 3]);
+  assert.match(view.actions[1]!.text, /queued at tick 500/);
+  assert.match(view.actions[1]!.text, /input 70/);
+  for (const fact of [/rejected at tick 501/, /bad_amount/, /amount 0 joss paper/, /input 101/]) {
+    assert.match(view.actions[3]!.text, fact);
+  }
   assert.equal(view.actions[22]!.inputSeq, '120');
   assert.equal(view.settledOmitted, 1);
   assert.equal(ui.actions, before);

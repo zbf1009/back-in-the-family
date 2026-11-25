@@ -108,7 +108,12 @@ async function readWorld(page: Page): Promise<WorldSnapshot> {
   if (!reply.ok || !reply.world) throw Error('completed World Snapshot is missing');
   return reply.world;
 }
+async function openDisclosure(page: Page, id: 'world-setup' | 'technical-details'): Promise<void> {
+  const disclosure = page.getByTestId(id);
+  if (await disclosure.getAttribute('open') === null) await disclosure.locator('summary').click();
+}
 async function create(page: Page): Promise<void> {
+  await openDisclosure(page, 'world-setup');
   await page.getByTestId('seed').fill(fixture.seed);
   await page.getByTestId('config').fill(JSON.stringify(fixture.config));
   await page.getByTestId('create').click();
@@ -162,6 +167,7 @@ async function waiting(page: Page): Promise<void> {
 async function open(page: Page): Promise<void> {
   await page.setViewportSize({ width: 1280, height: 720 }); await page.goto('/?harness=1');
   await page.waitForFunction(() => window.__simHarness !== undefined);
+  await openDisclosure(page, 'technical-details');
   await expect(page.getByLabel('Decision wait (seconds)')).toHaveValue('10');
 }
 async function start(page: Page): Promise<{ tick: string; checksum: string }> {
@@ -169,6 +175,7 @@ async function start(page: Page): Promise<{ tick: string; checksum: string }> {
   await page.getByTestId('dream-send').click();
   await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'pending');
   await expect(page.getByTestId('use-rules-now')).toBeVisible();
+  for (const id of ['decision-notice', 'use-rules-now']) expect(await page.getByTestId(id).evaluate(element => element.closest('details') === null)).toBe(true);
   for (const id of ['run', 'pause', 'step', 'speed', 'dream-send', 'claim-imported_vessel', 'claim-rebuilt_body']) {
     await expect(page.getByTestId(id)).toBeDisabled();
   }

@@ -153,6 +153,21 @@ test('Artifact_Check actual CLI: independent actual inputs pass, each isolated m
     const sourcePath = join(project, 'mise.toml');
     const sourceBytes = await readFile(sourcePath);
     await boundary('uncommitted actual source edit rejects committed provenance', /Checked source bytes differ from source commit/, () => writeFile(sourcePath, Buffer.concat([sourceBytes, Buffer.from('\n# inert uncommitted source change\n')])), () => writeFile(sourcePath, sourceBytes));
+    for (const directory of ['web/public', 'web/assets']) {
+      const files = await readClosedTree(join(root, directory));
+      assert.ok(files.length > 0, `Actual owned ${directory} inputs must not be empty`);
+      for (const file of files) {
+        const path = `${directory}/${file.path}`;
+        const target = join(project, path);
+        const original = await readFile(target);
+        assert.ok(original.equals(file.bytes), `Consumer must copy the actual owned ${path} bytes`);
+        await boundary(`${path} edit rejects committed art provenance`, /Checked source bytes differ from source commit/,
+          () => writeFile(target, Buffer.concat([original, Buffer.from('\n')])), () => writeFile(target, original));
+      }
+      const addedSource = join(project, directory, 'uncommitted-art-input.txt');
+      await boundary(`${directory} cannot admit an uncommitted art input`, /Checked source input paths differ from the source commit/,
+        () => writeFile(addedSource, 'uncommitted art input\n', { flag: 'wx' }), () => rm(addedSource));
+    }
     await t.test('private envelope cannot replace the independent expected digest', async () => {
       pass();
       const path = join(transport, 'inputs.json');

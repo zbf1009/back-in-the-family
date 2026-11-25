@@ -7,6 +7,7 @@
 
 <section class="chronicle" aria-labelledby="chronicle-heading">
   <h2 id="chronicle-heading">Chronicle</h2>
+  <p class="context">Reported outcomes, newest first. Named people are those supplied with the stakes; previews are not an applied-effect ledger.</p>
   <div class="entries" role="region" aria-label="Chronicle entries">
     <ol data-testid="chronicle">
       {#each lines as line, index (index)}
@@ -19,10 +20,10 @@
 </section>
 
 <style>
-  .chronicle { padding: 16px; min-height: 0; display: flex; flex-direction: column; border-top: 1px solid #c6c3b9; }
-  h2 { margin: 0 0 12px; font-size: 18px; }
-  .entries { min-height: 0; overflow: auto; }
+  .chronicle { padding: 16px; min-width: 0; border-top: 1px solid var(--life-border); color: var(--life-ink); font: 15px/1.5 system-ui, sans-serif; }
+  h2 { margin: 0 0 12px; font-size: 21px; line-height: 1.25; }
+  .context { margin: 0 0 16px; color: var(--life-muted); overflow-wrap: anywhere; }
   ol { list-style: none; margin: 0; padding: 0; }
-  li { font-size: 13px; line-height: 1.45; overflow-wrap: anywhere; padding-bottom: 12px; }
-  .empty { color: #54534f; }
+  li { overflow-wrap: anywhere; padding: 12px 0; border-top: 1px solid var(--life-border); font-variant-numeric: tabular-nums; }
+  .empty { color: var(--life-muted); }
 </style>

@@ -105,9 +105,10 @@ async function identityAndPreviews(page: Page, world: WorldSnapshot): Promise<vo
       const delta = BigInt(effect.delta) < 0n ? effect.delta : `+${effect.delta}`;
       const unit = effect.what.startsWith('trait:') ? 'trait_points' : effect.what === 'debt' ? 'money' : effect.what;
       const detail = effect.what.startsWith('trait:') ? ` (${effect.what})` : effect.what === 'debt' ? ' (debt)' : '';
-      return `${personName(world, effect.person)}: ${delta} ${unit}${detail}`;
+      return `${personName(world, effect.person)}: ${delta} ${unit}${detail} · Person ${effect.person}`;
     });
-    expect((await preview.innerText()).split('\n').filter(Boolean)).toEqual([option.id, ...(effects.length ? effects : ['No effects.'])]);
+    await expect(preview.getByTestId(`option-${option.id}`)).toHaveText(option.id);
+    expect(await preview.locator('li').allTextContents()).toEqual(effects.length ? effects : ['No numerical effects in this preview.']);
   }
   const stakes = page.getByTestId('stakes');
   for (const who of node.stakes.who) await expect(stakes).toContainText(personName(world, who));
@@ -116,15 +117,18 @@ async function identityAndPreviews(page: Page, world: WorldSnapshot): Promise<vo
 }
 
 async function scene(page: Page, world: WorldSnapshot, reasons: PauseReason[]): Promise<Scene | null> {
-  const node = world.player_node;
   const kind: Scene | null = reasons.includes('player_died') ? 'funeral'
-    : reasons.includes('dream_resolved') ? 'dream' : reasons.includes('player_reborn') ? 'birth'
-    : node?.family === 'family_death' ? 'funeral' : node?.family === 'inheritance' ? 'inheritance' : null;
+    : reasons.includes('dream_resolved') ? 'dream' : reasons.includes('player_reborn') ? 'birth' : null;
   for (const candidate of SCENES) {
     await expect(page.getByTestId(`scene-${candidate}`)).toHaveCount(candidate === kind ? 1 : 0);
   }
   if (kind === null) {
     await expect(page.getByTestId('choice-panel')).toBeVisible();
+    await expect(page.getByTestId('scene-picture')).toBeVisible();
+    if (world.player_node !== null) {
+      await expect(page.getByTestId('choice-timing')).toContainText(world.player_node.fired);
+      for (const id of world.player_node.stakes.who) await expect(page.getByTestId('stakes')).toContainText(personName(world, id));
+    }
     return null;
   }
   const overlay = page.getByTestId(`scene-${kind}`);
@@ -143,10 +147,6 @@ async function scene(page: Page, world: WorldSnapshot, reasons: PauseReason[]): 
   } else if (kind === 'birth') {
     expect(world.player.body, 'birth Snapshot must identify the new body').not.toBeNull();
     await expect(overlay).toContainText(personName(world, world.player.body!));
-  } else {
-    expect(node, 'node scene must have a pending node').not.toBeNull();
-    await expect(overlay).toContainText(personName(world, node!.stakes.who[0]!));
-    await expect(overlay).toContainText(`tick ${node!.fired}`);
   }
   return kind;
 }
@@ -177,12 +177,14 @@ async function customization(page: Page, world: WorldSnapshot): Promise<void> {
   await expect(page.getByTestId('customization-second-delta')).toHaveValue('-1');
   const preview = page.getByTestId('customization-preview');
   await expect(preview).toBeVisible();
-  // Read rows through the table's test id, without depending on tags or layout.
-  expect((await preview.innerText()).split('\n')).toEqual([
-    'Trait\tBase\tCustomized\tPrice',
-    `${first}\t${base![first!]}\t${base![first!] + 1}\t${price}`,
-    `${second}\t${base![second!]}\t${base![second!] - 1}\t${price}`,
-  ]);
+  // Numeric preview facts are independent of its explanatory caption.
+  const rows = preview.getByRole('row').filter({ has: page.getByRole('cell') });
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0).getByRole('rowheader')).toHaveText(first!);
+  await expect(rows.nth(1).getByRole('rowheader')).toHaveText(second!);
+  expect(await rows.nth(0).getByRole('cell').allTextContents()).toEqual([String(base![first!]), String(base![first!] + 1), price]);
+  expect(await rows.nth(1).getByRole('cell').allTextContents()).toEqual([String(base![second!]), String(base![second!] - 1), price]);
+  await expect(preview).toContainText('not applied');
   await page.getByTestId('customization-cancel').click();
   await expect(page.getByTestId('underworld-recorded')).toHaveCount(0);
   await expect(page.getByTestId('underworld-error')).toHaveCount(0);
@@ -236,6 +238,10 @@ test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel r
   }, { lastTick: stages.last_tick });
   await page.goto('/?harness=1');
   await page.waitForFunction(() => window.__simHarness !== undefined);
+  const technical = page.getByTestId('technical-details');
+  if (await technical.getAttribute('open') === null) await technical.locator('summary').click();
+  const setup = page.getByTestId('world-setup');
+  if (await setup.getAttribute('open') === null) await setup.locator('summary').click();
   await page.getByTestId('seed').fill(fixture.seed);
   await page.getByTestId('config').fill(JSON.stringify(fixture.config));
   await page.getByTestId('create').click();
@@ -313,7 +319,7 @@ test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel r
         await expect(option).toBeEnabled();
         if (index === 0) {
           await expect(page.getByTestId('stakes')).toBeVisible();
-          await page.screenshot({ path: new URL('../../../target/life-in-view-evidence/c2-review-current-choice.png', import.meta.url).pathname });
+          await page.screenshot({ path: new URL('../../../target/life-in-view-evidence/c3-boundary-current-choice.png', import.meta.url).pathname });
         }
         await option.click();
         await expect(page.getByTestId('choice-recorded')).toBeVisible();

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import fc from 'fast-check';
 import type { Customization } from '../../src/shared/protocol.ts';
 import type { TraitName, Traits } from '../../src/shared/world-snapshot.ts';
-import { TRAITS, blankCustomization, customizationInput, customizationPreview, type CustomizationForm } from '../../src/main/customization.ts';
+import { TRAITS, blankCustomization, customizationInput, customizationPreview, parseBribeAmount, type CustomizationForm } from '../../src/main/customization.ts';
 import { uiFor, waitingSnapshot } from './helpers/view.ts';
 
 const RUNS = 1000;
@@ -71,4 +71,15 @@ test('Cancelling or an incomplete form computes no preview and mutates no Snapsh
     assert.equal(customizationPreview(ui.world!, { ...ui.underworldForm, customization }), null);
   }
   assert.equal(JSON.stringify(ui.world), before);
+});
+
+test('Bribe amounts preserve canonical u64 boundaries and reject alternate syntax before dispatch', () => {
+  for (const amount of ['0', '1', '9007199254740991', '9007199254740992', '9007199254740993', '18446744073709551615']) {
+    const parsed = parseBribeAmount(amount);
+    assert.equal(parsed.ok, true, amount);
+    if (parsed.ok) assert.equal(parsed.value, amount);
+  }
+  for (const amount of ['', '00', '01', '-0', '-1', '+1', ' 1', '1 ', '1\n', '1\r\n', '1\t', '1.0', '1e3', '0x10', '١', '18446744073709551616', '100000000000000000000']) {
+    assert.equal(parseBribeAmount(amount).ok, false, JSON.stringify(amount));
+  }
 });

@@ -351,6 +351,22 @@ The Rust rows match `Cargo.lock` (versions) and the crates' manifests (SPDX stri
 
 More entries are added here as libraries and assets arrive.
 
+### Selected life-view artwork
+
+| Name | Version | License | Used for |
+|---|---|---|---|
+| [RPG Urban Pack](https://kenney.nl/assets/rpg-urban-pack) | 1.0 (package license) | CC0-1.0 | Six modern adult bases, three attributed elder modifications and selected outdoor tiles in `assets/life-view-urban.png` |
+| [Roguelike RPG Pack](https://kenney.nl/assets/roguelike-rpg-pack) | 1.0 (official page; package notice gives no version) | CC0-1.0 | Selected interior/document/grave tiles and an attributed lit-candle modification in `assets/life-view-roguelike.png` |
+
+Kenney's full package notices and the complete CC0 terms are retained in
+[`web/assets/licenses/`](web/assets/licenses/) and the established
+[`worker-api/artifact-deploy/NOTICE`](worker-api/artifact-deploy/NOTICE).
+The wholly original children, infant, neutral unknown-age figure, props and
+markers in `assets/life-view-original.png` are project work under Apache-2.0.
+The [asset registry](web/assets/README.md) records exact deployed paths,
+selected rectangles, hashes and modification lineage. No font files or
+unselected art packs are distributed; attribution does not imply endorsement.
+
 ### Web app (`web/`) dependencies
 
 Resolved versions are from the committed `web/pnpm-lock.yaml`; licenses are the SPDX identifiers on the npm registry. All ten are dev dependencies. Transitive packages whose code reaches the Deploy_Directory are added from the build report in task 4; so far only `svelte` is bundled (`web/.bundle-report.json`), so `wrangler` is a dev/deploy tool and is not part of `web/dist`.
