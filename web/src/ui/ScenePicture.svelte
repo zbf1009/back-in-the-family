@@ -2,6 +2,7 @@
   import type { PlayerFamily, PlayerNode, WorldSnapshot } from '../shared/world-snapshot.ts';
   import { resolveVisualKey, type LifeTile, type SpriteSet, type Tint } from '../art/sprites.ts';
   import { LIFE_TILES } from '../art/life-view-atlas.ts';
+  import { sceneLines } from '../main/templates.ts';
 
   const { world, sprites, kind, node }: {
     world: WorldSnapshot | null;
@@ -14,16 +15,21 @@
     living: 'Current life', waiting: 'Waiting in the Underworld', family_death: 'Family death',
     inheritance: 'Inheritance', debt_due: 'Debt due', feud: 'Feud', life_stage: 'Life stage',
   };
+  const eventLines = $derived(world !== null && node !== null && (kind === 'family_death' || kind === 'inheritance')
+    ? sceneLines({ kind: kind === 'family_death' ? 'funeral' : 'inheritance', node: node.id }, world) : []);
   const ids = $derived(world === null ? [] : node !== null ? [...new Set(node.stakes.who)]
     : kind === 'living' && world.player.body !== null ? [world.player.body] : []);
   const participants = $derived(ids.map(id => {
     const person = world!.residents.find(person => person.id === id)
       ?? (world!.magistrate.id === id ? world!.magistrate : undefined);
     const earlier = world!.player.earlier_bodies.find(body => body.id === id);
+    // Snapshot person_names retains referenced dead people, not additional living residents.
+    const retainedName = world!.person_names.find(person => person.id === id);
     return {
-      id, name: person?.name ?? earlier?.name ?? world!.person_names.find(person => person.id === id)?.name ?? `Person ${id}`,
+      id, name: person?.name ?? earlier?.name ?? retainedName?.name ?? `Person ${id}`,
       age: person?.age ?? null, origin: person?.origin ?? earlier?.origin ?? null,
-      deceased: earlier !== undefined || person?.alive === false,
+      lifeStatus: earlier !== undefined || retainedName !== undefined || person?.alive === false ? 'deceased'
+        : person?.alive === true ? 'alive' : 'unknown',
       soul: world!.player.place === 'body' && world!.player.body === id,
       visual: resolveVisualKey(id, person?.age ?? null),
       tint: (world!.player.body === id ? 'self' : node?.options.some(option => option.preview.some(preview => preview.person === id))
@@ -31,7 +37,7 @@
           : world!.player.past_life_ties.some(tie => tie.rememberer === id) ? 'rememberer' : 'neutral') as Tint,
     };
   }));
-  const illustrated = $derived(participants.slice(0, 4));
+  const illustrated = $derived(participants.filter(person => person.lifeStatus !== 'unknown').slice(0, 4));
   const waitingBody = $derived(world?.player_wait === null || world?.player_wait === undefined ? null
     : world.player.earlier_bodies.find(body => body.id === world.player_wait!.ghost) ?? null);
   const sceneProps = $derived.by((): LifeTile[] => {
@@ -45,7 +51,7 @@
   });
   const compositionKey = $derived(JSON.stringify([
     world !== null, kind, sceneProps, waitingBody?.id ?? null,
-    illustrated.map(person => [person.id, person.visual, person.tint, person.soul, person.deceased]),
+    illustrated.map(person => [person.id, person.visual, person.tint, person.soul, person.lifeStatus]),
   ]));
   let canvas: HTMLCanvasElement | undefined = $state();
   let renderedKey: string | undefined;
@@ -81,8 +87,8 @@
     for (const [index, prop] of sceneProps.entries()) art.prop(ctx, prop, 136 + index * 40, 40);
     for (const [index, person] of illustrated.entries()) {
       const x = 32 + index * 28;
-      if (person.deceased) art.grave(ctx, x, 64);
-      else art.resident(ctx, x, 64, person.tint, person.visual);
+      if (person.lifeStatus === 'deceased') art.grave(ctx, x, 64);
+      else if (person.lifeStatus === 'alive') art.resident(ctx, x, 64, person.tint, person.visual);
       if (person.soul) art.soulMarker(ctx, x, 44);
     }
   });
@@ -97,12 +103,15 @@
   </div>
   <figcaption>
     <p class="picture-note">Illustration only, not location or attendance. Gold: Soul; blue: blood tie; purple: rememberer; red: choice-preview effect.</p>
+    {#each eventLines as line}
+      <p data-testid="scene-event-role">{line}</p>
+    {/each}
     {#if kind === 'waiting' && world !== null}
       <p>Soul {world.player_soul} · Waiting{#if waitingBody !== null} · earlier body {waitingBody.name} · {waitingBody.origin} · died at tick {waitingBody.death}{/if}</p>
     {/if}
     {#if participants.length > 0}
-      <p>{node === null ? 'Current body' : 'Named participants'}: {participants.map(person => `${person.name} (Person ${person.id}; ${person.age === null ? 'age unknown' : `age ${person.age}`}${person.origin === null ? '' : `; ${person.origin}`}${person.deceased ? '; deceased' : ''}${person.soul ? '; your Soul' : person.tint === 'kin' ? '; blood tie marker' : person.tint === 'rememberer' ? '; rememberer marker' : person.tint === 'affected' ? '; affected by choice previews' : ''})`).join(', ')}.</p>
-      {#if participants.length > illustrated.length}<p class="picture-note">The picture shows the first {illustrated.length} named participants; the full list is above.</p>{/if}
+      <p>{node === null ? 'Current body' : 'Named participants'}: {participants.map(person => `${person.name} (Person ${person.id}; ${person.age === null ? 'age unknown' : `age ${person.age}`}${person.origin === null ? '' : `; ${person.origin}`}${person.lifeStatus === 'deceased' ? '; deceased' : person.lifeStatus === 'unknown' ? '; life status unknown' : ''}${person.soul ? '; your Soul' : person.tint === 'kin' ? '; blood tie marker' : person.tint === 'rememberer' ? '; rememberer marker' : person.tint === 'affected' ? '; affected by choice previews' : ''})`).join(', ')}.</p>
+      {#if participants.length > illustrated.length}<p class="picture-note">The picture shows {illustrated.length} named participants with known life status; the full list is above.</p>{/if}
     {/if}
   </figcaption>
 </figure>

@@ -14,7 +14,7 @@ const MIN_I64 = '-9223372036854775808';
 const MAX_I64 = '9223372036854775807';
 const baseline = JSON.parse(baselineBytes) as WorldSnapshot;
 const scenario = new URLSearchParams(location.search).get('state') ?? 'living';
-if (!['living', 'waiting', 'waiting-large', 'choice-large'].includes(scenario)) throw Error(`Unknown component fixture state: ${scenario}`);
+if (!['living', 'waiting', 'waiting-large', 'choice-large', 'event-funeral', 'event-inheritance', 'event-funeral-history', 'event-inheritance-history'].includes(scenario)) throw Error(`Unknown component fixture state: ${scenario}`);
 
 // This old native baseline used display-style Soul IDs. Normalize only their
 // representation to today's decimal-string carrier, without Number conversion.
@@ -113,11 +113,40 @@ if (scenario === 'choice-large') {
   modifiedFields.push('Constructed current choice with every existing Preview unit/trait, all offered options, complete timing/stakes/default and signed64 strings');
 }
 
+if (scenario.startsWith('event-')) {
+  const funeral = scenario.startsWith('event-funeral');
+  for (const id of [1, 3]) {
+    if (!world.residents.some(person => person.id === id && person.alive)) throw Error(`Event fixture needs living Person ${id}`);
+  }
+  world.residents = world.residents.filter(person => ![100, 101].includes(person.id));
+  world.player.earlier_bodies = world.player.earlier_bodies.filter(person => ![100, 101].includes(person.id));
+  world.person_names = [...world.person_names.filter(person => ![1, 3, 100, 101].includes(person.id)),
+    { id: 100, name: 'Morgan Estate Keeper' }, { id: 101, name: 'Taylor Shared Heir' }];
+  world.player_node = funeral ? {
+    id: '830', family: 'family_death', fired: '499', choice_tick: world.tick, resolves: world.tick,
+    stakes: { who: [100, 1, 3], amount: '640', unit: 'money', by: '501' },
+    options: [{ id: 'comfort_mourner', preview: [{ person: 1, what: 'affinity', delta: '3' }] },
+      { id: 'send_flowers', preview: [] }, { id: 'stay_away', preview: [] }], rules_default: 'comfort_mourner',
+  } : {
+    id: '831', family: 'inheritance', fired: '499', choice_tick: world.tick, resolves: world.tick,
+    stakes: { who: [100, 1, 3, 101], amount: '640', unit: 'money', by: '501' },
+    options: [{ id: 'keep_it', preview: [{ person: 1, what: 'money', delta: '640' }] },
+      { id: 'thank_family', preview: [] }, { id: 'pay_debts', preview: [] }], rules_default: 'keep_it',
+  };
+  if (scenario.endsWith('-history')) world.last_dream = { tick: '499', dreamer: 1, applied: 'dismiss_dream' };
+  modifiedFields.push('Current Funeral/Inheritance roles with retained-name-only deceased nonplayers, known living participants, and optional node-null historical Dream head');
+}
+
 const initial = initialUiState();
 const ui: UiState = { ...initial, worldId: 1, runState: 'paused', tick: world.tick, world,
   playerNode: world.player_node === null ? { pending: false } : { pending: true, node: world.player_node.id, answered: false },
   underworldForm: { ...initial.underworldForm, dreamer: world.underworld_view?.connected[0] ?? null },
 };
+if (scenario.endsWith('-history')) {
+  const node = world.player_node!;
+  ui.scene = { worldId: ui.worldId, tick: world.tick, reasons: ['dream_resolved', 'player_node'], world,
+    entries: [{ kind: 'dream', node: null }, { kind: node.family === 'family_death' ? 'funeral' : 'inheritance', node: node.id }] };
+}
 const target = document.getElementById('fixture');
 if (target === null) throw Error('Component fixture mount target is missing');
 mount(LifeViewFixture, { target, props: { initialUi: ui, scenario, source: {

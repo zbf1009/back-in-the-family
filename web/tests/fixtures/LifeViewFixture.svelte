@@ -15,6 +15,7 @@
   let sprites = $state<SpriteSet | null>(null);
   let assetError = $state<string | null>(null);
   let callbacks = $state<Record<string, unknown>[]>([]);
+  const draws: { method: 'resident' | 'grave'; canvas: string | undefined; visual: string | null }[] = [];
   const feedback = $derived(feedbackView(ui));
   function record(value: Record<string, unknown>): void {
     callbacks = [...callbacks, $state.snapshot(value)];
@@ -52,8 +53,20 @@
   onMount(() => {
     // Read-only fixture evidence. There is no state setter or fake admission.
     const evidenceWindow = window as Window & { __lifeViewFixture?: { read(): unknown } };
-    evidenceWindow.__lifeViewFixture = { read: () => structuredClone($state.snapshot({ mode: 'COMPONENT-ONLY', scenario, source, ui, callbacks, assetState: assetError !== null ? 'error' : sprites === null ? 'loading' : 'ready' })) };
-    void loadLifeSprites().then(value => { sprites = value; }).catch(error => {
+    evidenceWindow.__lifeViewFixture = { read: () => structuredClone($state.snapshot({ mode: 'COMPONENT-ONLY', scenario, source, ui, callbacks, draws, assetState: assetError !== null ? 'error' : sprites === null ? 'loading' : 'ready' })) };
+    void loadLifeSprites().then(value => {
+      sprites = scenario.startsWith('event-') ? {
+        ...value,
+        resident(...args: Parameters<SpriteSet['resident']>) {
+          draws.push({ method: 'resident', canvas: args[0].canvas.dataset.testid, visual: args[4] });
+          value.resident(...args);
+        },
+        grave(...args: Parameters<SpriteSet['grave']>) {
+          draws.push({ method: 'grave', canvas: args[0].canvas.dataset.testid, visual: null });
+          value.grave(...args);
+        },
+      } : value;
+    }).catch(error => {
       assetError = error instanceof Error ? error.message : String(error);
     });
     return () => { delete evidenceWindow.__lifeViewFixture; };

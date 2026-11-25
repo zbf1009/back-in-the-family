@@ -11,6 +11,7 @@ import type { Reply, RequestTicket, RequestWithoutId } from '../../src/shared/pr
 import type { UiState } from '../../src/main/ui-state.ts';
 import type { WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import { DECISION_CONFIG_VERSION } from '../../src/shared/decision.ts';
+import { resolveVisualKey } from '../../src/art/sprites.ts';
 
 const PREVIEW = 'http://localhost:4173';
 const COMPONENT = 'http://localhost:5174';
@@ -28,6 +29,7 @@ const choiceStages = JSON.parse(readFileSync(new URL('../../../fixtures/parity/s
 interface FixtureEvidence {
   mode: 'COMPONENT-ONLY'; scenario: string; source: unknown; ui: UiState;
   callbacks: Record<string, unknown>[]; assetState: string;
+  draws: { method: 'resident' | 'grave'; canvas: string | undefined; visual: string | null }[];
 }
 declare const window: Window & {
   __simHarness?: { request(request: RequestWithoutId): RequestTicket };
@@ -332,6 +334,56 @@ async function componentOpen(page: Page, scenario: string, viewport: { width: nu
   const evidence = await fixtureRead(page); expect(evidence.mode).toBe('COMPONENT-ONLY');
   return evidence;
 }
+for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 640 }]) {
+  for (const family of ['funeral', 'inheritance'] as const) {
+    test(`LV-C3 event facts: ${family} roles and retained dead participants at ${viewport.width}px stay independent of the visual head`, async ({ page }, info) => {
+      const network = await offline(page);
+      for (const history of [false, true]) {
+        const initial = await componentOpen(page, `event-${family}${history ? '-history' : ''}`, viewport);
+        const world = initial.ui.world!; const node = world.player_node!;
+        expect(world.residents.some(person => person.id === 100)).toBe(false);
+        expect(world.player.earlier_bodies.some(person => person.id === 100)).toBe(false);
+        const roles = page.getByTestId('scene-event-role');
+        await expect(roles).toHaveCount(2);
+        await expect(roles.nth(0)).toContainText(personName(world, 100));
+        await expect(roles.nth(0)).toContainText(node.fired);
+        if (family === 'funeral') {
+          await expect(roles.nth(0)).toContainText('has died');
+          await expect(roles.nth(1)).toContainText('Also in this choice');
+        } else {
+          await expect(roles.nth(0)).toContainText(`left you ${node.stakes.amount} ${node.stakes.unit}`);
+          await expect(roles.nth(1)).toContainText('Co-heirs named');
+        }
+        for (const id of node.stakes.who.slice(1)) await expect(roles.nth(1)).toContainText(personName(world, id));
+        await verifyChoice(page, world);
+        const expected = node.stakes.who.map(id => {
+          const person = world.residents.find(person => person.id === id);
+          return person === undefined ? { method: 'grave', visual: null }
+            : { method: 'resident', visual: resolveVisualKey(id, person.age) };
+        });
+        await expect.poll(async () => (await fixtureRead(page)).draws.filter(call => call.canvas === 'scene-picture-canvas')
+          .map(({ method, visual }) => ({ method, visual }))).toEqual(expected);
+        if (history) {
+          await expect(page.getByTestId('scene-dream')).toBeVisible();
+          expect((await fixtureRead(page)).ui.scene!.entries[0]).toEqual({ kind: 'dream', node: null });
+        }
+        await page.getByRole('link', { name: 'Back to current action', exact: true }).click();
+        await noHorizontalOverflow(page);
+        await capture(page, info, `c3-event-facts-${family}-${viewport.width}${history ? '-history' : ''}`, {
+          mode: 'COMPONENT-ONLY-EVENT-FACT-REGRESSION', fixture: await fixtureRead(page),
+          expectedRoleSource: 'Existing sceneLines Funeral/Inheritance role ordering', expectedDrawing: expected,
+          limits: 'Actual production rendering with constructed carrier; real SpriteSet methods observed and forwarded, not native admission or new rules.',
+        });
+        await page.getByTestId(`option-${node.options[0]!.id}`).click();
+        const after = await fixtureRead(page);
+        expect(after.callbacks.at(-1)).toEqual({ kind: 'choose', worldId: initial.ui.worldId, node: node.id, option: node.options[0]!.id });
+        expect(after.ui).toEqual(initial.ui);
+      }
+      network.finish();
+    });
+  }
+}
+
 
 for (const viewport of [{ width: 640, height: 360 }, { width: 512, height: 320 }]) {
   test(`COMPONENT-ONLY full Waiting rows and callback payloads reflow at ${viewport.width}px (200% equivalent)`, async ({ page }, info) => {
