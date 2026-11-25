@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import fc from 'fast-check';
 import { feedbackView, identitySummary, viewModel, namesById } from '../../src/main/view-model.ts';
 import { currentDecision, initialUiState, reduce } from '../../src/main/ui-state.ts';
+import { sceneQueue } from '../../src/main/scene-queue.ts';
 import type { Needed, PlayerOption, Preview, StakeUnit, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 
 import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
@@ -122,7 +123,7 @@ test('LV-C2: view-model exposes only the coherent current node and never stale o
   const sending = reduce(ui, { type: 'request-sent', request: { type: 'choose', id: 1, node: '12', option: 'repay_now' }, worldId: 1 });
   assert.equal(currentDecision(sending), null); assert.equal(viewModel(sending)!.choice, null);
   const historical = { ...ui, scene: { worldId: 1, tick: ui.tick!, reasons: ['player_died'] as const,
-    world, entries: [{ kind: 'funeral' as const, node: null }] } };
+    world, entries: sceneQueue(['player_died'], world, 1, [{ event: '40', tick: world.tick, kind: 'death', body: 100, name: 'Earlier Body', origin: 'native' }]) } };
   assert.equal(currentDecision(historical), world.player_node);
   assert.equal(viewModel(historical)!.choice!.id, world.player_node!.id);
 });

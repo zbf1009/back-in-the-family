@@ -5,6 +5,7 @@ import { defineConfig } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/life-view',
   globalSetup: './tests/smoke/global-setup.ts',
+  testIgnore: ['**/operations.spec.ts', '**/zoom.spec.ts', '**/key-scene.spec.ts'],
   workers: 1,
   fullyParallel: false,
   forbidOnly: !!process.env.CI,

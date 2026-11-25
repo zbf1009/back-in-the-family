@@ -1,0 +1,3804 @@
+{
+  "version": 1,
+  "layer": "ACTUAL-NATIVE-PRODUCED-COMPONENT-PROPS",
+  "cases": [
+    {
+      "id": "birth",
+      "playerLifecycle": [
+        {
+          "body": 42,
+          "event": "5",
+          "kind": "birth",
+          "name": "Mabel Carlson",
+          "origin": "native",
+          "tick": "2"
+        }
+      ],
+      "run": {
+        "actions": [],
+        "checksum": "cdc57bacd926c4f3",
+        "player_lifecycle": [
+          {
+            "body": 42,
+            "event": "5",
+            "kind": "birth",
+            "name": "Mabel Carlson",
+            "origin": "native",
+            "tick": "2"
+          }
+        ],
+        "ran": 2,
+        "stops": [
+          "player_reborn"
+        ]
+      },
+      "world": {
+        "birth_slots": [],
+        "chronicle": [],
+        "households": [
+          {
+            "id": "1",
+            "members": [
+              1,
+              2,
+              3,
+              4,
+              5,
+              42
+            ]
+          },
+          {
+            "id": "2",
+            "members": [
+              6,
+              7,
+              8
+            ]
+          },
+          {
+            "id": "3",
+            "members": [
+              9
+            ]
+          },
+          {
+            "id": "4",
+            "members": [
+              10,
+              12,
+              13,
+              14,
+              43
+            ]
+          },
+          {
+            "id": "5",
+            "members": [
+              15,
+              16,
+              17,
+              18,
+              19
+            ]
+          },
+          {
+            "id": "6",
+            "members": [
+              20,
+              21,
+              22,
+              23,
+              24
+            ]
+          },
+          {
+            "id": "7",
+            "members": [
+              25
+            ]
+          },
+          {
+            "id": "8",
+            "members": [
+              26,
+              27,
+              28
+            ]
+          },
+          {
+            "id": "9",
+            "members": [
+              29,
+              30
+            ]
+          },
+          {
+            "id": "10",
+            "members": [
+              31
+            ]
+          },
+          {
+            "id": "11",
+            "members": [
+              32,
+              33,
+              34,
+              35
+            ]
+          },
+          {
+            "id": "12",
+            "members": [
+              36
+            ]
+          },
+          {
+            "id": "13",
+            "members": [
+              37,
+              38,
+              39
+            ]
+          },
+          {
+            "id": "14",
+            "members": [
+              40
+            ]
+          }
+        ],
+        "joss": [
+          {
+            "balance": "0",
+            "soul_id": "S-0001"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0002"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0003"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0004"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0005"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0006"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0007"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0008"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0009"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0010"
+          },
+          {
+            "balance": "1000",
+            "soul_id": "S-0011"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0012"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0013"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0014"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0015"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0016"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0017"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0018"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0019"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0020"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0021"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0022"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0023"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0024"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0025"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0026"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0027"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0028"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0029"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0030"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0031"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0032"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0033"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0034"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0035"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0036"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0037"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0038"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0039"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0040"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0041"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0042"
+          }
+        ],
+        "magistrate": {
+          "age": 600,
+          "alive": true,
+          "id": 41,
+          "name": "Orrin Vell",
+          "origin": "official",
+          "sex": "male",
+          "soul_id": "S-0000",
+          "traits": {
+            "greed": 0,
+            "loyalty": -1,
+            "piety": -2,
+            "pride": 0,
+            "temper": -1,
+            "vindictiveness": -3,
+            "warmth": 0
+          },
+          "wealth": 0
+        },
+        "pending_nodes": [],
+        "person_names": [
+          {
+            "id": 11,
+            "name": "Margaret Harper"
+          }
+        ],
+        "player": {
+          "blood_ties": [
+            {
+              "affinity": 50,
+              "kinship": [
+                "parent"
+              ],
+              "person": 1
+            },
+            {
+              "affinity": 50,
+              "kinship": [
+                "parent"
+              ],
+              "person": 2
+            },
+            {
+              "affinity": 30,
+              "kinship": [
+                "sibling"
+              ],
+              "person": 3
+            },
+            {
+              "affinity": 30,
+              "kinship": [
+                "sibling"
+              ],
+              "person": 4
+            },
+            {
+              "affinity": 30,
+              "kinship": [
+                "sibling"
+              ],
+              "person": 5
+            }
+          ],
+          "body": 42,
+          "earlier_bodies": [
+            {
+              "death": "0",
+              "id": 11,
+              "name": "Margaret Harper",
+              "origin": "native"
+            }
+          ],
+          "past_life_ties": [
+            {
+              "affinity": -25,
+              "earlier_body": 11,
+              "rememberer": 2
+            },
+            {
+              "affinity": 60,
+              "earlier_body": 11,
+              "rememberer": 10
+            },
+            {
+              "affinity": 50,
+              "earlier_body": 11,
+              "rememberer": 12
+            },
+            {
+              "affinity": 50,
+              "earlier_body": 11,
+              "rememberer": 13
+            },
+            {
+              "affinity": 50,
+              "earlier_body": 11,
+              "rememberer": 14
+            },
+            {
+              "affinity": 24,
+              "earlier_body": 11,
+              "rememberer": 31
+            },
+            {
+              "affinity": 4,
+              "earlier_body": 11,
+              "rememberer": 38
+            }
+          ],
+          "place": "body",
+          "relations": []
+        },
+        "player_node": null,
+        "player_soul": "S-0011",
+        "player_wait": null,
+        "residents": [
+          {
+            "age": 45,
+            "alive": true,
+            "household": "1",
+            "id": 1,
+            "name": "Louis Carlson",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0001",
+            "traits": {
+              "greed": -1,
+              "loyalty": -3,
+              "piety": 3,
+              "pride": 2,
+              "temper": -3,
+              "vindictiveness": 2,
+              "warmth": 3
+            },
+            "wealth": 90082
+          },
+          {
+            "age": 42,
+            "alive": true,
+            "household": "1",
+            "id": 2,
+            "name": "Alice Carlson",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0002",
+            "traits": {
+              "greed": 0,
+              "loyalty": -2,
+              "piety": -2,
+              "pride": -2,
+              "temper": 3,
+              "vindictiveness": -3,
+              "warmth": -3
+            },
+            "wealth": 2419
+          },
+          {
+            "age": 14,
+            "alive": true,
+            "household": "1",
+            "id": 3,
+            "name": "Edmund Carlson",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0003",
+            "traits": {
+              "greed": 1,
+              "loyalty": 1,
+              "piety": 2,
+              "pride": -3,
+              "temper": 0,
+              "vindictiveness": 3,
+              "warmth": 3
+            },
+            "wealth": 0
+          },
+          {
+            "age": 6,
+            "alive": true,
+            "household": "1",
+            "id": 4,
+            "name": "Lois Carlson",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0004",
+            "traits": {
+              "greed": 1,
+              "loyalty": -3,
+              "piety": 2,
+              "pride": 2,
+              "temper": 2,
+              "vindictiveness": 2,
+              "warmth": -2
+            },
+            "wealth": 0
+          },
+          {
+            "age": 3,
+            "alive": true,
+            "household": "1",
+            "id": 5,
+            "name": "Aaron Carlson",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0005",
+            "traits": {
+              "greed": -2,
+              "loyalty": -3,
+              "piety": 2,
+              "pride": 3,
+              "temper": 2,
+              "vindictiveness": 1,
+              "warmth": -2
+            },
+            "wealth": 0
+          },
+          {
+            "age": 58,
+            "alive": true,
+            "household": "2",
+            "id": 6,
+            "name": "Emma Fletcher",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0006",
+            "traits": {
+              "greed": 2,
+              "loyalty": -3,
+              "piety": -2,
+              "pride": -2,
+              "temper": -3,
+              "vindictiveness": 0,
+              "warmth": 2
+            },
+            "wealth": 103166
+          },
+          {
+            "age": 56,
+            "alive": true,
+            "household": "2",
+            "id": 7,
+            "name": "Chester Fletcher",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0007",
+            "traits": {
+              "greed": -1,
+              "loyalty": 3,
+              "piety": -1,
+              "pride": 0,
+              "temper": -2,
+              "vindictiveness": 3,
+              "warmth": 3
+            },
+            "wealth": 19733
+          },
+          {
+            "age": 85,
+            "alive": true,
+            "household": "2",
+            "id": 8,
+            "name": "Lillian Fletcher",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0008",
+            "traits": {
+              "greed": 0,
+              "loyalty": 1,
+              "piety": 3,
+              "pride": 3,
+              "temper": -2,
+              "vindictiveness": -2,
+              "warmth": 1
+            },
+            "wealth": 21999
+          },
+          {
+            "age": 48,
+            "alive": true,
+            "household": "3",
+            "id": 9,
+            "name": "Janet Dawson",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0009",
+            "traits": {
+              "greed": -3,
+              "loyalty": -1,
+              "piety": 3,
+              "pride": -1,
+              "temper": -2,
+              "vindictiveness": 2,
+              "warmth": 2
+            },
+            "wealth": 86552
+          },
+          {
+            "age": 47,
+            "alive": true,
+            "household": "4",
+            "id": 10,
+            "name": "Jonas Harper",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0010",
+            "traits": {
+              "greed": 0,
+              "loyalty": 2,
+              "piety": -1,
+              "pride": 3,
+              "temper": 1,
+              "vindictiveness": 2,
+              "warmth": 2
+            },
+            "wealth": 73606
+          },
+          {
+            "age": 20,
+            "alive": true,
+            "household": "4",
+            "id": 12,
+            "name": "Amelia Harper",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0012",
+            "traits": {
+              "greed": 1,
+              "loyalty": -1,
+              "piety": -2,
+              "pride": 0,
+              "temper": -2,
+              "vindictiveness": 1,
+              "warmth": -2
+            },
+            "wealth": 28
+          },
+          {
+            "age": 7,
+            "alive": true,
+            "household": "4",
+            "id": 13,
+            "name": "Selma Harper",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0013",
+            "traits": {
+              "greed": -3,
+              "loyalty": 2,
+              "piety": -1,
+              "pride": 0,
+              "temper": 3,
+              "vindictiveness": -1,
+              "warmth": 1
+            },
+            "wealth": 0
+          },
+          {
+            "age": 19,
+            "alive": true,
+            "household": "4",
+            "id": 14,
+            "name": "Karl Harper",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0014",
+            "traits": {
+              "greed": 0,
+              "loyalty": -1,
+              "piety": -2,
+              "pride": 0,
+              "temper": 1,
+              "vindictiveness": -2,
+              "warmth": 2
+            },
+            "wealth": 52
+          },
+          {
+            "age": 48,
+            "alive": true,
+            "household": "5",
+            "id": 15,
+            "name": "Gabriel Stanton",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0015",
+            "traits": {
+              "greed": 3,
+              "loyalty": -2,
+              "piety": -2,
+              "pride": -3,
+              "temper": -3,
+              "vindictiveness": -1,
+              "warmth": 3
+            },
+            "wealth": 86988
+          },
+          {
+            "age": 45,
+            "alive": true,
+            "household": "5",
+            "id": 16,
+            "name": "Bonnie Stanton",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0016",
+            "traits": {
+              "greed": 2,
+              "loyalty": -3,
+              "piety": 1,
+              "pride": -1,
+              "temper": -2,
+              "vindictiveness": 3,
+              "warmth": -3
+            },
+            "wealth": 18877
+          },
+          {
+            "age": 15,
+            "alive": true,
+            "household": "5",
+            "id": 17,
+            "name": "Ruth Stanton",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0017",
+            "traits": {
+              "greed": 2,
+              "loyalty": 2,
+              "piety": -1,
+              "pride": 0,
+              "temper": -3,
+              "vindictiveness": 2,
+              "warmth": 2
+            },
+            "wealth": 0
+          },
+          {
+            "age": 7,
+            "alive": true,
+            "household": "5",
+            "id": 18,
+            "name": "Esther Stanton",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0018",
+            "traits": {
+              "greed": 1,
+              "loyalty": 0,
+              "piety": 3,
+              "pride": 3,
+              "temper": 2,
+              "vindictiveness": 3,
+              "warmth": 0
+            },
+            "wealth": 0
+          },
+          {
+            "age": 5,
+            "alive": true,
+            "household": "5",
+            "id": 19,
+            "name": "John Stanton",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0019",
+            "traits": {
+              "greed": 2,
+              "loyalty": 1,
+              "piety": -3,
+              "pride": 0,
+              "temper": -2,
+              "vindictiveness": 3,
+              "warmth": 2
+            },
+            "wealth": 0
+          },
+          {
+            "age": 45,
+            "alive": true,
+            "household": "6",
+            "id": 20,
+            "name": "Alice Gardner",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0020",
+            "traits": {
+              "greed": 2,
+              "loyalty": -3,
+              "piety": -1,
+              "pride": -2,
+              "temper": 3,
+              "vindictiveness": 1,
+              "warmth": 2
+            },
+            "wealth": 76101
+          },
+          {
+            "age": 40,
+            "alive": true,
+            "household": "6",
+            "id": 21,
+            "name": "Clyde Gardner",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0021",
+            "traits": {
+              "greed": -1,
+              "loyalty": 0,
+              "piety": 1,
+              "pride": -3,
+              "temper": 0,
+              "vindictiveness": 2,
+              "warmth": -3
+            },
+            "wealth": 7835
+          },
+          {
+            "age": 9,
+            "alive": true,
+            "household": "6",
+            "id": 22,
+            "name": "Ruth Gardner",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0022",
+            "traits": {
+              "greed": -2,
+              "loyalty": 2,
+              "piety": -3,
+              "pride": 0,
+              "temper": -1,
+              "vindictiveness": 1,
+              "warmth": -3
+            },
+            "wealth": 0
+          },
+          {
+            "age": 5,
+            "alive": true,
+            "household": "6",
+            "id": 23,
+            "name": "Nora Gardner",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0023",
+            "traits": {
+              "greed": -2,
+              "loyalty": -2,
+              "piety": -1,
+              "pride": 3,
+              "temper": -2,
+              "vindictiveness": 2,
+              "warmth": 1
+            },
+            "wealth": 0
+          },
+          {
+            "age": 83,
+            "alive": true,
+            "household": "6",
+            "id": 24,
+            "name": "Julia Gardner",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0024",
+            "traits": {
+              "greed": 1,
+              "loyalty": -2,
+              "piety": 1,
+              "pride": -3,
+              "temper": -3,
+              "vindictiveness": 2,
+              "warmth": -3
+            },
+            "wealth": 22473
+          },
+          {
+            "age": 25,
+            "alive": true,
+            "household": "7",
+            "id": 25,
+            "name": "Marion Hopkins",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0025",
+            "traits": {
+              "greed": 3,
+              "loyalty": -2,
+              "piety": -2,
+              "pride": -2,
+              "temper": -1,
+              "vindictiveness": 1,
+              "warmth": 1
+            },
+            "wealth": 86617
+          },
+          {
+            "age": 44,
+            "alive": true,
+            "household": "8",
+            "id": 26,
+            "name": "Bonnie Keller",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0026",
+            "traits": {
+              "greed": 2,
+              "loyalty": 3,
+              "piety": -3,
+              "pride": 2,
+              "temper": -3,
+              "vindictiveness": 2,
+              "warmth": 3
+            },
+            "wealth": 70029
+          },
+          {
+            "age": 48,
+            "alive": true,
+            "household": "8",
+            "id": 27,
+            "name": "Felix Keller",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0027",
+            "traits": {
+              "greed": 0,
+              "loyalty": -3,
+              "piety": -2,
+              "pride": -1,
+              "temper": -2,
+              "vindictiveness": -3,
+              "warmth": 2
+            },
+            "wealth": 27299
+          },
+          {
+            "age": 81,
+            "alive": true,
+            "household": "8",
+            "id": 28,
+            "name": "Laura Keller",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0028",
+            "traits": {
+              "greed": 0,
+              "loyalty": -2,
+              "piety": -3,
+              "pride": -2,
+              "temper": 3,
+              "vindictiveness": 0,
+              "warmth": -2
+            },
+            "wealth": 20132
+          },
+          {
+            "age": 52,
+            "alive": true,
+            "household": "9",
+            "id": 29,
+            "name": "Rachel Gardner",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0029",
+            "traits": {
+              "greed": -2,
+              "loyalty": -1,
+              "piety": -2,
+              "pride": -1,
+              "temper": -2,
+              "vindictiveness": -3,
+              "warmth": 3
+            },
+            "wealth": 88665
+          },
+          {
+            "age": 57,
+            "alive": true,
+            "household": "9",
+            "id": 30,
+            "name": "Jonas Gardner",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0030",
+            "traits": {
+              "greed": 3,
+              "loyalty": -3,
+              "piety": -3,
+              "pride": 2,
+              "temper": -1,
+              "vindictiveness": -2,
+              "warmth": 0
+            },
+            "wealth": 8193
+          },
+          {
+            "age": 27,
+            "alive": true,
+            "household": "10",
+            "id": 31,
+            "name": "Charles Callahan",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0031",
+            "traits": {
+              "greed": -1,
+              "loyalty": 3,
+              "piety": 3,
+              "pride": 0,
+              "temper": -2,
+              "vindictiveness": 3,
+              "warmth": 2
+            },
+            "wealth": 104465
+          },
+          {
+            "age": 29,
+            "alive": true,
+            "household": "11",
+            "id": 32,
+            "name": "Gloria Gardner",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0032",
+            "traits": {
+              "greed": 0,
+              "loyalty": -2,
+              "piety": -1,
+              "pride": -2,
+              "temper": 2,
+              "vindictiveness": 2,
+              "warmth": 3
+            },
+            "wealth": 109158
+          },
+          {
+            "age": 32,
+            "alive": true,
+            "household": "11",
+            "id": 33,
+            "name": "Floyd Gardner",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0033",
+            "traits": {
+              "greed": 2,
+              "loyalty": -2,
+              "piety": 0,
+              "pride": 2,
+              "temper": -1,
+              "vindictiveness": -1,
+              "warmth": 0
+            },
+            "wealth": 26858
+          },
+          {
+            "age": 0,
+            "alive": true,
+            "household": "11",
+            "id": 34,
+            "name": "Selma Gardner",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0034",
+            "traits": {
+              "greed": 1,
+              "loyalty": -2,
+              "piety": 1,
+              "pride": -3,
+              "temper": -2,
+              "vindictiveness": 1,
+              "warmth": -3
+            },
+            "wealth": 0
+          },
+          {
+            "age": 6,
+            "alive": true,
+            "household": "11",
+            "id": 35,
+            "name": "Nadine Gardner",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0035",
+            "traits": {
+              "greed": 1,
+              "loyalty": 1,
+              "piety": -2,
+              "pride": 2,
+              "temper": -3,
+              "vindictiveness": 3,
+              "warmth": 2
+            },
+            "wealth": 0
+          },
+          {
+            "age": 52,
+            "alive": true,
+            "household": "12",
+            "id": 36,
+            "name": "Cora Cooper",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0036",
+            "traits": {
+              "greed": -2,
+              "loyalty": -3,
+              "piety": -3,
+              "pride": -3,
+              "temper": 0,
+              "vindictiveness": -2,
+              "warmth": 2
+            },
+            "wealth": 112151
+          },
+          {
+            "age": 51,
+            "alive": true,
+            "household": "13",
+            "id": 37,
+            "name": "Gloria Fletcher",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0037",
+            "traits": {
+              "greed": -3,
+              "loyalty": 2,
+              "piety": -3,
+              "pride": 0,
+              "temper": -1,
+              "vindictiveness": -3,
+              "warmth": 1
+            },
+            "wealth": 104730
+          },
+          {
+            "age": 49,
+            "alive": true,
+            "household": "13",
+            "id": 38,
+            "name": "Floyd Fletcher",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0038",
+            "traits": {
+              "greed": 3,
+              "loyalty": -3,
+              "piety": 1,
+              "pride": -1,
+              "temper": 0,
+              "vindictiveness": -2,
+              "warmth": -1
+            },
+            "wealth": 17785
+          },
+          {
+            "age": 9,
+            "alive": true,
+            "household": "13",
+            "id": 39,
+            "name": "Ben Fletcher",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0039",
+            "traits": {
+              "greed": -2,
+              "loyalty": 3,
+              "piety": 0,
+              "pride": -2,
+              "temper": 2,
+              "vindictiveness": 1,
+              "warmth": 1
+            },
+            "wealth": 0
+          },
+          {
+            "age": 22,
+            "alive": true,
+            "household": "14",
+            "id": 40,
+            "name": "Aaron Burke",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0040",
+            "traits": {
+              "greed": 3,
+              "loyalty": 1,
+              "piety": 3,
+              "pride": 3,
+              "temper": -2,
+              "vindictiveness": 1,
+              "warmth": -3
+            },
+            "wealth": 83236
+          },
+          {
+            "age": 0,
+            "alive": true,
+            "household": "1",
+            "id": 42,
+            "name": "Mabel Carlson",
+            "origin": "native",
+            "sex": "female",
+            "soul_id": "S-0011",
+            "traits": {
+              "greed": 0,
+              "loyalty": -2,
+              "piety": -2,
+              "pride": -2,
+              "temper": -3,
+              "vindictiveness": -3,
+              "warmth": -2
+            },
+            "wealth": 0
+          },
+          {
+            "age": 0,
+            "alive": true,
+            "household": "4",
+            "id": 43,
+            "name": "Miles Harper",
+            "origin": "native",
+            "sex": "male",
+            "soul_id": "S-0041",
+            "traits": {
+              "greed": 1,
+              "loyalty": 2,
+              "piety": -2,
+              "pride": 0,
+              "temper": -2,
+              "vindictiveness": 1,
+              "warmth": -2
+            },
+            "wealth": 0
+          }
+        ],
+        "souls": [
+          {
+            "place": {
+              "body": 1
+            },
+            "soul_id": "S-0001"
+          },
+          {
+            "place": {
+              "body": 2
+            },
+            "soul_id": "S-0002"
+          },
+          {
+            "place": {
+              "body": 3
+            },
+            "soul_id": "S-0003"
+          },
+          {
+            "place": {
+              "body": 4
+            },
+            "soul_id": "S-0004"
+          },
+          {
+            "place": {
+              "body": 5
+            },
+            "soul_id": "S-0005"
+          },
+          {
+            "place": {
+              "body": 6
+            },
+            "soul_id": "S-0006"
+          },
+          {
+            "place": {
+              "body": 7
+            },
+            "soul_id": "S-0007"
+          },
+          {
+            "place": {
+              "body": 8
+            },
+            "soul_id": "S-0008"
+          },
+          {
+            "place": {
+              "body": 9
+            },
+            "soul_id": "S-0009"
+          },
+          {
+            "place": {
+              "body": 10
+            },
+            "soul_id": "S-0010"
+          },
+          {
+            "place": {
+              "body": 42
+            },
+            "soul_id": "S-0011"
+          },
+          {
+            "place": {
+              "body": 12
+            },
+            "soul_id": "S-0012"
+          },
+          {
+            "place": {
+              "body": 13
+            },
+            "soul_id": "S-0013"
+          },
+          {
+            "place": {
+              "body": 14
+            },
+            "soul_id": "S-0014"
+          },
+          {
+            "place": {
+              "body": 15
+            },
+            "soul_id": "S-0015"
+          },
+          {
+            "place": {
+              "body": 16
+            },
+            "soul_id": "S-0016"
+          },
+          {
+            "place": {
+              "body": 17
+            },
+            "soul_id": "S-0017"
+          },
+          {
+            "place": {
+              "body": 18
+            },
+            "soul_id": "S-0018"
+          },
+          {
+            "place": {
+              "body": 19
+            },
+            "soul_id": "S-0019"
+          },
+          {
+            "place": {
+              "body": 20
+            },
+            "soul_id": "S-0020"
+          },
+          {
+            "place": {
+              "body": 21
+            },
+            "soul_id": "S-0021"
+          },
+          {
+            "place": {
+              "body": 22
+            },
+            "soul_id": "S-0022"
+          },
+          {
+            "place": {
+              "body": 23
+            },
+            "soul_id": "S-0023"
+          },
+          {
+            "place": {
+              "body": 24
+            },
+            "soul_id": "S-0024"
+          },
+          {
+            "place": {
+              "body": 25
+            },
+            "soul_id": "S-0025"
+          },
+          {
+            "place": {
+              "body": 26
+            },
+            "soul_id": "S-0026"
+          },
+          {
+            "place": {
+              "body": 27
+            },
+            "soul_id": "S-0027"
+          },
+          {
+            "place": {
+              "body": 28
+            },
+            "soul_id": "S-0028"
+          },
+          {
+            "place": {
+              "body": 29
+            },
+            "soul_id": "S-0029"
+          },
+          {
+            "place": {
+              "body": 30
+            },
+            "soul_id": "S-0030"
+          },
+          {
+            "place": {
+              "body": 31
+            },
+            "soul_id": "S-0031"
+          },
+          {
+            "place": {
+              "body": 32
+            },
+            "soul_id": "S-0032"
+          },
+          {
+            "place": {
+              "body": 33
+            },
+            "soul_id": "S-0033"
+          },
+          {
+            "place": {
+              "body": 34
+            },
+            "soul_id": "S-0034"
+          },
+          {
+            "place": {
+              "body": 35
+            },
+            "soul_id": "S-0035"
+          },
+          {
+            "place": {
+              "body": 36
+            },
+            "soul_id": "S-0036"
+          },
+          {
+            "place": {
+              "body": 37
+            },
+            "soul_id": "S-0037"
+          },
+          {
+            "place": {
+              "body": 38
+            },
+            "soul_id": "S-0038"
+          },
+          {
+            "place": {
+              "body": 39
+            },
+            "soul_id": "S-0039"
+          },
+          {
+            "place": {
+              "body": 40
+            },
+            "soul_id": "S-0040"
+          },
+          {
+            "place": {
+              "body": 43
+            },
+            "soul_id": "S-0041"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "0"
+              }
+            },
+            "soul_id": "S-0042"
+          }
+        ],
+        "standing_slots": [],
+        "tick": "3",
+        "underworld_view": null
+      },
+      "producer": {
+        "source": "crates/sim-core/src/observations.rs",
+        "test": "native_birth_and_other_soul_birth_keep_only_real_player_fact",
+        "seed": "22",
+        "config": {
+          "opening_residents": 40
+        },
+        "parameters": {
+          "base": "Params::DEFAULT",
+          "quietOverrides": {
+            "mortality_ppm_by_age": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "mortality_floor_ppm": 0,
+            "birth_ppm_married": 0,
+            "birth_ppm_unmarried": 0,
+            "marriage_ppm": 0,
+            "loan_ppm": 0,
+            "social_ppm": 0,
+            "offer_min_affinity": 101,
+            "max_wait": "18446744073709551615",
+            "player_max_wait": "18446744073709551615",
+            "min_salience": "9223372036854775807"
+          },
+          "caseOverrides": {
+            "initial_waiting": 2,
+            "birth_lead_days": 1
+          }
+        },
+        "controlledSetup": "Existing native fixture sets next tick1, prepares player Waiting, sets one relation affinity -25 and joss1000; Birth opens two native mother slots. Actual checked Claim, observed advancement and production snapshot projection produce the DTO. Not a normal UI/default-Params/WASM/replay case.",
+        "stdoutExport": "Temporary opt-in exporter after complete existing assertions; removed after extraction",
+        "log": "target/life-in-view-evidence/c4-native-lifecycle-dto.log"
+      }
+    },
+    {
+      "id": "possession-death",
+      "playerLifecycle": [
+        {
+          "body": 42,
+          "event": "5",
+          "kind": "possession",
+          "name": "Gilbert Palmer",
+          "origin": "possessed",
+          "tick": "1"
+        },
+        {
+          "body": 42,
+          "event": "97",
+          "kind": "death",
+          "name": "Gilbert Palmer",
+          "origin": "possessed",
+          "tick": "1"
+        }
+      ],
+      "run": {
+        "actions": [],
+        "checksum": "66a777d63867b6e8",
+        "player_lifecycle": [
+          {
+            "body": 42,
+            "event": "5",
+            "kind": "possession",
+            "name": "Gilbert Palmer",
+            "origin": "possessed",
+            "tick": "1"
+          },
+          {
+            "body": 42,
+            "event": "97",
+            "kind": "death",
+            "name": "Gilbert Palmer",
+            "origin": "possessed",
+            "tick": "1"
+          }
+        ],
+        "ran": 1,
+        "stops": [
+          "player_died",
+          "player_reborn"
+        ]
+      },
+      "world": {
+        "birth_slots": [],
+        "chronicle": [],
+        "households": [],
+        "joss": [
+          {
+            "balance": "0",
+            "soul_id": "S-0001"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0002"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0003"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0004"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0005"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0006"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0007"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0008"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0009"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0010"
+          },
+          {
+            "balance": "900",
+            "soul_id": "S-0011"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0012"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0013"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0014"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0015"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0016"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0017"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0018"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0019"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0020"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0021"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0022"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0023"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0024"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0025"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0026"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0027"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0028"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0029"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0030"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0031"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0032"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0033"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0034"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0035"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0036"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0037"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0038"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0039"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0040"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0041"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0042"
+          }
+        ],
+        "magistrate": {
+          "age": 600,
+          "alive": true,
+          "id": 41,
+          "name": "Orrin Vell",
+          "origin": "official",
+          "sex": "male",
+          "soul_id": "S-0000",
+          "traits": {
+            "greed": 0,
+            "loyalty": -1,
+            "piety": -2,
+            "pride": 0,
+            "temper": -1,
+            "vindictiveness": -3,
+            "warmth": 0
+          },
+          "wealth": 0
+        },
+        "pending_nodes": [],
+        "person_names": [
+          {
+            "id": 11,
+            "name": "Margaret Harper"
+          },
+          {
+            "id": 42,
+            "name": "Gilbert Palmer"
+          }
+        ],
+        "player": {
+          "blood_ties": [],
+          "body": null,
+          "earlier_bodies": [
+            {
+              "death": "0",
+              "id": 11,
+              "name": "Margaret Harper",
+              "origin": "native"
+            },
+            {
+              "death": "1",
+              "id": 42,
+              "name": "Gilbert Palmer",
+              "origin": "possessed"
+            }
+          ],
+          "past_life_ties": [],
+          "place": "waiting",
+          "relations": []
+        },
+        "player_node": null,
+        "player_soul": "S-0011",
+        "player_wait": {
+          "access_from": "366",
+          "carry_over": null,
+          "claim": null,
+          "ghost": 42
+        },
+        "residents": [],
+        "souls": [
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0001"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0002"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0003"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0004"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0005"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0006"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0007"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0008"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0009"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0010"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0011"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0012"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0013"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0014"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0015"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0016"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0017"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0018"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0019"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0020"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0021"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0022"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0023"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0024"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0025"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0026"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0027"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0028"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0029"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0030"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0031"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0032"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0033"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0034"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0035"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0036"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0037"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0038"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0039"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0040"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "0"
+              }
+            },
+            "soul_id": "S-0041"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "0"
+              }
+            },
+            "soul_id": "S-0042"
+          }
+        ],
+        "standing_slots": [
+          {
+            "kind": "imported_vessel",
+            "price": "100"
+          },
+          {
+            "kind": "rebuilt_body",
+            "price": "400"
+          }
+        ],
+        "tick": "2",
+        "underworld_view": {
+          "actions": {
+            "bribe": {
+              "availability": {
+                "eligible": true,
+                "reason": null
+              },
+              "max_amount": "900",
+              "min_amount": "1"
+            },
+            "capped_spend": {
+              "cap_year": "0",
+              "remaining": "500",
+              "spent": "0",
+              "yearly_cap": "500"
+            },
+            "haunt": {
+              "price": "40",
+              "targets": []
+            },
+            "version": 1
+          },
+          "base_traits": [
+            {
+              "carry_over": null,
+              "traits": {
+                "greed": 2,
+                "loyalty": 2,
+                "piety": -1,
+                "pride": -1,
+                "temper": -2,
+                "vindictiveness": 2,
+                "warmth": 3
+              }
+            },
+            {
+              "carry_over": "greed",
+              "traits": {
+                "greed": 3,
+                "loyalty": 2,
+                "piety": -1,
+                "pride": -1,
+                "temper": -2,
+                "vindictiveness": 2,
+                "warmth": 3
+              }
+            },
+            {
+              "carry_over": "loyalty",
+              "traits": {
+                "greed": 2,
+                "loyalty": -2,
+                "piety": -1,
+                "pride": -1,
+                "temper": -2,
+                "vindictiveness": 2,
+                "warmth": 3
+              }
+            },
+            {
+              "carry_over": "pride",
+              "traits": {
+                "greed": 2,
+                "loyalty": 2,
+                "piety": -1,
+                "pride": 3,
+                "temper": -2,
+                "vindictiveness": 2,
+                "warmth": 3
+              }
+            },
+            {
+              "carry_over": "warmth",
+              "traits": {
+                "greed": 2,
+                "loyalty": 2,
+                "piety": -1,
+                "pride": -1,
+                "temper": -2,
+                "vindictiveness": 2,
+                "warmth": -3
+              }
+            },
+            {
+              "carry_over": "temper",
+              "traits": {
+                "greed": 2,
+                "loyalty": 2,
+                "piety": -1,
+                "pride": -1,
+                "temper": -3,
+                "vindictiveness": 2,
+                "warmth": 3
+              }
+            },
+            {
+              "carry_over": "vindictiveness",
+              "traits": {
+                "greed": 2,
+                "loyalty": 2,
+                "piety": -1,
+                "pride": -1,
+                "temper": -2,
+                "vindictiveness": 1,
+                "warmth": 3
+              }
+            },
+            {
+              "carry_over": "piety",
+              "traits": {
+                "greed": 2,
+                "loyalty": 2,
+                "piety": -3,
+                "pride": -1,
+                "temper": -2,
+                "vindictiveness": 2,
+                "warmth": 3
+              }
+            }
+          ],
+          "connected": [],
+          "dream_price": "20",
+          "ghost_traits": {
+            "greed": 3,
+            "loyalty": -2,
+            "piety": -3,
+            "pride": 3,
+            "temper": -3,
+            "vindictiveness": 1,
+            "warmth": -3
+          },
+          "slots": [
+            {
+              "birth": null,
+              "kind": "imported_vessel",
+              "price": "100",
+              "slot": "imported_vessel",
+              "status": {
+                "affordable": true,
+                "announced": true,
+                "claimable": true,
+                "needed": []
+              }
+            },
+            {
+              "birth": null,
+              "kind": "rebuilt_body",
+              "price": "400",
+              "slot": "rebuilt_body",
+              "status": {
+                "affordable": true,
+                "announced": true,
+                "claimable": true,
+                "needed": []
+              }
+            }
+          ]
+        }
+      },
+      "producer": {
+        "source": "crates/sim-core/src/observations.rs",
+        "test": "actual_arrival_then_death_retains_dead_body_and_current_waiting",
+        "seed": "22",
+        "config": {
+          "opening_residents": 40
+        },
+        "parameters": {
+          "base": "Params::DEFAULT",
+          "quietOverrides": {
+            "mortality_ppm_by_age": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "mortality_floor_ppm": 0,
+            "birth_ppm_married": 0,
+            "birth_ppm_unmarried": 0,
+            "marriage_ppm": 0,
+            "loan_ppm": 0,
+            "social_ppm": 0,
+            "offer_min_affinity": 101,
+            "max_wait": "18446744073709551615",
+            "player_max_wait": "18446744073709551615",
+            "min_salience": "9223372036854775807"
+          },
+          "caseOverrides": {
+            "mortality_ppm_by_age": [
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000
+            ],
+            "mortality_floor_ppm": 1000000
+          }
+        },
+        "controlledSetup": "Existing native fixture sets next tick1, prepares player Waiting, sets one relation affinity -25 and joss1000; Birth opens two native mother slots. Actual checked Claim, observed advancement and production snapshot projection produce the DTO. Not a normal UI/default-Params/WASM/replay case.",
+        "stdoutExport": "Temporary opt-in exporter after complete existing assertions; removed after extraction",
+        "log": "target/life-in-view-evidence/c4-native-lifecycle-dto.log"
+      }
+    },
+    {
+      "id": "rebuild-death",
+      "playerLifecycle": [
+        {
+          "body": 42,
+          "event": "5",
+          "kind": "rebuild",
+          "name": "Gilbert Palmer",
+          "origin": "rebuilt",
+          "tick": "1"
+        },
+        {
+          "body": 42,
+          "event": "97",
+          "kind": "death",
+          "name": "Gilbert Palmer",
+          "origin": "rebuilt",
+          "tick": "1"
+        }
+      ],
+      "run": {
+        "actions": [],
+        "checksum": "2571ad5f11382773",
+        "player_lifecycle": [
+          {
+            "body": 42,
+            "event": "5",
+            "kind": "rebuild",
+            "name": "Gilbert Palmer",
+            "origin": "rebuilt",
+            "tick": "1"
+          },
+          {
+            "body": 42,
+            "event": "97",
+            "kind": "death",
+            "name": "Gilbert Palmer",
+            "origin": "rebuilt",
+            "tick": "1"
+          }
+        ],
+        "ran": 1,
+        "stops": [
+          "player_died",
+          "player_reborn"
+        ]
+      },
+      "world": {
+        "birth_slots": [],
+        "chronicle": [],
+        "households": [],
+        "joss": [
+          {
+            "balance": "0",
+            "soul_id": "S-0001"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0002"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0003"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0004"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0005"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0006"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0007"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0008"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0009"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0010"
+          },
+          {
+            "balance": "600",
+            "soul_id": "S-0011"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0012"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0013"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0014"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0015"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0016"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0017"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0018"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0019"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0020"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0021"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0022"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0023"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0024"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0025"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0026"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0027"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0028"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0029"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0030"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0031"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0032"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0033"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0034"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0035"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0036"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0037"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0038"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0039"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0040"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0041"
+          },
+          {
+            "balance": "0",
+            "soul_id": "S-0042"
+          }
+        ],
+        "magistrate": {
+          "age": 600,
+          "alive": true,
+          "id": 41,
+          "name": "Orrin Vell",
+          "origin": "official",
+          "sex": "male",
+          "soul_id": "S-0000",
+          "traits": {
+            "greed": 0,
+            "loyalty": -1,
+            "piety": -2,
+            "pride": 0,
+            "temper": -1,
+            "vindictiveness": -3,
+            "warmth": 0
+          },
+          "wealth": 0
+        },
+        "pending_nodes": [],
+        "person_names": [
+          {
+            "id": 11,
+            "name": "Margaret Harper"
+          },
+          {
+            "id": 42,
+            "name": "Gilbert Palmer"
+          }
+        ],
+        "player": {
+          "blood_ties": [],
+          "body": null,
+          "earlier_bodies": [
+            {
+              "death": "0",
+              "id": 11,
+              "name": "Margaret Harper",
+              "origin": "native"
+            },
+            {
+              "death": "1",
+              "id": 42,
+              "name": "Gilbert Palmer",
+              "origin": "rebuilt"
+            }
+          ],
+          "past_life_ties": [],
+          "place": "waiting",
+          "relations": []
+        },
+        "player_node": null,
+        "player_soul": "S-0011",
+        "player_wait": {
+          "access_from": "366",
+          "carry_over": null,
+          "claim": null,
+          "ghost": 42
+        },
+        "residents": [],
+        "souls": [
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0001"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0002"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0003"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0004"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0005"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0006"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0007"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0008"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0009"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0010"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0011"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0012"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0013"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0014"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0015"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0016"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0017"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0018"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0019"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0020"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0021"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0022"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0023"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0024"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0025"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0026"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0027"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0028"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0029"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0030"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0031"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0032"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0033"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0034"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0035"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0036"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0037"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0038"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0039"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "1"
+              }
+            },
+            "soul_id": "S-0040"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "0"
+              }
+            },
+            "soul_id": "S-0041"
+          },
+          {
+            "place": {
+              "waiting": {
+                "since": "0"
+              }
+            },
+            "soul_id": "S-0042"
+          }
+        ],
+        "standing_slots": [
+          {
+            "kind": "imported_vessel",
+            "price": "100"
+          },
+          {
+            "kind": "rebuilt_body",
+            "price": "400"
+          }
+        ],
+        "tick": "2",
+        "underworld_view": {
+          "actions": {
+            "bribe": {
+              "availability": {
+                "eligible": true,
+                "reason": null
+              },
+              "max_amount": "600",
+              "min_amount": "1"
+            },
+            "capped_spend": {
+              "cap_year": "0",
+              "remaining": "100",
+              "spent": "400",
+              "yearly_cap": "500"
+            },
+            "haunt": {
+              "price": "40",
+              "targets": []
+            },
+            "version": 1
+          },
+          "base_traits": [
+            {
+              "carry_over": null,
+              "traits": {
+                "greed": 2,
+                "loyalty": 2,
+                "piety": -1,
+                "pride": -1,
+                "temper": -2,
+                "vindictiveness": 2,
+                "warmth": 3
+              }
+            },
+            {
+              "carry_over": "greed",
+              "traits": {
+                "greed": -1,
+                "loyalty": 2,
+                "piety": -1,
+                "pride": -1,
+                "temper": -2,
+                "vindictiveness": 2,
+                "warmth": 3
+              }
+            },
+            {
+              "carry_over": "loyalty",
+              "traits": {
+                "greed": 2,
+                "loyalty": -2,
+                "piety": -1,
+                "pride": -1,
+                "temper": -2,
+                "vindictiveness": 2,
+                "warmth": 3
+              }
+            },
+            {
+              "carry_over": "pride",
+              "traits": {
+                "greed": 2,
+                "loyalty": 2,
+                "piety": -1,
+                "pride": 3,
+                "temper": -2,
+                "vindictiveness": 2,
+                "warmth": 3
+              }
+            },
+            {
+              "carry_over": "warmth",
+              "traits": {
+                "greed": 2,
+                "loyalty": 2,
+                "piety": -1,
+                "pride": -1,
+                "temper": -2,
+                "vindictiveness": 2,
+                "warmth": 2
+              }
+            },
+            {
+              "carry_over": "temper",
+              "traits": {
+                "greed": 2,
+                "loyalty": 2,
+                "piety": -1,
+                "pride": -1,
+                "temper": 1,
+                "vindictiveness": 2,
+                "warmth": 3
+              }
+            },
+            {
+              "carry_over": "vindictiveness",
+              "traits": {
+                "greed": 2,
+                "loyalty": 2,
+                "piety": -1,
+                "pride": -1,
+                "temper": -2,
+                "vindictiveness": -2,
+                "warmth": 3
+              }
+            },
+            {
+              "carry_over": "piety",
+              "traits": {
+                "greed": 2,
+                "loyalty": 2,
+                "piety": 0,
+                "pride": -1,
+                "temper": -2,
+                "vindictiveness": 2,
+                "warmth": 3
+              }
+            }
+          ],
+          "connected": [],
+          "dream_price": "20",
+          "ghost_traits": {
+            "greed": -1,
+            "loyalty": -2,
+            "piety": 0,
+            "pride": 3,
+            "temper": 1,
+            "vindictiveness": -2,
+            "warmth": 2
+          },
+          "slots": [
+            {
+              "birth": null,
+              "kind": "imported_vessel",
+              "price": "100",
+              "slot": "imported_vessel",
+              "status": {
+                "affordable": true,
+                "announced": true,
+                "claimable": true,
+                "needed": []
+              }
+            },
+            {
+              "birth": null,
+              "kind": "rebuilt_body",
+              "price": "400",
+              "slot": "rebuilt_body",
+              "status": {
+                "affordable": false,
+                "announced": true,
+                "claimable": true,
+                "needed": [
+                  {
+                    "amount": "300",
+                    "kind": "cap_room_short"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "producer": {
+        "source": "crates/sim-core/src/observations.rs",
+        "test": "actual_arrival_then_death_retains_dead_body_and_current_waiting",
+        "seed": "22",
+        "config": {
+          "opening_residents": 40
+        },
+        "parameters": {
+          "base": "Params::DEFAULT",
+          "quietOverrides": {
+            "mortality_ppm_by_age": [
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0
+            ],
+            "mortality_floor_ppm": 0,
+            "birth_ppm_married": 0,
+            "birth_ppm_unmarried": 0,
+            "marriage_ppm": 0,
+            "loan_ppm": 0,
+            "social_ppm": 0,
+            "offer_min_affinity": 101,
+            "max_wait": "18446744073709551615",
+            "player_max_wait": "18446744073709551615",
+            "min_salience": "9223372036854775807"
+          },
+          "caseOverrides": {
+            "mortality_ppm_by_age": [
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000,
+              1000000
+            ],
+            "mortality_floor_ppm": 1000000
+          }
+        },
+        "controlledSetup": "Existing native fixture sets next tick1, prepares player Waiting, sets one relation affinity -25 and joss1000; Birth opens two native mother slots. Actual checked Claim, observed advancement and production snapshot projection produce the DTO. Not a normal UI/default-Params/WASM/replay case.",
+        "stdoutExport": "Temporary opt-in exporter after complete existing assertions; removed after extraction",
+        "log": "target/life-in-view-evidence/c4-native-lifecycle-dto.log"
+      }
+    }
+  ]
+}

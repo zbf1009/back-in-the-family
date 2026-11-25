@@ -1,7 +1,7 @@
 // Built app + system Chrome + loopback-only OFFLINE FAKE, never live AI.
 // Harness use is limited to real Worker_Protocol fixture progression and reads.
 import { createHash } from 'node:crypto';
-import { writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -13,8 +13,9 @@ import { DECISION_CONFIG_VERSION, isDecisionRequest, isModelDecision, type Decis
 
 const ORIGIN = 'http://localhost:4173';
 const WAITING_TICK = 1654;
-// Manifest replay paths stay repository-relative; artifacts belong to each test's outputPath.
+// Keep exact exports outside Playwright's per-run cleaned output directory.
 const REPOSITORY_DIRECTORY = fileURLToPath(new URL('../../../', import.meta.url));
+const DECISION_EVIDENCE = new URL('../../../target/life-in-view-evidence/c4-smoke-decision/', import.meta.url);
 const fixture = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seedU-underworld.replay.json', import.meta.url), 'utf8')) as {
   seed: string; config: unknown; inputs: { tick: string; seq: string; payload: unknown }[];
 };
@@ -218,7 +219,8 @@ async function evidence(page: Page, info: TestInfo, kind: 'acceptance' | 'fallba
   expect(appended.map(input => Object.keys(input.payload)[0])).toEqual(kind === 'acceptance' ? ['Dream', 'Choose'] : ['Dream']);
   expect(appended.every(input => input.tick === String(WAITING_TICK))).toBe(true);
   expect(exported.replay).not.toMatch(/provider text|input_tokens|output_tokens|mapping_hash|instructions|criteria|telemetry/);
-  const name = `dream-${kind}.replay.json`; const path = info.outputPath(name);
+  await mkdir(DECISION_EVIDENCE, { recursive: true });
+  const name = `dream-${kind}.replay.json`; const path = fileURLToPath(new URL(name, DECISION_EVIDENCE));
   await writeFile(path, exported.replay); // Exactly WASM export bytes, never HTTP or reconstructed inputs.
   const manifest = { version: 1, corpus: 'scope-3.3-built-browser', mode: 'offline-fake-not-live-ai', operation: 'dream', outcome: kind,
     replay: relative(REPOSITORY_DIRECTORY, path), sha256: createHash('sha256').update(exported.replay).digest('hex'),
@@ -226,7 +228,7 @@ async function evidence(page: Page, info: TestInfo, kind: 'acceptance' | 'fallba
       progression: 'Worker_Protocol submit/step; checked native default for any Player_Node', decision_seq: dream!.seq,
       controls: ['Create', 'Dreamer 31', 'urge', 'Send dream', 'Step'],
       export: 'SimClient.exportReplay -> Sim_Worker -> WasmSim.export_replay', ticks: replay.ticks } };
-  await writeFile(info.outputPath(`dream-${kind}.manifest.json`), `${JSON.stringify(manifest, null, 2)}\n`);
+  await writeFile(new URL(`dream-${kind}.manifest.json`, DECISION_EVIDENCE), `${JSON.stringify(manifest, null, 2)}\n`);
   await info.attach(`offline-fake-dream-${kind}-v5`, { path, contentType: 'application/json' });
   await capture(page, info, `dream-${kind}-1280x720.png`);
 }
@@ -455,8 +457,8 @@ test('offline fake both families share one completed tick with trigger-sequence 
 
   // No Step between these operations. The second Rust preview must account for
   // the queued CarryOver and the earlier Dream/Choose, not just the tick number.
-  // Bribe stays internal: this is the typed SimClient/Worker_Protocol seam.
-  const bribe = request(page, { type: 'bribe', amount: '1' });
+  await page.getByTestId('bribe-amount').fill('1');
+  await page.getByTestId('bribe-send').click();
   await expect.poll(() => fake.attempts.length).toBe(2);
   await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'pending');
   const bribeStatus = await request(page, { type: 'decision-status' });
@@ -467,12 +469,13 @@ test('offline fake both families share one completed tick with trigger-sequence 
   expect(BigInt(bribeTrigger!)).toBe(BigInt(dreamTrigger!) + 2n);
   expect(fake.attempts[1]!.request.family).toBe('magistrate_ruling');
   await fake.accept(1);
-  const bribeReply = await bribe;
+  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'model');
+  await expect(page.getByTestId('action-feedback').filter({ hasText: 'bribe: queued' })).toBeVisible();
+  const bribeReply = await request(page, { type: 'decision-status' });
   expect(bribeReply.ok).toBe(true);
   const bribeOutcome = bribeReply.snapshot.decision?.outcome;
-  expect(bribeOutcome?.kind).toBe('model');
-  if (bribeOutcome?.kind !== 'model') throw Error('internal Bribe model terminal reply is missing');
-  expect(bribeOutcome.requestId).toBe(bribeReply.id);
+  if (bribeOutcome?.kind !== 'model') throw Error('Actual Bribe control terminal notice is missing');
+  expect(bribeOutcome.requestId).toBeGreaterThan(0);
   expect(bribeOutcome.worldId).toBe(bribeReply.snapshot.worldId);
   expect(bribeOutcome.option).toBe(fake.attempts[1]!.request.criteria[0]!.id);
   expect(bribeReply.snapshot.decision?.pending).toBeNull();
@@ -485,11 +488,11 @@ test('offline fake both families share one completed tick with trigger-sequence 
   expect(terminal.snapshot.checksum).toBe(before.checksum);
   expect(terminal.snapshot.runState).toBe('paused');
   expect((await readWorld(page)).tick).toBe(before.tick);
-  // The harness receives the internal Bribe reply, not App.onDream's settle
-  // callback. Do not require a Dream UI completion notice for that internal
-  // operation. Advance through the same controller's real typed Step instead;
-  // its worker-initiated resolution status still renders the actual Dream scene.
-  const completed = await request(page, { type: 'step' });
+  // Both triggers were activated through real page controls. The boundary's
+  // accepted closed choice is OFFLINE FAKE, never live provider evidence.
+  await page.getByTestId('step').click();
+  await expect(page.getByTestId('tick')).toHaveText(String(WAITING_TICK + 1));
+  const completed = await request(page, { type: 'world-snapshot' });
   expect(completed.ok).toBe(true);
   expect(completed.snapshot.tick).toBe(String(WAITING_TICK + 1));
   await expect(page.getByTestId('tick')).toHaveText(String(WAITING_TICK + 1));
@@ -524,7 +527,8 @@ test('offline fake both families share one completed tick with trigger-sequence 
     expect(choose.option).toBe(fake.attempts[(offset - 1) / 2]!.request.criteria[0]!.id);
   }
   expect(exported.replay).not.toMatch(/input_tokens|output_tokens|mapping_hash|instructions|criteria|telemetry/);
-  const path = info.outputPath('both-families.replay.json');
+  await mkdir(DECISION_EVIDENCE, { recursive: true });
+  const path = fileURLToPath(new URL('both-families.replay.json', DECISION_EVIDENCE));
   await writeFile(path, exported.replay); // Exact completed live WASM bytes, not reconstructed inputs.
   const manifest = {
     version: 1, corpus: 'scope-4.1-built-browser-same-tick', mode: 'offline-fake-not-live-ai',
@@ -538,14 +542,14 @@ test('offline fake both families share one completed tick with trigger-sequence 
     provenance: {
       fixture: 'fixtures/parity/seedU-underworld.replay.json', prefix_seq_exclusive: '61', seed: fixture.seed,
       earlier_same_tick_carry_over_seq: carryOver!.seq,
-      progression: 'Worker_Protocol submit/step and checked Rust Player_Node defaults; no Step between Dream and Bribe; typed Step completes their shared firing tick',
-      controls: ['Create', 'Dreamer 31', 'urge', 'Send dream', 'Step'],
-      internal_operation: 'typed bribe amount 1 and resolution step through existing harness -> SimClient -> Sim_Worker',
+      progression: 'Recorded Worker_Protocol setup and checked Rust Player_Node defaults; no Step between actual Dream and Bribe controls; actual UI Step completes their shared firing tick',
+      controls: ['Create', 'Dreamer 31', 'urge', 'Send dream', 'Bribe amount 1', 'Submit bribe', 'Step'],
+      setup_operations: 'Existing real replay prefix via harness submit/step; no claimed UI action uses harness submission',
       export: 'SimClient.exportReplay -> Sim_Worker -> WasmSim.export_replay',
     },
     limits: 'Offline fake choice acceptance only; native replay audit supplies resolved source/default comparisons, not request-attempt or error rates.',
   };
-  await writeFile(info.outputPath('both-families.manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  await writeFile(new URL('both-families.manifest.json', DECISION_EVIDENCE), `${JSON.stringify(manifest, null, 2)}\n`);
   await info.attach('offline-fake-both-families-v5', { path, contentType: 'application/json' });
 });
 
@@ -635,3 +639,40 @@ test('LV-C2 controlled preissuance World-read transport fault stays bound to the
     mode: 'controlled-postMessage-fault-not-natural-production-trigger', observed, nativeSnapshot: native.snapshot,
   }, null, 2)) });
 });
+
+for (const outcome of ['manual', 'invalid-response'] as const) {
+  test(`offline HTTP fake actual Bribe ${outcome} records rules and real applied ruling`, async ({ page, context }, info) => {
+    const fake = await offlineFake(context, { families: ['magistrate_ruling'] });
+    await open(page); await waiting(page);
+    const before = await readWorld(page); const replayBefore = await liveReplay(page);
+    await page.getByTestId('bribe-amount').fill('1'); await page.getByTestId('bribe-send').click();
+    await expect.poll(() => fake.attempts.length).toBe(1);
+    await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'pending');
+    await expect(page.getByTestId('action-feedback').filter({ hasText: 'bribe: deciding' })).toBeVisible();
+    await expect(page.getByTestId('use-rules-now')).toBeEnabled();
+    await expect(page.getByTestId('run')).toBeDisabled(); await expect(page.getByTestId('step')).toBeDisabled();
+    await expect(page.getByTestId('tick')).toHaveText(before.tick);
+    if (outcome === 'manual') { await page.getByTestId('use-rules-now').click(); await fake.late(); }
+    else await fake.invalid();
+    await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'fallback');
+    await expect(page.getByTestId('action-feedback').filter({ hasText: 'bribe: queued' })).toBeVisible();
+    await expect(page.getByTestId('run-state')).toHaveText('paused'); await expect(page.getByTestId('tick')).toHaveText(before.tick);
+    const queued = await liveReplay(page);
+    expect(queued.inputs.slice(replayBefore.inputs.length).map(input => Object.keys(input.payload)[0])).toEqual(['Bribe']);
+    await page.getByTestId('step').click(); await expect(page.getByTestId('tick')).toHaveText(String(BigInt(before.tick) + 1n));
+    const applied = page.getByTestId('action-feedback').filter({ hasText: 'bribe: applied' });
+    await expect(applied).toContainText('spent 1 joss paper'); await expect(applied).toContainText('source rules_default');
+    await expect(page.getByTestId('underworld-register')).toBeVisible();
+    const exported = await liveReplay(page);
+    await mkdir(DECISION_EVIDENCE, { recursive: true });
+    const path = fileURLToPath(new URL(`actual-bribe-${outcome}.replay.json`, DECISION_EVIDENCE));
+    await writeFile(path, exported.bytes);
+    await writeFile(new URL(`actual-bribe-${outcome}.json`, DECISION_EVIDENCE), `${JSON.stringify({ version: 1,
+      layer: 'ACTUAL-UI-WORKER-WASM-OFFLINE-HTTP-FAKE-NOT-LIVE-MODEL', outcome, before,
+      admission: queued.inputs.slice(replayBefore.inputs.length), terminalText: await applied.innerText(),
+      currentWorld: await readWorld(page), replay: relative(REPOSITORY_DIRECTORY, path), sha256: createHash('sha256').update(exported.bytes).digest('hex'),
+      controls: ['Amount 1', 'Submit bribe', ...(outcome === 'manual' ? ['Use rules now'] : []), 'Step'],
+      setup: 'Existing seedU recorded prefix through same Worker/WASM; fake endpoint only chooses/fails the existing closed decision boundary.' }, null, 2)}\n`);
+    await info.attach(`actual-bribe-${outcome}`, { path, contentType: 'application/json' });
+  });
+}

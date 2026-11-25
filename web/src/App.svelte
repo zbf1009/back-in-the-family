@@ -38,6 +38,7 @@
   import { parseSeed } from './shared/seed.ts';
   import { isSpeed, SPEEDS } from './shared/speeds.ts';
   import type { PlayerOption, Slot } from './shared/world-snapshot.ts';
+  import type { SceneClose } from './main/scene-queue.ts';
   import LifeSurface from './ui/LifeSurface.svelte';
   import { loadLifeSprites, type SpriteSet } from './art/sprites.ts';
   import './ui/life.css';
@@ -73,14 +74,9 @@
   const held = $derived(decisionBusy(ui));
   const notice = $derived(decisionNotice(ui));
   const feedback = $derived(feedbackView(ui));
-  const onClose = $derived.by(() => {
-    const queue = ui.scene;
-    const entry = queue?.entries[0];
-    return () => {
-      if (queue !== null && entry !== undefined) dispatch({ type: 'scene-close',
-        expected: { worldId: queue.worldId, tick: queue.tick, entry } });
-    };
-  });
+  function onClose(expected: SceneClose): void {
+    dispatch({ type: 'scene-close', expected });
+  }
 
   // Fold one event into the state. Assigning a fresh object keeps the rune reactive.
   function dispatch(event: UiEvent): void {

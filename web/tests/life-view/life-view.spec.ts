@@ -361,11 +361,16 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 640
           return person === undefined ? { method: 'grave', visual: null }
             : { method: 'resident', visual: resolveVisualKey(id, person.age) };
         });
-        await expect.poll(async () => (await fixtureRead(page)).draws.filter(call => call.canvas === 'scene-picture-canvas')
+        // A participant is drawn once, on either people or focal; compare the
+        // combined ordered calls without deduplicating distinct deceased people.
+        await expect.poll(async () => (await fixtureRead(page)).draws.filter(call =>
+          call.canvas === 'scene-picture-people' || call.canvas === 'scene-picture-focal')
           .map(({ method, visual }) => ({ method, visual }))).toEqual(expected);
         if (history) {
           await expect(page.getByTestId('scene-dream')).toBeVisible();
-          expect((await fixtureRead(page)).ui.scene!.entries[0]).toEqual({ kind: 'dream', node: null });
+          const head = (await fixtureRead(page)).ui.scene!.entries[0]!;
+          expect(head).toMatchObject({ kind: 'dream', node: null, keyScene: null });
+          expect(head.identity).toBe(JSON.stringify([initial.ui.worldId, 'dream', world.last_dream!.tick]));
         }
         await page.getByRole('link', { name: 'Back to current action', exact: true }).click();
         await noHorizontalOverflow(page);

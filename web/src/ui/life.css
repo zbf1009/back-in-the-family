@@ -11,6 +11,10 @@
   --life-space-small: 8px;
   --life-space-group: 16px;
   --life-space-section: 28px;
+  --life-ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --life-beat-establish: 160ms;
+  --life-beat-focus: 240ms;
+  --life-beat-settle: 160ms;
   color-scheme: light;
 }
 * { box-sizing: border-box; }

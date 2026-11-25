@@ -2,6 +2,7 @@
   import type { UiState } from '../../main/ui-state.ts';
   import { sceneLines, sceneStaging } from '../../main/templates.ts';
   import { resolveVisualKey, type SpriteSet } from '../../art/sprites.ts';
+  import { namesById } from '../../main/view-model.ts';
   const { ui, sprites, onClose }: { ui: UiState; sprites: SpriteSet | null; onClose: () => void } = $props();
   const world = $derived(ui.scene?.world ?? null);
   const cue = $derived({ kind: 'dream' as const, node: ui.scene?.entries[0]?.node ?? null });
@@ -11,6 +12,13 @@
     visual: resolveVisualKey(marker.person, world!.residents.find(person => person.id === marker.person)?.age ?? null),
   })) ?? []);
   const offering = $derived(world?.last_dream?.applied === 'burn_offering' || world?.last_dream?.applied === 'burn_small');
+  function preventRepeatedActivation(event: KeyboardEvent): void {
+    if (event.repeat && (event.key === ' ' || event.key === 'Enter')) event.preventDefault();
+  }
+  function close(event: MouseEvent): void {
+    if (event.detail > 1) return;
+    onClose();
+  }
   const compositionKey = $derived(JSON.stringify([stage?.props, markers.map(marker => [marker.person, marker.visual, marker.tint, marker.soul]), offering]));
   let canvas: HTMLCanvasElement;
   let renderedKey: string | undefined;
@@ -39,10 +47,10 @@
   <p class="picture-note">Historical cue · symbolic illustration, not locations or attendance.</p>
   {#each lines as line, index (index)}<p>{line}</p>{/each}
   {#if (stage?.people.length ?? 0) > 0}
-    <p>Named living people: {stage!.people.map(id => world!.person_names.find(person => person.id === id)?.name ?? `Person ${id}`).join(', ')}.</p>
+    <p>Named living people: {stage!.people.map(id => namesById(world!).get(id)!).join(', ')}.</p>
   {/if}
   {#if ui.scene?.entries[0]?.node === null}
-    <button type="button" data-testid="scene-close" onclick={onClose}>Close</button>
+    <button type="button" data-testid="scene-close" onclick={close} onkeydown={preventRepeatedActivation}>Close scene</button>
   {/if}
 </section>
 

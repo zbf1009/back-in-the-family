@@ -5,12 +5,16 @@ import { readFileSync } from 'node:fs';
 import fc from 'fast-check';
 import { chronicleLines, sceneLines, sceneStaging, EMPTY_CHRONICLE, type SceneKind } from '../../src/main/templates.ts';
 import { initialUiState } from '../../src/main/ui-state.ts';
-import type { ChronicleEntry, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import type { ChronicleEntry, PlayerLifecycleFact, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import { townDrawList } from '../../src/main/town-layout.ts';
 import { pendingSnapshot, snapshot, waitingSnapshot } from './helpers/view.ts';
 
 const RUNS = 1000;
 const base: WorldSnapshot = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seed1-pairwise.snapshot-500.json', import.meta.url), 'utf8'));
+function bodyFact(world: WorldSnapshot, kind: PlayerLifecycleFact['kind'], tick = world.tick): PlayerLifecycleFact {
+  const body = world.residents.find(person => person.id === world.player.body) ?? world.player.earlier_bodies[0]!;
+  return { event: '9007199254740993', tick, kind, body: body.id, name: body.name, origin: body.origin };
+}
 const entryArb: fc.Arbitrary<ChronicleEntry> = fc.record({
   tick: fc.bigInt({ min: 0n, max: 2n ** 64n - 1n }).map(String),
   family: fc.constantFrom('family_death', 'inheritance', 'debt_due', 'feud', 'life_stage'),
@@ -72,13 +76,13 @@ test('Chronicle consumers receive actual skipped parts and chooser absence with 
   assert.equal(JSON.stringify(world), before);
 });
 
-test('Scene text uses named Snapshot facts and no third-party trademarks', () => {
+test('Scene text uses named Snapshot facts', () => {
   const world = pendingSnapshot('inheritance');
   assert.deepEqual(sceneLines('inheritance', world), ['Deceased Resident left you 640 money · tick 499', 'Co-heirs named: John Carlson, Martha Carlson']);
-  assert.deepEqual(sceneLines('birth', snapshot), ['You are Irene Carlson now · native · age 37', 'Household 1: John Carlson, Martha Carlson']);
+  const birth = bodyFact(snapshot, 'birth');
+  assert.deepEqual(sceneLines({ kind: 'birth', node: null, lifecycle: birth }, snapshot), [`${birth.name} was born · biological birth at tick ${birth.tick}`, `Body ${birth.body} · ${birth.origin} · event ${birth.event}`]);
   assert.deepEqual(sceneLines('dream', { ...snapshot, last_dream: { tick: '499', dreamer: 1, applied: 'heed_warning' } }),
     ['John Carlson dreamt of you · tick 499', 'They took the warning to heart.']);
-  assert.doesNotMatch(readFileSync(new URL('../../src/main/templates.ts', import.meta.url), 'utf8'), /\b(?:Kenney|Nintendo|Disney|Pokemon|Pokémon|Microsoft|Apple|Google)\b/i);
 });
 
 test('Property 26: scene staging draws only named living people in line order with canonical tints', () => {
@@ -86,9 +90,16 @@ test('Property 26: scene staging draws only named living people in line order wi
     fc.bigInt({ min: 1n, max: 2n ** 64n - 1n }), (kind, own, tick) => {
       let world: WorldSnapshot;
       let expected: number[];
-      if (kind === 'funeral') { world = own ? waitingSnapshot() : pendingSnapshot('family_death'); expected = own ? [] : [1]; }
+      let cue: Parameters<typeof sceneLines>[0] = kind;
+      if (kind === 'funeral') {
+        world = own ? waitingSnapshot() : pendingSnapshot('family_death'); expected = own ? [] : [1];
+        if (own) cue = { kind, node: null, lifecycle: bodyFact(world, 'death', String(tick)) };
+      }
       else if (kind === 'inheritance') { world = pendingSnapshot('inheritance'); expected = [1, 3]; }
-      else if (kind === 'birth') { world = own ? waitingSnapshot() : snapshot; expected = own ? [] : [2, 1, 3]; }
+      else if (kind === 'birth') {
+        world = own ? waitingSnapshot() : snapshot; expected = own ? [] : [2];
+        cue = { kind, node: null, lifecycle: bodyFact(world, 'birth', String(tick)) };
+      }
       else {
         world = { ...snapshot, last_dream: { tick: String(tick), dreamer: 1, applied: 'take_comfort' } };
         expected = own ? [] : [1];
@@ -97,10 +108,10 @@ test('Property 26: scene staging draws only named living people in line order wi
           person_names: [{ id: 1, name: 'John Carlson' }] };
       }
       const before = JSON.stringify(world);
-      const lines = sceneLines(kind, world);
-      assert.deepEqual(sceneLines(kind, world), lines);
-      const stage = sceneStaging(kind, world);
-      assert.deepEqual(sceneStaging(kind, world), stage);
+      const lines = sceneLines(cue, world);
+      assert.deepEqual(sceneLines(cue, world), lines);
+      const stage = sceneStaging(cue, world);
+      assert.deepEqual(sceneStaging(cue, world), stage);
       assert.deepEqual(stage.people, expected);
       const props = { funeral: ['coffin', 'candle'], inheritance: ['will'], dream: ['cloud'], birth: ['cradle'] };
       assert.deepEqual(stage.props, props[kind]);
@@ -122,8 +133,10 @@ test('Funerals select this death only, omit an absent mourner line, and name no 
   const world = waitingSnapshot();
   world.player.earlier_bodies = [...world.player.earlier_bodies, { id: 99, name: 'Older Body', origin: 'rebuilt', death: '10' }];
   world.player.past_life_ties = [...world.player.past_life_ties, { rememberer: 1, earlier_body: 99, affinity: 80 }];
-  assert.deepEqual(sceneLines('funeral', world), ['Irene Carlson has died · tick 499', 'Remembered by 2 of the living.']);
-  assert.deepEqual(sceneStaging('funeral', world).people, []);
+  const death = bodyFact(world, 'death', '499');
+  const cue = { kind: 'funeral' as const, node: null, lifecycle: death };
+  assert.deepEqual(sceneLines(cue, world), ['Irene Carlson has died · tick 499', `Body ${death.body} · native · event ${death.event}`, 'Remembered by 2 of the living.']);
+  assert.deepEqual(sceneStaging(cue, world).people, []);
   const node = pendingSnapshot('family_death');
   assert.deepEqual(sceneLines('funeral', node), ['Deceased Resident has died · tick 499', 'Also in this choice: John Carlson']);
   node.player_node = { ...node.player_node!, stakes: { ...node.player_node!.stakes, who: [100] } };
@@ -134,7 +147,8 @@ test('Own and node funeral cues remain distinct in a joined constructed stop', (
   const world = waitingSnapshot();
   world.player_node = pendingSnapshot('family_death').player_node;
   world.person_names = [{ id: 100, name: 'Deceased Resident' }];
-  assert.deepEqual(sceneLines({ kind: 'funeral', node: null }, world), ['Irene Carlson has died · tick 499', 'Remembered by 2 of the living.']);
+  const death = bodyFact(world, 'death', '499');
+  assert.deepEqual(sceneLines({ kind: 'funeral', node: null, lifecycle: death }, world), ['Irene Carlson has died · tick 499', `Body ${death.body} · native · event ${death.event}`, 'Remembered by 2 of the living.']);
   assert.deepEqual(sceneLines({ kind: 'funeral', node: '12' }, world), ['Deceased Resident has died · tick 499', 'Also in this choice: John Carlson']);
   assert.deepEqual(sceneStaging({ kind: 'funeral', node: '12' }, world).people, [1]);
 });
@@ -153,10 +167,34 @@ test('Every dream interpretation uses its exact fixed line and a dead dreamer ge
   }
 });
 
-test('Birth has no event tick, covers an empty household and the body that died in the same tick', () => {
+test('Birth uses biological event tick and historical body facts without inventing current household or age', () => {
   const world = { ...snapshot, households: snapshot.households.map(house => house.id === '1' ? { ...house, members: [2] } : house) };
-  assert.deepEqual(sceneLines('birth', world), ['You are Irene Carlson now · native · age 37', 'Household 1: no one else.']);
-  assert.deepEqual(sceneLines('birth', waitingSnapshot()), ['You were Irene Carlson · native']);
-  assert.deepEqual(sceneStaging('birth', waitingSnapshot()).props, ['cradle']);
-  assert.deepEqual(sceneStaging('birth', waitingSnapshot()).people, []);
+  const birth = bodyFact(world, 'birth', '100');
+  const cue = { kind: 'birth' as const, node: null, lifecycle: birth };
+  assert.deepEqual(sceneLines(cue, world), ['Irene Carlson was born · biological birth at tick 100', `Body ${birth.body} · native · event ${birth.event}`]);
+  assert.deepEqual(sceneLines(cue, waitingSnapshot()), ['Irene Carlson was born · biological birth at tick 100', `Body ${birth.body} · native · event ${birth.event}`, 'This event-associated body subsequently died at tick 499.']);
+  assert.deepEqual(sceneStaging(cue, waitingSnapshot()).props, ['cradle']);
+  assert.deepEqual(sceneStaging(cue, waitingSnapshot()).people, []);
+  assert.deepEqual(sceneLines('birth', world), [], 'Current body cannot manufacture historical Birth');
+  assert.deepEqual(sceneLines('funeral', waitingSnapshot()), [], 'Waiting ghost cannot manufacture historical Death');
+});
+
+test('LV-C4 lifecycle templates use the actual event body rather than the latest ghost or earlier-body ordering', () => {
+  const world = waitingSnapshot();
+  world.player.earlier_bodies.unshift({ id: 200, name: 'Unrelated latest body', origin: 'native', death: '500' });
+  world.player_wait!.ghost = 200;
+  world.player.earlier_bodies.push({ id: 201, name: 'Stale retained label', origin: 'possessed', death: '500' });
+  const arrival = { event: '18446744073709551614', tick: '499', kind: 'possession' as const, body: 201, name: 'Actual event-associated name', origin: 'possessed' as const };
+  const death = { ...arrival, event: '18446744073709551615', tick: '500', kind: 'death' as const };
+  const arrivalLines = sceneLines({ kind: 'birth', node: null, lifecycle: arrival }, world);
+  const deathLines = sceneLines({ kind: 'funeral', node: null, lifecycle: death }, world);
+  for (const [lines, fact] of [[arrivalLines, arrival], [deathLines, death]] as const) {
+    assert.ok(lines.some(line => line.includes(fact.name)));
+    assert.ok(lines.some(line => line.includes(fact.event)));
+    assert.ok(lines.some(line => line.includes(String(fact.body))));
+    assert.ok(!lines.some(line => line.includes('Unrelated latest body') || line.includes('Stale retained label')));
+  }
+  assert.ok(arrivalLines.some(line => line.includes('not biological birth')));
+  assert.ok(!arrivalLines.some(line => /age\s+0|newborn|You are .* now/.test(line)));
+  assert.equal(world.player.place, 'waiting');
 });

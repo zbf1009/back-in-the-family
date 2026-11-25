@@ -1,9 +1,9 @@
 import type { UiState } from './ui-state.ts';
-import type { ChronicleEntry, WorldSnapshot } from '../shared/world-snapshot.ts';
+import type { ChronicleEntry, PlayerLifecycleFact, PlayerNode, WorldSnapshot } from '../shared/world-snapshot.ts';
 import { namesById } from './view-model.ts';
 import { townDrawList } from './town-layout.ts';
 
-type SceneCue = SceneKind | { kind: SceneKind; node: string | null };
+type SceneCue = SceneKind | { kind: SceneKind; node: string | null; playerNode?: PlayerNode; lifecycle?: PlayerLifecycleFact };
 export type SceneKind = 'funeral' | 'inheritance' | 'dream' | 'birth';
 export const EMPTY_CHRONICLE = 'Nothing has been written yet.';
 
@@ -29,33 +29,40 @@ export function chronicleLines(ui: UiState): string[] {
 // Scene text and staging report only Snapshot facts (R10.11).
 function scenePeople(cue: SceneCue, world: WorldSnapshot): number[] {
   const kind = typeof cue === 'string' ? cue : cue.kind;
-  const nodeScene = typeof cue === 'string' ? world.player_wait === null : cue.node !== null;
-  if (kind === 'funeral') return !nodeScene && world.player_wait !== null ? [world.player_wait.ghost] : world.player_node?.stakes.who ?? [];
-  if (kind === 'inheritance') return world.player_node?.stakes.who ?? [];
+  if (typeof cue !== 'string' && cue.lifecycle !== undefined) return [cue.lifecycle.body];
+  const node = typeof cue === 'string' ? world.player_node : cue.playerNode ?? world.player_node;
+  if (kind === 'funeral' || kind === 'inheritance') return node?.stakes.who ?? [];
   if (kind === 'dream') return world.last_dream === undefined ? [] : [world.last_dream.dreamer];
-  if (world.player.body === null) return world.player_wait === null ? [] : [world.player_wait.ghost];
-  const household = world.households.find(house => house.members.includes(world.player.body!))!;
-  return [world.player.body, ...household.members.filter(id => id !== world.player.body).sort((a, b) => a - b)];
+  return [];
 }
 
 export function sceneLines(cue: SceneCue, world: WorldSnapshot): string[] {
   const kind = typeof cue === 'string' ? cue : cue.kind;
-  const nodeScene = typeof cue === 'string' ? world.player_wait === null : cue.node !== null;
+  if (typeof cue !== 'string' && cue.lifecycle !== undefined) {
+    const fact = cue.lifecycle;
+    const body = world.player.earlier_bodies.find(body => body.id === fact.body);
+    const lines = [fact.kind === 'death'
+      ? `${fact.name} has died · tick ${fact.tick}`
+      : fact.kind === 'birth' ? `${fact.name} was born · biological birth at tick ${fact.tick}`
+        : `${fact.name} arrived by ${fact.kind} · entry at tick ${fact.tick} (not biological birth)`];
+    lines.push(`Body ${fact.body} · ${fact.origin} · event ${fact.event}`);
+    if (fact.kind === 'death') {
+      const count = world.player.past_life_ties.filter(tie => tie.earlier_body === fact.body).length;
+      lines.push(`Remembered by ${count} of the living.`);
+    } else if (body !== undefined) lines.push(`This event-associated body subsequently died at tick ${body.death}.`);
+    return lines;
+  }
+  const node = typeof cue === 'string' ? world.player_node : cue.playerNode ?? world.player_node;
   const names = namesById(world);
   const people = scenePeople(cue, world);
   if (people.length === 0) return [];
   switch (kind) {
     case 'funeral': {
-      if (!nodeScene && world.player_wait !== null) {
-        const body = world.player.earlier_bodies.find(body => body.id === world.player_wait!.ghost)!;
-        const count = world.player.past_life_ties.filter(tie => tie.earlier_body === body.id).length;
-        return [`${body.name} has died · tick ${body.death}`, `Remembered by ${count} of the living.`];
-      }
-      return [`${names.get(people[0]!)!} has died · tick ${world.player_node!.fired}`,
+      return [`${names.get(people[0]!)!} has died · tick ${node!.fired}`,
         ...(people.length > 1 ? [`Also in this choice: ${people.slice(1).map(id => names.get(id)!).join(', ')}`] : [])];
     }
     case 'inheritance': return [
-      `${names.get(people[0]!)!} left you ${world.player_node!.stakes.amount} ${world.player_node!.stakes.unit} · tick ${world.player_node!.fired}`,
+      `${names.get(people[0]!)!} left you ${node!.stakes.amount} ${node!.stakes.unit} · tick ${node!.fired}`,
       ...(people.length > 1 ? [`Co-heirs named: ${people.slice(1).map(id => names.get(id)!).join(', ')}`] : []),
     ];
     case 'dream': {
@@ -68,16 +75,7 @@ export function sceneLines(cue: SceneCue, world: WorldSnapshot): string[] {
       };
       return [`${names.get(dream.dreamer)!} dreamt of you · tick ${dream.tick}`, text[dream.applied]];
     }
-    case 'birth': {
-      if (world.player.body === null) {
-        const body = world.player.earlier_bodies.find(body => body.id === world.player_wait!.ghost)!;
-        return [`You were ${body.name} · ${body.origin}`];
-      }
-      const body = world.residents.find(person => person.id === world.player.body)!;
-      const house = world.households.find(house => house.members.includes(body.id))!;
-      return [`You are ${body.name} now · ${body.origin} · age ${body.age}`,
-        `Household ${house.id}: ${people.length > 1 ? people.slice(1).map(id => names.get(id)!).join(', ') : 'no one else.'}`];
-    }
+    case 'birth': return [];
   }
 }
 

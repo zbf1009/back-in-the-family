@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 import { test, expect, type Page } from '@playwright/test';
 import { readFixture } from './global-setup.ts';
 import type { RequestTicket, RequestWithoutId } from '../../src/shared/protocol.ts';
+import { DECISION_CONFIG_VERSION } from '../../src/shared/decision.ts';
 
 // --- browser-side types for page.evaluate callbacks -------------------------
 //
@@ -112,6 +113,10 @@ async function openHarnessPage(
       return;
     }
     if (new URL(url).origin === previewOrigin) {
+      if (new URL(url).pathname === '/api/decision/config') {
+        void route.fulfill({ json: { version: DECISION_CONFIG_VERSION, enabled: false, session_cap: 40 } });
+        return;
+      }
       void route.continue();
       return;
     }

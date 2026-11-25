@@ -653,9 +653,14 @@ test('R9.9: generated event sequences keep reads single-flight, spaced and pause
 });
 
 test('LV-C2: current options remain available behind historical scenes without changing Run or Step', () => {
-  const world = { ...waitingSnapshot(), player_node: pendingSnapshot('inheritance').player_node };
+  const world = { ...waitingSnapshot(), last_dream: { tick: '499', dreamer: 1, applied: 'take_comfort' as const }, player_node: pendingSnapshot('inheritance').player_node };
   let ui = uiFor(world);
-  const snapshot: Snapshot = { worldId: 1, runState: 'paused', tick: world.tick, checksum: null, speed: 1, tps: null, actions: [], playerLifecycle: [], playerNode: ui.playerNode };
+  const ghost = world.player.earlier_bodies[0]!;
+  const playerLifecycle: PlayerLifecycleFact[] = [
+    { event: '40', tick: world.tick, kind: 'death', body: ghost.id, name: ghost.name, origin: ghost.origin },
+    { event: '41', tick: world.tick, kind: 'birth', body: ghost.id, name: ghost.name, origin: ghost.origin },
+  ];
+  const snapshot: Snapshot = { worldId: 1, runState: 'paused', tick: world.tick, checksum: null, speed: 1, tps: null, actions: [], playerLifecycle, playerNode: ui.playerNode };
   ui = reduce(ui, { type: 'status', snapshot: { ...snapshot, stop: { reasons: ['player_died', 'dream_resolved', 'player_reborn', 'player_node'], world } } });
   assert.equal(currentDecision(ui) !== null, true);
   const shell = controls(ui);

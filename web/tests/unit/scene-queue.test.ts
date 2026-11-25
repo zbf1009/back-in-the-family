@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 import type { PauseReason, Request, Snapshot } from '../../src/shared/protocol.ts';
-import type { PlayerFamily, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import type { PlayerFamily, PlayerLifecycleFact, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import { sceneQueue } from '../../src/main/scene-queue.ts';
 import { controls, currentDecision, reduce, type UiState } from '../../src/main/ui-state.ts';
 import { underworldView, viewModel } from '../../src/main/view-model.ts';
@@ -13,9 +13,16 @@ const RUNS = 1000;
 function status(ui: UiState): Snapshot {
   return { worldId: ui.worldId, runState: ui.runState, tick: ui.tick, checksum: ui.checksum, tps: ui.tps, speed: ui.speed, actions: [], playerLifecycle: [], playerNode: ui.playerNode };
 }
+function lifecycleFor(world: WorldSnapshot, reasons: PauseReason[]): PlayerLifecycleFact[] {
+  const body = world.residents.find(person => person.id === world.player.body) ?? world.player.earlier_bodies[0]!;
+  return [
+    ...(reasons.includes('player_died') ? [{ event: '40', tick: world.tick, kind: 'death' as const, body: body.id, name: body.name, origin: body.origin }] : []),
+    ...(reasons.includes('player_reborn') ? [{ event: '41', tick: world.tick, kind: 'birth' as const, body: body.id, name: body.name, origin: body.origin }] : []),
+  ];
+}
 function stop(world: WorldSnapshot, reasons: PauseReason[]): UiState {
   const ui = uiFor(world);
-  return reduce(ui, { type: 'status', snapshot: { ...status(ui), stop: { reasons, world } } });
+  return reduce(ui, { type: 'status', snapshot: { ...status(ui), playerLifecycle: lifecycleFor(world, reasons), stop: { reasons, world } } });
 }
 
 test('Property 25: stop order and accepted actions keep one current entry without advancing', () => {
@@ -24,16 +31,17 @@ test('Property 25: stop order and accepted actions keep one current entry withou
     fc.option(fc.constantFrom<PlayerFamily>('family_death', 'inheritance', 'debt_due', 'feud', 'life_stage'), { nil: null }),
     fc.array(fc.constantFrom('close', 'accept', 'reject'), { maxLength: 20 }),
     (reasons, family, actions) => {
-      const world = family === null ? snapshot : pendingSnapshot(family);
+      const world = { ...(family === null ? snapshot : pendingSnapshot(family)), last_dream: { tick: '499', dreamer: 1, applied: 'take_comfort' as const } };
       const expected = [
         ...(reasons.includes('player_died') ? [{ kind: 'funeral', node: null }] : []),
         ...(reasons.includes('dream_resolved') ? [{ kind: 'dream', node: null }] : []),
         ...(reasons.includes('player_reborn') ? [{ kind: 'birth', node: null }] : []),
         ...(family === null ? [] : [{ kind: family === 'family_death' ? 'funeral' : family === 'inheritance' ? 'inheritance' : 'choice', node: '12' }]),
       ];
-      assert.deepEqual(sceneQueue(reasons, world), expected);
+      const entries = sceneQueue(reasons, world, 1, lifecycleFor(world, reasons));
+      assert.deepEqual(entries.map(({ kind, node }) => ({ kind, node })), expected);
       let ui = stop(world, reasons);
-      let left = expected.slice();
+      let left = ui.scene?.entries.slice() ?? [];
       let answered = false;
       const requests: Request[] = [];
       for (const action of actions) {
@@ -126,7 +134,7 @@ test('R10.12: creating another World drops the remaining scene queue', () => {
 });
 
 test('LV-C2: non-head current Choose rejection preserves every entry and admission retires only its exact node', () => {
-  const world = { ...waitingSnapshot(), player_node: pendingSnapshot('inheritance').player_node };
+  const world = { ...waitingSnapshot(), last_dream: { tick: '499', dreamer: 1, applied: 'take_comfort' as const }, player_node: pendingSnapshot('inheritance').player_node };
   let ui = stop(world, ['player_died', 'dream_resolved', 'player_reborn', 'player_node']);
   const entries = ui.scene!.entries;
   assert.deepEqual(entries.map(entry => entry.kind), ['funeral', 'dream', 'birth', 'inheritance']);
@@ -155,7 +163,7 @@ test('LV-C2: non-head current Choose rejection preserves every entry and admissi
 });
 
 test('LV-C2: Close checks captured episode and retained head object so duplicate and late callbacks cannot pop the next scene', () => {
-  let ui = stop(waitingSnapshot(), ['player_died', 'dream_resolved', 'player_reborn']);
+  let ui = stop({ ...waitingSnapshot(), last_dream: { tick: '499', dreamer: 1, applied: 'take_comfort' } }, ['player_died', 'dream_resolved', 'player_reborn']);
   const queue = ui.scene!;
   const expected = { worldId: queue.worldId, tick: queue.tick, entry: queue.entries[0]! };
   ui = reduce(ui, { type: 'scene-close', expected });
@@ -168,8 +176,9 @@ test('LV-C2: Close checks captured episode and retained head object so duplicate
     ui = reduce(ui, { type: 'scene-close', expected: invalid });
     assert.equal(ui.scene, remaining);
   }
-  ui = reduce(ui, { type: 'status', snapshot: { ...status(ui), tick: '501',
-    stop: { reasons: ['player_reborn'], world: { ...waitingSnapshot(), tick: '501' } } } });
+  const later = { ...waitingSnapshot(), tick: '501' };
+  ui = reduce(ui, { type: 'status', snapshot: { ...status(ui), tick: '501', playerLifecycle: [{ ...lifecycleFor(later, ['player_reborn'])[0]!, event: '42' }],
+    stop: { reasons: ['player_reborn'], world: later } } });
   const nextEpisode = ui.scene;
   ui = reduce(ui, { type: 'scene-close', expected });
   assert.equal(ui.scene, nextEpisode); assert.equal(ui.scene!.entries[0]!.kind, 'birth');

@@ -71,7 +71,7 @@ export interface UiState {
   /** Running statuses since a World carrier or the last read request, capped at ten. */
   worldStatuses: number;
   scene: SceneQueue | null;
-  sceneEpisode: { worldId: number; tick: string } | null;
+  sceneEpisode: { worldId: number; tick: string; seen: string[] } | null;
   actions: UiAction[];
   settledOmitted: number;
   observedActions: ObservationIndex;
@@ -226,6 +226,7 @@ export function reduce(s: UiState, e: UiEvent): UiState {
         const world = message.world ?? message.snapshot.stop?.world;
         if (world !== undefined) next = withWorld(next, world);
         next = expirePresentation(next);
+        if (!oldFrame) next = bindPresentation(next, message.snapshot);
         if (e.request.type === 'choose') next = { ...next, scene: retireNode(next.scene, e.request.node) };
         if (!staleTrigger && (e.request.type === 'dream' || e.request.type === 'claim') && next.tick !== null && !oldFrame) {
           next = { ...next, underworldRecorded: { worldId: next.worldId, tick: next.tick } };
@@ -248,14 +249,7 @@ export function reduce(s: UiState, e: UiEvent): UiState {
         worldStatuses: e.snapshot.runState === 'running' && e.snapshot.stop === undefined
           ? Math.min(s.worldStatuses + 1, 10) : s.worldStatuses };
       if (e.snapshot.stop !== undefined) next = withWorld(next, e.snapshot.stop.world);
-      next = expirePresentation(next);
-      if (e.snapshot.stop === undefined || next.sceneEpisode?.worldId === next.worldId && next.sceneEpisode.tick === next.tick) return next;
-      const entries = sceneQueue(e.snapshot.stop.reasons, e.snapshot.stop.world)
-        .filter(entry => entry.node === null || !next.actions.some(action => action.request?.type === 'choose'
-          && action.request.node === entry.node && action.phase === 'queued'));
-      return { ...next, sceneEpisode: { worldId: next.worldId, tick: next.tick! }, scene: entries.length === 0 ? null : {
-        worldId: next.worldId, tick: next.tick!, world: e.snapshot.stop.world, reasons: e.snapshot.stop.reasons, entries,
-      } };
+      return bindPresentation(expirePresentation(next), e.snapshot);
     }
     case 'request-failed': {
       if (e.request.type === 'world-snapshot' && e.worldId !== s.worldId && s.worldRead?.worldId === e.worldId
@@ -313,10 +307,48 @@ function withWorld(s: UiState, world: WorldSnapshot): UiState {
 }
 
 function expirePresentation(s: UiState): UiState {
-  const scene = s.scene !== null && (s.scene.worldId !== s.worldId || s.scene.tick !== s.tick) ? null : s.scene;
+  let scene = s.scene !== null && (s.scene.worldId !== s.worldId || s.scene.tick !== s.tick || s.runState === 'failed') ? null : s.scene;
+  if (scene !== null) {
+    for (const entry of scene.entries) {
+      if (entry.node !== null && (!s.playerNode.pending || s.playerNode.node !== entry.node || s.playerNode.answered
+        || s.world?.player_node?.id !== entry.node)) scene = retireNode(scene, entry.node);
+    }
+  }
+  const sceneEpisode = s.sceneEpisode !== null
+    && (s.sceneEpisode.worldId !== s.worldId || s.sceneEpisode.tick !== s.tick) ? null : s.sceneEpisode;
   const recorded = s.underworldRecorded !== null
     && (s.underworldRecorded.worldId !== s.worldId || s.underworldRecorded.tick !== s.tick) ? null : s.underworldRecorded;
-  return scene === s.scene && recorded === s.underworldRecorded ? s : { ...s, scene, underworldRecorded: recorded };
+  return scene === s.scene && recorded === s.underworldRecorded && sceneEpisode === s.sceneEpisode ? s
+    : { ...s, scene, sceneEpisode, underworldRecorded: recorded };
+}
+
+/** One stop-local queue; closed/retired identities survive duplicate carriers only in this episode. */
+function bindPresentation(s: UiState, snapshot: Snapshot): UiState {
+  const world = s.world;
+  if (world === null || s.tick === null || world.tick !== s.tick || s.runState === 'failed') return s;
+  const reasons = snapshot.stop?.reasons ?? s.scene?.reasons ?? [];
+  const facts = s.lifecycleEpisode === s.tick ? s.playerLifecycle : [];
+  const candidates = sceneQueue(reasons, world, s.worldId, facts);
+  const previous = s.sceneEpisode?.seen ?? [];
+  const seen = new Set(previous);
+  const pending = new Map(s.scene?.entries.map(entry => [entry.identity, entry]) ?? []);
+  const entries: SceneQueue['entries'] = [];
+  for (const candidate of candidates) {
+    const retained = pending.get(candidate.identity);
+    if (candidate.node !== null && (!s.playerNode.pending || s.playerNode.node !== candidate.node || s.playerNode.answered
+      || s.actions.some(action => action.worldId === s.worldId && action.request?.type === 'choose'
+        && action.request.node === candidate.node && action.phase === 'queued'))) {
+      seen.add(candidate.identity);
+      continue;
+    }
+    if (retained !== undefined) entries.push(retained);
+    else if (!seen.has(candidate.identity)) entries.push(candidate);
+    seen.add(candidate.identity);
+  }
+  if (s.sceneEpisode !== null && seen.size === previous.length
+    && entries.length === (s.scene?.entries.length ?? 0) && entries.every((entry, index) => entry === s.scene!.entries[index])) return s;
+  return { ...s, sceneEpisode: { worldId: s.worldId, tick: s.tick, seen: [...seen] },
+    scene: entries.length === 0 ? null : { worldId: s.worldId, tick: s.tick, world, reasons, entries } };
 }
 
 /** One coherent live-world decision, independent of historical presentation. */

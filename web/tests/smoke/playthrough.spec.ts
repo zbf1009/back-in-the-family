@@ -1,8 +1,11 @@
 // Task 14.1: one real-control playthrough; the harness never submits an input.
 import { readFileSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { test, expect, type Page } from '@playwright/test';
 import type { Reply, RequestTicket, WorkerMessage, PauseReason } from '../../src/shared/protocol.ts';
-import type { TraitName, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import type { PlayerLifecycleFact, TraitName, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import { DECISION_CONFIG_VERSION } from '../../src/shared/decision.ts';
 
 const FIXTURE = 'seedP-playthrough.replay.json';
 interface Input {
@@ -23,8 +26,6 @@ const stages = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seedP-p
 const B = 30_000 + Math.ceil(Number(stages.stages[0]!.tick) / 30) * 1000
   + Math.ceil((Number(stages.last_tick) - Number(stages.stages[0]!.tick)) / (30 * 365)) * 1000
   + 5000 * stages.stages.length + 100 * stages.step_clicks;
-const SCENES = ['funeral', 'inheritance', 'dream', 'birth'] as const;
-type Scene = typeof SCENES[number];
 interface LongTask { startTime: number; duration: number }
 interface Observer {
   observe(options: { type: string; buffered: boolean }): void;
@@ -33,6 +34,7 @@ interface Observer {
 }
 interface Observation {
   stops: { tick: string | null; reasons: PauseReason[] }[];
+  lifecycle: { worldId: number; tick: string | null; facts: PlayerLifecycleFact[] }[];
   startedAt?: number;
   firstStopMs?: number;
   endedAt?: number;
@@ -56,7 +58,7 @@ declare const document: {
 };
 declare const PerformanceObserver: new (callback: (list: { getEntries(): LongTask[] }) => void) => Observer;
 
-async function request(page: Page, type: 'world-snapshot' | 'run' | 'checksums', extra: Record<string, unknown> = {}): Promise<Reply> {
+async function request(page: Page, type: 'world-snapshot' | 'run' | 'checksums' | 'export-replay', extra: Record<string, unknown> = {}): Promise<Reply> {
   return page.evaluate(async (args) => {
     if (!window.__simHarness) throw new Error('test harness is missing');
     return window.__simHarness.request(args).reply;
@@ -116,39 +118,72 @@ async function identityAndPreviews(page: Page, world: WorldSnapshot): Promise<vo
   await expect(stakes).toContainText(`By tick ${node.stakes.by}`);
 }
 
-async function scene(page: Page, world: WorldSnapshot, reasons: PauseReason[]): Promise<Scene | null> {
-  const kind: Scene | null = reasons.includes('player_died') ? 'funeral'
-    : reasons.includes('dream_resolved') ? 'dream' : reasons.includes('player_reborn') ? 'birth' : null;
-  for (const candidate of SCENES) {
-    await expect(page.getByTestId(`scene-${candidate}`)).toHaveCount(candidate === kind ? 1 : 0);
+async function scene(page: Page, world: WorldSnapshot, reasons: PauseReason[], worldId: number): Promise<void> {
+  const category = reasons.includes('player_died') ? 'death'
+    : reasons.includes('dream_resolved') ? 'dream' : reasons.includes('player_reborn') ? 'rebirth' : world.player_node?.family ?? null;
+  const keyScene = page.getByTestId('key-scene');
+  const dream = page.getByTestId('scene-dream');
+  await expect(keyScene).toHaveCount(category !== null && category !== 'dream' ? 1 : 0);
+  await expect(dream).toHaveCount(category === 'dream' ? 1 : 0);
+  for (const candidate of ['family_death', 'inheritance', 'debt_due', 'feud', 'life_stage', 'death', 'rebirth']) {
+    await expect(page.locator(`[data-testid="key-scene"][data-category="${candidate}"]`)).toHaveCount(candidate === category ? 1 : 0);
   }
-  if (kind === null) {
+  if (category === null) {
     await expect(page.getByTestId('choice-panel')).toBeVisible();
     await expect(page.getByTestId('scene-picture')).toBeVisible();
-    if (world.player_node !== null) {
-      await expect(page.getByTestId('choice-timing')).toContainText(world.player_node.fired);
-      for (const id of world.player_node.stakes.who) await expect(page.getByTestId('stakes')).toContainText(personName(world, id));
+    return;
+  }
+  if (category === 'dream') {
+    expect(world.last_dream, 'Dream Snapshot must identify the resolved dream').toBeDefined();
+    await expect(dream).toBeVisible();
+    await expect(dream).toContainText(personName(world, world.last_dream!.dreamer));
+    await expect(dream).toContainText(`tick ${world.last_dream!.tick}`);
+    await expect(page.getByTestId('scene-skip')).toHaveCount(0);
+    await expect(page.getByTestId('scene-close')).toBeEnabled();
+    return;
+  }
+  await expect(keyScene).toBeVisible();
+  await expect(keyScene).toHaveAttribute('data-category', category);
+  await expect(page.getByTestId('scene-skip')).toBeEnabled();
+  if (category !== 'death' && category !== 'rebirth') {
+    await expect(page.getByTestId('choice-panel')).toBeVisible();
+    const node = world.player_node;
+    expect(node, 'Current key scene must identify its actual Player_Node').not.toBeNull();
+    await expect(keyScene).toHaveAttribute('data-identity', JSON.stringify([worldId, world.player_soul, node!.id]));
+    await expect(page.getByTestId('scene-close')).toHaveCount(0);
+    await expect(page.getByTestId('choice-timing')).toContainText(node!.fired);
+    for (const id of node!.stakes.who) {
+      await expect(page.getByTestId('stakes')).toContainText(personName(world, id));
+      await expect(keyScene).toContainText(personName(world, id));
     }
-    return null;
+    return;
   }
-  const overlay = page.getByTestId(`scene-${kind}`);
-  await expect(overlay).toBeVisible();
-  if (reasons.includes('player_died')) {
-    const ghost = world.player_wait?.ghost;
-    expect(ghost, 'own funeral Snapshot must identify the ghost').toBeDefined();
-    const body = world.player.earlier_bodies.find(body => body.id === ghost);
-    expect(body, 'own funeral Snapshot must give this body and its death tick').toBeDefined();
-    await expect(overlay).toContainText(body!.name);
-    await expect(overlay).toContainText(`tick ${body!.death}`);
-  } else if (kind === 'dream') {
-    expect(world.last_dream, 'dream Snapshot must identify the resolved dream').toBeDefined();
-    await expect(overlay).toContainText(personName(world, world.last_dream!.dreamer));
-    await expect(overlay).toContainText(`tick ${world.last_dream!.tick}`);
-  } else if (kind === 'birth') {
-    expect(world.player.body, 'birth Snapshot must identify the new body').not.toBeNull();
-    await expect(overlay).toContainText(personName(world, world.player.body!));
+  const facts = await page.evaluate(({ worldId, tick }) => window.__playthrough.lifecycle
+    .filter(report => report.worldId === worldId && report.tick === tick).flatMap(report => report.facts), { worldId, tick: world.tick });
+  const fact = facts.filter(fact => category === 'death' ? fact.kind === 'death' : fact.kind !== 'death')
+    .sort((a, b) => BigInt(a.event) < BigInt(b.event) ? -1 : BigInt(a.event) > BigInt(b.event) ? 1 : 0)[0];
+  expect(fact, 'Historical key scene must bind a real lifecycle fact delivered at this stop').toBeDefined();
+  await expect(keyScene).toHaveAttribute('data-identity', JSON.stringify([worldId, fact!.event]));
+  await expect(keyScene).toContainText(fact!.name);
+  await expect(keyScene).toContainText(`tick ${fact!.tick}`);
+  await expect(keyScene).toContainText(`Body ${fact!.body}`);
+  await expect(keyScene).toContainText(fact!.origin);
+  await expect(page.getByTestId('scene-close')).toBeEnabled();
+  if (category === 'death') {
+    expect(world.player_wait?.ghost, 'Own death must identify this event-associated ghost').toBe(fact!.body);
+    const body = world.player.earlier_bodies.find(body => body.id === fact!.body);
+    expect(body, 'Own death Snapshot must retain this body and its actual death tick').toBeDefined();
+    expect(body!.name).toBe(fact!.name); expect(body!.death).toBe(fact!.tick);
+    expect(world.player.place).toBe('waiting');
+    await expect(page.getByTestId('identity-state')).toContainText('Waiting between lives');
+  } else {
+    expect(['birth', 'possession', 'rebuild']).toContain(fact!.kind);
+    if (fact!.kind === 'birth') await expect(keyScene).toContainText('biological birth');
+    else await expect(keyScene).toContainText('not biological birth');
+    // Current identity is checked independently of the historical arrival body.
+    if (world.player.body !== null) await expect(page.getByTestId('current-name')).toHaveText(personName(world, world.player.body));
+    else await expect(page.getByTestId('identity-state')).toContainText('Waiting between lives');
   }
-  return kind;
 }
 
 async function customization(page: Page, world: WorldSnapshot): Promise<void> {
@@ -203,6 +238,9 @@ test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel r
   const errors: string[] = [];
   await page.route('**/*', async route => {
     const url = route.request().url();
+    if (new URL(url).origin === new URL(baseURL!).origin && new URL(url).pathname === '/api/decision/config') {
+      await route.fulfill({ json: { version: DECISION_CONFIG_VERSION, enabled: false, session_cap: 40 } }); return;
+    }
     if (url.startsWith('data:') || url.startsWith('blob:') || new URL(url).origin === new URL(baseURL!).origin) await route.continue();
     else { offOrigin.push(url); await route.abort(); }
   });
@@ -212,7 +250,7 @@ test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel r
   // replies do not retain stop, and the page has no Pause_Reason test identifier.
   // No World/UI state is changed and no Worker request is injected here.
   await page.addInitScript(({ lastTick }) => {
-    window.__playthrough = { stops: [], tasks: [] };
+    window.__playthrough = { stops: [], lifecycle: [], tasks: [] };
     const NativeWorker = window.Worker;
     window.Worker = class extends NativeWorker {
       constructor(url: string, options?: { type?: string }) {
@@ -221,6 +259,9 @@ test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel r
           if (data.type !== 'status') return;
           const observation = window.__playthrough;
           const now = window.performance.now();
+          if (data.snapshot.playerLifecycle.length > 0) {
+            observation.lifecycle.push({ worldId: data.snapshot.worldId, tick: data.snapshot.tick, facts: data.snapshot.playerLifecycle });
+          }
           if (data.snapshot.stop) {
             observation.stops.push({ tick: data.snapshot.tick, reasons: data.snapshot.stop.reasons });
             if (observation.firstStopMs === undefined && observation.startedAt !== undefined) {
@@ -284,7 +325,7 @@ test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel r
         throw new Error(`${FIXTURE}: stage tick ${stage.tick} checksum mismatch: expected ${expectedChecksum}, Snapshot ${reply.snapshot.checksum}, page ${displayedChecksum}`);
       }
       await denylist(page);
-      await scene(page, world, stage.reasons);
+      await scene(page, world, stage.reasons, reply.snapshot.worldId);
       // Close any non-node overlays in front of the options through real Close.
       if (index === 0) {
         while (await page.getByTestId('scene-close').isVisible()) await page.getByTestId('scene-close').click();
@@ -328,7 +369,7 @@ test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel r
       if (stage.reasons.includes('player_died')) {
         await expect(page.getByTestId('scene-close')).toBeVisible();
         await page.getByTestId('scene-close').click();
-        await expect(page.getByTestId('scene-funeral')).toHaveCount(0);
+        await expect(page.locator('[data-testid="key-scene"][data-category="death"]')).toHaveCount(0);
         await customization(page, world);
         const input = fixture.inputs[consumed++]!;
         expect(input.tick).toBe(stage.tick);
@@ -407,6 +448,16 @@ test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel r
     expect(actual, `${FIXTURE}: final stage, first differing tick ${index + 1}: expected ${expected}, actual ${actual ?? 'missing'}`).toBe(expected);
   }
   console.log(`[playthrough] comparedChecksums=${fixture.checksums.length} ticks=1..${stages.last_tick} match=true`);
+  const exported = await request(page, 'export-replay');
+  if (!exported.ok || exported.replay === undefined) throw Error('Actual completed live playthrough export is missing');
+  const live = JSON.parse(exported.replay) as { inputs: Input[]; checksums: string[] };
+  expect(live.inputs.map(input => ({ tick: input.tick, payload: input.payload }))).toEqual(fixture.inputs.map(input => ({ tick: input.tick, payload: input.payload })));
+  expect(live.checksums.slice(0, fixture.checksums.length)).toEqual(fixture.checksums);
+  const evidenceDirectory = new URL('../../../target/life-in-view-evidence/', import.meta.url);
+  await mkdir(evidenceDirectory, { recursive: true });
+  const replayPath = fileURLToPath(new URL('c4-smoke-playthrough.replay.json', evidenceDirectory));
+  await writeFile(replayPath, exported.replay);
+  await testInfo.attach('real-controls-playthrough-v5', { path: replayPath, contentType: 'application/json' });
   expect(offOrigin, 'off-preview requests').toEqual([]);
   expect(errors, 'page console/errors').toEqual([]);
 });

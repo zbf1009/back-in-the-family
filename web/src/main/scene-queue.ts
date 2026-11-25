@@ -1,8 +1,14 @@
 import type { PauseReason } from '../shared/protocol.ts';
-import type { WorldSnapshot } from '../shared/world-snapshot.ts';
+import type { PlayerLifecycleFact, WorldSnapshot } from '../shared/world-snapshot.ts';
 import type { SceneKind } from './templates.ts';
+import { lifecycleKeyScene, nodeKeyScene, type KeySceneView } from './key-scene.ts';
 
-export interface SceneEntry { kind: SceneKind | 'choice'; node: string | null }
+export interface SceneEntry {
+  kind: SceneKind | 'choice';
+  node: string | null;
+  identity: string;
+  keyScene: KeySceneView | null;
+}
 export interface SceneQueue {
   worldId: number;
   tick: string;
@@ -11,16 +17,29 @@ export interface SceneQueue {
   entries: SceneEntry[];
 }
 
-export function sceneQueue(reasons: readonly PauseReason[], world: WorldSnapshot): SceneEntry[] {
+export function sceneQueue(reasons: readonly PauseReason[], world: WorldSnapshot, worldId: number,
+  lifecycle: readonly PlayerLifecycleFact[]): SceneEntry[] {
   const entries: SceneEntry[] = [];
-  if (reasons.includes('player_died')) entries.push({ kind: 'funeral', node: null });
-  if (reasons.includes('dream_resolved')) entries.push({ kind: 'dream', node: null });
-  if (reasons.includes('player_reborn')) entries.push({ kind: 'birth', node: null });
-  const node = world.player_node;
-  if (node !== null) entries.push({
-    kind: node.family === 'family_death' ? 'funeral' : node.family === 'inheritance' ? 'inheritance' : 'choice',
-    node: node.id,
+  const facts = [...lifecycle].sort((a, b) => BigInt(a.event) < BigInt(b.event) ? -1 : BigInt(a.event) > BigInt(b.event) ? 1 : 0);
+  const seen = new Set<string>();
+  function append(fact: PlayerLifecycleFact): void {
+    const view = lifecycleKeyScene(worldId, world, fact);
+    const identity = JSON.stringify(view.identity);
+    if (seen.has(identity)) return;
+    seen.add(identity);
+    entries.push({ kind: fact.kind === 'death' ? 'funeral' : 'birth', node: null, identity, keyScene: view });
+  }
+  for (const fact of facts) if (fact.kind === 'death') append(fact);
+  if (reasons.includes('dream_resolved') && world.last_dream !== undefined) entries.push({
+    kind: 'dream', node: null, identity: JSON.stringify([worldId, 'dream', world.last_dream.tick]), keyScene: null,
   });
+  for (const fact of facts) if (fact.kind !== 'death') append(fact);
+  const node = world.player_node;
+  if (node !== null) {
+    const view = nodeKeyScene(worldId, world, node);
+    entries.push({ kind: node.family === 'family_death' ? 'funeral' : node.family === 'inheritance' ? 'inheritance' : 'choice',
+      node: node.id, identity: JSON.stringify(view.identity), keyScene: view });
+  }
   return entries;
 }
 

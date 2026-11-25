@@ -2,9 +2,11 @@
 /// <reference types="vite/client" />
 import { mount } from 'svelte';
 import baselineBytes from '../../../fixtures/parity/seed1-pairwise.snapshot-500.json?raw';
-import { initialUiState, type UiState } from '../../src/main/ui-state.ts';
+import nativeLifecycleBytes from '../../../fixtures/life-view/c4-native-lifecycle-props.json?raw';
+import { initialUiState, reduce, type UiState } from '../../src/main/ui-state.ts';
 import { TRAITS } from '../../src/main/customization.ts';
-import type { ChronicleEntry, Needed, PlayerNode, Preview, UnderworldView, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import type { ChronicleEntry, Needed, PlayerFamily, PlayerLifecycleFact, PlayerNode, PlayerOption, Preview, UnderworldView, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import type { PauseReason, Snapshot } from '../../src/shared/protocol.ts';
 import LifeViewFixture from './LifeViewFixture.svelte';
 import '../../src/ui/life.css';
 
@@ -14,14 +16,16 @@ const MIN_I64 = '-9223372036854775808';
 const MAX_I64 = '9223372036854775807';
 const baseline = JSON.parse(baselineBytes) as WorldSnapshot;
 const scenario = new URLSearchParams(location.search).get('state') ?? 'living';
-if (!['living', 'waiting', 'waiting-large', 'choice-large', 'event-funeral', 'event-inheritance', 'event-funeral-history', 'event-inheritance-history'].includes(scenario)) throw Error(`Unknown component fixture state: ${scenario}`);
+const families: PlayerFamily[] = ['family_death', 'inheritance', 'debt_due', 'feud', 'life_stage'];
+const motionStates = [...families.map(family => `motion-${family}`), 'motion-death', 'motion-birth', 'motion-possession', 'motion-rebuild', 'motion-joined', 'motion-unknown', 'motion-dream', 'motion-native'];
+if (!['living', 'waiting', 'waiting-large', 'choice-large', 'event-funeral', 'event-inheritance', 'event-funeral-history', 'event-inheritance-history', ...motionStates].includes(scenario)) throw Error(`Unknown component fixture state: ${scenario}`);
 
 // This old native baseline used display-style Soul IDs. Normalize only their
 // representation to today's decimal-string carrier, without Number conversion.
 function soulId(value: string): string {
   return /^S-[0-9]+$/.test(value) ? BigInt(value.slice(2)).toString() : value;
 }
-const world: WorldSnapshot = structuredClone(baseline);
+let world: WorldSnapshot = structuredClone(baseline);
 world.player_soul = soulId(world.player_soul);
 for (const person of world.residents) person.soul_id = soulId(person.soul_id);
 world.magistrate.soul_id = soulId(world.magistrate.soul_id);
@@ -29,7 +33,7 @@ for (const soul of world.souls) soul.soul_id = soulId(soul.soul_id);
 for (const account of world.joss) account.soul_id = soulId(account.soul_id);
 const body = world.residents.find(person => person.id === world.player.body)!;
 const large = scenario.endsWith('-large');
-const waiting = scenario.startsWith('waiting');
+const waiting = scenario.startsWith('waiting') || ['motion-death', 'motion-possession', 'motion-rebuild', 'motion-joined'].includes(scenario);
 const modifiedFields = ['Soul ID representation: legacy S-000n to canonical decimal strings'];
 
 if (large) {
@@ -137,21 +141,93 @@ if (scenario.startsWith('event-')) {
   modifiedFields.push('Current Funeral/Inheritance roles with retained-name-only deceased nonplayers, known living participants, and optional node-null historical Dream head');
 }
 
+const lifecycle: PlayerLifecycleFact[] = [];
+const reasons: PauseReason[] = [];
+if (scenario.startsWith('motion-') && scenario !== 'motion-native') {
+  world.player_node = null;
+  const family = scenario === 'motion-joined' ? 'inheritance' : scenario === 'motion-unknown' ? 'feud' : scenario.slice(7) as PlayerFamily;
+  if (families.includes(family)) {
+    const options: Record<PlayerFamily, PlayerOption[]> = {
+      family_death: ['comfort_mourner', 'send_flowers', 'stay_away'],
+      inheritance: ['keep_it', 'thank_family', 'pay_debts'],
+      debt_due: ['repay_now', 'ask_for_time', 'ignore_it'],
+      feud: ['apologize', 'retaliate', 'let_it_go'],
+      life_stage: ['get_a_job', 'help_at_home', 'tend_the_shrine'],
+    };
+    const unknown = scenario === 'motion-unknown';
+    const deceased = 100;
+    world.person_names = [...world.person_names.filter(person => person.id !== deceased), { id: deceased, name: 'Morgan Estate Keeper' }];
+    world.player_node = { id: ABOVE_SAFE, family, fired: '499', choice_tick: world.tick, resolves: world.tick,
+      stakes: { who: unknown ? [999999] : family === 'family_death' || family === 'inheritance' ? [deceased, 1, 3] : [1, 3], amount: MIN_I64, unit: 'money', by: MAX_U64 },
+      options: options[family].map(id => ({ id, preview: [{ person: unknown ? 999999 : 1, what: 'affinity', delta: '-3' }, { person: 3, what: 'money', delta: MAX_I64 }] })),
+      rules_default: options[family][0]!,
+    };
+    reasons.push('player_node');
+  }
+  if (scenario === 'motion-death' || scenario === 'motion-joined') {
+    lifecycle.push({ event: ABOVE_SAFE, tick: world.tick, kind: 'death', body: body.id, name: body.name, origin: body.origin });
+    reasons.push('player_died');
+  }
+  if (['motion-birth', 'motion-possession', 'motion-rebuild', 'motion-joined'].includes(scenario)) {
+    const kind = scenario === 'motion-birth' ? 'birth' : scenario === 'motion-rebuild' ? 'rebuild' : 'possession';
+    const origin = kind === 'birth' ? 'native' : kind === 'rebuild' ? 'rebuilt' : 'possessed';
+    const arrival = { event: '9007199254740995', tick: world.tick, kind, body: 500001, name: 'Alexandra Arrival — event-associated body', origin } as PlayerLifecycleFact;
+    lifecycle.push(arrival);
+    world.person_names.push({ id: arrival.body, name: arrival.name });
+    if (scenario === 'motion-birth') {
+      world.residents = world.residents.map(person => person.id === body.id ? { ...person, id: arrival.body, name: arrival.name, age: 0, origin } : person);
+      world.player.body = arrival.body;
+      world.households = world.households.map(house => ({ ...house, members: house.members.map(id => id === body.id ? arrival.body : id) }));
+      world.souls.find(soul => soul.soul_id === world.player_soul)!.place = { body: arrival.body };
+    } else {
+      world.player.earlier_bodies.push({ id: arrival.body, name: arrival.name, origin, death: world.tick });
+      lifecycle.push({ ...arrival, event: '9007199254740996', kind: 'death' });
+      world.player_wait!.ghost = arrival.body;
+      reasons.push('player_died');
+    }
+    reasons.push('player_reborn');
+  }
+  if (scenario === 'motion-joined' || scenario === 'motion-dream') {
+    world.last_dream = { tick: world.tick, dreamer: 1, applied: 'take_comfort' };
+    reasons.push('dream_resolved');
+  }
+  modifiedFields.push('COMPONENT-ONLY seven-category presentation props, exact lifecycle event/body tuples, complete legal options and signed previews; not native lifecycle receipt evidence');
+}
+
+let baselineSource = 'fixtures/parity/seed1-pairwise.snapshot-500.json';
+if (scenario === 'motion-native') {
+  const data = JSON.parse(nativeLifecycleBytes) as { version: number; layer: string; cases: { id: string; world: WorldSnapshot; playerLifecycle: PlayerLifecycleFact[]; producer: unknown }[] };
+  if (data.version !== 1 || data.layer !== 'ACTUAL-NATIVE-PRODUCED-COMPONENT-PROPS') throw Error('Native props have the wrong evidence layer');
+  const id = new URLSearchParams(location.search).get('case');
+  const value = data.cases.find(value => value.id === id);
+  if (value === undefined) throw Error(`Unknown actual native props case: ${id}`);
+  world = value.world;
+  lifecycle.push(...value.playerLifecycle);
+  if (lifecycle.some(fact => fact.kind === 'death')) reasons.push('player_died');
+  if (lifecycle.some(fact => fact.kind !== 'death')) reasons.push('player_reborn');
+  if (world.player_node !== null) reasons.push('player_node');
+  baselineSource = 'fixtures/life-view/c4-native-lifecycle-props.json';
+  modifiedFields.splice(0, modifiedFields.length, `Unmodified actual native World/lifecycle props; producer: ${JSON.stringify(value.producer)}`);
+}
+
 const initial = initialUiState();
-const ui: UiState = { ...initial, worldId: 1, runState: 'paused', tick: world.tick, world,
+let ui: UiState = { ...initial, worldId: 1, runState: 'paused', tick: world.tick, world,
   playerNode: world.player_node === null ? { pending: false } : { pending: true, node: world.player_node.id, answered: false },
   underworldForm: { ...initial.underworldForm, dreamer: world.underworld_view?.connected[0] ?? null },
 };
-if (scenario.endsWith('-history')) {
-  const node = world.player_node!;
-  ui.scene = { worldId: ui.worldId, tick: world.tick, reasons: ['dream_resolved', 'player_node'], world,
-    entries: [{ kind: 'dream', node: null }, { kind: node.family === 'family_death' ? 'funeral' : 'inheritance', node: node.id }] };
+if (scenario.endsWith('-history') || scenario.startsWith('motion-')) {
+  const snapshot: Snapshot = { worldId: ui.worldId, runState: ui.runState, tick: ui.tick, checksum: ui.checksum, tps: ui.tps, speed: ui.speed,
+    actions: [], playerLifecycle: lifecycle, playerNode: ui.playerNode,
+    stop: { reasons: scenario.endsWith('-history') ? ['dream_resolved', 'player_node'] : reasons, world } };
+  ui = reduce(ui, { type: 'status', snapshot });
 }
 const target = document.getElementById('fixture');
 if (target === null) throw Error('Component fixture mount target is missing');
 mount(LifeViewFixture, { target, props: { initialUi: ui, scenario, source: {
-  baseline: 'fixtures/parity/seed1-pairwise.snapshot-500.json', modifiedFields,
-  limits: 'COMPONENT-ONLY constructed data. Not a native replay, admitted operation, configured maximum, or gameplay result.',
+  baseline: baselineSource, modifiedFields,
+  limits: scenario === 'motion-native'
+    ? 'Actual native-controlled fixture props rendered by production components. Not live App/WASM, default-Params replay, native UI admission or gameplay result.'
+    : 'COMPONENT-ONLY constructed data. Not a native replay, admitted operation, configured maximum, or gameplay result.',
   capacity: 'No fixed open-slot or earlier-body/tie display cap; one open slot per mother. Chronicle snapshot retains 100 rows. CarryOver is one of seven Traits or None.',
   capacitySources: ['crates/sim-core/src/underworld/slots.rs', 'crates/sim-core/src/snapshot.rs', 'crates/sim-core/src/params.rs'],
 } } });

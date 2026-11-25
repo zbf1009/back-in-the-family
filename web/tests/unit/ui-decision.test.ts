@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { controls, currentDecision, decisionBusy, decisionNotice, initialUiState, reduce, worldSnapshotNeeded } from '../../src/main/ui-state.ts';
 import type { UiState } from '../../src/main/ui-state.ts';
+import { sceneQueue } from '../../src/main/scene-queue.ts';
 import type { DecisionStatus, Reply, Request, Snapshot } from '../../src/shared/protocol.ts';
 import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
 
@@ -37,7 +38,8 @@ test('paused decision disables competing Run Step and choices but not Create or 
   assert.equal(decisionBusy(ui), true); assert.equal(ui.runState, 'paused');
   assert.equal(worldSnapshotNeeded({ ...ui, world: null }), true);
   const world = pendingSnapshot('debt_due');
-  const choice = { ...uiFor(world), decision: ui.decision, scene: { worldId: 1, tick: world.tick, world, reasons: ['player_node'] as const, entries: [{ kind: 'choice' as const, node: world.player_node!.id }] } };
+  const choice = { ...uiFor(world), decision: ui.decision, scene: { worldId: 1, tick: world.tick, world, reasons: ['player_node'] as const,
+    entries: sceneQueue(['player_node'], world, 1, []) } };
   assert.equal(currentDecision({ ...choice, scene: { ...choice.scene, reasons: ['player_node'] } }) !== null, false);
 });
 

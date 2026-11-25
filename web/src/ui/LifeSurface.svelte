@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { UiState } from '../main/ui-state.ts';
   import { currentDecision } from '../main/ui-state.ts';
+  import type { SceneClose } from '../main/scene-queue.ts';
   import type { UnderworldForm } from '../main/customization.ts';
   import type { feedbackView } from '../main/view-model.ts';
   import type { PlayerOption, Slot } from '../shared/world-snapshot.ts';
@@ -11,21 +12,26 @@
   import ChoicePanel from './ChoicePanel.svelte';
   import ChroniclePanel from './ChroniclePanel.svelte';
   import UnderworldPanel from './UnderworldPanel.svelte';
-  import Funeral from './scenes/Funeral.svelte';
-  import Inheritance from './scenes/Inheritance.svelte';
+  import KeyScene from './KeyScene.svelte';
   import Dream from './scenes/Dream.svelte';
-  import Birth from './scenes/Birth.svelte';
 
   const { ui, sprites, feedback, onChoose, onForm, onDream, onClaim, onBribe, onHaunt, onClose }: {
     ui: UiState; sprites: SpriteSet | null; feedback: ReturnType<typeof feedbackView>;
     onChoose(worldId: number, node: string, option: PlayerOption): Promise<void>;
     onForm(form: UnderworldForm): void; onDream(): Promise<void>; onClaim(slot: Slot): Promise<void>;
     onBribe(worldId: number, amount: string): void; onHaunt(worldId: number, target: number): void;
-    onClose(): void;
+    onClose(expected: SceneClose): void;
   } = $props();
   const decision = $derived(currentDecision(ui));
   const head = $derived(ui.scene?.entries[0] ?? null);
-  const historical = $derived(head !== null && head.node === null && head.kind !== 'choice' ? head : null);
+  const historical = $derived(head !== null && head.node === null ? head : null);
+  const closeHead = $derived.by(() => {
+    const queue = ui.scene;
+    const entry = queue?.entries[0];
+    return queue === null || entry === undefined || entry.node !== null ? undefined
+      : () => onClose({ worldId: queue.worldId, tick: queue.tick, entry });
+  });
+  const stopFacts = $derived(ui.scene !== null && ui.lifecycleEpisode === ui.scene.tick ? ui.playerLifecycle : []);
   let mapOpen = $state(false);
   let mapWorld = 0;
   $effect(() => {
@@ -41,10 +47,22 @@
     <section class="scene-context" aria-label="Current scene and reported events">
       {#if historical !== null}
         <p class="historical-label">Reported at tick {ui.scene?.tick}. Current identity and actions are shown separately.</p>
-        {#if historical.kind === 'funeral'}<Funeral {ui} {sprites} {onClose} />
-        {:else if historical.kind === 'inheritance'}<Inheritance {ui} {sprites} {onClose} />
-        {:else if historical.kind === 'dream'}<Dream {ui} {sprites} {onClose} />
-        {:else}<Birth {ui} {sprites} {onClose} />{/if}
+        {#if stopFacts.length > 0}
+          <h3>Events reported at this stop</h3>
+          <p class="muted">Facts are listed in core event order; historical scene slots are shown separately.</p>
+          <ul data-testid="stop-lifecycle-facts">
+            {#each stopFacts as fact (fact.event)}
+              <li>{fact.kind === 'birth' ? 'Native birth' : fact.kind === 'death' ? 'Death' : `${fact.kind} arrival`} at tick {fact.tick}: {fact.name} · body {fact.body} · {fact.origin} · event {fact.event}</li>
+            {/each}
+          </ul>
+        {/if}
+      {/if}
+      {#if head?.keyScene !== null && head?.keyScene !== undefined}
+        {#key head.identity}
+          <KeyScene view={head.keyScene} {sprites} onClose={closeHead} />
+        {/key}
+      {:else if historical?.kind === 'dream'}
+        {#key historical.identity}<Dream {ui} {sprites} onClose={closeHead!} />{/key}
       {:else}
         <ScenePicture world={ui.world} {sprites} kind={decision?.family ?? (ui.world?.player.place === 'waiting' ? 'waiting' : 'living')} node={decision} />
       {/if}
@@ -60,11 +78,11 @@
       {#if ui.world !== null && ui.world.tick !== ui.tick}
         <p class="as-of" data-testid="world-as-of">World resources and eligibility as of tick {ui.world.tick}.</p>
       {/if}
-      {#if ui.world?.player.place === 'waiting'}
-        <UnderworldPanel {ui} {onForm} {onDream} {onClaim} {onBribe} {onHaunt} />
-      {/if}
       {#if decision !== null || ui.world?.player.place !== 'waiting'}
         <ChoicePanel {ui} {onChoose} />
+      {/if}
+      {#if ui.world?.player.place === 'waiting'}
+        <UnderworldPanel {ui} {onForm} {onDream} {onClaim} {onBribe} {onHaunt} />
       {/if}
     </section>
 
