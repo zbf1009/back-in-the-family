@@ -1,11 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { lifecycleKeyScene, nodeKeyScene, picturePeople } from '../../src/main/key-scene.ts';
 import { sceneQueue } from '../../src/main/scene-queue.ts';
 import { currentDecision, reduce, type UiState } from '../../src/main/ui-state.ts';
 import { identitySummary, viewModel } from '../../src/main/view-model.ts';
 import type { Snapshot } from '../../src/shared/protocol.ts';
-import type { PlayerFamily, PlayerLifecycleFact } from '../../src/shared/world-snapshot.ts';
+import type { PlayerFamily, PlayerLifecycleFact, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
 
 const families: PlayerFamily[] = ['family_death', 'inheritance', 'debt_due', 'feud', 'life_stage'];
@@ -15,6 +16,9 @@ const facts: PlayerLifecycleFact[] = [
   { event: '9007199254740996', tick: '500', kind: 'rebuild', body: 102, name: 'Second arrival', origin: 'rebuilt' },
   { event: '9007199254740997', tick: '500', kind: 'death', body: 102, name: 'Second arrival', origin: 'rebuilt' },
 ];
+const nativeProps: { cases: { id: string; world: WorldSnapshot; playerLifecycle: PlayerLifecycleFact[] }[] } =
+  JSON.parse(readFileSync(new URL('../../../fixtures/life-view/c4-native-lifecycle-props.json', import.meta.url), 'utf8'));
+const nativeCases = nativeProps.cases;
 function frame(ui: UiState): Snapshot {
   return { worldId: ui.worldId, runState: ui.runState, tick: ui.tick, checksum: ui.checksum, tps: ui.tps, speed: ui.speed,
     actions: [], playerLifecycle: [], playerNode: ui.playerNode };
@@ -70,6 +74,39 @@ test('LV-C4 lifecycle binding: each event body remains historical while the late
   const birth = { ...facts[0]!, event: '9007199254740998', kind: 'birth' as const, origin: 'native' as const };
   assert.ok(lifecycleKeyScene(7, world, birth).props.includes('cradle'));
   assert.ok(lifecycleKeyScene(7, world, birth).lines.join('\n').includes(birth.tick));
+});
+
+test('LV-C4 native lifecycle ages: biological Birth is a known newborn; Possession, Rebuild and death stay unknown', () => {
+  const birthCase = nativeCases.find(value => value.id === 'birth')!;
+  const birth = birthCase.playerLifecycle[0]!;
+  assert.deepEqual([birth.body, birth.event, birth.tick, birth.kind, birth.origin], [42, '5', '2', 'birth', 'native']);
+  assert.equal(birthCase.world.residents.find(person => person.id === birth.body)!.age, 0);
+  for (const value of nativeCases) {
+    const before = JSON.stringify(value.world);
+    for (const fact of value.playerLifecycle) {
+      const cue = lifecycleKeyScene(7, value.world, fact);
+      assert.deepEqual(cue.identity, [7, fact.event]);
+      assert.equal(cue.lifecycle, fact);
+      assert.deepEqual(cue.people.map(person => [person.id, person.name, person.age, person.origin, person.visual]),
+        [[fact.body, fact.name, fact.kind === 'birth' ? 0 : null, fact.origin, fact.kind === 'birth' ? 'baby' : 'unknown_age']]);
+      assert.equal(cue.props.includes('cradle'), fact.kind === 'birth');
+    }
+    assert.equal(JSON.stringify(value.world), before);
+  }
+});
+
+test('LV-C4 historical lifecycle ages never borrow a later current body age or infer infancy for other events', () => {
+  const birthWorld = nativeCases.find(value => value.id === 'birth')!.world;
+  for (const fact of nativeCases.flatMap(value => value.playerLifecycle)) {
+    for (const age of [0, 8, 73]) {
+      const world = { ...birthWorld, tick: String(BigInt(fact.tick) + BigInt(age) * 365n + 1n),
+        residents: birthWorld.residents.map(person => person.id === fact.body ? { ...person, age, name: fact.name, origin: fact.origin } : person) };
+      assert.equal(picturePeople(world, [fact.body], null)[0]!.age, age, 'The current-body projection still uses the current age');
+      const historical = lifecycleKeyScene(7, world, fact).people[0]!;
+      assert.deepEqual([historical.id, historical.name, historical.age, historical.visual],
+        [fact.body, fact.name, fact.kind === 'birth' ? 0 : null, fact.kind === 'birth' ? 'baby' : 'unknown_age']);
+    }
+  }
 });
 
 test('LV-C4 closed coverage: real lifecycle ordering is event-local within funeral, Dream, arrival and node slots', () => {

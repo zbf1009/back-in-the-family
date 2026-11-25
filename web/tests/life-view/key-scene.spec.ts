@@ -122,6 +122,10 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 640
       await page.setViewportSize(viewport);
       const { initial, finish, cdp } = await open(page, scenario(category), true);
       const stage = page.getByTestId('key-scene');
+      const timeline = category === 'rebirth'
+        ? 'Real native WAAPI advances naturally at DevTools playbackRate 0.05; playbackRate 0 freezes the actual establish/focus phase only during assertions, scrolling, reads and screenshots. Not normal-speed evidence; no beat, clock or animation frame is synthesized.'
+        : 'Real native WAAPI at DevTools playbackRate 0.05; all DOM facts/options already available';
+      if (category === 'rebirth') await cdp!.send('Animation.setPlaybackRate', { playbackRate: 0 });
       await expect(stage).toHaveAttribute('data-category', category);
       await expect(stage).toHaveAttribute('data-beat', 'establish');
       const head = initial.ui.scene!.entries[0]!;
@@ -132,7 +136,12 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 640
       const first = await pictureRead(stage);
       expect(first.layers.map(layer => layer.id)).toEqual(['scene-picture-canvas', 'scene-picture-people', 'scene-picture-focal']);
       expect(first.layers[0]!.painted).toBeGreaterThan(0);
-      await capture(page, info, `c4-motion-${category}-${viewport.width}-first`, { timeline: 'Real native WAAPI at DevTools playbackRate 0.05; all DOM facts/options already available' });
+      await capture(page, info, `c4-review-fix-motion-${category}-${viewport.width}-first`, { timeline });
+      if (category === 'rebirth') {
+        await cdp!.send('Animation.setPlaybackRate', { playbackRate: 0.05 });
+        await page.locator('[data-testid="key-scene"][data-beat="focus"]').waitFor({ state: 'attached' });
+        await cdp!.send('Animation.setPlaybackRate', { playbackRate: 0 });
+      }
       await expect(stage).toHaveAttribute('data-beat', 'focus');
       const mid = await pictureRead(stage);
       expect(mid.animatedTargets.length).toBeGreaterThan(0);
@@ -143,14 +152,15 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 640
       expect(mid.layers.find(layer => layer.id === 'scene-picture-focal')!.painted).toBeGreaterThan(0);
       expect(mid.layers.map(layer => [layer.transform, layer.opacity])).not.toEqual(first.layers.map(layer => [layer.transform, layer.opacity]));
       if (head.node !== null) await completeChoice(page, initial.ui.world!);
-      await capture(page, info, `c4-motion-${category}-${viewport.width}-mid`, { focal: head.keyScene!.focal });
+      await capture(page, info, `c4-review-fix-motion-${category}-${viewport.width}-mid`, { focal: head.keyScene!.focal, timeline });
+      if (category === 'rebirth') await cdp!.send('Animation.setPlaybackRate', { playbackRate: 0.05 });
       await expect(stage).toHaveAttribute('data-beat', 'settled', { timeout: 15000 });
       const final = await pictureRead(stage);
       expect(final.roles).toEqual(first.roles); expect(final.identity).toBe(first.identity);
       expect(final.layers.every(layer => layer.activeAnimations === 0 && !layer.willChange.includes('transform') && !layer.willChange.includes('opacity'))).toBe(true);
       expect((await readFixture(page)).ui.world).toEqual(initial.ui.world);
       expect((await readFixture(page)).callbacks).toEqual([]);
-      await capture(page, info, `c4-motion-${category}-${viewport.width}-final`);
+      await capture(page, info, `c4-review-fix-motion-${category}-${viewport.width}-final`, { timeline });
       await cdp!.detach(); finish();
     });
   }
@@ -185,7 +195,7 @@ for (const category of categories) {
     expect(picture.animatedTargets).toEqual([]); expect(picture.layers[0]!.painted).toBeGreaterThan(0);
     for (const line of initial.ui.scene!.entries[0]!.keyScene!.lines) await expect(stage).toContainText(line);
     if (initial.ui.world!.player_node !== null) await completeChoice(page, initial.ui.world!);
-    await capture(page, info, `c4-motion-${category}-reduced`, { reducedMotion: true });
+    await capture(page, info, `c4-review-fix-motion-${category}-reduced`, { reducedMotion: true });
     finish();
   });
 }
@@ -349,15 +359,29 @@ test('LV-C4 actual-native-produced props preserve each event body and truthful c
       await expect(page.getByTestId('key-scene')).toHaveAttribute('data-identity', JSON.stringify([initial.ui.worldId, fact.event]));
       await expect(page.getByTestId('key-scene')).toContainText(fact.name);
       await expect(page.getByTestId('key-scene')).toContainText(`Body ${fact.body}`);
-      await expect(page.getByTestId('key-scene')).toContainText('age unknown');
+      if (fact.kind === 'birth') {
+        await expect(page.getByTestId('key-scene')).toContainText(`Person ${fact.body}; age 0; ${fact.origin}`);
+        await expect(page.getByTestId('key-scene')).not.toContainText('age unknown');
+        const rendered = await readFixture(page);
+        const head = rendered.ui.scene!.entries[0]!.keyScene!;
+        expect(head.lifecycle).toEqual(fact);
+        expect(head.people).toEqual([expect.objectContaining({ id: fact.body, age: 0, visual: 'baby', lifeStatus: 'alive' })]);
+        expect(rendered.draws.filter(draw => draw.canvas === 'scene-picture-people').at(-1)).toEqual({
+          method: 'resident', canvas: 'scene-picture-people', visual: 'baby',
+        });
+        const picture = await pictureRead(page.getByTestId('key-scene'));
+        expect(picture.layers.find(layer => layer.id === 'scene-picture-people')!.painted).toBeGreaterThan(0);
+      } else {
+        await expect(page.getByTestId('key-scene')).toContainText('age unknown');
+      }
       if (fact.kind === 'possession' || fact.kind === 'rebuild') await expect(page.getByTestId('key-scene')).toContainText('not biological birth');
-      await capture(page, info, `c4-motion-native-props-${value.id}-${fact.event}-before-close`, { layer: artifact.layer, producer: value.producer,
+      await capture(page, info, `c4-review-fix-motion-native-props-${value.id}-${fact.event}-before-close`, { layer: artifact.layer, producer: value.producer,
         limits: 'Actual native-produced props, production component rendering and real Close callback; not a live App/WASM operation or default-Params replay' });
       await page.getByTestId('key-scene').getByRole('button', { name: 'Close scene', exact: true }).click();
       const after = await readFixture(page);
       expect(after.callbacks.at(-1)).toMatchObject({ kind: 'close', identity: entry.identity });
       expect(after.ui.world).toEqual(value.world);
-      await capture(page, info, `c4-motion-native-props-${value.id}-${fact.event}-after-close`, { layer: artifact.layer, producer: value.producer,
+      await capture(page, info, `c4-review-fix-motion-native-props-${value.id}-${fact.event}-after-close`, { layer: artifact.layer, producer: value.producer,
         operationLayer: 'COMPONENT-ONLY Close callback with actual native-produced historical props' });
     }
   }

@@ -74,8 +74,10 @@ export function nodeKeyScene(worldId: number, world: WorldSnapshot, node: Player
 
 /** Arrival/death history is bound to the actual event body, never the current ghost. */
 export function lifecycleKeyScene(worldId: number, world: WorldSnapshot, fact: PlayerLifecycleFact): KeySceneView {
+  // Biological Birth establishes age zero; other events carry no historical age.
+  const age = fact.kind === 'birth' ? 0 : null;
   const people = picturePeople(world, [fact.body], null).map(person => ({
-    ...person, name: fact.name, origin: fact.origin, age: null, visual: resolveVisualKey(person.id, null),
+    ...person, name: fact.name, origin: fact.origin, age, visual: resolveVisualKey(person.id, age),
     lifeStatus: fact.kind === 'death' ? 'deceased' as const : person.lifeStatus,
   }));
   const death = fact.kind === 'death';

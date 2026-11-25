@@ -322,7 +322,7 @@ function expirePresentation(s: UiState): UiState {
     : { ...s, scene, sceneEpisode, underworldRecorded: recorded };
 }
 
-/** One stop-local queue; closed/retired identities survive duplicate carriers only in this episode. */
+/** One stop-local FIFO retains history until Close; closed/retired identities stay excluded in this episode. */
 function bindPresentation(s: UiState, snapshot: Snapshot): UiState {
   const world = s.world;
   if (world === null || s.tick === null || world.tick !== s.tick || s.runState === 'failed') return s;
@@ -333,7 +333,7 @@ function bindPresentation(s: UiState, snapshot: Snapshot): UiState {
   const seen = new Set(previous);
   const pending = new Map(s.scene?.entries.map(entry => [entry.identity, entry]) ?? []);
   const entries: SceneQueue['entries'] = [];
-  for (const candidate of candidates) {
+  for (const candidate of [...pending.values(), ...candidates]) {
     const retained = pending.get(candidate.identity);
     if (candidate.node !== null && (!s.playerNode.pending || s.playerNode.node !== candidate.node || s.playerNode.answered
       || s.actions.some(action => action.worldId === s.worldId && action.request?.type === 'choose'
@@ -341,8 +341,10 @@ function bindPresentation(s: UiState, snapshot: Snapshot): UiState {
       seen.add(candidate.identity);
       continue;
     }
-    if (retained !== undefined) entries.push(retained);
-    else if (!seen.has(candidate.identity)) entries.push(candidate);
+    if (retained === candidate) {
+      entries.push(retained);
+      pending.delete(candidate.identity);
+    } else if (!seen.has(candidate.identity)) entries.push(candidate);
     seen.add(candidate.identity);
   }
   if (s.sceneEpisode !== null && seen.size === previous.length

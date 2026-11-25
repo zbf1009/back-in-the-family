@@ -674,6 +674,64 @@ test('LV-C2: current options remain available behind historical scenes without c
   assert.equal(ui.scene, before, 'a node scene has no independent close');
 });
 
+test('LV-C4: same-tick Run then user Pause retains unclosed Dream identity and FIFO until Close', () => {
+  const world = { ...waitingSnapshot(), last_dream: { tick: '499', dreamer: 1, applied: 'take_comfort' as const } };
+  let ui = uiFor(world);
+  const ghost = world.player.earlier_bodies[0]!;
+  const birth: PlayerLifecycleFact = { event: '40', tick: '498', kind: 'birth', body: ghost.id, name: ghost.name, origin: ghost.origin };
+  const death: PlayerLifecycleFact = { event: '41', tick: '499', kind: 'death', body: ghost.id, name: ghost.name, origin: ghost.origin };
+  const opening: Snapshot = { ...deliverySnapshot(ui), playerLifecycle: [birth], stop: { reasons: ['dream_resolved'], world } };
+  ui = reduce(ui, { type: 'status', snapshot: opening });
+  assert.deepEqual(ui.scene!.entries.map(entry => entry.kind), ['dream', 'birth']);
+  const [dream, retainedBirth] = ui.scene!.entries;
+  assert.equal(dream!.identity, '[1,"dream","499"]');
+  const closeDream = { worldId: ui.scene!.worldId, tick: ui.scene!.tick, entry: dream! };
+
+  const run: Request = { type: 'run', id: 1 };
+  ui = reduce(ui, { type: 'request-sent', request: run });
+  ui = deliveryReply(ui, run, { ...deliverySnapshot(ui), runState: 'running' });
+  assert.equal(ui.runState, 'running');
+  assert.equal(ui.tick, world.tick, 'Run has not advanced a tick');
+  assert.equal(ui.scene!.entries[0], dream);
+  assert.equal(ui.scene!.entries[1], retainedBirth);
+
+  const pause: Request = { type: 'pause', id: 2 };
+  ui = reduce(ui, { type: 'request-sent', request: pause });
+  const paused: Snapshot = { ...deliverySnapshot(ui), runState: 'paused', playerLifecycle: [death], stop: { reasons: ['user'], world } };
+  ui = deliveryReply(ui, pause, paused);
+  assert.equal(ui.runState, 'paused');
+  assert.equal(ui.tick, world.tick, 'Pause replies before the next completed tick');
+  assert.deepEqual(ui.scene!.entries.map(entry => entry.kind), ['dream', 'birth', 'funeral'],
+    'existing history keeps its FIFO and newly delivered history appends');
+  assert.equal(ui.scene!.entries[0], dream, 'the original Dream remains the closeable head');
+  assert.equal(ui.scene!.entries[0]!.identity, closeDream.entry.identity);
+  assert.equal(ui.scene!.entries[1], retainedBirth);
+  const funeral = ui.scene!.entries[2]!;
+  const retained = ui;
+
+  ui = reduce(ui, { type: 'scene-close', expected: closeDream });
+  assert.deepEqual(ui.scene!.entries.map(entry => entry.kind), ['birth', 'funeral']);
+  ui = reduce(ui, { type: 'status', snapshot: opening });
+  ui = deliveryReply(ui, pause, paused);
+  assert.deepEqual(ui.scene!.entries.map(entry => entry.kind), ['birth', 'funeral'],
+    'duplicate Dream and user-Pause carriers cannot reopen the closed identity');
+  assert.equal(ui.scene!.entries[0], retainedBirth);
+  assert.equal(ui.scene!.entries[1], funeral);
+
+  const advanced = reduce(retained, { type: 'status', snapshot: { ...deliverySnapshot(retained), runState: 'running', tick: '501' } });
+  assert.equal(advanced.scene, null, 'an actual tick change invalidates even unclosed history');
+  assert.equal(advanced.sceneEpisode, null);
+  const late = reduce(advanced, { type: 'status', snapshot: opening });
+  assert.equal(late.tick, '501');
+  assert.equal(late.scene, null, 'an older stop cannot restore an expired episode');
+
+  const replaced = deliveryReply(retained, { type: 'create-world', id: 3, seed: '2', config: '{}' },
+    { ...deliverySnapshot(retained), worldId: 2, tick: '0' });
+  assert.equal(replaced.scene, null, 'World replacement invalidates unclosed history');
+  assert.equal(replaced.sceneEpisode, null);
+  assert.equal(reduce(replaced, { type: 'status', snapshot: opening }), replaced);
+});
+
 test('R11.13: an accepted claim records its tick, rejection keeps it, and replacement clears it', () => {
   const world = waitingSnapshot();
   let ui = uiFor(world);
