@@ -783,12 +783,13 @@ fn real_waiting_wasm_batch_retains_early_applied_and_rejected_actions() {
     assert_eq!(wire["actions"][1]["mood_delta"], "-15");
     assert_eq!(wire["actions"][2]["reason"], "rate_limited");
     assert_eq!(wire["actions"][3]["reason"], "bad_amount");
+    let expected_tick = tick.0.to_string();
     assert!(
         wire["actions"]
             .as_array()
             .unwrap()
             .iter()
-            .all(|action| action["tick"] == tick.0.to_string())
+            .all(|action| action["tick"].as_str() == Some(expected_tick.as_str()))
     );
     assert_eq!(
         wasm.snapshot(),

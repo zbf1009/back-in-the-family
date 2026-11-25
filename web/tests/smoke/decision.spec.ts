@@ -15,7 +15,7 @@ const ORIGIN = 'http://localhost:4173';
 const WAITING_TICK = 1654;
 // Keep exact exports outside Playwright's per-run cleaned output directory.
 const REPOSITORY_DIRECTORY = fileURLToPath(new URL('../../../', import.meta.url));
-const DECISION_EVIDENCE = new URL('../../../target/life-in-view-evidence/c4-smoke-decision/', import.meta.url);
+const DECISION_EVIDENCE = new URL('../../../target/smoke-evidence/decision/', import.meta.url);
 const fixture = JSON.parse(readFileSync(new URL('../../../fixtures/parity/seedU-underworld.replay.json', import.meta.url), 'utf8')) as {
   seed: string; config: unknown; inputs: { tick: string; seq: string; payload: unknown }[];
 };

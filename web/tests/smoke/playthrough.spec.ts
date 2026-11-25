@@ -8,6 +8,7 @@ import type { PlayerLifecycleFact, TraitName, WorldSnapshot } from '../../src/sh
 import { DECISION_CONFIG_VERSION } from '../../src/shared/decision.ts';
 
 const FIXTURE = 'seedP-playthrough.replay.json';
+const SMOKE_EVIDENCE = new URL('../../../target/smoke-evidence/', import.meta.url);
 interface Input {
   tick: string;
   payload: {
@@ -230,6 +231,7 @@ async function customization(page: Page, world: WorldSnapshot): Promise<void> {
 }
 
 test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel rebirth`, async ({ page, baseURL }, testInfo) => {
+  await mkdir(SMOKE_EVIDENCE, { recursive: true });
   await page.setViewportSize({ width: 1280, height: 720 });
   test.setTimeout(B);
   expect(stages.last_tick).toBe(fixture.ticks);
@@ -360,7 +362,7 @@ test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel r
         await expect(option).toBeEnabled();
         if (index === 0) {
           await expect(page.getByTestId('stakes')).toBeVisible();
-          await page.screenshot({ path: new URL('../../../target/life-in-view-evidence/c3-boundary-current-choice.png', import.meta.url).pathname });
+          await page.screenshot({ path: fileURLToPath(new URL('playthrough-current-choice.png', SMOKE_EVIDENCE)) });
         }
         await option.click();
         await expect(page.getByTestId('choice-recorded')).toBeVisible();
@@ -453,9 +455,7 @@ test(`${FIXTURE}: real controls play choices, death, dream and Imported_Vessel r
   const live = JSON.parse(exported.replay) as { inputs: Input[]; checksums: string[] };
   expect(live.inputs.map(input => ({ tick: input.tick, payload: input.payload }))).toEqual(fixture.inputs.map(input => ({ tick: input.tick, payload: input.payload })));
   expect(live.checksums.slice(0, fixture.checksums.length)).toEqual(fixture.checksums);
-  const evidenceDirectory = new URL('../../../target/life-in-view-evidence/', import.meta.url);
-  await mkdir(evidenceDirectory, { recursive: true });
-  const replayPath = fileURLToPath(new URL('c4-smoke-playthrough.replay.json', evidenceDirectory));
+  const replayPath = fileURLToPath(new URL('playthrough.replay.json', SMOKE_EVIDENCE));
   await writeFile(replayPath, exported.replay);
   await testInfo.attach('real-controls-playthrough-v5', { path: replayPath, contentType: 'application/json' });
   expect(offOrigin, 'off-preview requests').toEqual([]);

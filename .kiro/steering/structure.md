@@ -36,8 +36,13 @@ back-in-the-family/
       App.svelte  main.ts          # page and entry; main.ts installs the harness only with ?harness=1
       main/       # Main_Thread: sim-client.ts (worker client), ui-state.ts (reducer + formatters),
                   #   bridge.ts (worker events -> reducer), harness.ts (test-only window hook)
+      ui/         # LifeSurface, KeyScene, ScenePicture; current choices/actions/results, identity and optional TownView
+                  #   scenes/Dream.svelte remains static template text
+      art/        # sprites.ts, life-view-atlas.ts: one decoded SpriteSet and selected age-aware atlas keys
       worker/     # Sim_Worker: sim.worker.ts (entry, loads the WASM), controller.ts (SimController), tps.ts
       shared/     # Worker_Protocol: protocol.ts, seed.ts, speeds.ts (imported by both sides)
+    assets/       # ASSETS.json, selected crop/provenance registry and full CC0 package licenses
+    public/assets/ # three selected life-view PNG atlases; copied into dist/assets
     scripts/      # typecheck.ts, check-deploy.ts (size/identity/boundary), preview.ts (Local_Preview)
     tests/
       unit/       # node:test + fast-check property tests (controller, ui-state, seed, tps, check-deploy)
@@ -94,8 +99,8 @@ back-in-the-family/
 | narrator | sim-core | Pattern library that scans new events and their one-hop neighbors, produces nodes with concrete stakes (who, how much, by when), frequency budget, soul-centred salience | Interrupt without at least two defensible options |
 | rules / options | sim-core | Closed option sets, legality, effect bounds, the rules default for every node | Depend on LLM availability |
 | slow-think bridge | sim-core (pure part) + web (inference) | Rust: D-node context rendering, rule candidates and personality priors, output validation, clamping, building the `TickInput`. Cloudflare Worker (AI binding): rate-limited calls to the Workers AI decision model, timeout, rules fallback. No S, no in-browser model | Let unvalidated model output reach the simulation |
-| scenes | web | About four scene templates for the vertical slice (funeral, inheritance, dream, birth); staging and layout only | Compute outcomes |
-| web-shell | web | Loading the WASM into the Sim_Worker and owning the only `WasmSim`; the Worker_Protocol; run/pause/step and Speed; showing tick, checksum and ticks-per-second; the Web_Build into `web/dist` and the GitHub Actions deploy. Scenes, the replay gallery and the settings page are later specs | Mutate simulation state except through the Worker_Protocol; load the WASM on the Main_Thread |
+| scenes | web | Life-first scene context and current actions; finite pictures for five actual Player_Node families and the player's own death/rebirth, static template Dream; event-bound historical identity and optional picture performances | Compute outcomes, invent historical ages, or gate current actions on a picture performance |
+| web-shell | web | Loading the WASM into the Sim_Worker and owning the only `WasmSim`; the Worker_Protocol; run/pause/step and Speed; showing tick, checksum and ticks-per-second; the Web_Build into `web/dist` and the GitHub Actions deploy. LifeSurface is primary; TownView is optional. The replay gallery and settings page remain later scopes | Mutate simulation state except through the Worker_Protocol; load the WASM on the Main_Thread |
 
 ## Dependency direction
 
@@ -107,7 +112,7 @@ eval runner ──> sim-core (context rendering + validation) and the LLM adapte
 
 `sim-core` has no dependency on rendering, networking, threads, clocks, or the browser.
 
-## Specs (planned order)
+## Specs (historical order and current local continuation)
 
 1. `sim-core-skeleton`: workspace, tick loop, `TickInput`, checksum, replay check, native-vs-WASM checksum test, tick granularity measurement.
 2. `web-shell`: minimal page that loads the WASM and shows tick and checksum; deploy target.
@@ -118,7 +123,7 @@ eval runner ──> sim-core (context rendering + validation) and the LLM adapte
 7. After spec 6: the rest of `slow-think` (validating rule priors plus a decision model with in-simulation metrics), and one spec for the Cloudflare Worker script (AI binding), the request budget (per-session rate limit, daily cap), wiring clef into the decision-node interface, and a one-click deploy button. No S (rule-computed).
 8. Pending: a presentation-text layer (dialogue, dreams, obituaries, with caching); the first slice uses template text.
 
-## Next steps (as of 2026-11-20; spec 6 accepted locally, production deployed through spec 5)
+## Historical next steps (2026-11-20; spec 6 accepted and production deployed)
 
 - Spec 1 (`sim-core-skeleton`) is done: gates pass from a clean build, and the audit is in `docs/sim-core-skeleton-audit.md`. Known open item from it: the weekly half of the tick measurement can only be re-run at commit `bac46e3`.
 - Spec 2 (`web-shell`) is **fully done, including the live deploy.** The `web/` app, the Web_Build (`scripts/web-build.sh` → `web/dist`), the Type_Check / Unit_Tests / Smoke_Test gates, the `wrangler.jsonc` Static Assets config and `.github/workflows/deploy.yml` are all in place; gates pass from a clean build and in CI; and the audit is in `docs/web-shell-audit.md`. The site is live at <https://back-in-the-family.2290698778.workers.dev> (first deploy of commit `76ab0bb`, 2026-11-05). The Deploy_Workflow is **enabled**: a push to `main` runs the gates and, when they pass, deploys `web/dist` to Cloudflare Workers Static Assets automatically. The Cloudflare secrets (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`) and the repo variable `DEPLOY_ENABLED=true` are set. The "ask before any deploy" spirit still holds for manual or out-of-band deploys, but pushing green commits to `main` now deploys on its own — merge to `main` deliberately.
@@ -128,12 +133,22 @@ eval runner ──> sim-core (context rendering + validation) and the LLM adapte
 - The Kiroween final submission deadline is 2026-12-05 06:00 GMT+8, with time kept after spec 6 for filling gaps, the demo video, English materials and a buffer. The rest of `slow-think`, the Cloudflare Worker script, request budget, clef wiring and one-click deploy button follow after spec 6. A presentation-text layer (with caching) is pending.
 - Hooks were tried and removed on 2026-11-04 (output never reached the agent; see `docs/kiro-log.md`); `sim-cli batch` runs as a step in `scripts/gates.sh`. When a later spec changes tick logic, regenerate the fixtures on purpose (`scripts/regen-fixtures.sh`) and say so in the commit.
 
-## Spec 7 implemented boundaries at C5
+## Historical Spec 7 boundaries at its C5 checkpoint
 
-Local verification is complete; C5 remains the Author review stop. The implementation and evidence are documented in `docs/slow-think-audit.md`, separately from the unchanged Spec 6 production deployment.
+This records the earlier local C5 review stop, before the separate permanent public-delivery grant. Its implementation and evidence are documented in `docs/slow-think-audit.md`; the later accepted Spec 7 publication/delivery and unchanged own-account entry are recorded in the root README. It is not the current Spec 8 status or new release authority.
 
 - `worker-api/` owns the same-origin Decision_Worker, generated binding types and fake/runtime checks. `tests/runtime/hosted-candidate.test.ts` consumes checked assets and the Worker bundle only after both builds; pre-build unit tests require no prior build outputs.
 - `scripts/check-decision-contract.ts` and `scripts/tests/decision-contract.test.ts` hold Node-only frozen mapping/parity checks outside the frontend tree. Web_Build checks the frozen bytes before Vite; the full-web eval import guard remains unchanged.
 - `scripts/prepare-gates.sh` prepares the complete fixed public SDK cache separately from offline gates. The existing artifact source/metadata pins and private thirteen-entry license closure bind the checked prebuilt tree; no publisher rebuild or Rust dependency is needed by the independent Node consumer.
 - Source inference and the independent hosted candidate remain disabled with the explicit 16,384-byte policy. Both permanent publisher guards remain false, no permanent ref/button is authorized, and C5 grants no push, deploy, hosted switch or release activation.
+
+## Spec 8 delivered local boundaries (LV-C1–LV-C4)
+
+- `ui/LifeSurface.svelte` keeps scene context, current choices/Underworld actions and recorded results in the primary reading lane; identity/relationships and an initially collapsed town map are secondary. Historical scenes do not hide or delay current actions.
+- `main/key-scene.ts`, `ui/KeyScene.svelte` and `ui/ScenePicture.svelte` present the five actual Player_Node families (family death, inheritance, debt due, feud, life stage) and the player's own death/rebirth with finite optional performances, Skip and reduced motion. Dream remains static template text.
+- `ui/UnderworldPanel.svelte` exposes Dream intents, decimal-u64 Bribe, eligible connected Haunt targets, all three rebirth paths, shared Carry_Over and paid Rebuilt_Body Set/Adjust customization. Current World resources/eligibility and admission/application/rejection results stay distinct.
+- Historical lifecycle scenes retain event body/name/origin. Only biological Birth establishes historical age zero and infant art; other lifecycle events preserve unknown historical age instead of borrowing current age. Current Soul/body/Waiting identity remains separately authoritative.
+- Selected CC0 pack crops and original project art are registered in `web/assets/`; full source notices/licenses and the established artifact `NOTICE` remain intact. Existing dependency pins, default-off public/generic inference, private judge gating/counters and own-account deployment policies are unchanged.
+
+LV-C1–LV-C4 are independently accepted; latest accepted C4 repair source is `bdc8bbd7388eef09d11db307f793a98c2ab791dc`. The explicit local tasks 5.1–5.4 continuation ends at **STOP LV-C5**, with final LV-C5 and Author Spec 8 acceptance pending; see `.kiro/specs/life-in-view/tasks.md`. No new final gate, live model or production deployment result is claimed here. This continuation grants no source publication, push/deploy/publisher action or cloud/judge/model changes.
 
