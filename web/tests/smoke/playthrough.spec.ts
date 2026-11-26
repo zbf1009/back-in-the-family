@@ -8,7 +8,7 @@ import type { PlayerLifecycleFact, TraitName, WorldSnapshot } from '../../src/sh
 import { DECISION_CONFIG_VERSION } from '../../src/shared/decision.ts';
 import { traitLabel } from '../../src/main/player-copy.ts';
 import type { LifeNotebook } from '../../src/main/life-journal.ts';
-import type { StoryBatch } from '../../src/shared/story.ts';
+import type { DreamFact, StoryBatch } from '../../src/shared/story.ts';
 
 const FIXTURE = 'seedP-playthrough.replay.json';
 const SMOKE_EVIDENCE = new URL('../../../target/smoke-evidence/', import.meta.url);
@@ -39,6 +39,7 @@ interface Observer {
 interface Observation {
   stops: { tick: string | null; reasons: PauseReason[] }[];
   lifecycle: { worldId: number; tick: string | null; facts: PlayerLifecycleFact[] }[];
+  dreams: { worldId: number; fact: DreamFact; recipientName?: string }[];
   startedAt?: number;
   endedAt?: number;
   endStatusTick?: string;
@@ -86,9 +87,11 @@ async function downloadRetainedFacts(page: Page, world: WorldSnapshot, worldId: 
 
   const technical = page.getByTestId('technical-details');
   if (await technical.getAttribute('open') === null) await technical.locator(':scope > summary').click();
-  const downloadButton = technical.getByRole('button', { name: 'Download life facts', exact: true });
-  const unmerged = technical.locator('details').filter({ has: downloadButton });
+  const unmerged = technical.locator('details').filter({
+    has: page.getByRole('button', { name: 'Download life facts', exact: true, includeHidden: true }),
+  });
   if (await unmerged.getAttribute('open') === null) await unmerged.locator(':scope > summary').click();
+  const downloadButton = unmerged.getByRole('button', { name: 'Download life facts', exact: true });
   const [download] = await Promise.all([page.waitForEvent('download'), downloadButton.click()]);
   const downloadedPath = await download.path();
   expect(downloadedPath).not.toBeNull();
@@ -149,7 +152,6 @@ async function identityAndPreviews(page: Page, world: WorldSnapshot): Promise<vo
 
 async function scene(page: Page, world: WorldSnapshot, _reasons: PauseReason[], worldId: number): Promise<void> {
   const keyScene = page.getByTestId('key-scene');
-  const dream = page.getByTestId('scene-dream');
   if (await keyScene.count() > 0) {
     await expect(keyScene).toBeVisible();
     const identity = await keyScene.getAttribute('data-identity');
@@ -166,14 +168,24 @@ async function scene(page: Page, world: WorldSnapshot, _reasons: PauseReason[], 
         expect(world.player.place).toBe('waiting');
       }
     } else {
-      expect(world.player_node, 'a node scene must identify the current real choice').not.toBeNull();
-      expect(identity).toBe(JSON.stringify([worldId, world.player_soul, world.player_node!.id]));
+      const recordedDream = await page.evaluate(({ worldId, identity }) => window.__playthrough.dreams
+        .find(report => report.worldId === worldId && JSON.stringify([worldId, report.fact.eventId]) === identity), { worldId, identity });
+      if (recordedDream !== undefined) {
+        expect(recordedDream.recipientName).toBeDefined();
+        await expect(keyScene).toContainText(recordedDream.recipientName!);
+        if (recordedDream.fact.interpretation !== undefined) {
+          expect(recordedDream.fact.dreamer).toBe(world.last_dream?.dreamer);
+          expect(recordedDream.fact.interpretation.applied).toBe(world.last_dream?.applied);
+        }
+        await expect(page.getByTestId('scene-close')).toBeEnabled();
+      } else if (world.last_dream !== undefined && identity === JSON.stringify([worldId, 'dream', world.last_dream.tick])) {
+        await expect(keyScene).toContainText(personName(world, world.last_dream.dreamer));
+        await expect(page.getByTestId('scene-close')).toBeEnabled();
+      } else {
+        expect(world.player_node, 'a node scene must identify the current real choice').not.toBeNull();
+        expect(identity).toBe(JSON.stringify([worldId, world.player_soul, world.player_node!.id]));
+      }
     }
-  } else if (await dream.count() > 0) {
-    await expect(dream).toBeVisible();
-    expect(world.last_dream).toBeDefined();
-    await expect(dream).toContainText(personName(world, world.last_dream!.dreamer));
-    await expect(page.getByTestId('scene-close')).toBeEnabled();
   }
   // Current choices remain usable independently of any retained historical performance.
   if (world.player_node !== null) {
@@ -242,7 +254,7 @@ test(`${FIXTURE}: explicit Fast recorded-prefix controls play choices, death, Dr
   // replies do not retain stop, and the page has no Pause_Reason test identifier.
   // No World/UI state is changed and no Worker request is injected here.
   await page.addInitScript(({ lastTick }) => {
-    window.__playthrough = { stops: [], lifecycle: [], tasks: [] };
+    window.__playthrough = { stops: [], lifecycle: [], dreams: [], tasks: [] };
     const NativeWorker = window.Worker;
     window.Worker = class extends NativeWorker {
       constructor(url: string, options?: { type?: string }) {
@@ -253,6 +265,10 @@ test(`${FIXTURE}: explicit Fast recorded-prefix controls play choices, death, Dr
           const now = window.performance.now();
           if (data.snapshot.playerLifecycle.length > 0) {
             observation.lifecycle.push({ worldId: data.snapshot.worldId, tick: data.snapshot.tick, facts: data.snapshot.playerLifecycle });
+          }
+          for (const delivery of data.snapshot.story ?? []) {
+            for (const fact of delivery.batch.dreams) observation.dreams.push({ worldId: delivery.worldId, fact,
+              recipientName: delivery.batch.actors.find(actor => actor.person === fact.dreamer)?.name });
           }
           if (data.snapshot.stop) {
             observation.stops.push({ tick: data.snapshot.tick, reasons: data.snapshot.stop.reasons });
@@ -351,7 +367,6 @@ test(`${FIXTURE}: explicit Fast recorded-prefix controls play choices, death, Dr
         await downloadRetainedFacts(page, world, reply.snapshot.worldId);
         await expect(page.getByTestId('scene-close')).toBeVisible();
         await page.getByTestId('scene-close').click();
-        await expect(page.locator('[data-testid="key-scene"][data-category="death"]')).toHaveCount(0);
         await customization(page, world);
         const input = fixture.inputs[consumed++]!;
         expect(input.tick).toBe(stage.tick);

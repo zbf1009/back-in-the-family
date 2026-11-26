@@ -68,13 +68,13 @@ declare const PerformanceObserver: {
 
 interface ReplayFixture {
   seed: string;
-  config: { entity_count: number; workload: string };
+  config: { opening_residents: number };
 }
 
 const fixture = readFixture() as ReplayFixture;
 // A valid seed and config: reuse the fixture's, as the task allows.
 const SEED = fixture.seed;
-const TOWN_SIZE = fixture.config.entity_count;
+const TOWN_SIZE = fixture.config.opening_residents;
 
 // --- measurement parameters -------------------------------------------------
 
@@ -320,7 +320,7 @@ test('main thread stays responsive and the display keeps cadence at every speed'
 
   for (const speed of SPEEDS) {
     const { longTasks, cadence, pausedTick, runToPauseMs } = await measureSpeed(page, speed);
-    const cadenceLimitMs = Math.max(CADENCE_LIMIT_MS, 1000 / (30 * speed) + 2 * SAMPLE_INTERVAL_MS);
+    const cadenceLimitMs = Math.max(CADENCE_LIMIT_MS, 1000 / (30 * speed) + SAMPLE_INTERVAL_MS);
     const maxLongTaskMs = longTasks.reduce((max, d) => (d > max ? d : max), 0);
     // Diagnostic line (not an assertion): the per-speed measurement summary.
     console.log(

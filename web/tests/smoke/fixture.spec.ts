@@ -55,7 +55,7 @@ const FIXTURE_NAME = 'seedbig-pairwise.replay.json';
 
 interface ReplayFixture {
   seed: string;
-  config: { entity_count: number; workload: string };
+  config: { opening_residents: number };
   ticks: string;
   inputs: { tick: string; seq: string; payload: unknown }[];
   checksums: string[];
@@ -65,7 +65,7 @@ const fixture = readFixture() as ReplayFixture;
 // R16.12 permits only the unanswered-node refusal to end the parity prefix.
 const FIXTURE_TICKS = Number(fixture.ticks);
 // The World_Config passed to new WasmSim is the JSON string of fixture.config,
-// which equals {"entity_count":50,"workload":"Pairwise"} (design Data Models).
+// which equals {"opening_residents":50} in the native fixture.
 const CONFIG_JSON = JSON.stringify(fixture.config);
 // Submit recorded inputs in file order; the core still assigns sequence IDs.
 const INPUT_STRINGS = fixture.inputs.map((input) =>
@@ -284,7 +284,7 @@ test('built page matches the native fixture and the page controls advance it', a
   //    the page buttons (no inputs), so the page shows the no-input reference.
   await openWorldSetup(page);
   await page.getByTestId('seed').fill(fixture.seed);
-  await page.getByTestId('town-size').fill(String(fixture.config.entity_count));
+  await page.getByTestId('town-size').fill(String(fixture.config.opening_residents));
   await page.getByTestId('create').click();
   // After a successful create the page shows tick 0 and Run_State paused (R3.5).
   await expect(page.getByTestId('tick')).toHaveText('0', { timeout: 5_000 });

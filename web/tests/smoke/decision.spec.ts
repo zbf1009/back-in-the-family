@@ -10,6 +10,7 @@ import type { Reply, Request, RequestTicket, RequestWithoutId, Snapshot, WorkerM
 import type { WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import { DECISION_CONTRACT } from '../../src/shared/decision-contract.ts';
 import { DECISION_CONFIG_VERSION, isDecisionRequest, isModelDecision, type DecisionRequest, type ModelDecision } from '../../src/shared/decision.ts';
+import { DREAM_RESPONSE_LABELS } from '../../src/main/player-copy.ts';
 
 const ORIGIN = 'http://localhost:4173';
 const WAITING_TICK = 1654;
@@ -37,6 +38,7 @@ declare const window: {
   Worker: { prototype: ReadFaultWorker };
   __c2ReadFault?: ReadFaultProbe;
 };
+declare const document: { querySelector(selector: string): { textContent: string | null } | null };
 
 async function offlineFake(context: BrowserContext, options: {
   enabled?: boolean; cap?: number; holdConfig?: boolean; families?: readonly DecisionRequest['family'][];
@@ -109,6 +111,20 @@ async function readWorld(page: Page): Promise<WorldSnapshot> {
   if (!reply.ok || !reply.world) throw Error('completed World Snapshot is missing');
   return reply.world;
 }
+
+async function readResolvedDream(page: Page, tick: string): Promise<NonNullable<WorldSnapshot['last_dream']>> {
+  const read = await request(page, { type: 'world-snapshot' });
+  expect(read.ok).toBe(true);
+  if (!read.ok || read.world?.last_dream === undefined) throw Error('Actual native Dream resolution is missing');
+  const resolution = read.world.last_dream;
+  expect(resolution.tick).toBe(tick);
+  expect(resolution.dreamer).toBe(31);
+  expect(Object.hasOwn(DREAM_RESPONSE_LABELS, resolution.applied)).toBe(true);
+  expect(BigInt(read.world.tick)).toBe(BigInt(tick) + 1n);
+  expect(read.snapshot.runState).toBe('paused');
+  await expect(page.getByTestId('step')).toBeEnabled();
+  return resolution;
+}
 async function openDisclosure(page: Page, id: 'world-setup' | 'technical-details'): Promise<void> {
   const disclosure = page.getByTestId(id);
   if (await disclosure.getAttribute('open') === null) await disclosure.locator(':scope > summary').click();
@@ -163,7 +179,7 @@ async function waiting(page: Page): Promise<void> {
   await page.getByTestId('dreamer').selectOption('31'); await page.getByTestId('dream-intent-urge').click();
   const world = await readWorld(page);
   expect(world.player.place).toBe('waiting'); expect(world.underworld_view?.connected).toContain(31);
-  await expect(page.getByTestId('scene-dream')).toHaveCount(0);
+  expect(world.last_dream).toBeUndefined();
 }
 async function open(page: Page): Promise<void> {
   await page.setViewportSize({ width: 1280, height: 720 }); await page.goto('/?harness=1');
@@ -173,6 +189,7 @@ async function open(page: Page): Promise<void> {
 }
 async function start(page: Page): Promise<{ tick: string; checksum: string }> {
   const tick = await page.getByTestId('tick').innerText(); const checksum = await page.getByTestId('checksum').innerText();
+  const beforeWorld = await readWorld(page);
   await page.getByTestId('dream-send').click();
   await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'pending');
   await expect(page.getByTestId('use-rules-now')).toBeVisible();
@@ -180,7 +197,9 @@ async function start(page: Page): Promise<{ tick: string; checksum: string }> {
     await expect(page.getByTestId(id)).toBeDisabled();
   }
   await expect(page.getByTestId('create')).toBeEnabled(); await expect(page.getByTestId('decision-wait')).toBeEnabled();
-  await expect(page.getByTestId('scene-dream')).toHaveCount(0); expect((await readWorld(page)).tick).toBe(tick);
+  const heldWorld = await readWorld(page);
+  expect(heldWorld.tick).toBe(tick);
+  expect(heldWorld.last_dream).toEqual(beforeWorld.last_dream);
   return { tick, checksum };
 }
 async function recorded(page: Page, kind: 'model' | 'fallback', before: { tick: string; checksum: string }): Promise<void> {
@@ -189,14 +208,21 @@ async function recorded(page: Page, kind: 'model' | 'fallback', before: { tick: 
   await expect(page.getByTestId('decision-notice')).not.toContainText(/provider text|quality|personality/i);
   await expect(page.getByTestId('use-rules-now')).toHaveCount(0);
   await expect(page.getByTestId('tick')).toHaveText(before.tick); await expect(page.getByTestId('checksum')).toHaveText(before.checksum);
-  await expect(page.getByTestId('technical-run-state')).toHaveText('paused'); await expect(page.getByTestId('scene-dream')).toHaveCount(0);
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
+  const world = await readWorld(page);
+  expect(world.tick).toBe(before.tick);
+  if (world.last_dream !== undefined) expect(BigInt(world.last_dream.tick)).toBeLessThan(BigInt(before.tick));
   await expect(page.locator('[data-testid="operation-receipt"][data-kind="dream"][data-phase="received"]').first()).toBeVisible();
   await expect(page.getByTestId('step')).toBeEnabled();
 }
 async function resolve(page: Page): Promise<void> {
-  await page.getByTestId('step').click(); await expect(page.getByTestId('tick')).toHaveText(String(WAITING_TICK + 1));
-  await expect(page.getByTestId('scene-dream')).toBeVisible();
-  const world = await readWorld(page); expect(world.last_dream?.dreamer).toBe(31); expect(world.last_dream?.tick).toBe(String(WAITING_TICK));
+  const admission = await request(page, { type: 'decision-status' });
+  expect(admission.ok).toBe(true);
+  await page.getByTestId('step').click();
+  await expect(page.getByTestId('tick')).toHaveText(String(WAITING_TICK + 1));
+  const resolution = await readResolvedDream(page, String(WAITING_TICK));
+  const outcome = admission.snapshot.decision?.outcome;
+  if (outcome?.kind === 'model') expect(resolution.applied).toBe(outcome.option);
 }
 
 async function evidence(page: Page, info: TestInfo, kind: 'acceptance' | 'fallback'): Promise<void> {
@@ -240,10 +266,18 @@ async function liveReplay(page: Page): Promise<{ bytes: string; inputs: { payloa
 async function displayedSnapshot(page: Page, runningAfter?: string): Promise<Snapshot> {
   let matched: Snapshot | undefined;
   await expect.poll(async () => {
-    const read = await request(page, { type: 'world-snapshot' });
+    // The three Technical leaves are read synchronously beside the actual reply,
+    // not across separate layout-forcing locator round trips while Fast runs.
+    const observed = await page.evaluate(async () => {
+      if (!window.__simHarness) throw Error('Worker_Protocol harness is missing');
+      const read = await window.__simHarness.request({ type: 'world-snapshot' }).reply;
+      const displayed = ['technical-run-state', 'tick', 'checksum'].map(id =>
+        document.querySelector(`[data-testid="${id}"]`)?.textContent ?? null);
+      return { read, displayed };
+    });
+    const { read, displayed } = observed;
     expect(read.ok).toBe(true);
     if (!read.ok || !read.world) throw Error('completed World Snapshot is missing');
-    const displayed = await Promise.all(['technical-run-state', 'tick', 'checksum'].map(id => page.getByTestId(id).innerText()));
     const snapshot = read.snapshot;
     const current = displayed[0] === snapshot.runState && displayed[1] === snapshot.tick && displayed[2] === snapshot.checksum
       && (runningAfter === undefined || (snapshot.runState === 'running' && BigInt(snapshot.tick!) > BigInt(runningAfter)));
@@ -281,16 +315,16 @@ for (const priorOutcome of [false, true]) {
     expect(beforeReplay.inputs).toHaveLength(unprepared.inputs.length + 1);
     expect(beforeReplay.inputs.at(-1)?.payload).toEqual({ Bribe: { amount: balance } });
     const posts = fake.attempts.length; expect(posts).toBe(priorOutcome ? 1 : 0);
-    const dreams = await page.getByTestId('scene-dream').count();
+    const sceneIdentities = await page.getByTestId('key-scene').evaluateAll(elements => elements.map(element => element.getAttribute('data-identity')));
 
     // The rejected operation itself always goes through the existing UI button.
     await page.getByTestId('dream-send').click();
     await expect(page.getByTestId('underworld-error')).toBeVisible();
     await expect(page.locator('[data-testid="operation-receipt"][data-kind="dream"][data-phase="refused"]').first()).toBeVisible();
     await expect(page.getByTestId('decision-notice')).toBeEmpty();
-    await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', '');
     await expect(page.getByTestId('use-rules-now')).toHaveCount(0);
-    await expect(page.getByTestId('scene-dream')).toHaveCount(dreams);
+    expect(await page.getByTestId('key-scene').evaluateAll(elements => elements.map(element => element.getAttribute('data-identity')))).toEqual(sceneIdentities);
+    expect((await readWorld(page)).last_dream).toEqual(world.last_dream);
     await expect(page.getByTestId('run')).toBeEnabled(); await expect(page.getByTestId('step')).toBeEnabled();
     const rejected = await request(page, { type: 'decision-status' }); expect(rejected.ok).toBe(true);
     expect(rejected.snapshot.decision?.pending).toBeNull(); expect(rejected.snapshot.decision?.outcome ?? null).toEqual(retainedOutcome);
@@ -384,7 +418,7 @@ test('offline fake World replacement cancels held Dream without locking Create o
   await expect(page.getByTestId('decision-wait')).toHaveValue('0'); await expect(page.getByTestId('decision-diagnostics')).toContainText('1/40');
   await fake.late();
   await expect(page.getByTestId('tick')).toHaveText('0'); await expect(page.getByTestId('run')).toBeEnabled();
-  await expect(page.getByTestId('scene-dream')).toHaveCount(0); await waiting(page);
+  expect((await readWorld(page)).last_dream).toBeUndefined(); await waiting(page);
   const before = { tick: await page.getByTestId('tick').innerText(), checksum: await page.getByTestId('checksum').innerText() };
   await page.getByTestId('dream-send').click(); await recorded(page, 'fallback', before); expect(fake.attempts).toHaveLength(1);
 });
@@ -402,11 +436,27 @@ test('offline fake deadline keeps the active wait after future preference change
 
 test('offline fake pending config and disabled adapter keep rules-only Dream controls with zero POSTs', async ({ page, context }) => {
   const fake = await offlineFake(context, { holdConfig: true, enabled: false }); await open(page); await create(page);
-  await expect(page.getByTestId('decision-diagnostics')).toContainText('pending');
+  const pending = await request(page, { type: 'decision-status' });
+  expect(pending.ok).toBe(true);
+  expect(pending.snapshot.decision).toMatchObject({ config: 'pending', enabled: false, spent: 0 });
   await page.getByTestId('decision-wait').selectOption('0'); await expect(page.getByTestId('decision-wait')).toHaveValue('0');
-  await fake.releaseConfig(); await waiting(page); await expect(page.getByTestId('decision-diagnostics')).toContainText('disabled');
+  await fake.releaseConfig(); await waiting(page);
+  const ready = await request(page, { type: 'decision-status' });
+  expect(ready.ok).toBe(true);
+  expect(ready.snapshot.decision).toMatchObject({ config: 'ready', enabled: false, spent: 0, waitSeconds: 0 });
   const before = { tick: await page.getByTestId('tick').innerText(), checksum: await page.getByTestId('checksum').innerText() };
-  await page.getByTestId('dream-send').click(); await recorded(page, 'fallback', before); await resolve(page);
+  const replayBefore = await liveReplay(page);
+  await page.getByTestId('dream-send').click(); await recorded(page, 'fallback', before);
+  const admitted = await request(page, { type: 'decision-status' });
+  expect(admitted.ok).toBe(true);
+  expect(admitted.snapshot.decision).toMatchObject({ config: 'ready', enabled: false, spent: 0, pending: null,
+    outcome: { kind: 'fallback', reason: 'disabled' } });
+  const queued = await liveReplay(page);
+  expect(queued.inputs.slice(replayBefore.inputs.length).map(input => input.payload)).toEqual([
+    { Dream: { dreamer: '31', intent: 'urge' } },
+  ]);
+  await resolve(page);
+  await expect(page.locator('[data-testid="operation-receipt"][data-kind="dream"][data-phase="processed"]').first()).toBeVisible();
   expect(fake.attempts).toHaveLength(0);
 });
 
@@ -423,11 +473,11 @@ test('offline fake running Dream holds the native clock and resumes only to the 
   await expect(page.getByTestId('pause')).toBeDisabled(); await expect(page.getByTestId('step')).toBeDisabled();
   await page.waitForTimeout(300);
   await expect(page.getByTestId('tick')).toHaveText(tick); await expect(page.getByTestId('checksum')).toHaveText(checksum);
-  await expect(page.getByTestId('scene-dream')).toHaveCount(0);
+  expect((await readWorld(page)).last_dream).toBeUndefined();
   await page.getByTestId('use-rules-now').click();
   await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
   await expect(page.getByTestId('tick')).toHaveText(String(Number(tick) + 1));
-  await expect(page.getByTestId('scene-dream')).toBeVisible();
+  await readResolvedDream(page, tick);
   await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'fallback');
 });
 
@@ -483,7 +533,7 @@ test('offline fake both families share one completed tick with trigger-sequence 
   expect(completed.ok).toBe(true);
   expect(completed.snapshot.tick).toBe(String(WAITING_TICK + 1));
   await expect(page.getByTestId('tick')).toHaveText(String(WAITING_TICK + 1));
-  await expect(page.getByTestId('scene-dream')).toBeVisible();
+  await readResolvedDream(page, before.tick);
   const resolved = await readWorld(page);
   expect(resolved.last_dream?.dreamer).toBe(31);
   expect(resolved.last_dream?.tick).toBe(before.tick);
@@ -584,19 +634,26 @@ test('LV-C2 controlled preissuance World-read transport fault stays bound to the
   await open(page);
   await create(page);
   await expect(page.getByTestId('life-name')).toBeVisible();
-  await expect.poll(() => page.evaluate(() => window.__c2ReadFault!.replies.filter(reply => reply.type === 'world-snapshot').length)).toBe(1);
-  await page.evaluate(() => { window.__c2ReadFault!.failWorldReads = true; });
+  // Create already carries the authoritative World; the first ordinary read
+  // belongs to One day's newly completed tick, not initial page setup.
+  expect(await page.evaluate(() => window.__c2ReadFault!.sent.filter(message => message.type === 'world-snapshot'))).toEqual([]);
   await page.getByTestId('step').click();
   await expect(page.getByTestId('tick')).toHaveText('1');
+  await expect.poll(() => page.evaluate(() => window.__c2ReadFault!.replies.filter(reply => reply.type === 'world-snapshot')
+    .map(({ worldId, tick, ok }) => ({ worldId, tick, ok })))).toEqual([{ worldId: 1, tick: '1', ok: true }]);
+  await page.evaluate(() => { window.__c2ReadFault!.failWorldReads = true; });
+  await page.getByTestId('step').click();
+  await expect(page.getByTestId('tick')).toHaveText('2');
   await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
   await expect(page.getByTestId('error')).toBeVisible();
+  await expect(page.getByTestId('error')).not.toContainText(fault);
   await expect(page.getByTestId('technical-details')).toContainText(fault);
   const staleWorldNotice = await page.getByTestId('world-as-of').innerText();
   await expect(page.getByTestId('world-as-of')).toBeVisible();
   await expect(page.getByTestId('step')).toBeEnabled();
   await expect(page.getByTestId('run')).toBeEnabled();
   await expect(page.getByTestId('operation-receipt')).toHaveCount(0);
-  expect(await page.evaluate(() => window.__c2ReadFault!.failures)).toEqual([{ worldId: 1, tick: '1' }]);
+  expect(await page.evaluate(() => window.__c2ReadFault!.failures)).toEqual([{ worldId: 1, tick: '2' }]);
 
   // Real preference controls dispatch fresh request/reply events at this same
   // tick. The failed read demand must stay suppressed through every dispatch.
@@ -607,20 +664,22 @@ test('LV-C2 controlled preissuance World-read transport fault stays bound to the
   const native = await request(page, { type: 'decision-status' });
   expect(native.ok).toBe(true);
   expect(native.snapshot.worldId).toBe(1);
-  expect(native.snapshot.tick).toBe('1');
+  expect(native.snapshot.tick).toBe('2');
   expect(native.snapshot.runState).toBe('paused');
   await expect(page.getByTestId('checksum')).toHaveText(native.snapshot.checksum!);
-  await expect(page.getByTestId('tick')).toHaveText('1');
+  await expect(page.getByTestId('tick')).toHaveText('2');
   await expect(page.getByTestId('world-as-of')).toHaveText(staleWorldNotice);
   const observed = await page.evaluate(() => window.__c2ReadFault!);
   expect(observed.failWorldReads).toBe(true);
-  expect(observed.failures).toEqual([{ worldId: 1, tick: '1' }]);
-  expect(observed.sent.filter(message => message.type === 'world-snapshot')).toHaveLength(2); // Initial successful read + exactly one failed start.
+  expect(observed.failures).toEqual([{ worldId: 1, tick: '2' }]);
+  expect(observed.sent.filter(message => message.type === 'world-snapshot')).toHaveLength(2); // One day's ordinary read + exactly one failed start at the next tick.
+  expect(observed.replies.filter(reply => reply.type === 'world-snapshot')).toHaveLength(1);
   expect(observed.sent.filter(message => message.type === 'create-world')).toHaveLength(1);
-  expect(observed.sent.filter(message => message.type === 'step')).toHaveLength(1);
+  expect(observed.sent.filter(message => message.type === 'step')).toHaveLength(2);
   expect(observed.sent.filter(message => message.type === 'run')).toHaveLength(0);
   expect(observed.replies.filter(reply => reply.type === 'step')).toEqual([
-    { id: observed.sent.find(message => message.type === 'step')!.id, type: 'step', worldId: 1, tick: '1', ok: true },
+    { id: observed.sent.filter(message => message.type === 'step')[0]!.id, type: 'step', worldId: 1, tick: '1', ok: true },
+    { id: observed.sent.filter(message => message.type === 'step')[1]!.id, type: 'step', worldId: 1, tick: '2', ok: true },
   ]);
   expect(pageErrors).toEqual([]);
   await info.attach('controlled-preissuance-world-read-fault', { contentType: 'application/json', body: Buffer.from(JSON.stringify({

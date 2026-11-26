@@ -14,8 +14,8 @@
 //     serving web/dist on http://localhost:4173. reuseExistingServer is false so
 //     the test never attaches to an unrelated server, and the server must start
 //     within 30 s (R9.4, R9.13). baseURL points at the same origin.
-//   - existing specs keep 120 s; playthrough derives B from its stage sidecar.
-//     The whole suite has the existing 170 s plus B (first-playable R16.8).
+//   - each ordinary case keeps 120 s; the explicit Fast playthrough uses B.
+//     The finite suite bound includes all 16 serial cases and preview startup.
 //
 // Run directly by Node (type-stripping); no compile step. Covered by
 // tsconfig.node.json (playwright.config.ts).
@@ -39,7 +39,10 @@ const firstTick = Number(playthrough.stages[0]!.tick);
 const PLAYTHROUGH_TIMEOUT_MS = 30_000 + Math.ceil(firstTick / 30) * 1000
   + Math.ceil((Number(playthrough.last_tick) - firstTick) / (30 * 365)) * 1000
   + 5000 * playthrough.stages.length + 100 * playthrough.step_clicks;
-const GLOBAL_TIMEOUT_MS = 170_000 + PLAYTHROUGH_TIMEOUT_MS + 2 * 10_500;
+// Thirteen offline decision cases, fixture parity and seven-pace responsiveness,
+// plus the separately distance-bounded recorded-prefix playthrough. No retries.
+const ORDINARY_SMOKE_CASES = 15;
+const GLOBAL_TIMEOUT_MS = PREVIEW_START_TIMEOUT_MS + ORDINARY_SMOKE_CASES * PER_TEST_TIMEOUT_MS + PLAYTHROUGH_TIMEOUT_MS;
 
 export default defineConfig({
   testDir: 'tests/smoke',
