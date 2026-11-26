@@ -2,17 +2,17 @@
 // COMPONENT-ONLY: mount the production App at the existing life-view fixture entry.
 // Controlled Worker_Protocol replies prove UI admission/order, not native gameplay.
 import { expect, test, type Page } from '@playwright/test';
-import type { ErrorKind, Request, Snapshot } from '../../src/shared/protocol.ts';
+import type { ErrorKind, PauseReason, Request, Snapshot } from '../../src/shared/protocol.ts';
 import { DEFAULT_SPEED, FAST_FORWARD_SPEED } from '../../src/shared/speeds.ts';
 
 const COMPONENT = process.env.LIFE_PACE_COMPONENT_ORIGIN ?? 'http://localhost:5174';
 interface PaceHarness {
   sent: Request[];
   snapshot: Snapshot;
-  reply(id: number, patch?: Partial<Snapshot>, failure?: { kind: ErrorKind; error: string }, stop?: boolean): void;
+  reply(id: number, patch?: Partial<Snapshot>, failure?: { kind: ErrorKind; error: string }, stop?: boolean | PauseReason): void;
   reject(id: number): void;
   failNext(type: Request['type']): void;
-  status(patch: Partial<Snapshot>, stop?: boolean): void;
+  status(patch: Partial<Snapshot>, stop?: boolean | PauseReason): void;
   fatal(type: 'fatal' | 'worker-error'): void;
   reset(): void;
 }
@@ -71,9 +71,10 @@ const harness = {
     if (!ticket) throw Error('Missing pending request ' + id);
     pending.delete(id);
     this.snapshot = { ...this.snapshot, ...patch };
+    world.tick = this.snapshot.tick ?? world.tick;
     delete this.snapshot.stop;
     const snapshot = structuredClone(this.snapshot);
-    if (stop) snapshot.stop = { reasons: ['user'], world };
+    if (stop) snapshot.stop = { reasons: [stop === true ? 'user' : stop], world };
     const message = failure
       ? { type: 'reply', id, ok: false, ...failure, snapshot }
       : { type: 'reply', id, ok: true, snapshot, ...(ticket.request.type === 'create-world' ? { world } : {}) };
@@ -82,9 +83,10 @@ const harness = {
   },
   status(patch, stop = false) {
     this.snapshot = { ...this.snapshot, ...patch };
+    world.tick = this.snapshot.tick ?? world.tick;
     delete this.snapshot.stop;
     const snapshot = structuredClone(this.snapshot);
-    if (stop) snapshot.stop = { reasons: ['user'], world };
+    if (stop) snapshot.stop = { reasons: [stop === true ? 'user' : stop], world };
     if (${realTickets}) wire.dispatchEvent(new MessageEvent('message', { data: { type: 'status', snapshot } }));
     else bridge.dispatch({ type: 'status', snapshot });
   },
@@ -119,10 +121,10 @@ async function lastRequest(page: Page, type: Request['type']): Promise<Request> 
   await expect.poll(async () => (await requests(page)).filter(request => request.type === type).length).toBeGreaterThan(0);
   return (await requests(page)).filter(request => request.type === type).at(-1)!;
 }
-async function reply(page: Page, request: Request, patch: Partial<Snapshot> = {}, failure?: { kind: ErrorKind; error: string }, stop = false): Promise<void> {
+async function reply(page: Page, request: Request, patch: Partial<Snapshot> = {}, failure?: { kind: ErrorKind; error: string }, stop: boolean | PauseReason = false): Promise<void> {
   await page.evaluate(({ id, patch, failure, stop }) => window.__paceHarness.reply(id, patch, failure, stop), { id: request.id, patch, failure, stop });
 }
-async function status(page: Page, patch: Partial<Snapshot>, stop = false): Promise<void> {
+async function status(page: Page, patch: Partial<Snapshot>, stop: boolean | PauseReason = false): Promise<void> {
   await page.evaluate(({ patch, stop }) => window.__paceHarness.status(patch, stop), { patch, stop });
 }
 async function createWorld(page: Page): Promise<void> {
@@ -164,6 +166,131 @@ test('pending Create blocks fast-forward in both the button and handler', async 
   await expect(page.getByTestId('fast-forward')).toBeDisabled();
   await page.getByTestId('fast-forward').dispatchEvent('click');
   expect((await requests(page)).map(request => request.type)).toEqual(['create-world']);
+});
+
+for (const completion of ['accepted', 'error', 'reject', 'timeout'] as const) {
+  test(`pending Run ${completion} releases same-world admission only when the ticket ends`, async ({ page }) => {
+    await openApp(page, completion === 'timeout'); await createWorld(page);
+    if (completion === 'timeout') await page.clock.install();
+    await page.getByTestId('run').click();
+    const run = await lastRequest(page, 'run');
+    await expect(page.getByTestId('run')).toBeDisabled();
+    await expect(page.getByTestId('fast-forward')).toBeDisabled();
+    await page.getByTestId('run').dispatchEvent('click');
+    await page.getByTestId('fast-forward').dispatchEvent('click');
+    expect(await requests(page)).toEqual([run]);
+    if (completion === 'accepted') {
+      await reply(page, run, { runState: 'running' });
+      await expect(page.getByTestId('technical-run-state')).toHaveText('running');
+      await status(page, { runState: 'paused', tick: '501' }, 'player_died');
+    } else if (completion === 'error') await reply(page, run, {}, { kind: 'sim-error', error: 'Controlled Run failure' });
+    else if (completion === 'reject') await page.evaluate(id => window.__paceHarness.reject(id), run.id);
+    else await page.clock.fastForward(30_001);
+    await expect(page.getByTestId('run')).toBeEnabled();
+    await expect(page.getByTestId('fast-forward')).toBeEnabled();
+    expect(await requests(page)).toEqual([run]);
+    await page.getByTestId('run').click();
+    await expect.poll(async () => (await requests(page)).filter(request => request.type === 'run').length).toBe(2);
+  });
+}
+
+test('a pending Run survives a newer Pause ticket until its own completion', async ({ page }) => {
+  await openApp(page); await createWorld(page);
+  await page.getByTestId('run').click();
+  const run = await lastRequest(page, 'run');
+  await status(page, { runState: 'running' });
+  await page.getByTestId('pause').click();
+  const pause = await lastRequest(page, 'pause');
+  await reply(page, pause, { runState: 'paused' }, undefined, true);
+  await expect(page.getByTestId('run')).toBeDisabled();
+  await expect(page.getByTestId('fast-forward')).toBeDisabled();
+  await page.getByTestId('run').dispatchEvent('click');
+  await page.getByTestId('fast-forward').dispatchEvent('click');
+  expect(await requests(page)).toEqual([run, pause]);
+  await reply(page, run, { runState: 'running' });
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
+  await expect(page.getByTestId('run')).toBeEnabled();
+  await expect(page.getByTestId('fast-forward')).toBeEnabled();
+});
+
+test('World replacement releases pending Run admission without old-world completion releasing a new ticket', async ({ page }) => {
+  await openApp(page); await createWorld(page);
+  await page.getByTestId('run').click();
+  const oldRun = await lastRequest(page, 'run');
+  await page.getByTestId('world-setup').locator(':scope > summary').click();
+  await page.getByTestId('create').click();
+  await reply(page, await lastRequest(page, 'create-world'), { worldId: 2, runState: 'paused' });
+  await expect(page.getByTestId('run')).toBeEnabled();
+  await expect(page.getByTestId('fast-forward')).toBeEnabled();
+  await page.getByTestId('run').click();
+  const run = await lastRequest(page, 'run');
+  expect(run.id).toBeGreaterThan(oldRun.id);
+  await reply(page, oldRun, { worldId: 1, runState: 'running' });
+  await expect(page.getByTestId('life-app')).toHaveAttribute('data-world-id', '2');
+  await expect(page.getByTestId('run')).toBeDisabled();
+  await expect(page.getByTestId('fast-forward')).toBeDisabled();
+  await page.getByTestId('run').dispatchEvent('click');
+  expect((await requests(page)).filter(request => request.type === 'run')).toEqual([oldRun, run]);
+  await reply(page, run, { worldId: 2, runState: 'running' });
+  await expect(page.getByTestId('technical-run-state')).toHaveText('running');
+  await status(page, { worldId: 2, runState: 'paused', tick: '501' }, 'player_died');
+  await expect(page.getByTestId('run')).toBeEnabled();
+  await expect(page.getByTestId('fast-forward')).toBeEnabled();
+});
+
+test('fast-forward Run pending on the paused UI blocks Play button and direct handler activation', async ({ page }) => {
+  await openApp(page); await createWorld(page);
+  await page.getByTestId('fast-forward').click();
+  const accelerate = await lastRequest(page, 'set-speed');
+  await reply(page, accelerate, { speed: FAST_FORWARD_SPEED });
+  const run = await lastRequest(page, 'run');
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
+  await expect(page.getByTestId('run')).toBeDisabled();
+  await page.getByTestId('run').dispatchEvent('click');
+  expect(await requests(page)).toEqual([accelerate, run]);
+  await reply(page, run, { runState: 'running' });
+  await expect(page.getByTestId('technical-run-state')).toHaveText('running');
+  expect((await requests(page)).filter(request => request.type === 'run')).toEqual([run]);
+});
+
+test('a constructed One day natural stop does not seal the newer pending Run, and Status remains authoritative', async ({ page }) => {
+  await openApp(page); await createWorld(page);
+  await page.getByTestId('step').click();
+  const step = await lastRequest(page, 'step');
+  await page.getByTestId('run').click();
+  const run = await lastRequest(page, 'run');
+  expect(run.id).toBeGreaterThan(step.id);
+  // This is a controlled consumer schedule with the protocol's real reason, not native death evidence.
+  await status(page, { runState: 'paused', tick: '501' }, 'player_died');
+  await reply(page, step, { runState: 'paused', tick: '501', story: factualDelivery('9101') });
+  await reply(page, run, { runState: 'running', tick: '501', story: factualDelivery('9102') });
+  await expect(page.getByTestId('technical-run-state')).toHaveText('running');
+  await expect(page.getByTestId('step')).toBeDisabled();
+  const downloadPending = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download life facts', includeHidden: true }).dispatchEvent('click');
+  const stream = await (await downloadPending).createReadStream();
+  if (stream === null) throw Error('Life fact download has no readable stream');
+  let bytes = '';
+  for await (const chunk of stream) bytes += chunk.toString();
+  const facts = JSON.parse(bytes);
+  expect(Object.keys(facts.events)).toEqual(['9101', '9102']);
+  await status(page, { runState: 'paused', tick: '501' });
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
+  await expect(page.getByTestId('step')).toBeEnabled();
+  expect(await requests(page)).toEqual([step, run]);
+});
+
+test('a first pending Run ACK from before a natural stop cannot resurrect the stopped frame', async ({ page }) => {
+  await openApp(page); await createWorld(page);
+  await page.getByTestId('run').click();
+  const run = await lastRequest(page, 'run');
+  await status(page, { runState: 'running' });
+  await status(page, { runState: 'paused', tick: '501' }, 'player_died');
+  await reply(page, run, { runState: 'running', tick: '500' });
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
+  await expect(page.getByTestId('tick')).toHaveText('501');
+  await expect(page.getByTestId('step')).toBeEnabled();
+  expect((await requests(page)).filter(request => request.type === 'run')).toEqual([run]);
 });
 
 test('recoverable running error waits for real Pause, then restores and blocks reentry until speed ACK', async ({ page }) => {
