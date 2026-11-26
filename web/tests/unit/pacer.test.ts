@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fc from 'fast-check';
 import { maxBatch, ticksDue } from '../../src/worker/pacer.ts';
-import { PLAY_RATE, SPEEDS } from '../../src/shared/speeds.ts';
+import { DEFAULT_SPEED, LIFE_SPEED, PLAY_RATE, READ_SPEED, SPEEDS, isSpeed } from '../../src/shared/speeds.ts';
 import { PacingReference } from './helpers/reference.ts';
 
 const RUNS = 1000;
@@ -16,7 +16,7 @@ test('Property 21: every frame budget is integer, nonnegative, capped and re-anc
     fc.integer({ min: -10_000, max: 10_000 }), speedArb,
     (anchor, ran, elapsed, speed) => {
       const result = ticksDue(anchor, ran, anchor + elapsed, speed);
-      const target = Math.floor(elapsed * speed * PLAY_RATE / 1000);
+      const target = Math.floor(elapsed * (speed * PLAY_RATE) / 1000);
       assert.equal(result.reanchor, target > ran + speed * PLAY_RATE);
       assert.ok(Number.isInteger(result.run));
       assert.ok(result.run >= 0);
@@ -95,7 +95,7 @@ test('R8.1: equal wall time at different display frame intervals yields exactly 
       assert.equal(budget.reanchor, false);
       total += budget.run;
     }
-    assert.equal(total, Math.floor(duration * speed * PLAY_RATE / 1000), `speed ${speed}, interval ${interval}`);
+    assert.equal(total, Math.floor(duration * (speed * PLAY_RATE) / 1000), `speed ${speed}, interval ${interval}`);
   }
 });
 
@@ -111,7 +111,27 @@ test('Property 21: frame gaps from 0 to 50 ms keep every total equal to target w
         const budget = ticksDue(anchor, total, now, speed);
         assert.equal(budget.reanchor, false);
         total += budget.run;
-        assert.equal(total, Math.floor((now - anchor) * speed * PLAY_RATE / 1000));
+        assert.equal(total, Math.floor((now - anchor) * (speed * PLAY_RATE) / 1000));
       }
     }), { numRuns: RUNS });
+});
+
+test('Read and default Life advance only when their whole simulated day is due', () => {
+  assert.equal(READ_SPEED, 1 / 30);
+  assert.equal(LIFE_SPEED, 1 / 6);
+  assert.equal(DEFAULT_SPEED, LIFE_SPEED);
+  for (const [speed, rate] of [[READ_SPEED, 1], [LIFE_SPEED, 5]] as const) {
+    assert.equal(speed * PLAY_RATE, rate);
+    assert.equal(isSpeed(speed), true);
+    assert.equal(maxBatch(speed), 1);
+    const dayMs = 1000 / rate;
+    assert.deepEqual(ticksDue(0, 0, dayMs - 0.001, speed), { run: 0, reanchor: false });
+    assert.deepEqual(ticksDue(0, 0, dayMs, speed), { run: 1, reanchor: false });
+    assert.deepEqual(ticksDue(0, 1, dayMs, speed), { run: 0, reanchor: false });
+    assert.deepEqual(ticksDue(0, 0, 10_000, speed), { run: 0, reanchor: true });
+    assert.deepEqual(ticksDue(10_000, 0, 10_000, speed), { run: 0, reanchor: false });
+    assert.deepEqual(ticksDue(10_000, 0, 10_000 + dayMs, speed), { run: 1, reanchor: false });
+  }
+  for (const old of [1, 7, 30, 90, 365]) assert.equal(isSpeed(old), true);
+  for (const unavailable of [0, -1, 1 / 5, 2, NaN, Infinity]) assert.equal(isSpeed(unavailable), false);
 });

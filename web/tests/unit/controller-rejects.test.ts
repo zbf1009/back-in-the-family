@@ -25,7 +25,7 @@ import assert from 'node:assert/strict';
 import fc from 'fast-check';
 
 import { SimController, type SimHandle } from '../../src/worker/controller.ts';
-import { PLAY_RATE, SPEEDS } from '../../src/shared/speeds.ts';
+import { DEFAULT_SPEED, PLAY_RATE, SPEEDS } from '../../src/shared/speeds.ts';
 import type { Request, Snapshot, WorkerMessage } from '../../src/shared/protocol.ts';
 import { createSim as realCreateSim, loadWasm } from './helpers/wasm.ts';
 import { FakeClock, FakeFrameScheduler, messageCollector, RecordingSimHandle } from './helpers/fakes.ts';
@@ -152,7 +152,7 @@ function runCommands(commands: readonly Command[]): Outcome {
       worldId: last?.snapshot.worldId ?? 0,
       runState: last?.snapshot.runState ?? 'no-world',
       tick: tick?.toString() ?? null, checksum, tps: null,
-      speed: last?.snapshot.speed ?? 1,
+      speed: last?.snapshot.speed ?? DEFAULT_SPEED,
       playerNode: sim ? JSON.parse(sim.player_node_state()) : { pending: false },
       // Each preceding command/frame completed its successful collector post.
       actions: [], playerLifecycle: [],

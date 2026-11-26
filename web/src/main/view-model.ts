@@ -1,25 +1,21 @@
 import { currentDecision, type UiAction, type UiState } from './ui-state.ts';
-import type { Needed, Preview, Stakes, WorldSnapshot } from '../shared/world-snapshot.ts';
+import type { Preview, Stakes, WorldSnapshot } from '../shared/world-snapshot.ts';
 import { customizationInput } from './customization.ts';
+import { nameLabel, neededText, OPERATION_LABELS, OPERATION_PHASE_LABELS, refusalText, rulingLabel, RULING_ACCESS_NOTE, sourceLabel } from './player-copy.ts';
+import { dateLabel, formatAmount } from './calendar.ts';
+import { operationStates } from './operation-state.ts';
+import type { OperationState } from '../shared/operation-state.ts';
 
 export function namesById(world: WorldSnapshot): ReadonlyMap<number, string> {
   return new Map([...world.person_names, ...world.player.earlier_bodies, ...world.residents]
     .map(person => [person.id, person.name]));
 }
 
-export function neededText(needed: Needed): string {
-  switch (needed.kind) {
-    case 'wait_until': return `wait until tick ${needed.tick}`;
-    case 'joss_short': return `short by ${needed.amount} joss paper`;
-    case 'cap_room_short': return `Yearly_Cap room short by ${needed.amount}`;
-    case 'named': return needed.name;
-  }
-}
 
 export function stakesView(stakes: Stakes, world: WorldSnapshot) {
   const names = namesById(world);
   return {
-    who: stakes.who.map(id => names.get(id)!),
+    who: stakes.who.map(id => nameLabel(names.get(id))),
     amount: stakes.amount,
     unit: stakes.unit,
     by: stakes.by,
@@ -29,7 +25,7 @@ export function stakesView(stakes: Stakes, world: WorldSnapshot) {
 
 export function previewView(preview: Preview, world: WorldSnapshot) {
   return {
-    person: namesById(world).get(preview.person)!,
+    person: nameLabel(namesById(world).get(preview.person)),
     personId: preview.person,
     delta: preview.delta.startsWith('-') ? preview.delta : `+${preview.delta}`,
     what: preview.what,
@@ -46,7 +42,8 @@ export function identitySummary(ui: UiState) {
   return {
     soul: world.player_soul,
     body: body?.id ?? null,
-    name: body === null ? `Soul ${world.player_soul} · Waiting between lives` : body.name,
+    name: body === null ? nameLabel(world.player.earlier_bodies.find(earlier => earlier.id === world.player_wait?.ghost)?.name
+      ?? world.player.earlier_bodies.at(-1)?.name) : nameLabel(body.name),
     status: world.player.place === 'waiting' ? 'waiting' as const : 'living' as const,
     age: body?.age ?? null,
     origin: body?.origin ?? null,
@@ -90,8 +87,9 @@ export function viewModel(ui: UiState) {
 
 /** Receipt and observation feedback does not depend on a World Snapshot. */
 export function feedbackView(ui: UiState) {
+  const states = new Map(operationStates(ui).map(state => [state.requestId, state]));
   return {
-    actions: ui.actions.map(action => ({ ...action, text: actionText(action, ui.tick) })),
+    actions: ui.actions.map(action => ({ ...action, text: actionText(action, ui, action.requestId === null ? undefined : states.get(action.requestId)) })),
     settledOmitted: ui.settledOmitted,
     playerLifecycle: ui.playerLifecycle,
   };
@@ -152,26 +150,21 @@ export function underworldView(ui: UiState) {
   };
 }
 
-function actionText(action: UiAction, tick: string | null): string {
-  const name = action.request?.type ?? action.result?.kind ?? 'Input';
-  const identity = `Request ${action.requestId ?? 'untracked'}${action.inputSeq === null ? '' : ` · input ${action.inputSeq}`}`;
-  if (action.phase === 'sending' || action.phase === 'deciding') return `${name}: ${action.phase}. ${identity}`;
-  if (action.phase === 'unknown') return `${name}: completion unknown. No retry was sent. ${identity}`;
-  if (action.phase === 'queued') {
-    if (action.request?.type !== 'bribe' && action.request?.type !== 'haunt' && action.submission !== null
-      && tick !== null && BigInt(tick) > BigInt(action.submission.tick)) {
-      return `${name}: admission queued at tick ${action.submission.tick}; consult Chronicle for completed outcomes. ${identity}`;
-    }
-    return `${name}: queued, not applied yet${action.submission === null ? '' : ` at tick ${action.submission.tick}`}. Use Run or Step to continue. ${identity}`;
-  }
+function actionText(action: UiAction, ui: UiState, state?: OperationState): string {
   const result = action.result;
-  if (result === null) return `${name}: ${action.phase}${action.error === null ? '' : ` (${action.error})`}. ${identity}`;
-  if (result.state === 'rejected') {
-    const subject = result.kind === 'bribe' ? `amount ${result.amount} joss paper` : `target ${result.target}`;
-    return `${result.kind}: rejected at tick ${result.tick} (${result.reason}); ${subject}. ${identity}`;
+  if (result?.state === 'rejected') return `Processing declined. ${refusalText(result.reason)} ${dateLabel(result.tick)}.`;
+  if (result?.state === 'applied') {
+    if (result.kind === 'haunt') {
+      const person = nameLabel(ui.notebook.actors[result.target]?.name ?? ui.world?.residents.find(person => person.id === result.target)?.name);
+      return `Haunt petition processed for ${person}. ${formatAmount(result.price)} joss paper charged. Reported mood effect: ${formatAmount(result.mood_delta)} before its limits. ${dateLabel(result.tick)}.`;
+    }
+    const ruling = result.ruling === null ? 'No ruling recorded.'
+      : `${rulingLabel(result.ruling.applied)}. ${sourceLabel(result.ruling.source)}. ${RULING_ACCESS_NOTE}`;
+    return `Bribe processed. ${formatAmount(result.amount)} joss paper spent. ${ruling} ${dateLabel(result.tick)}.`;
   }
-  if (result.kind === 'haunt') return `haunt: applied at tick ${result.tick}, target ${result.target}, charged ${result.price} joss paper; intensity ${result.intensity}, pre-clamp Mood effect ${result.mood_delta}, event ${result.event}, ghost ${result.ghost}. ${identity}`;
-  const ruling = result.ruling === null ? 'No ruling was emitted.'
-    : `Ruling ${result.ruling.applied}, source ${result.ruling.source}, node ${result.ruling.node}. Magistrate ${result.ruling.magistrate}; rules default ${result.ruling.rules_default}.`;
-  return `bribe: applied at tick ${result.tick}, spent ${result.amount} joss paper, offering ${result.offering_event}, appeal ${result.appeal_event}, ghost ${result.ghost}. ${ruling} ${identity}`;
+  if (state === undefined) return 'Received. The recorded facts appear separately in your life journal.';
+  const phase = state.phase === 'refused' ? 'Filing declined' : OPERATION_PHASE_LABELS[state.phase];
+  const detail = state.phase === 'received' ? 'This receipt confirms delivery, not its outcome.'
+    : state.phase === 'refused' ? refusalText(state.reason ?? '') : '';
+  return `${OPERATION_LABELS[state.kind]}: ${phase}. ${detail}${state.asOf === null ? '' : ` ${dateLabel(state.asOf)}.`}`;
 }

@@ -549,6 +549,8 @@ fn stop_and_checked_submission_are_identical_on_native_and_wasm() {
 #[wasm_bindgen_test(unsupported = test)]
 fn checked_wasm_payloads_reject_malformed_json_without_queuing() {
     let mut sim = WasmSim::create(1, r#"{"opening_residents":50}"#).unwrap();
+    let replay_before = sim.export_replay_json().unwrap();
+    let opening: Value = serde_json::from_str(&sim.story_opening_json()).unwrap();
     assert!(
         sim.submit_checked_json(r#"[{"ChoosePlayer":{"node":12,"option":"repay_now"}}]"#)
             .is_err()
@@ -559,10 +561,24 @@ fn checked_wasm_payloads_reject_malformed_json_without_queuing() {
         )
         .is_err()
     );
-    assert_eq!(
-        sim.run_until_stop_json(0),
-        r#"{"ran":0,"checksum":"","stops":[],"actions":[],"player_lifecycle":[]}"#
-    );
+    let report: Value = serde_json::from_str(&sim.run_until_stop_json(0)).unwrap();
+    assert_eq!(report["ran"], 0);
+    assert_eq!(report["checksum"], "");
+    for field in ["stops", "actions", "player_lifecycle"] {
+        assert!(report[field].as_array().unwrap().is_empty());
+    }
+    let story = &report["story"];
+    assert_eq!(story["version"], 1);
+    assert_eq!(story["opening"], false);
+    for field in ["actors", "events", "chronicle", "dreams"] {
+        assert!(story[field].as_array().unwrap().is_empty());
+    }
+    for log in ["events", "chronicle"] {
+        let cursor = &story["cursors"][log];
+        assert_eq!(cursor["start"], cursor["end"]);
+        assert_eq!(cursor["end"], opening["cursors"][log]["end"]);
+    }
+    assert_eq!(sim.export_replay_json().unwrap(), replay_before);
     assert_eq!(sim.tick(), 0);
     assert_eq!(sim.checksums_json(0, 0), "[]");
 }
@@ -591,6 +607,23 @@ fn extended_snapshot_and_stop_replies_match_core_on_every_fixture_tick() {
             wasm.snapshot(),
             sim_core::snapshot::snapshot_json(core.world()),
             "fixture {name}: opening Snapshot"
+        );
+        let replay_before_opening = wasm.export_replay_json().unwrap();
+        let opening = wasm.story_opening();
+        assert_eq!(
+            opening,
+            serde_json::to_string(&sim_core::story::story_opening(core.world())).unwrap()
+        );
+        assert_eq!(opening, wasm.story_opening_json());
+        assert_eq!(opening, wasm.story_opening());
+        assert_eq!(wasm.tick(), 0);
+        assert_eq!(wasm.export_replay_json().unwrap(), replay_before_opening);
+        let opening: Value = serde_json::from_str(&opening).unwrap();
+        assert_eq!(opening["opening"], true);
+        assert_eq!(opening["cursors"]["events"]["start"], "0");
+        assert_eq!(
+            opening["cursors"]["events"]["end"],
+            core.world().log().len().to_string()
         );
         for (tick, expected) in file.checksums.iter().enumerate() {
             let reply = wasm.run_until_stop(1);

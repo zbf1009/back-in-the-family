@@ -249,6 +249,7 @@ pub struct RunUntilStopResult {
     pub stops: StopSet,
     pub actions: Vec<CoreActionResult>,
     pub player_lifecycle: Vec<PlayerLifecycleFact>,
+    pub story: crate::story::StoryBatch,
 }
 
 /// Two read-only points sharing one owned state in the existing loop.
@@ -267,20 +268,22 @@ struct CapturedAction {
     fired: Option<NodeId>,
 }
 pub(crate) struct Collector {
-    event_cursor: usize,
     resolved_cursor: usize,
     successes: Vec<CapturedAction>,
+    dreams: Vec<crate::story::DreamFact>,
     actions: Vec<CoreActionResult>,
     player_lifecycle: Vec<PlayerLifecycleFact>,
+    story: crate::story::StoryCollector,
 }
 impl Collector {
     pub(crate) fn new(world: &World) -> Self {
         Self {
-            event_cursor: world.log().len(),
             resolved_cursor: world.nodes().resolved.len(),
             successes: Vec::new(),
+            dreams: Vec::new(),
             actions: Vec::new(),
             player_lifecycle: Vec::new(),
+            story: crate::story::StoryCollector::new(world, false),
         }
     }
     pub(crate) fn finish(self, run: RunUntilStop) -> RunUntilStopResult {
@@ -290,12 +293,53 @@ impl Collector {
             stops: run.stops,
             actions: self.actions,
             player_lifecycle: self.player_lifecycle,
+            story: self.story.finish(),
         }
     }
 }
 impl TickObserver for Collector {
     fn applied(&mut self, world: &World, input: &TickInput) {
         let (result, fired) = match input.payload {
+            InputPayload::Dream {
+                dreamer: submitted,
+                intent,
+            } => {
+                let event = world
+                    .log()
+                    .events()
+                    .last()
+                    .expect("an applied Dream has its atomic tail event");
+                let EventKind::Dream {
+                    ghost,
+                    dreamer,
+                    price,
+                } = event.kind
+                else {
+                    panic!("an applied Dream ends in its sent event");
+                };
+                assert_eq!(dreamer, submitted);
+                assert_eq!(event.tick, input.tick);
+                let node = world
+                    .nodes()
+                    .pending
+                    .values()
+                    .find(|node| {
+                        node.trigger == input.seq && node.family == NodeFamily::DreamInterpretation
+                    })
+                    .map(|node| node.id.0);
+                self.dreams.push(crate::story::DreamFact {
+                    event_id: event.id,
+                    input_seq: input.seq,
+                    tick: input.tick,
+                    ghost,
+                    dreamer,
+                    intent: intent.card_name(),
+                    price,
+                    node,
+                    interpretation: None,
+                });
+                return;
+            }
             InputPayload::Bribe { amount: submitted } => {
                 let events = world.log().events();
                 let [offering, appeal] = &events[events
@@ -441,20 +485,41 @@ impl TickObserver for Collector {
             successes.next().is_none(),
             "all captured actions join their outcomes"
         );
-        for event in &world.log().events()[self.event_cursor..] {
+        for mut dream in self.dreams.drain(..) {
+            if let Some(id) = dream.node
+                && let Some(record) = world.nodes().resolved[self.resolved_cursor..]
+                    .iter()
+                    .find(|record| record.id.0 == id)
+            {
+                assert_eq!(record.family, NodeFamily::DreamInterpretation);
+                assert_eq!(record.subject, dream.dreamer);
+                dream.interpretation = Some(crate::story::DreamInterpretation {
+                    node: record.id,
+                    applied: record.applied.id(),
+                    tick: record.tick,
+                    source: match record.source {
+                        ChoiceSource::External => "external",
+                        ChoiceSource::RulesDefault => "rules_default",
+                    },
+                    rules_default: record.rules_default.id(),
+                });
+            }
+            self.story.batch.dreams.push(dream);
+        }
+        self.story.completed_with(world, |event| {
             let (body, kind) = match event.kind {
                 EventKind::Birth { person } => (person, LifecycleKind::Birth),
                 EventKind::Death { person } => (person, LifecycleKind::Death),
                 EventKind::Possession { person, .. } => (person, LifecycleKind::Possession),
                 EventKind::Rebuild { person, .. } => (person, LifecycleKind::Rebuild),
-                _ => continue,
+                _ => return,
             };
             let person = world
                 .persons()
                 .get(&body)
                 .expect("a lifecycle event retains its Person");
             if person.soul != world.souls().player {
-                continue;
+                return;
             }
             self.player_lifecycle.push(PlayerLifecycleFact {
                 event: event.id,
@@ -464,8 +529,7 @@ impl TickObserver for Collector {
                 name: person.name.text(person.sex),
                 origin: person.origin,
             });
-        }
-        self.event_cursor = world.log().len();
+        });
         self.resolved_cursor = world.nodes().resolved.len();
     }
 }
@@ -553,6 +617,7 @@ mod tests {
             r#"["player_died","dream_resolved","player_reborn"]"#,
             r#"["player_node","player_died","dream_resolved","player_reborn"]"#,
         ];
+        let world = World::new(1, WorldConfig::default()).unwrap();
         for (mask, expected) in expected.into_iter().enumerate() {
             let report = RunUntilStopResult {
                 ran: 0,
@@ -565,6 +630,7 @@ mod tests {
                 },
                 actions: Vec::new(),
                 player_lifecycle: Vec::new(),
+                story: crate::story::StoryCollector::new(&world, false).finish(),
             };
             let wire = serde_json::to_value(&report).unwrap();
             assert_eq!(wire["stops"].to_string(), expected, "stop mask {mask}");
@@ -1015,6 +1081,27 @@ mod tests {
                 .count(),
             2
         );
+        let newborn = report
+            .story
+            .actors
+            .iter()
+            .find(|actor| actor.person == fact.body)
+            .unwrap();
+        assert_eq!(newborn.birth_day, Some(2));
+        assert_eq!(newborn.age_at_death, None);
+        let story_birth = report
+            .story
+            .events
+            .iter()
+            .find(|event| event.id == fact.event)
+            .unwrap();
+        assert_eq!(
+            story_birth.relevance,
+            crate::story::StoryRelevance::SelfLife
+        );
+        assert!(report.story.events.iter().any(
+            |event| matches!(event.kind.0, EventKind::Birth { person } if person != fact.body)
+        ));
     }
 
     #[test]
@@ -1060,6 +1147,26 @@ mod tests {
             assert_eq!(arrival.name, retained.name.text(retained.sex));
             assert_eq!(death.name, arrival.name);
             assert_eq!(retained.life, Life::Dead { death: Tick(1) });
+            let actor = report
+                .story
+                .actors
+                .iter()
+                .find(|actor| actor.person == arrival.body)
+                .unwrap();
+            assert_eq!(actor.name, arrival.name);
+            assert_eq!(actor.birth_day, Some(retained.birth_day));
+            assert_eq!(
+                actor.age_at_death,
+                Some(u64::from(sim.world().age_years(retained)))
+            );
+            for event in &report.story.events {
+                let native = sim.world().log().event(event.id).unwrap();
+                assert_eq!(event.kind.0, native.kind);
+                assert_eq!(event.caused_by, native.caused_by.as_slice());
+                for id in native.kind.actors().iter() {
+                    assert!(report.story.actors.iter().any(|actor| actor.person == id));
+                }
+            }
             assert_eq!(
                 sim.world().souls().places[&sim.world().souls().player],
                 SoulPlace::Waiting { since: Tick(1) }
@@ -1069,5 +1176,282 @@ mod tests {
             assert_eq!(snapshot["player"]["place"], "waiting");
             assert!(!snapshot["underworld_view"].is_null());
         }
+    }
+    #[test]
+    fn dream_sent_sequence_intent_and_actual_node_join_survive_other_inputs() {
+        for intent in DreamIntent::ALL {
+            for external in [false, true] {
+                let (world, ghost, target) = waiting(quiet());
+                let mut sim = Sim::from_test_world(world);
+                let tick = sim.world().tick();
+                let seq = sim
+                    .submit(
+                        tick,
+                        InputPayload::Dream {
+                            dreamer: target,
+                            intent,
+                        },
+                    )
+                    .unwrap();
+                sim.submit(tick, InputPayload::Bribe { amount: 1 }).unwrap();
+                let answer = intent.options()[0];
+                if external {
+                    sim.submit(
+                        tick,
+                        InputPayload::Choose {
+                            node: NodeRef::Trigger { seq },
+                            option: answer,
+                            fingerprint: None,
+                        },
+                    )
+                    .unwrap();
+                }
+                sim.submit(
+                    tick,
+                    InputPayload::Dream {
+                        dreamer: target,
+                        intent,
+                    },
+                )
+                .unwrap();
+                let mut control = sim.clone();
+                let report = sim.run_until_stop_observed(1);
+                assert_eq!(report.checksum, Some(control.step()));
+                assert_eq!(
+                    report.story.dreams.len(),
+                    1,
+                    "a refused duplicate has no sent fact"
+                );
+                let dream = &report.story.dreams[0];
+                assert_eq!(dream.input_seq, seq);
+                assert_eq!(dream.intent, intent.card_name());
+                assert_eq!(dream.tick, tick);
+                assert_eq!(dream.ghost, ghost);
+                assert_eq!(dream.dreamer, target);
+                let sent = sim.world().log().event(dream.event_id).unwrap();
+                assert_eq!(
+                    sent.kind,
+                    EventKind::Dream {
+                        ghost,
+                        dreamer: target,
+                        price: dream.price
+                    }
+                );
+                assert!(report.story.events.iter().any(|event| event.id == sent.id));
+                let interpretation = dream.interpretation.as_ref().unwrap();
+                assert_eq!(dream.node, Some(interpretation.node.0));
+                let record = sim
+                    .world()
+                    .nodes()
+                    .resolved
+                    .iter()
+                    .find(|record| record.id == interpretation.node)
+                    .unwrap();
+                assert_eq!(record.family, NodeFamily::DreamInterpretation);
+                assert_eq!(record.subject, target);
+                assert_eq!(interpretation.tick, record.tick);
+                assert_eq!(
+                    serde_json::to_value(interpretation).unwrap()["tick"],
+                    record.tick.0.to_string()
+                );
+                assert_eq!(interpretation.applied, record.applied.id());
+                assert_eq!(interpretation.rules_default, record.rules_default.id());
+                assert_eq!(
+                    interpretation.source,
+                    if external {
+                        "external"
+                    } else {
+                        "rules_default"
+                    }
+                );
+                if external {
+                    assert_eq!(record.applied, answer);
+                }
+                let BribeResult::Applied {
+                    ruling: Some(ruling),
+                    ..
+                } = bribe(&report)
+                else {
+                    panic!("the same tick has its distinct actual Bribe ruling");
+                };
+                assert_ne!(ruling.node, interpretation.node);
+                assert_eq!(
+                    sim.last_outcomes().last().unwrap().result,
+                    Err(RejectReason::RateLimited)
+                );
+                let wire = serde_json::to_value(dream).unwrap();
+                assert_eq!(wire["eventId"], sent.id.0.to_string());
+                assert_eq!(wire["inputSeq"], seq.0.to_string());
+                assert!(wire.get("effectsApplied").is_none());
+                assert!(sim.run_until_stop_observed(0).story.dreams.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    #[cfg(not(debug_assertions))]
+    fn dream_without_fired_node_has_no_synthetic_interpretation() {
+        let (mut world, _, target) = waiting(quiet());
+        world.nodes.ids = IdCounter::starting_at(u64::MAX);
+        let mut sim = Sim::from_test_world(world);
+        sim.submit(
+            sim.world().tick(),
+            InputPayload::Dream {
+                dreamer: target,
+                intent: DreamIntent::Warn,
+            },
+        )
+        .unwrap();
+        let report = sim.run_until_stop_observed(1);
+        assert_eq!(report.story.dreams.len(), 1);
+        let dream = &report.story.dreams[0];
+        assert!(dream.node.is_none() && dream.interpretation.is_none());
+        let wire = serde_json::to_value(dream).unwrap();
+        assert!(wire.get("node").is_none() && wire.get("interpretation").is_none());
+    }
+
+    #[test]
+    fn chronicle_projection_keeps_native_append_index_absence_skips_and_joins() {
+        use crate::narrator::{
+            EffectPart, PlannedOption, PlayerFamily, PlayerNode, PlayerOption, StakeUnit, Stakes,
+        };
+        use crate::values::{Intensity, SocialKind};
+        for external in [false, true] {
+            for absent in [false, true] {
+                let mut world =
+                    World::new_with_params(22, WorldConfig::default(), quiet()).unwrap();
+                world.tick = Tick(1);
+                let SoulPlace::Body(chooser) = world.souls.places[&world.souls.player] else {
+                    unreachable!()
+                };
+                let target = world
+                    .persons()
+                    .values()
+                    .find(|person| {
+                        person.id != chooser && matches!(person.life, Life::Alive { .. })
+                    })
+                    .unwrap()
+                    .id;
+                let id = NodeId(500);
+                let option = PlannedOption {
+                    id: PlayerOption::AskForTime,
+                    preview: Vec::new(),
+                    parts: vec![
+                        EffectPart::Social {
+                            kind: SocialKind::Help,
+                            doer: chooser,
+                            target,
+                            intensity: Intensity::new(40).unwrap(),
+                        },
+                        EffectPart::Social {
+                            kind: SocialKind::Gift,
+                            doer: chooser,
+                            target: PersonId(u64::MAX),
+                            intensity: Intensity::new(36).unwrap(),
+                        },
+                    ],
+                };
+                crate::testing::install_player_node(
+                    &mut world,
+                    PlayerNode {
+                        id,
+                        family: PlayerFamily::DebtDue,
+                        chooser,
+                        fired: Tick(0),
+                        stakes: Stakes {
+                            who: vec![chooser, target],
+                            amount: i64::MIN,
+                            unit: StakeUnit::Money,
+                            by: Tick(u64::MAX),
+                        },
+                        options: vec![option],
+                        rules_default: PlayerOption::AskForTime,
+                        external: external.then_some(PlayerOption::AskForTime),
+                        trigger: None,
+                    },
+                );
+                if absent {
+                    crate::testing::prepare_player_wait(&mut world, Tick(0), Some(Tick(1)), None);
+                }
+                let mut sim = Sim::from_test_world(world);
+                let start = sim.world().narrator().chronicle.entries().len();
+                let report = sim.run_until_stop_observed(1);
+                let native = &sim.world().narrator().chronicle.entries()[start];
+                let projected = report
+                    .story
+                    .chronicle
+                    .iter()
+                    .find(|entry| entry.node == Some(id.0))
+                    .unwrap();
+                assert_eq!(projected.index, start);
+                assert_eq!(projected.tick, native.tick);
+                assert_eq!(projected.source, native.source.label());
+                assert_eq!(projected.chooser_absent, absent);
+                assert_eq!(projected.applied, native.applied.label());
+                assert_eq!(projected.stakes.amount, i64::MIN);
+                assert_eq!(projected.stakes.by, Tick(u64::MAX));
+                assert_eq!(projected.appended, native.appended);
+                assert_eq!(
+                    projected
+                        .skipped
+                        .iter()
+                        .map(|part| (part.part, part.reason))
+                        .collect::<Vec<_>>(),
+                    native
+                        .skipped
+                        .iter()
+                        .map(|(part, reason)| (*part, reason.label()))
+                        .collect::<Vec<_>>()
+                );
+                assert!(!projected.skipped.is_empty());
+                for &event in &projected.appended {
+                    assert!(report.story.events.iter().any(|fact| fact.id == event));
+                    assert!(sim.world().log().event(event).is_some());
+                }
+                assert_eq!(report.story.cursors.chronicle.start, start);
+                assert_eq!(
+                    report.story.cursors.chronicle.end,
+                    sim.world().narrator().chronicle.entries().len()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn automatic_chronicle_has_no_fabricated_node() {
+        let mut params = quiet();
+        params.min_salience = 0;
+        let mut world = World::new_with_params(22, WorldConfig::default(), params).unwrap();
+        world.tick = Tick(1);
+        let SoulPlace::Body(chooser) = world.souls.places[&world.souls.player] else {
+            unreachable!()
+        };
+        let target = world
+            .persons()
+            .values()
+            .find(|person| person.id != chooser && matches!(person.life, Life::Alive { .. }))
+            .unwrap()
+            .id;
+        let due = Tick(
+            world
+                .tick()
+                .0
+                .checked_add(world.params().debt_due_lead)
+                .unwrap(),
+        );
+        crate::testing::add_test_debt(&mut world, chooser, target, due, 20);
+        let mut sim = Sim::from_test_world(world);
+        let report = sim.run_until_stop_observed(1);
+        let entry = report
+            .story
+            .chronicle
+            .iter()
+            .find(|entry| entry.source == "auto_resolved")
+            .unwrap();
+        assert!(entry.node.is_none());
+        let native = &sim.world().narrator().chronicle.entries()[entry.index];
+        assert_eq!(entry.appended, native.appended);
+        assert_eq!(entry.applied, native.applied.label());
+        assert!(serde_json::to_value(entry).unwrap().get("node").is_none());
     }
 }

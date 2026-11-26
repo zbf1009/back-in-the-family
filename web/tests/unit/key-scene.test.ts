@@ -1,12 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { lifecycleKeyScene, nodeKeyScene, picturePeople } from '../../src/main/key-scene.ts';
+import { dreamKeyScene, dreamResolutionKeyScene, lifecycleKeyScene, nodeKeyScene, picturePeople } from '../../src/main/key-scene.ts';
 import { sceneQueue } from '../../src/main/scene-queue.ts';
 import { currentDecision, reduce, type UiState } from '../../src/main/ui-state.ts';
 import { identitySummary, viewModel } from '../../src/main/view-model.ts';
 import type { Snapshot } from '../../src/shared/protocol.ts';
 import type { PlayerFamily, PlayerLifecycleFact, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import type { DreamFact, StoryActor, StoryEvent } from '../../src/shared/story.ts';
 import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
 
 const families: PlayerFamily[] = ['family_death', 'inheritance', 'debt_due', 'feud', 'life_stage'];
@@ -35,10 +36,9 @@ for (const family of families) {
     assert.deepEqual(cue.identity, [7, world.player_soul, node.id]);
     assert.equal(cue.category, family);
     assert.equal(cue.node, node); assert.equal(cue.lifecycle, null); assert.equal(cue.world, world);
-    assert.deepEqual(cue.people.map(person => person.id), [...new Set(node.stakes.who)]);
-    const context = cue.lines.join('\n');
-    for (const person of cue.people) assert.ok(context.includes(person.name));
-    for (const value of [node.stakes.amount, node.stakes.by, node.choice_tick, node.resolves]) assert.ok(context.includes(value));
+    const actualIds = node.family === 'family_death' || world.player.body === null ? node.stakes.who : [world.player.body, ...node.stakes.who];
+    assert.deepEqual(cue.people.map(person => person.id), [...new Set(actualIds)]);
+    assert.equal(cue.date, node.fired);
     const choice = viewModel(uiFor(world))!.choice!;
     assert.deepEqual(choice.options.map(option => option.id), node.options.map(option => option.id));
     for (const [index, option] of choice.options.entries()) assert.equal(option.preview.length, node.options[index]!.preview.length);
@@ -61,19 +61,14 @@ test('LV-C4 lifecycle binding: each event body remains historical while the late
     assert.equal(cue.lifecycle, fact); assert.equal(cue.node, null);
     assert.deepEqual(cue.people.map(person => [person.id, person.name, person.age, person.origin]), [[fact.body, fact.name, null, fact.origin]]);
     assert.equal(cue.people[0]!.soul, false);
-    assert.ok(cue.lines.join('\n').includes(fact.event));
-    assert.ok(cue.lines.join('\n').includes(fact.name));
     if (fact.kind !== 'death') {
       assert.ok(!cue.props.includes('cradle'), 'Arrival is not a biological newborn');
-      assert.ok(cue.lines.join('\n').includes('not biological birth'));
-      assert.ok(!cue.lines.some(line => /age\s+0|newborn|You are .* now/.test(line)));
     }
   }
   assert.equal(identitySummary(ui)!.status, 'waiting'); assert.equal(viewModel(ui)!.body, null);
   assert.equal(JSON.stringify(world), before);
   const birth = { ...facts[0]!, event: '9007199254740998', kind: 'birth' as const, origin: 'native' as const };
   assert.ok(lifecycleKeyScene(7, world, birth).props.includes('cradle'));
-  assert.ok(lifecycleKeyScene(7, world, birth).lines.join('\n').includes(birth.tick));
 });
 
 test('LV-C4 native lifecycle ages: biological Birth is a known newborn; Possession, Rebuild and death stay unknown', () => {
@@ -87,8 +82,8 @@ test('LV-C4 native lifecycle ages: biological Birth is a known newborn; Possessi
       const cue = lifecycleKeyScene(7, value.world, fact);
       assert.deepEqual(cue.identity, [7, fact.event]);
       assert.equal(cue.lifecycle, fact);
-      assert.deepEqual(cue.people.map(person => [person.id, person.name, person.age, person.origin, person.visual]),
-        [[fact.body, fact.name, fact.kind === 'birth' ? 0 : null, fact.origin, fact.kind === 'birth' ? 'baby' : 'unknown_age']]);
+      assert.deepEqual(cue.people.map(person => [person.id, person.name, person.age, person.origin]),
+        [[fact.body, fact.name, fact.kind === 'birth' ? 0 : null, fact.origin]]);
       assert.equal(cue.props.includes('cradle'), fact.kind === 'birth');
     }
     assert.equal(JSON.stringify(value.world), before);
@@ -103,17 +98,31 @@ test('LV-C4 historical lifecycle ages never borrow a later current body age or i
         residents: birthWorld.residents.map(person => person.id === fact.body ? { ...person, age, name: fact.name, origin: fact.origin } : person) };
       assert.equal(picturePeople(world, [fact.body], null)[0]!.age, age, 'The current-body projection still uses the current age');
       const historical = lifecycleKeyScene(7, world, fact).people[0]!;
-      assert.deepEqual([historical.id, historical.name, historical.age, historical.visual],
-        [fact.body, fact.name, fact.kind === 'birth' ? 0 : null, fact.kind === 'birth' ? 'baby' : 'unknown_age']);
+      assert.deepEqual([historical.id, historical.name, historical.age],
+        [fact.body, fact.name, fact.kind === 'birth' ? 0 : null]);
     }
   }
 });
 
-test('LV-C4 closed coverage: real lifecycle ordering is event-local within funeral, Dream, arrival and node slots', () => {
-  const world = { ...waitingSnapshot(), last_dream: { tick: '500', dreamer: 1, applied: 'take_comfort' as const }, player_node: pendingSnapshot('inheritance').player_node };
+test('Death certificate uses only the matching native actor age, never a later resident age', () => {
+  const fact = facts[1]!;
+  const world = waitingSnapshot();
+  const actor: StoryActor = { person: fact.body, soulId: world.player_soul, name: fact.name,
+    sex: 'female', origin: fact.origin, birthDay: '-365', ageAtDeath: '9007199254740993' };
+  const absent = lifecycleKeyScene(7, world, fact, [{ ...actor, person: fact.body + 1 }]);
+  assert.deepEqual(absent.certificate, { name: fact.name, date: fact.tick });
+  const known = lifecycleKeyScene(7, world, fact, [actor]);
+  assert.deepEqual(known.certificate, { name: fact.name, date: fact.tick, age: actor.ageAtDeath });
+  assert.equal(known.people[0]!.age, null, 'An unsafe numeric age is never rounded into the portrait');
+  assert.deepEqual(lifecycleKeyScene(7, world, fact, [{ ...actor, ageAtDeath: '73' }]).people[0]!.age, 73);
+  assert.equal(lifecycleKeyScene(7, world, { ...fact, kind: 'possession' }, [actor]).people[0]!.age, null);
+});
+
+
+test('Lifecycle performances preserve native EventId order independently of event family', () => {
+  const world = { ...waitingSnapshot(), last_dream: { tick: '499', dreamer: 1, applied: 'take_comfort' as const }, player_node: pendingSnapshot('inheritance').player_node };
   const queue = sceneQueue(['player_died', 'dream_resolved', 'player_reborn', 'player_node'], world, 3, [facts[3]!, facts[0]!, facts[1]!, facts[2]!, facts[0]!]);
-  assert.deepEqual(queue.map(entry => entry.keyScene?.lifecycle?.event ?? entry.kind), ['9007199254740995', '9007199254740997', 'dream', '9007199254740994', '9007199254740996', 'inheritance']);
-  assert.equal(queue[2]!.keyScene, null, 'Dream remains static');
+  assert.deepEqual(queue.flatMap(entry => entry.keyScene?.lifecycle === null || entry.keyScene?.lifecycle === undefined ? [] : [entry.keyScene.lifecycle.event]), facts.map(fact => fact.event));
   assert.equal(new Set(queue.map(entry => entry.identity)).size, queue.length);
   assert.deepEqual(sceneQueue(['player_died', 'player_reborn'], { ...world, player_node: null, last_dream: undefined }, 3, []), [], 'Pause reasons alone cannot manufacture a lifecycle event');
   assert.deepEqual(sceneQueue([], { ...world, player_node: null }, 3, []), [], 'Ordinary World facts and Chronicle never acquire a performance');
@@ -125,7 +134,8 @@ test('LV-C4 picture references: unknown people never borrow a living actor or a 
   world.person_names = [{ id: 100, name: 'Known deceased name' }];
   const people = picturePeople(world, [1, 100, 101, 999999, 999999], world.player_node);
   assert.deepEqual(people.map(person => [person.id, person.lifeStatus]), [[1, 'alive'], [100, 'deceased'], [101, 'deceased'], [999999, 'unknown']]);
-  assert.equal(people[3]!.name, 'Person 999999'); assert.equal(people[3]!.age, null); assert.equal(people[3]!.soul, false);
+  assert.equal(people[3]!.age, null); assert.equal(people[3]!.soul, false);
+  assert.ok(!people.slice(0, 3).some(person => person.name === people[3]!.name));
 });
 
 test('LV-C4 episode dedup: a closed scene cannot replay on duplicate stop or empty follow-up delivery', () => {
@@ -147,3 +157,44 @@ test('LV-C4 episode dedup: a closed scene cannot replay on duplicate stop or emp
   ui = reduce(ui, { type: 'status', snapshot: { ...frame(ui), tick: newer.tick, playerLifecycle: [next], stop: { reasons: ['player_reborn'], world: newer } } });
   assert.deepEqual(ui.scene!.entries.map(entry => entry.identity), [JSON.stringify([1, next.event])]);
 });
+
+test('Exact Dream scenes retain captured input, response date and numeric event order without last_dream inference', () => {
+  const world = waitingSnapshot();
+  const fact: DreamFact = { eventId: '9007199254740996', inputSeq: '71', tick: '498', ghost: 101, dreamer: 1,
+    intent: 'warn', price: '9007199254740993', interpretation: { node: '72', tick: '499', applied: 'take_comfort', source: 'rules_default', rulesDefault: 'take_comfort' } };
+  const view = dreamKeyScene(7, world, fact);
+  assert.equal(view.world, world); assert.equal(view.dream, fact); assert.equal(view.date, fact.tick);
+  assert.deepEqual(view.source, { kind: 'event', eventId: fact.eventId });
+  assert.deepEqual(view.people.map(person => person.id), [fact.ghost, fact.dreamer]);
+  const noDate = dreamKeyScene(7, world, { ...fact, interpretation: {
+    node: fact.interpretation!.node, applied: fact.interpretation!.applied,
+    source: fact.interpretation!.source, rulesDefault: fact.interpretation!.rulesDefault,
+  } });
+  assert.equal(noDate.dream!.interpretation!.tick, undefined);
+  const entries = sceneQueue([], world, 7, [facts[3]!, facts[0]!], [], [fact]);
+  assert.deepEqual(entries.map(entry => entry.identity), [facts[0]!.event, fact.eventId, facts[3]!.event].map(event => JSON.stringify([7, event])));
+});
+
+test('Fallback Dream captures only resolution facts and its own stop World', () => {
+  const world = { ...waitingSnapshot(), last_dream: { tick: '499', dreamer: 1, applied: 'take_comfort' as const } };
+  const view = dreamResolutionKeyScene(7, world, world.last_dream);
+  const old = lifecycleKeyScene(7, waitingSnapshot(), facts[1]!);
+  assert.notEqual(view.world, old.world);
+  assert.equal(view.world, world);
+  assert.deepEqual(view.source, { kind: 'dream-resolution', ...world.last_dream });
+  assert.equal(view.dream, undefined); assert.equal(view.lifecycle, null); assert.equal(view.arrivalPrice, undefined);
+  assert.deepEqual(view.people.map(person => person.id), [world.last_dream.dreamer]);
+});
+
+test('Arrival price requires exact event, actual arrival kind and matching person', () => {
+  const fact = facts[0]!;
+  const world = waitingSnapshot();
+  const event: StoryEvent = { id: fact.event, tick: fact.tick, kind: { type: 'possession', person: fact.body, price: '9007199254740993' },
+    causedBy: [], tags: 0, relevance: 'self', relevanceBasis: 'observed-day-start-end', actorContext: [] };
+  assert.equal(lifecycleKeyScene(7, world, fact, [], [event]).arrivalPrice, '9007199254740993');
+  for (const invalid of [{ ...event, id: '1' }, { ...event, kind: { type: 'rebuild' as const, person: fact.body, price: '5' } },
+    { ...event, kind: { type: 'possession' as const, person: fact.body + 1, price: '5' } }]) {
+    assert.equal(lifecycleKeyScene(7, world, fact, [], [invalid]).arrivalPrice, undefined);
+  }
+});
+

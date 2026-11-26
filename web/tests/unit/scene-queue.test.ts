@@ -34,8 +34,8 @@ test('Property 25: stop order and accepted actions keep one current entry withou
       const world = { ...(family === null ? snapshot : pendingSnapshot(family)), last_dream: { tick: '499', dreamer: 1, applied: 'take_comfort' as const } };
       const expected = [
         ...(reasons.includes('player_died') ? [{ kind: 'funeral', node: null }] : []),
-        ...(reasons.includes('dream_resolved') ? [{ kind: 'dream', node: null }] : []),
         ...(reasons.includes('player_reborn') ? [{ kind: 'birth', node: null }] : []),
+        ...(reasons.includes('dream_resolved') ? [{ kind: 'dream', node: null }] : []),
         ...(family === null ? [] : [{ kind: family === 'family_death' ? 'funeral' : family === 'inheritance' ? 'inheritance' : 'choice', node: '12' }]),
       ];
       const entries = sceneQueue(reasons, world, 1, lifecycleFor(world, reasons));
@@ -70,25 +70,32 @@ test('Property 25: stop order and accepted actions keep one current entry withou
     }), { numRuns: RUNS });
 });
 
-test('R10.12: Run with a dream overlay open expires it on a later tick, not the Run reply', () => {
+test('Ordinary advancing status retains historical presentation without changing Run', () => {
   const world = { ...snapshot, last_dream: { tick: '499', dreamer: 1, applied: 'heed_warning' as const } };
   let ui = stop(world, ['dream_resolved']);
   ui = reduce(ui, { type: 'reply', request: { type: 'run', id: 1 }, message: { type: 'reply', id: 1, ok: true, snapshot: { ...status(ui), runState: 'running' } } });
   assert.equal(ui.scene?.entries[0]!.kind, 'dream');
   ui = reduce(ui, { type: 'status', snapshot: { ...status(ui), tick: '501' } });
-  assert.equal(ui.scene, null);
+  assert.equal(ui.scene?.entries[0]!.kind, 'dream');
 });
 
-test('R10.12: a Step stop status replaces the queue before its reply without clearing the new stop', () => {
+test('A Step stop retains unsettled history while its current choice is immediately available', () => {
   let ui = stop(snapshot, ['player_reborn']);
+  const historical = ui.scene!.entries[0]!;
   const world = { ...pendingSnapshot('inheritance'), tick: '501' };
   const stopped: Snapshot = { ...status(ui), tick: '501', playerNode: { pending: true, node: '12', answered: false } };
   ui = reduce(ui, { type: 'status', snapshot: { ...stopped, stop: { reasons: ['player_node'], world } } });
   const queue = ui.scene;
+  assert.equal(queue!.entries[0], historical);
+  assert.equal(currentDecision(ui), world.player_node);
+  assert.deepEqual(viewModel(ui)!.choice!.options.map(option => option.id), world.player_node!.options.map(option => option.id));
+  assert.equal(queue!.entries.find(entry => entry.node === world.player_node!.id)!.keyScene!.world, world);
+  assert.equal(ui.world, world); assert.equal(ui.tick, '501');
   ui = reduce(ui, { type: 'reply', request: { type: 'step', id: 1 }, message: { type: 'reply', id: 1, ok: true, snapshot: stopped } });
   assert.equal(ui.scene, queue);
-  assert.equal(ui.scene!.entries[0]!.kind, 'inheritance');
-  assert.equal(currentDecision(ui) !== null, true);
+  assert.equal(ui.scene!.entries[0], historical);
+  assert.equal(currentDecision(ui), world.player_node);
+  assert.equal(ui.world, world); assert.equal(ui.tick, '501');
 });
 
 test('R10.12/R11.13: an accepted Dream fallback records with the funeral open and no control disablement', () => {
@@ -115,7 +122,7 @@ test('R10.12/R11.13: an accepted Dream fallback records with the funeral open an
   assert.equal(ui.runState, 'paused');
   assert.deepEqual(controls(ui), enabled);
   ui = reduce(ui, { type: 'status', snapshot: { ...status(ui), tick: '501', runState: 'running' } });
-  assert.equal(ui.scene, null);
+  assert.equal(ui.scene, queue);
   assert.equal(ui.underworldRecorded, null);
 });
 
@@ -133,11 +140,23 @@ test('R10.12: creating another World drops the remaining scene queue', () => {
   assert.equal(ui.scene, null);
 });
 
+test('Dream resolution fallback requires its actual T-plus-one stop snapshot', () => {
+  const world = { ...snapshot, tick: '9007199254740994', last_dream: {
+    tick: '9007199254740993', dreamer: 1, applied: 'take_comfort' as const,
+  } };
+  const actual = sceneQueue(['dream_resolved'], world, 7, []);
+  assert.deepEqual(actual.map(entry => entry.identity), [JSON.stringify([7, 'dream', world.last_dream.tick])]);
+  assert.deepEqual(sceneQueue([], world, 7, []), []);
+  assert.deepEqual(sceneQueue(['dream_resolved'], { ...world, tick: '9007199254740995' }, 7, []), []);
+  assert.notEqual(sceneQueue(['dream_resolved'], world, 8, [])[0]!.identity, actual[0]!.identity);
+});
+
+
 test('LV-C2: non-head current Choose rejection preserves every entry and admission retires only its exact node', () => {
   const world = { ...waitingSnapshot(), last_dream: { tick: '499', dreamer: 1, applied: 'take_comfort' as const }, player_node: pendingSnapshot('inheritance').player_node };
   let ui = stop(world, ['player_died', 'dream_resolved', 'player_reborn', 'player_node']);
   const entries = ui.scene!.entries;
-  assert.deepEqual(entries.map(entry => entry.kind), ['funeral', 'dream', 'birth', 'inheritance']);
+  assert.deepEqual(entries.map(entry => entry.kind), ['funeral', 'birth', 'dream', 'inheritance']);
   assert.equal(currentDecision(ui), world.player_node);
   assert.equal(viewModel(ui)!.choice!.id, '12');
   assert.ok(underworldView(ui));

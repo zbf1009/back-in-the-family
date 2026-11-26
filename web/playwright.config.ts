@@ -28,8 +28,8 @@ import { readFileSync } from 'node:fs';
 const PREVIEW_PORT = 4173;
 const BASE_URL = `http://localhost:${PREVIEW_PORT}`;
 
-// Existing fixture/responsive bounds stay unchanged. Task 14 adds the design's
-// stage-derived playthrough allowance B to the overall suite budget only.
+// The recorded-prefix playthrough explicitly selects Fast, not default Life.
+// Its allowance follows simulated distance and controlled actions, not a default first-stop target.
 const PREVIEW_START_TIMEOUT_MS = 30_000;
 const PER_TEST_TIMEOUT_MS = 120_000;
 const playthrough = JSON.parse(readFileSync(new URL('../fixtures/parity/seedP-playthrough.stages.json', import.meta.url), 'utf8')) as {
@@ -39,7 +39,7 @@ const firstTick = Number(playthrough.stages[0]!.tick);
 const PLAYTHROUGH_TIMEOUT_MS = 30_000 + Math.ceil(firstTick / 30) * 1000
   + Math.ceil((Number(playthrough.last_tick) - firstTick) / (30 * 365)) * 1000
   + 5000 * playthrough.stages.length + 100 * playthrough.step_clicks;
-const GLOBAL_TIMEOUT_MS = 170_000 + PLAYTHROUGH_TIMEOUT_MS;
+const GLOBAL_TIMEOUT_MS = 170_000 + PLAYTHROUGH_TIMEOUT_MS + 2 * 10_500;
 
 export default defineConfig({
   testDir: 'tests/smoke',

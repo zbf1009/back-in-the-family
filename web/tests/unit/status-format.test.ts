@@ -1,4 +1,4 @@
-// Feature: web-shell, Property 8: Status formatting
+// Technical status formatting preserves exact native decimal and checksum values.
 //
 // Validates: Requirements 5.1, 5.2, 5.3, 5.6
 //
@@ -80,7 +80,7 @@ const uiStateArb: fc.Arbitrary<UiState> = fc.record({
   tick: tickArb,
   checksum: checksumArb,
   tps: tpsArb,
-  speed: fc.constantFrom(1, 7, 30, 90, 365),
+  speed: fc.constantFrom(1 / 30, 1 / 6, 1, 7, 30, 90, 365),
   error: fc.oneof(fc.constant<string | null>(null), fc.string()),
   seedMessage: fc.oneof(fc.constant<string | null>(null), fc.string()),
   createPending: fc.boolean(),

@@ -1,79 +1,77 @@
 <script lang="ts">
   import type { UiState } from '../main/ui-state.ts';
-  import { viewModel } from '../main/view-model.ts';
-  import { SOUL_COLOR, SOUL_GLYPH } from '../art/sprites.ts';
+  import { namesById } from '../main/view-model.ts';
+  import { dateLabel } from '../main/calendar.ts';
+  import { kinshipLabel, nameLabel, originLabel } from '../main/player-copy.ts';
+  import PeopleCard from './PeopleCard.svelte';
   const { ui }: { ui: UiState } = $props();
-  const view = $derived(viewModel(ui));
+  const world = $derived(ui.world);
+  const body = $derived(world?.residents.find(person => person.id === world.player.body));
+  const ghost = $derived(world?.player_wait?.ghost);
+  const names = $derived(world === null ? null : namesById(world));
+  function name(person: number): string { return nameLabel(names?.get(person) ?? ui.notebook?.actors[person]?.name); }
+  function age(person: number): number | null { return world?.residents.find(resident => resident.id === person)?.age ?? null; }
+  const rememberers = $derived(new Set(world?.player.past_life_ties.map(tie => tie.rememberer)).size);
 </script>
 
 <section class="identity" aria-labelledby="identity-heading">
-  <h2 id="identity-heading">Your soul</h2>
-  <div class="current">
-    {#if view !== null}
-      <span class="soul-marker" style:color={SOUL_COLOR} data-testid="soul-marker" role="img" aria-label="Your soul: gold ring">{SOUL_GLYPH}</span>
-    {/if}
-    {#if view?.body}
-      <div>
-        <strong data-testid="current-name">{view.body.name}</strong>
-        <p data-testid="current-age">{view.body.age} years · <span data-testid="current-origin">{view.body.origin}</span></p>
+  <h2 id="identity-heading">Your people files</h2>
+  {#if body !== undefined}
+    <PeopleCard person={body.id} name={body.name} age={body.age} detail={originLabel(body.origin)} current />
+    <p class="identity-state">Living · {world === null ? '' : dateLabel(world.tick)}</p>
+  {:else if world !== null}
+    {#if ghost !== undefined}<PeopleCard person={ghost} name={name(ghost)} detail="Waiting between lives" current />
+    {:else}<p>Waiting between lives · Name unavailable</p>{/if}
+  {:else}<p class="empty">Start a game to open your life notebook.</p>{/if}
+  {#if world !== null}
+    <details open>
+      <summary>Current family · {world.player.blood_ties.length}</summary>
+      <div class="files">
+        {#each world.player.blood_ties as tie (tie.person)}
+          <PeopleCard person={tie.person} name={name(tie.person)} age={age(tie.person)} detail={tie.kinship.map(kinshipLabel).join(', ')} relationship={tie.affinity} />
+        {:else}<p class="empty">No current family ties are listed.</p>{/each}
       </div>
-    {:else}
-      <strong>{view === null ? 'No World yet' : 'Between lives'}</strong>
-    {/if}
-  </div>
-  {#if ui.world !== null}
-    <p class="identity-state" data-testid="identity-state">Soul {ui.world.player_soul} · {ui.world.player.place === 'waiting' ? 'Waiting between lives' : `Current body ${ui.world.player.body}`}</p>
+    </details>
+    <details>
+      <summary>Other current connections · {world.player.relations.filter(tie => !world.player.blood_ties.some(family => family.person === tie.person)).length}</summary>
+      <div class="files">
+        {#each world.player.relations.filter(tie => !world.player.blood_ties.some(family => family.person === tie.person)) as tie (tie.person)}
+          <PeopleCard person={tie.person} name={name(tie.person)} age={age(tie.person)} detail={tie.kinship.length === 0 ? 'Current relationship' : tie.kinship.map(kinshipLabel).join(', ')} relationship={tie.affinity} />
+        {:else}<p class="empty">No other current connections are listed.</p>{/each}
+      </div>
+    </details>
+    <details>
+      <summary>Remembering earlier lives · {rememberers}</summary>
+      <p class="note">These people remember a former life. That does not mean they recognize your current one.</p>
+      <div class="files">
+        {#each world.player.past_life_ties as tie (`${tie.rememberer}:${tie.earlier_body}`)}
+          <PeopleCard person={tie.rememberer} name={name(tie.rememberer)} age={age(tie.rememberer)} detail={`Remembers ${name(tie.earlier_body)}`} relationship={tie.affinity} />
+        {:else}<p class="empty">No people remembering an earlier life are listed.</p>{/each}
+      </div>
+    </details>
+    <details>
+      <summary>Earlier lives · {world.player.earlier_bodies.length}</summary>
+      {#each world.player.earlier_bodies as earlier (earlier.id)}
+        <div class="earlier-file">
+          <PeopleCard person={earlier.id} name={earlier.name} detail={originLabel(earlier.origin)} />
+          <p>Died {dateLabel(earlier.death)}{ui.notebook?.actors[earlier.id]?.ageAtDeath !== undefined ? ` · Age ${ui.notebook.actors[earlier.id]!.ageAtDeath}` : ''}</p>
+        </div>
+      {:else}<p class="empty">This notebook has no earlier lives.</p>{/each}
+    </details>
+    <p class="note">Portraits are illustrations, not records of anyone's appearance.</p>
   {/if}
-  <p class="rememberers" data-testid="rememberer-count">Rememberers: {view?.rememberers ?? 0}</p>
-  <div class="ties" role="region" aria-label="Family and earlier lives">
-    <h3>Blood ties</h3>
-    <ul data-testid="blood-ties">
-      {#each view?.bloodTies ?? [] as tie (tie.person)}
-        <li>{tie.name} · {tie.kinship.join(', ')} · {tie.affinity} affinity</li>
-      {:else}
-        <li class="empty">No blood ties.</li>
-      {/each}
-    </ul>
-    <h3>Current-body relations</h3>
-    <ul data-testid="current-relations">
-      {#each view?.relations ?? [] as tie (tie.person)}
-        <li>{tie.name} · {tie.affinity} affinity{tie.kinship.length > 0 ? ` · ${tie.kinship.join(', ')}` : ''}</li>
-      {:else}
-        <li class="empty">No current-body relations.</li>
-      {/each}
-    </ul>
-    <h3>Past-life ties</h3>
-    <ul data-testid="past-life-ties">
-      {#each view?.pastLifeTies ?? [] as tie (`${tie.rememberer}:${tie.earlier_body}`)}
-        <li>{tie.name} remembers {tie.earlierName} · {tie.affinity} affinity</li>
-      {:else}
-        <li class="empty">No past-life ties.</li>
-      {/each}
-    </ul>
-    <h3>Earlier lives</h3>
-    <ul data-testid="earlier-lives">
-      {#each view?.earlierBodies ?? [] as body (body.id)}
-        <li><span class="earlier-marker" style:color={SOUL_COLOR} role="img" aria-label="Your soul: gold ring">{SOUL_GLYPH}</span> {body.name} · {body.origin} · body {body.id} · died at tick {body.death}</li>
-      {:else}
-        <li class="empty">No earlier lives.</li>
-      {/each}
-    </ul>
-  </div>
 </section>
 
 <style>
-  .identity { min-width: 0; padding: 16px; color: var(--life-ink); font: 15px/1.5 system-ui, sans-serif; }
-  h2 { margin: 0 0 12px; font-size: 21px; line-height: 1.25; }
-  .current { display: flex; align-items: center; gap: 10px; }
-  .current > div { min-width: 0; }
-  .soul-marker { flex: none; font: bold 32px/1 sans-serif; }
-  strong { font-size: 17px; overflow-wrap: anywhere; }
-  .current p { margin: 5px 0 0; }
-  .identity-state, .rememberers { margin: 12px 0; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-  h3 { margin: 24px 0 8px; font-size: 15px; }
-  h3:first-child { margin-top: 0; }
-  ul { list-style: none; padding: 0; margin: 0; }
-  li { margin-bottom: 10px; overflow-wrap: anywhere; }
-  .empty { color: var(--life-muted); }
-  .earlier-marker { font-weight: bold; font-size: 22px; vertical-align: middle; }
+  .identity { min-width: 0; padding: 20px; color: var(--life-ink); font: 15px/1.5 system-ui, sans-serif; }
+  h2 { margin: 0 0 12px; font: 600 24px/1.25 Georgia, serif; }
+  .identity-state { margin: 6px 0 24px; }
+  details { border-top: 1px solid var(--life-border); padding: 14px 0; }
+  summary { cursor: pointer; font-weight: 600; overflow-wrap: anywhere; }
+  summary:focus-visible { outline: 3px solid var(--life-focus); outline-offset: 3px; }
+  .files { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); column-gap: 24px; }
+  .earlier-file > p { margin: 0 0 16px 94px; font-variant-numeric: tabular-nums; }
+  .note, .empty { color: var(--life-muted); }
+  .note { font-size: 13px; }
+  p { overflow-wrap: anywhere; }
 </style>

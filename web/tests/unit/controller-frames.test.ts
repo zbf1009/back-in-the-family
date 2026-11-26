@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fc from 'fast-check';
 import { SimController, type SimHandle } from '../../src/worker/controller.ts';
 import type { PauseReason, WorkerMessage } from '../../src/shared/protocol.ts';
-import { PLAY_RATE, SPEEDS, type Speed } from '../../src/shared/speeds.ts';
+import { DEFAULT_SPEED, PLAY_RATE, SPEEDS, type Speed } from '../../src/shared/speeds.ts';
 import { createSim, loadWasm } from './helpers/wasm.ts';
 import { FakeClock, FakeFrameScheduler, RecordingSimHandle, messageCollector } from './helpers/fakes.ts';
 import { configJsonArb, seedBigIntArb } from './helpers/gen.ts';
@@ -33,7 +33,7 @@ test('controller keeps one outstanding frame and advances by its bounded paced b
     controller.handle({ type: 'create-world', id: id++, seed: seed.toString(), config });
     const reference = new PacingReference();
     let running = false;
-    let speed: Speed = 1;
+    let speed: Speed = DEFAULT_SPEED;
     const currentState = () => {
       const last = messages.at(-1)!;
       assert.notEqual(last.type, 'fatal');
@@ -137,7 +137,7 @@ test('no batch runs in no-world or paused, and resume excludes paused wall time'
   assert.equal(scheduler.flush(), false);
   assert.equal(rec.mutatingCalls.length, 0);
   controller.handle({ type: 'run', id: 3 });
-  clock.advance(40);
+  clock.advance(200);
   scheduler.flush();
   assert.equal(rec.tick(), 1n);
   controller.handle({ type: 'pause', id: 4 });
@@ -146,7 +146,7 @@ test('no batch runs in no-world or paused, and resume excludes paused wall time'
   controller.handle({ type: 'run', id: 5 });
   scheduler.flush();
   assert.equal(rec.tick(), 1n);
-  clock.advance(40);
+  clock.advance(200);
   scheduler.flush();
   assert.equal(rec.tick(), 2n);
 });
@@ -317,7 +317,7 @@ test('a rejected no-world run does not establish a pacing anchor or schedule adv
   const unchanged = messages.at(-1)!;
   assert.ok(unchanged.type === 'status');
   assert.equal(unchanged.snapshot.tick, '0');
-  clock.advance(50);
+  clock.advance(200);
   scheduler.flush();
   controller.handle({ type: 'pause', id: 4 });
   const paused = messages.at(-1)!;

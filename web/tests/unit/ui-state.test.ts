@@ -37,6 +37,8 @@ import { hasObservation } from '../../src/main/observation-index.ts';
 import type { Request, RunState, Snapshot, WorkerMessage } from '../../src/shared/protocol.ts';
 import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
 
+import type { StoryBatch } from '../../src/shared/story.ts';
+
 // The reply message type, derived from the shared Worker_Protocol union rather
 // than imported from `src/main/sim-client.ts`. `sim-client.ts` is DOM-only
 // Main_Thread code (lib DOM), but this test is checked under tsconfig.node.json
@@ -77,7 +79,7 @@ function snapshotArb(): fc.Arbitrary<Snapshot> {
     tick: tickArb,
     checksum: checksumArb,
     tps: fc.oneof(fc.constant<number | null>(null), fc.nat({ max: 100000 })),
-    speed: fc.constantFrom(1, 7, 30, 90, 365),
+    speed: fc.constantFrom(1 / 30, 1 / 6, 1, 7, 30, 90, 365),
     actions: fc.constant<Snapshot['actions']>([]),
     playerLifecycle: fc.constant<Snapshot['playerLifecycle']>([]),
     playerNode: fc.oneof(
@@ -94,7 +96,7 @@ function requestArb(): fc.Arbitrary<Request> {
     fc.record({ type: fc.constant('run' as const), id: fc.nat() }),
     fc.record({ type: fc.constant('pause' as const), id: fc.nat() }),
     fc.record({ type: fc.constant('step' as const), id: fc.nat() }),
-    fc.record({ type: fc.constant('set-speed' as const), id: fc.nat(), speed: fc.constantFrom(1, 7, 30, 90, 365) }),
+    fc.record({ type: fc.constant('set-speed' as const), id: fc.nat(), speed: fc.constantFrom(1 / 30, 1 / 6, 1, 7, 30, 90, 365) }),
     fc.record({ type: fc.constant('submit' as const), id: fc.nat(), input: fc.string() }),
   );
 }
@@ -652,7 +654,7 @@ test('R9.9: generated event sequences keep reads single-flight, spaced and pause
   }), { numRuns: RUNS });
 });
 
-test('LV-C2: current options remain available behind historical scenes without changing Run or Step', () => {
+test('LU-R3: current options remain available behind numerically ordered historical scenes without changing Run or Step', () => {
   const world = { ...waitingSnapshot(), last_dream: { tick: '499', dreamer: 1, applied: 'take_comfort' as const }, player_node: pendingSnapshot('inheritance').player_node };
   let ui = uiFor(world);
   const ghost = world.player.earlier_bodies[0]!;
@@ -682,18 +684,17 @@ test('LV-C4: same-tick Run then user Pause retains unclosed Dream identity and F
   const death: PlayerLifecycleFact = { event: '41', tick: '499', kind: 'death', body: ghost.id, name: ghost.name, origin: ghost.origin };
   const opening: Snapshot = { ...deliverySnapshot(ui), playerLifecycle: [birth], stop: { reasons: ['dream_resolved'], world } };
   ui = reduce(ui, { type: 'status', snapshot: opening });
-  assert.deepEqual(ui.scene!.entries.map(entry => entry.kind), ['dream', 'birth']);
-  const [dream, retainedBirth] = ui.scene!.entries;
+  const [retainedBirth, dream] = ui.scene!.entries;
   assert.equal(dream!.identity, '[1,"dream","499"]');
-  const closeDream = { worldId: ui.scene!.worldId, tick: ui.scene!.tick, entry: dream! };
+  const closeBirth = { worldId: ui.scene!.worldId, tick: ui.scene!.tick, entry: retainedBirth! };
 
   const run: Request = { type: 'run', id: 1 };
   ui = reduce(ui, { type: 'request-sent', request: run });
   ui = deliveryReply(ui, run, { ...deliverySnapshot(ui), runState: 'running' });
   assert.equal(ui.runState, 'running');
   assert.equal(ui.tick, world.tick, 'Run has not advanced a tick');
-  assert.equal(ui.scene!.entries[0], dream);
-  assert.equal(ui.scene!.entries[1], retainedBirth);
+  assert.equal(ui.scene!.entries[0], retainedBirth);
+  assert.equal(ui.scene!.entries[1], dream);
 
   const pause: Request = { type: 'pause', id: 2 };
   ui = reduce(ui, { type: 'request-sent', request: pause });
@@ -701,35 +702,38 @@ test('LV-C4: same-tick Run then user Pause retains unclosed Dream identity and F
   ui = deliveryReply(ui, pause, paused);
   assert.equal(ui.runState, 'paused');
   assert.equal(ui.tick, world.tick, 'Pause replies before the next completed tick');
-  assert.deepEqual(ui.scene!.entries.map(entry => entry.kind), ['dream', 'birth', 'funeral'],
-    'existing history keeps its FIFO and newly delivered history appends');
-  assert.equal(ui.scene!.entries[0], dream, 'the original Dream remains the closeable head');
-  assert.equal(ui.scene!.entries[0]!.identity, closeDream.entry.identity);
-  assert.equal(ui.scene!.entries[1], retainedBirth);
+  assert.equal(ui.scene!.entries[0], retainedBirth);
+  assert.equal(ui.scene!.entries[1], dream);
   const funeral = ui.scene!.entries[2]!;
   const retained = ui;
 
-  ui = reduce(ui, { type: 'scene-close', expected: closeDream });
-  assert.deepEqual(ui.scene!.entries.map(entry => entry.kind), ['birth', 'funeral']);
+  ui = reduce(ui, { type: 'scene-close', expected: closeBirth });
+  assert.equal(ui.scene!.entries[0], dream);
+  ui = reduce(ui, { type: 'scene-close', expected: { worldId: ui.scene!.worldId, tick: ui.scene!.tick, entry: dream! } });
+  assert.equal(ui.scene!.entries[0], funeral);
   ui = reduce(ui, { type: 'status', snapshot: opening });
   ui = deliveryReply(ui, pause, paused);
-  assert.deepEqual(ui.scene!.entries.map(entry => entry.kind), ['birth', 'funeral'],
-    'duplicate Dream and user-Pause carriers cannot reopen the closed identity');
-  assert.equal(ui.scene!.entries[0], retainedBirth);
-  assert.equal(ui.scene!.entries[1], funeral);
+  assert.equal(ui.scene!.entries[0], funeral, 'duplicate carriers cannot replay closed historical entries');
 
   const advanced = reduce(retained, { type: 'status', snapshot: { ...deliverySnapshot(retained), runState: 'running', tick: '501' } });
-  assert.equal(advanced.scene, null, 'an actual tick change invalidates even unclosed history');
-  assert.equal(advanced.sceneEpisode, null);
+  assert.equal(advanced.scene, retained.scene, 'ordinary ticks cannot cancel an active historical performance');
   const late = reduce(advanced, { type: 'status', snapshot: opening });
   assert.equal(late.tick, '501');
-  assert.equal(late.scene, null, 'an older stop cannot restore an expired episode');
+  assert.equal(late.scene, advanced.scene, 'an older stop cannot replace the retained history');
+  const closedAfterTick = reduce(advanced, { type: 'scene-close', expected: closeBirth });
+  assert.equal(closedAfterTick.scene!.entries[0], dream, 'the exact historical entry stays closeable after ordinary ticks');
 
   const replaced = deliveryReply(retained, { type: 'create-world', id: 3, seed: '2', config: '{}' },
     { ...deliverySnapshot(retained), worldId: 2, tick: '0' });
   assert.equal(replaced.scene, null, 'World replacement invalidates unclosed history');
   assert.equal(replaced.sceneEpisode, null);
   assert.equal(reduce(replaced, { type: 'status', snapshot: opening }), replaced);
+  const staleClose = reduce(replaced, { type: 'scene-close', expected: closeBirth });
+  assert.equal(staleClose.worldId, replaced.worldId);
+  assert.equal(staleClose.tick, replaced.tick);
+  assert.deepEqual(staleClose.world, replaced.world);
+  assert.deepEqual(staleClose.notebook, replaced.notebook);
+  assert.equal(staleClose.scene, null);
 });
 
 test('R11.13: an accepted claim records its tick, rejection keeps it, and replacement clears it', () => {
@@ -817,7 +821,6 @@ test('LV-C2: complete same-batch birth and death facts merge once without turnin
   for (const fact of facts) assert.equal(hasObservation(ui.observedLifecycle, fact.event), true);
   assert.equal(hasObservation(ui.observedLifecycle, '82'), false);
   assert.equal(ui.world!.player.place, 'waiting'); assert.equal(ui.world!.player.body, null);
-  assert.deepEqual(episode!.entries.map(entry => entry.kind), ['funeral', 'birth']);
 });
 
 test('LV-C2: successful Create resets old action form and lifecycle bindings while late callbacks cannot overwrite the new World', () => {
@@ -1005,4 +1008,166 @@ test('LV-C2: a pre-issuance running read failure retains the ten-status spacing 
   ui = failed;
   for (let index = 0; index < 10; index++) ui = runningStatus(ui, false);
   assert.equal(worldSnapshotNeeded(ui), false); assert.equal(worldSnapshotNeeded(runningStatus(ui)), true);
+});
+
+test('LU-R1: a fresh paused game keeps Life pace and has no pending answer', () => {
+  const initial = initialUiState();
+  assert.equal(initial.speed, 1 / 6);
+  const created = deliveryReply(initial, { type: 'create-world', id: 1, seed: '1205', config: '{}' },
+    { ...deliverySnapshot(initial), worldId: 1, tick: '0', runState: 'paused', speed: 1 / 6 });
+  assert.equal(created.runState, 'paused');
+  assert.equal(created.tick, '0');
+  assert.equal(created.speed, 1 / 6);
+  assert.equal(currentDecision(created), null);
+  assert.deepEqual(created.playerNode, { pending: false });
+});
+
+test('LU-R2: ordinary Story deliveries retain old facts and actors through rebirth, failed Create and stale callbacks', () => {
+  const native: { sampleTicks: string; openingBatch: StoryBatch; actors: StoryBatch['actors'];
+    events: StoryBatch['events']; chronicle: StoryBatch['chronicle']; dreams: StoryBatch['dreams']; cursors: StoryBatch['cursors'];
+  } = JSON.parse(readFileSync(new URL('../fixtures/journal-seed1205.json', import.meta.url), 'utf8'));
+  const batch: StoryBatch = { version: 1, opening: false, actors: native.actors, events: native.events,
+    chronicle: native.chronicle, dreams: native.dreams, cursors: native.cursors };
+  // Successful Create binds the notebook to the same worker epoch as its deliveries.
+  let ui = deliveryReply(initialUiState(), { type: 'create-world', id: 1, seed: '1205', config: '{}' },
+    { ...deliverySnapshot(deliveryState()), tick: '0', story: [{ worldId: 1, batch: native.openingBatch }] });
+  assert.equal(ui.notebook.worldId, ui.worldId);
+  const delivered = { ...deliverySnapshot(ui), tick: native.sampleTicks, story: [{ worldId: ui.worldId, batch }] };
+  ui = reduce(ui, { type: 'status', snapshot: delivered });
+  const retained = ui.notebook;
+  const expected = new Set([
+    ...native.openingBatch.events.map(event => `e:${event.id}`), ...native.events.map(event => `e:${event.id}`),
+    ...native.openingBatch.chronicle.map(record => `c:${record.index}`), ...native.chronicle.map(record => `c:${record.index}`),
+  ]);
+  assert.ok(expected.size > 120, 'actual native history exceeds the visible render range');
+  assert.deepEqual(new Set(retained.identities), expected);
+  for (const event of native.events) assert.deepEqual(retained.events[event.id], event);
+  for (const record of native.chronicle) assert.deepEqual(retained.chronicle[record.index], record);
+  for (const actor of native.actors) assert.deepEqual(retained.actors[actor.person], actor);
+  const nextTick = String(BigInt(native.sampleTicks) + 1n);
+  ui = reduce(ui, { type: 'status', snapshot: { ...deliverySnapshot(ui), tick: nextTick,
+    stop: { reasons: ['player_reborn'], world: { ...deliveryWorld, tick: nextTick } } } });
+  assert.equal(ui.notebook, retained, 'rebirth is not a new World');
+  const create: Request = { type: 'create-world', id: 2, seed: 'bad', config: '{}' };
+  ui = reduce(ui, { type: 'reply', request: create, message: { type: 'reply', id: 2, ok: false,
+    kind: 'invalid-seed', error: 'invalid', snapshot: deliverySnapshot(ui) } });
+  assert.equal(ui.notebook, retained, 'failed Create cannot evict history');
+  ui = deliveryReply(ui, { ...create, seed: '2' }, { ...deliverySnapshot(ui), worldId: 2, tick: '0' });
+  assert.equal(ui.notebook.worldId, 2);
+  assert.equal(ui.notebook.identities.length, 0);
+  assert.deepEqual(ui.notebook.actors, {});
+  const fresh = ui;
+  ui = reduce(ui, { type: 'status', snapshot: delivered });
+  assert.equal(ui, fresh, 'old World story cannot repopulate the new notebook');
+});
+
+test('LU-R3: exact-node rejection retains its scene, admission and actual invalidation retire it', () => {
+  const world = pendingSnapshot('debt_due');
+  let ui = uiFor(world);
+  const snapshot: Snapshot = { ...deliverySnapshot(ui), stop: { reasons: ['player_node'], world } };
+  ui = reduce(ui, { type: 'status', snapshot });
+  const original = ui;
+  const entry = ui.scene!.entries[0]!;
+  const request: Request = { type: 'choose', id: 1, node: world.player_node!.id, option: 'repay_now' };
+  const rejected = reduce(ui, { type: 'reply', request, message: { type: 'reply', id: 1, ok: false,
+    kind: 'rejected', error: 'option_not_in_set', snapshot } });
+  assert.equal(rejected.scene!.entries[0], entry, 'refusal neither retires nor replays the scene');
+  const invalidated = reduce(original, { type: 'status', snapshot: { ...deliverySnapshot(original), playerNode: { pending: false } } });
+  assert.equal(invalidated.scene, null);
+  const admitted = deliveryReply(original, request, { ...deliverySnapshot(original),
+    playerNode: { pending: true, node: request.node, answered: true } });
+  assert.equal(admitted.scene, null);
+  assert.equal(admitted.tick, original.tick);
+  assert.equal(admitted.checksum, original.checksum);
+});
+
+test('LU-R3: settled history waits for a genuinely new stop without delaying the next choice', () => {
+  const native: { actors: StoryBatch['actors']; events: StoryBatch['events'] } =
+    JSON.parse(readFileSync(new URL('../fixtures/journal-seed1205.json', import.meta.url), 'utf8'));
+  const death = native.events.find(event => event.kind.type === 'death' && event.kind.person === 10)!;
+  const arrival = native.events.find(event => event.kind.type === 'possession' && event.kind.person === 61)!;
+  assert.ok(death); assert.ok(arrival);
+  const lifecycle: PlayerLifecycleFact[] = [death, arrival].map(event => {
+    assert.ok('person' in event.kind);
+    const person = event.kind.person;
+    const kind = event.kind.type;
+    assert.ok(kind === 'death' || kind === 'possession');
+    const actor = native.actors.find(actor => actor.person === person)!;
+    assert.ok(actor);
+    const origin = actor.origin;
+    assert.ok(origin !== 'official');
+    return { event: event.id, tick: event.tick, kind, body: actor.person, name: actor.name, origin };
+  });
+  const tick = String(BigInt(arrival.tick) + 1n);
+  const world = { ...deliveryWorld, tick };
+  let ui = deliveryReply(initialUiState(), { type: 'create-world', id: 1, seed: '1205', config: '{}' },
+    { ...deliverySnapshot(deliveryState(tick)), tick }, world);
+  const opening: Snapshot = { ...deliverySnapshot(ui), playerLifecycle: lifecycle,
+    stop: { reasons: ['player_reborn'], world } };
+  ui = reduce(ui, { type: 'status', snapshot: opening });
+  const unfinished = ui;
+  const head = ui.scene!.entries[0]!;
+  const tail = ui.scene!.entries[1]!;
+  const expected = { worldId: ui.scene!.worldId, tick: ui.scene!.tick, entry: head };
+  const identities = ui.scene!.entries.map(entry => entry.identity);
+  const buttons = controls(ui);
+  const factsBefore = { world: ui.world, notebook: ui.notebook, actions: ui.actions, tick: ui.tick, checksum: ui.checksum };
+
+  for (const invalid of [
+    { ...expected, worldId: expected.worldId + 1 },
+    { ...expected, tick: String(BigInt(expected.tick) + 1n) },
+    { ...expected, entry: { ...head } },
+    { ...expected, entry: tail },
+  ]) {
+    const ignored = reduce(ui, { type: 'scene-settled', expected: invalid });
+    assert.equal(ignored.settledScene, null);
+    assert.deepEqual(ignored.scene!.entries.map(entry => entry.identity), identities);
+  }
+  ui = reduce(ui, { type: 'scene-settled', expected });
+  assert.equal(ui.settledScene?.entry.identity, head.identity);
+  assert.deepEqual(controls(ui), buttons);
+  assert.deepEqual({ world: ui.world, notebook: ui.notebook, actions: ui.actions, tick: ui.tick, checksum: ui.checksum }, factsBefore,
+    'settling presentation submits nothing and advances no day');
+
+  ui = deliveryReply(ui, { type: 'pause', id: 2 }, { ...deliverySnapshot(ui), stop: { reasons: ['user'], world } });
+  ui = deliveryReply(ui, { type: 'world-snapshot', id: 3 }, deliverySnapshot(ui), world);
+  assert.deepEqual(ui.scene!.entries.map(entry => entry.identity), identities, 'same-tick Pause and reads retain settled history');
+  const later = String(BigInt(tick) + 1n);
+  ui = reduce(ui, { type: 'status', snapshot: { ...deliverySnapshot(ui), tick: later, runState: 'running' } });
+  assert.deepEqual(ui.scene!.entries.map(entry => entry.identity), identities, 'ordinary ticks retain settled history');
+  const quietWorld = { ...world, tick: later };
+  ui = deliveryReply(ui, { type: 'pause', id: 4 }, { ...deliverySnapshot(ui), runState: 'paused', stop: { reasons: ['user'], world: quietWorld } });
+  assert.deepEqual(ui.scene!.entries.map(entry => entry.identity), identities, 'a stop without a new candidate cannot retire history');
+  assert.equal(ui.settledScene?.entry.identity, head.identity);
+  const settled = ui;
+
+  const choiceTick = String(BigInt(later) + 1n);
+  const pending = pendingSnapshot('debt_due');
+  const choiceWorld = { ...pending, tick: choiceTick, player_node: { ...pending.player_node!,
+    fired: later, choice_tick: choiceTick, resolves: choiceTick } };
+  const freshStop: Snapshot = { ...deliverySnapshot(ui), tick: choiceTick,
+    playerNode: { pending: true, node: choiceWorld.player_node.id, answered: false },
+    stop: { reasons: ['player_node'], world: choiceWorld } };
+  const unplayed = reduce(unfinished, { type: 'status', snapshot: freshStop });
+  assert.ok(unplayed.scene!.entries.some(entry => entry.identity === head.identity), 'a new stop cannot erase unfinished history');
+  ui = reduce(ui, { type: 'status', snapshot: freshStop });
+  assert.equal(ui.scene!.entries[0]!.identity, tail.identity, 'only the settled head retires');
+  assert.ok(!ui.scene!.entries.some(entry => entry.identity === head.identity));
+  const nodeEntry = ui.scene!.entries.find(entry => entry.node === choiceWorld.player_node.id)!;
+  assert.ok(nodeEntry);
+  assert.equal(currentDecision(ui)?.id, choiceWorld.player_node.id);
+  assert.equal(ui.settledScene, null);
+  const nodeOnly = reduce(ui, { type: 'scene-close', expected: { worldId: ui.scene!.worldId, tick: ui.scene!.tick, entry: tail } });
+  assert.equal(nodeOnly.scene!.entries[0]!.node, choiceWorld.player_node.id);
+  const nodeSettlement = reduce(nodeOnly, { type: 'scene-settled', expected: { worldId: nodeOnly.scene!.worldId, tick: nodeOnly.scene!.tick, entry: nodeEntry } });
+  assert.equal(nodeSettlement.settledScene, null, 'an unresolved node is never settled away');
+  assert.equal(currentDecision(nodeSettlement)?.id, choiceWorld.player_node.id);
+
+  const replacement = deliveryReply(settled, { type: 'create-world', id: 5, seed: '2', config: '{}' },
+    { ...deliverySnapshot(settled), worldId: 2, tick: '0' });
+  assert.equal(replacement.settledScene, null);
+  assert.equal(replacement.scene, null);
+  const stale = reduce(replacement, { type: 'scene-settled', expected });
+  assert.equal(stale.worldId, 2); assert.equal(stale.tick, '0');
+  assert.equal(stale.settledScene, null); assert.equal(stale.scene, null);
 });

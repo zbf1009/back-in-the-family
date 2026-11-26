@@ -6,7 +6,7 @@ import fc from 'fast-check';
 import { feedbackView, identitySummary, viewModel, namesById } from '../../src/main/view-model.ts';
 import { currentDecision, initialUiState, reduce } from '../../src/main/ui-state.ts';
 import { sceneQueue } from '../../src/main/scene-queue.ts';
-import type { Needed, PlayerOption, Preview, StakeUnit, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import type { PlayerOption, Preview, StakeUnit, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 
 import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
 const RUNS = 1000;
@@ -22,14 +22,6 @@ const needed = fc.array(fc.oneof(
   fc.constantFrom('claim_held', 'claimed_by_you', 'slot_closed').map(name => ({ kind: 'named' as const, name })),
 ), { minLength: 1, maxLength: 8 });
 
-function neededReference(item: Needed): string {
-  switch (item.kind) {
-    case 'wait_until': return `wait until tick ${item.tick}`;
-    case 'joss_short': return `short by ${item.amount} joss paper`;
-    case 'cap_room_short': return `Yearly_Cap room short by ${item.amount}`;
-    case 'named': return item.name;
-  }
-}
 
 test('Property 24: Snapshot whole years, signed previews, Stakes and Needed remain exact', () => {
   fc.assert(fc.property(tick, fc.nat({ max: 10000 }), integer, fc.constantFrom<StakeUnit>('money', 'joss_paper', 'affinity', 'trait_points'), previews, needed,
@@ -64,7 +56,13 @@ test('Property 24: Snapshot whole years, signed previews, Stakes and Needed rema
           slots: [{ slot: 'rebuilt_body', kind: 'rebuilt_body', price: '400', birth: null,
             status: { announced: true, claimable: false, affordable: false, needed: missing } }] },
       };
-      assert.deepEqual(viewModel({ ...ui, world: waiting })!.needed, [{ slot: 'rebuilt_body', lines: missing.map(neededReference) }]);
+      const missingLines = viewModel({ ...ui, world: waiting })!.needed[0]!.lines;
+      assert.equal(missingLines.length, missing.length);
+      for (const [index, item] of missing.entries()) {
+        if (item.kind === 'joss_short' || item.kind === 'cap_room_short') {
+          assert.ok(missingLines[index]!.includes(BigInt(item.amount).toLocaleString('en-US')), 'Needed payment amounts keep every u64 digit');
+        }
+      }
       assert.equal(JSON.stringify(ui), before);
     }), { numRuns: RUNS });
 });
@@ -104,8 +102,8 @@ test('The identity header preserves a high-u64 Soul and separates current life f
   assert.equal(between.body, null);
   assert.equal(between.age, null);
   assert.equal(between.origin, null);
-  assert.notEqual(between.name, body.name);
-  assert.ok(between.name.includes(summary.soul));
+  assert.equal(between.name, waiting.player.earlier_bodies.find(earlier => earlier.id === waiting.player_wait?.ghost)!.name);
+  assert.ok(!between.name.includes(summary.soul));
   assert.equal(identitySummary(initialUiState()), null);
 });
 
@@ -138,9 +136,11 @@ test('LV-C2: feedbackView distinguishes real queue receipts from authoritative B
     snapshot: { worldId: 1, runState: 'paused', tick: '500', checksum: null, tps: null, speed: 1,
       playerNode: { pending: false }, actions: [], playerLifecycle: [] },
   } });
-  let view = feedbackView(ui);
-  assert.match(view.actions[0]!.text, /queued, not applied yet at tick 500/);
-  assert.match(view.actions[0]!.text, /Request 21 · input 70/);
+  const queuedView = feedbackView(ui);
+  assert.equal(queuedView.actions[0]!.phase, 'queued');
+  assert.equal(queuedView.actions[0]!.requestId, 21);
+  assert.equal(queuedView.actions[0]!.inputSeq, '70');
+  assert.equal(queuedView.actions[0]!.result, null);
   assert.equal(ui.world!.joss, world.joss); assert.equal(ui.world!.underworld_view!.actions, world.underworld_view!.actions);
   ui = reduce(ui, { type: 'status', snapshot: { worldId: 1, runState: 'paused', tick: '501', checksum: null, tps: null, speed: 1,
     playerNode: { pending: false }, playerLifecycle: [], actions: [
@@ -149,13 +149,16 @@ test('LV-C2: feedbackView distinguishes real queue receipts from authoritative B
       { worldId: 1, requestId: null, input_seq: '71', tick: '501', kind: 'bribe', state: 'applied', amount: '100',
         ghost: 2, offering_event: '91', appeal_event: '92', ruling: null },
     ] } });
-  view = feedbackView(ui);
-  assert.match(view.actions[0]!.text, /charged 43 joss paper/);
-  assert.match(view.actions[0]!.text, /pre-clamp Mood effect -15/);
-  assert.match(view.actions[0]!.text, /event 90/);
-  assert.match(view.actions[1]!.text, /spent 100 joss paper, offering 91, appeal 92/);
-  assert.match(view.actions[1]!.text, /No ruling was emitted/);
-  assert.doesNotMatch(view.actions[1]!.text, /grant|deny/);
+  const view = feedbackView(ui);
+  assert.equal(view.actions[0]!.phase, 'applied');
+  assert.deepEqual(view.actions[0]!.result, ui.actions[0]!.result);
+  const haunt = view.actions[0]!.result;
+  assert.ok(haunt?.kind === 'haunt' && haunt.state === 'applied');
+  assert.equal(view.actions[1]!.phase, 'applied');
+  assert.deepEqual(view.actions[1]!.result, ui.actions[1]!.result);
+  const bribe = view.actions[1]!.result;
+  assert.ok(bribe?.kind === 'bribe' && bribe.state === 'applied');
+  assert.equal(bribe.ruling, null);
   assert.equal(ui.world!.joss, world.joss); assert.equal(ui.world!.underworld_view!.actions, world.underworld_view!.actions);
 });
 
@@ -171,7 +174,7 @@ test('LV-C2: feedbackView preserves authoritative same-world actions and lifecyc
   ui = reduce(ui, { type: 'reply', request, worldId: 1,
     message: { type: 'reply', id: 2, ok: true, snapshot, submission: { tick: '0', seqs: ['70'] } } });
   assert.equal(ui.world, null);
-  assert.match(feedbackView(ui).actions[0]!.text, /queued, not applied yet at tick 0/);
+  assert.equal(feedbackView(ui).actions[0]!.phase, 'queued');
   const fact = { event: '92', tick: '1', kind: 'possession' as const, body: 31, name: 'Recorded Body', origin: 'possessed' as const };
   ui = reduce(ui, { type: 'status', snapshot: { ...snapshot, tick: '1', playerLifecycle: [fact], actions: [
     { worldId: 1, requestId: 2, input_seq: '70', tick: '1', kind: 'haunt', state: 'applied', target: 31,
@@ -183,9 +186,8 @@ test('LV-C2: feedbackView preserves authoritative same-world actions and lifecyc
   assert.equal(view.actions[0]!.phase, 'applied');
   assert.equal(view.actions[0]!.requestId, 2);
   assert.equal(view.actions[0]!.inputSeq, '70');
-  for (const fact of [/target 31/, /charged 43 joss paper/, /intensity 9/, /pre-clamp Mood effect -15/, /event 91/, /ghost 2/]) {
-    assert.match(view.actions[0]!.text, fact);
-  }
+  assert.deepEqual(view.actions[0]!.result, ui.actions[0]!.result);
+  assert.equal(view.actions[0]!.submission?.tick, '0');
   assert.deepEqual(view.playerLifecycle, [fact]);
   assert.equal(view.playerLifecycle, ui.playerLifecycle);
   assert.equal(view.settledOmitted, 0);
@@ -217,11 +219,11 @@ test('LV-C2: World projection excludes feedback while feedbackView retains unres
   assert.equal(view.actions.length, 23);
   assert.deepEqual(view.actions.slice(0, 3).map(action => action.phase), ['unknown', 'queued', 'sending']);
   assert.deepEqual(view.actions.slice(0, 3).map(action => action.requestId), [1, 2, 3]);
-  assert.match(view.actions[1]!.text, /queued at tick 500/);
-  assert.match(view.actions[1]!.text, /input 70/);
-  for (const fact of [/rejected at tick 501/, /bad_amount/, /amount 0 joss paper/, /input 101/]) {
-    assert.match(view.actions[3]!.text, fact);
-  }
+  assert.equal(view.actions[1]!.submission?.tick, '500');
+  assert.equal(view.actions[1]!.inputSeq, '70');
+  assert.equal(view.actions[3]!.phase, 'rejected');
+  assert.equal(view.actions[3]!.result?.state === 'rejected' ? view.actions[3]!.result.reason : undefined, 'bad_amount');
+  assert.equal(view.actions[3]!.inputSeq, '101');
   assert.equal(view.actions[22]!.inputSeq, '120');
   assert.equal(view.settledOmitted, 1);
   assert.equal(ui.actions, before);

@@ -8,12 +8,9 @@
 //   - A WASM load failure (R2.8): a controller that never loaded answers every
 //     queued and every later request with a `load-failed` reply carrying the load
 //     error text, posts exactly one `fatal`, and reports Run_State `failed`.
-//   - Status cadence (R2.12, design throttle): driven by a FakeClock advanced like
-//     a 60 Hz loop, the gap between consecutive `status` messages while running
-//     never exceeds 1,000 ms (R2.12) and the controller throttles to at least
-//     ~100 ms between them (design "at most every 100 ms").
-//   - Speed persistence across create-world (R4.5): a non-default Speed set with
-//     set-speed survives creating a new world.
+//   - Status cadence: quiet frames remain throttled, while new story facts may
+//     publish immediately and no running window goes silent for over a second.
+//   - A fresh create-world returns to the Life playback rate.
 //   - create-world while running with a bad config (R3.6, R3.7): the failed create
 //     leaves the old world running with its worldId.
 //
@@ -28,7 +25,6 @@ import assert from 'node:assert/strict';
 
 import { SimController, type SimHandle } from '../../src/worker/controller.ts';
 import type { Request, WorkerMessage } from '../../src/shared/protocol.ts';
-import { SPEEDS } from '../../src/shared/speeds.ts';
 import { createSim as realCreateSim, loadWasm } from './helpers/wasm.ts';
 import { FakeClock, FakeFrameScheduler, messageCollector } from './helpers/fakes.ts';
 
@@ -127,17 +123,15 @@ function assertLoadFailed(reply: ReplyMessage, loadError: string): void {
 
 // --- R2.12 + design: status cadence ------------------------------------------
 
-// With a FakeClock advanced like a 60 Hz loop (16 ms per frame), run a world and
-// fire enough frames that well over 1,000 ms passes. The gap between consecutive
-// `status` messages must never exceed 1,000 ms (R2.12), and the controller must
-// throttle to at least ~100 ms between them (design: "a status message if at least
-// 100 ms have passed since the last one").
-test('status cadence: gaps between status messages stay within 1,000 ms and throttle to >= 100 ms', () => {
+// Real observation-bearing statuses bypass cadence; quiet statuses stay throttled.
+test('running status cadence remains bounded while new facts publish immediately', () => {
   loadWasm();
   const scheduler = new FakeFrameScheduler();
   const clock = new FakeClock(0);
   const { post, messages } = messageCollector<WorkerMessage>();
-  const controller = new SimController({ createSim: realCreateSim, scheduler, clock, post });
+  const times: number[] = [];
+  const controller = new SimController({ createSim: realCreateSim, scheduler, clock,
+    post: message => { post(message); if (message.type === 'status') times.push(clock.now()); } });
   controller.ready();
 
   // Create a world and start running.
@@ -156,28 +150,15 @@ test('status cadence: gaps between status messages stay within 1,000 ms and thro
   const totalMs = frames * frameMs;
   assert.ok(totalMs > 1_000, 'the loop advanced well past 1,000 ms');
 
-  // The controller stamps each status with the clock value read in that frame's
-  // #onFrame, and frame k (0-based) fires at clock time (k + 1) * frameMs because
-  // the clock is advanced before each flush. So the post times are fully
-  // determined by the throttle rule; `statusPostTimes` reconstructs them. We check
-  // the actual status count matches that schedule, then assert the cadence on the
-  // reconstructed times.
   const statuses = messages.filter((m): m is StatusMessage => m.type === 'status');
   assert.ok(statuses.length >= 2, 'running for ~1.9 s produces several status messages');
-
-  const times = statusPostTimes(frames, frameMs);
-  assert.deepEqual(
-    statuses.length,
-    times.length,
-    `status count (${statuses.length}) matches the throttle schedule (${times.length})`,
-  );
-
-  // The gap between consecutive status messages never exceeds 1,000 ms (R2.12)...
   for (let i = 1; i < times.length; i++) {
     const gap = times[i] - times[i - 1];
-    assert.ok(gap <= 1_000, `gap between status ${i - 1} and ${i} is ${gap} ms, must be <= 1000`);
-    // ...and the controller throttles to at least 100 ms between posts (design).
-    assert.ok(gap >= 100, `gap between status ${i - 1} and ${i} is ${gap} ms, must be >= 100 (throttle)`);
+    assert.ok(gap <= 1_000, `running status gap ${gap} ms must be <= 1000`);
+    const current = statuses[i]!.snapshot;
+    if (current.actions.length === 0 && current.playerLifecycle.length === 0 && current.story?.length === 0) {
+      assert.ok(gap >= 100, `quiet status gap ${gap} ms must respect the throttle`);
+    }
   }
 
   // The time from the run start (t=0) to the first status is within 1,000 ms too,
@@ -185,31 +166,9 @@ test('status cadence: gaps between status messages stay within 1,000 ms and thro
   assert.ok(times[0] <= 1_000, `first status at ${times[0]} ms must be within 1000 ms of the run start`);
 });
 
-/**
- * The clock times (ms) at which the controller posts a `status`, for a 60 Hz loop
- * of `frames` frames at `frameMs` per frame, under the controller's throttle:
- * post on the first frame (lastStatusTime null), then whenever at least 100 ms
- * have passed since the last post. Frame k (0-based) fires at clock time
- * (k + 1) * frameMs, since the clock is advanced before each flush.
- */
-function statusPostTimes(frames: number, frameMs: number): number[] {
-  const times: number[] = [];
-  let last: number | null = null;
-  for (let k = 0; k < frames; k++) {
-    const now = (k + 1) * frameMs;
-    if (last === null || now - last >= 100) {
-      times.push(now);
-      last = now;
-    }
-  }
-  return times;
-}
+// --- Fresh world playback ----------------------------------------------------
 
-// --- R4.5: Speed persists across create-world --------------------------------
-
-// A non-default Speed set with set-speed must survive creating a new world: the
-// snapshot of the second create-world reports the same Speed.
-test('a non-default Speed set with set-speed persists across create-world', () => {
+test('creating a fresh world resets temporary playback to Life and starts paused', () => {
   loadWasm();
   const scheduler = new FakeFrameScheduler();
   const clock = new FakeClock(0);
@@ -217,9 +176,7 @@ test('a non-default Speed set with set-speed persists across create-world', () =
   const controller = new SimController({ createSim: realCreateSim, scheduler, clock, post });
   controller.ready();
 
-  // A non-default Speed value (the default is SPEEDS[0] = 1).
-  const nonDefaultSpeed = SPEEDS[1];
-  assert.notEqual(nonDefaultSpeed, SPEEDS[0], 'the chosen Speed differs from the default');
+  const nonDefaultSpeed = 7;
 
   // set-speed needs a world first (set-speed in no-world replies no-world).
   controller.handle({ type: 'create-world', id: 1, seed: '1', config: CONFIG });
@@ -229,14 +186,14 @@ test('a non-default Speed set with set-speed persists across create-world', () =
   assert.equal(afterSetSpeed.ok, true, 'set-speed with a valid Speed succeeds');
   assert.equal(afterSetSpeed.snapshot.speed, nonDefaultSpeed, 'the Speed is now the non-default value');
 
-  // Create a NEW world; the reported Speed must still be the non-default value (R4.5).
+  // A new generation starts at Life rather than inheriting temporary playback.
   controller.handle({ type: 'create-world', id: 3, seed: '2', config: CONFIG });
   const afterCreate = replyFor(messages, 3);
   assert.equal(afterCreate.ok, true, 'the second create-world succeeds');
   assert.equal(
     afterCreate.snapshot.speed,
-    nonDefaultSpeed,
-    'Speed is kept across world creation (R4.5)',
+    1 / 6,
+    'a fresh world returns to Life playback',
   );
   // The new world is a fresh world (worldId incremented, paused, no checksum yet).
   assert.equal(afterCreate.snapshot.runState, 'paused', 'the new world starts paused');
@@ -265,7 +222,7 @@ test('create-world while running with a bad config leaves the old world running'
   assert.ok(worldId > 0, 'the running world has a non-zero worldId');
 
   controller.handle({ type: 'run', id: 2 });
-  clock.advance(34); // enough wall time for one Speed-1 tick
+  clock.advance(200); // one day at the fresh Life playback rate
   assert.ok(scheduler.flush(), 'one frame ran for the running world');
 
   // A create-world with a valid seed but an invalid config: new WasmSim throws, so
@@ -285,7 +242,7 @@ test('create-world while running with a bad config leaves the old world running'
   // The loop is still live: another frame advances the old world further, and a
   // pause then reports a tick greater than the one before the failed create.
   const tickBeforeFailed = tickNum(failed.snapshot.tick);
-  clock.advance(34);
+  clock.advance(200);
   assert.ok(scheduler.flush(), 'the old world is still scheduling frames');
   controller.handle({ type: 'pause', id: 4 });
   const paused = replyFor(messages, 4);

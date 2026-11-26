@@ -139,6 +139,54 @@ paper/document crop, not invented written terms; `road` retains the selected
 road-corner pavement crop. Soul's original ring and affected's original diamond
 are separate shape-distinct markers, never body identity inferred from color.
 
+## Life Unfolds stage composition
+
+All eight scene families use existing person material at 48 logical pixels
+(96 CSS pixels at the reference size) with original notebook, memorial,
+inheritance, debt, quarrel, life-stage, rebirth and Dream compositions.
+`src/art/stage-paint.ts` authors the missing large scenery and prop gaps as
+integer pixel fills, including three distinct rebirth settings: only actual
+Birth has a cradle/infant; Possession and Rebuild use adult/unknown-age portrait
+files and their own permit/receipt. Apache-2.0 project lineage and retained
+tile lineage are recorded in `runtime_art`. No new pack, external font,
+generated image or PNG atlas is introduced or modified.
+
+Pictures are 448×192 logical pixels, referenced at 896×384 CSS pixels. Node
+scenes perform for five seconds, Dream for 6.5 seconds, death/rebirth for seven.
+Actors/documents move 40–80 logical pixels with transform/opacity and document
+unfolding through clip-path. Paragraphs reveal at 35 characters per second;
+full accessible paragraphs/document facts and legal controls are immediate.
+Show all text affects words only. Skip settles decoration without submitting
+input. Reduced motion and hidden views use the final picture/text. Ordinary
+Run has gentle two-frame breathing and lamplight/cloth over cached art, with
+an explicitly cosmetic fictional-calendar palette; no weather is asserted.
+
+`KeyScene` retains `view`, `sprites`, `onClose`; optional `presentationVersion`
+settles decoration after a validated current action, `onSettled` reports
+settlement without closing/advancing, and `next` labels guarded Continue.
+`ScenePicture` adds optional `running` and `worldKey`; `onLayers` additionally
+provides the departure canvas, document element and split-actor counterpart.
+Its composition key includes source identity, actual name/date/age/origin,
+document/arrival facts, cosmetic palette and world identity, not animation time.
+
+`sceneQueue` takes optional actors in argument five, fresh exact DreamFacts in
+six and actual StoryEvents in seven. `lifecycleKeyScene` takes actors in four,
+events in five. Arrival price joins only exact EventId/kind/person.
+`dreamKeyScene` takes `(worldId, capturedWorld, actualFact, actors)`; it never
+substitutes sent date for an absent interpretation date. The fallback
+`dreamResolutionKeyScene` retains only actual resolution date/recipient/response
+and the captured stop World; it invents no ghost/intent/price/EventId/input.
+Every entry retains its own captured World, independently of an older active
+bundle. Lifecycle and exact Dream entries sort by numeric native EventId.
+Fallback admission remains fresh-stop T/T+1, with the integration owner keeping
+only the last admitted fallback key. Original queue-date/exact-entry close
+guards remain, ordinary ticks do not expire history, and only an admitted exact
+node retires its decision entry.
+
+Exact and fallback Dream use the same complete `KeyScene`/`ScenePicture`
+performance; the old standalone Dream/template staging path is removed.
+
+
 The life surface uses these atlases through one decoded `SpriteSet`; an asset
 failure is explicit and never substitutes placeholder art. Factual text and
 operations remain available independently of drawing. DOM text uses installed

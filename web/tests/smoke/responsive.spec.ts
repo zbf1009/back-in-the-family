@@ -8,25 +8,15 @@
 //   - R16.13 no Main_Thread task lasts longer than 50 ms from before Run until
 //     500 ms after the first automatic stop or the user pause at 10 s. Speed 1
 //     must run the full 10 s; higher Speeds may stop before a running sample.
-//   - R5.4  while the Run_State is `running`, the displayed tick advances at
-//     least once every 250 ms. Measured in-page by sampling the `tick` and
-//     `run-state` data-testids on a short interval across the running period and
-//     checking that, between consecutive samples that are both `running`, the
-//     displayed tick never stays unchanged for longer than 250 ms. The last
-//     sample before pause is allowed not to advance (a batch may be in flight or
-//     the run has just been paused), so the cadence is asserted only over
-//     windows that both begin and end while `running`.
+//   - The completed technical tick updates at the selected pace, including Read and Life.
+//     A slow pace must not be mistaken for a stalled main thread.
+//     Sampling uses technical tick/run-state leaves while ordinary player copy stays human.
 //
-// The run is driven through the PAGE CONTROLS (seed input, config textarea,
-// Speed select, Create / Run / Pause buttons), exactly as a developer would, so
-// the page's own UiState is the world being measured and its `run-state` becomes
-// `running`. (The harness feeds the same SimClient, but the page reducer only
-// adopts worker status for the world the PAGE created, so page controls are the
-// right driver for a display-cadence check.) The long-task observer and the
-// display sampling run in page.evaluate; the control clicks are Playwright
+// The run is driven through PAGE CONTROLS (Seed, Town size, Pace, Start / Play / Pause).
+// The long-task observer and display sampling run in page.evaluate; clicks remain real controls.
 // locator actions between them.
 //
-// All five Speeds are exercised inside the unchanged 120 s / 170 s bounds.
+// All seven paces are measured in bounded ten-second windows, never a full default lifetime.
 //
 // Run directly by Node (type-stripping); covered by tsconfig.node.json (Node
 // lib, no DOM), so the browser globals the evaluate callbacks touch are declared
@@ -84,7 +74,7 @@ interface ReplayFixture {
 const fixture = readFixture() as ReplayFixture;
 // A valid seed and config: reuse the fixture's, as the task allows.
 const SEED = fixture.seed;
-const CONFIG_JSON = JSON.stringify(fixture.config);
+const TOWN_SIZE = fixture.config.entity_count;
 
 // --- measurement parameters -------------------------------------------------
 
@@ -92,7 +82,7 @@ const CONFIG_JSON = JSON.stringify(fixture.config);
 const RUN_MS = 10_000;
 // R5.5: fail on any main-thread long task over this many milliseconds.
 const LONGTASK_LIMIT_MS = 50;
-// R5.4: the displayed tick must advance at least this often while running.
+// Existing fast cadence bound; slow paces allow their actual day interval plus sampling tolerance.
 const CADENCE_LIMIT_MS = 250;
 // How often the in-page loop samples the display. Well under CADENCE_LIMIT_MS so
 // a stall longer than 250 ms is caught, but not so tight that the sampling loop
@@ -168,9 +158,9 @@ async function sampleCadence(
       for (;;) {
         const now = window.performance.now();
 
-        const isRunning = readTestId('run-state') === 'running';
+        const isRunning = readTestId('technical-run-state') === 'running';
         const tickText = readTestId('tick');
-        const stopped = readTestId('run-state') === 'paused' && Number(tickText) > 0;
+        const stopped = readTestId('technical-run-state') === 'paused' && Number(tickText) > 0;
         if (stopped || now - start >= runMs) {
           return { worstCadenceGapMs, runningSamples, lastRunningTick,
             endedBy: stopped ? 'stop' : 'limit', elapsedMs: now - start };
@@ -280,12 +270,12 @@ async function measureSpeed(
   page: Page,
   speed: number,
 ): Promise<{ longTasks: number[]; cadence: CadenceResult; pausedTick: number; runToPauseMs: number }> {
-  // Create a fresh world from the page (seed + config + Create).
+  // Start a fresh world using actual advanced inputs, not raw configuration injection.
   await openWorldSetup(page);
   await page.getByTestId('seed').fill(SEED);
-  await page.getByTestId('config').fill(CONFIG_JSON);
+  await page.getByTestId('town-size').fill(String(TOWN_SIZE));
   await page.getByTestId('create').click();
-  await expect(page.getByTestId('run-state')).toHaveText('paused', { timeout: 5_000 });
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused', { timeout: 5_000 });
   await expect(page.getByTestId('tick')).toHaveText('0', { timeout: 5_000 });
 
   // Select the Speed from the fixed list (R4.4) before running.
@@ -303,10 +293,10 @@ async function measureSpeed(
   if (speed === 1) {
     expect(cadence.endedBy, 'Speed 1 must run for the full 10 s').toBe('limit');
     expect(cadence.elapsedMs).toBeGreaterThanOrEqual(RUN_MS);
-    await expect(page.getByTestId('run-state')).toHaveText('running');
+    await expect(page.getByTestId('technical-run-state')).toHaveText('running');
   }
   if (cadence.endedBy === 'limit') await page.getByTestId('pause').click();
-  await expect(page.getByTestId('run-state')).toHaveText('paused', { timeout: 5_000 });
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused', { timeout: 5_000 });
   const pausedTick = Number(await page.getByTestId('tick').textContent());
   expect(pausedTick, 'paused at a positive tick proves Run advanced').toBeGreaterThan(0);
   const runToPauseMs = await page.evaluate(() => {
@@ -330,6 +320,7 @@ test('main thread stays responsive and the display keeps cadence at every speed'
 
   for (const speed of SPEEDS) {
     const { longTasks, cadence, pausedTick, runToPauseMs } = await measureSpeed(page, speed);
+    const cadenceLimitMs = Math.max(CADENCE_LIMIT_MS, 1000 / (30 * speed) + 2 * SAMPLE_INTERVAL_MS);
     const maxLongTaskMs = longTasks.reduce((max, d) => (d > max ? d : max), 0);
     // Diagnostic line (not an assertion): the per-speed measurement summary.
     console.log(
@@ -353,7 +344,7 @@ test('main thread stays responsive and the display keeps cadence at every speed'
         .join(', ')})`,
     ).toBeLessThanOrEqual(LONGTASK_LIMIT_MS);
 
-    // R5.4: while running, the displayed tick advanced at least every 250 ms.
+    // A completed day cannot arrive more often than its selected pace.
     // worstCadenceGapMs is the longest the tick stayed unchanged across two
     // consecutive running samples; -1 means it advanced on every running sample.
     // The final tick not advancing when paused is allowed: only running->running
@@ -362,10 +353,10 @@ test('main thread stays responsive and the display keeps cadence at every speed'
       cadence.worstCadenceGapMs,
       `speed ${speed}: displayed tick stayed unchanged for ${cadence.worstCadenceGapMs.toFixed(
         1,
-      )} ms while running, longer than the ${CADENCE_LIMIT_MS} ms cadence bound (last tick ${
+      )} ms while running, longer than the ${cadenceLimitMs} ms pace-aware bound (last tick ${
         cadence.lastRunningTick ?? 'null'
       })`,
-    ).toBeLessThanOrEqual(CADENCE_LIMIT_MS);
+    ).toBeLessThanOrEqual(cadenceLimitMs);
   }
 
   finish();

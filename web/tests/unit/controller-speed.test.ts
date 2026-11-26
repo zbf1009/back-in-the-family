@@ -10,7 +10,7 @@
 // reference run uses the same seed, config and inputs, each input submitted before
 // the same tick; every snapshot with tick 0 has checksum null; after a successful
 // create-world every later snapshot carries the new worldId and Run_State paused
-// until a run; and Speed is unchanged by run, pause and create-world.
+// until a run; playback remains unchanged by run and pause within that world.
 //
 // This is the model-conformance property: the controller (real WasmSim from
 // target/wasm-pkg, a hand-driven FakeFrameScheduler, a FakeClock and a
@@ -307,11 +307,7 @@ test('controller-reported checksums match a speed-independent reference run at e
         );
       }
 
-      // Speed is unchanged by run, pause and create-world: the controller only
-      // changes Speed on a valid set-speed. Replay the pacing to track the expected
-      // Speed and check every reported Speed is one of SPEEDS (the stored Speed is
-      // only ever a SPEEDS member, R4.5). The exact mid-sequence Speed is asserted
-      // through the checksum match above (a wrong batch size would diverge).
+      // Every reported playback value remains a supported speed.
       for (const s of snapshots) {
         assert.ok(
           (SPEEDS as readonly number[]).includes(s.speed),
@@ -403,6 +399,7 @@ test('a tick reached by stepping, by Speed 1, and by Speed 365 reports one check
   // Pause at the end so an ok reply reports a snapshot at exactly tick 5 (status
   // messages are throttled to every 100 ms and might skip the final tick).
   const bySpeed1 = reportedChecksumAt(5, ({ controller, scheduler, clock, nextId }) => {
+    controller.handle({ type: 'set-speed', id: nextId(), speed: 1 });
     controller.handle({ type: 'run', id: nextId() });
     for (let i = 0; i < 5; i++) {
       clock.advance(34);

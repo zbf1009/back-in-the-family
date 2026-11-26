@@ -108,7 +108,7 @@ export class PacingReference {
   }
 
   frame(now: number, speed: number): number {
-    const target = Math.floor((now - this.anchor) * speed * 30 / 1000);
+    const target = Math.floor((now - this.anchor) * (speed * 30) / 1000);
     if (target - this.total > speed * 30) {
       this.reset(now);
       return 0;

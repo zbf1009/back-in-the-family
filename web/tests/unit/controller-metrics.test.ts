@@ -4,18 +4,19 @@ import fc from 'fast-check';
 import { WasmSim, verify_replay } from '../../../target/wasm-pkg/sim_wasm.js';
 import { DecisionMetrics, type DecisionMetricsReport } from '../../src/shared/decision-metrics.ts';
 import { PROJECT_REQUEST_BYTE_CAP, type DecisionFamily, type ModelDecision } from '../../src/shared/decision.ts';
-import type { Reply, Request, WorkerMessage } from '../../src/shared/protocol.ts';
+import type { Reply, Request, RunUntilStopResult, WorkerMessage } from '../../src/shared/protocol.ts';
 import { SimController, type SimHandle } from '../../src/worker/controller.ts';
 import { DecisionBridge, DecisionFailure, type DecisionPreview, type DecisionWasm } from '../../src/worker/decision-bridge.ts';
 import { actualSim, ControlledDecisionClient, DecisionClock, HandlerDecisionClient, config, mapping, modelDecision,
   realPreviews, settle, transportPaddedWasm, wasm } from './helpers/decision.ts';
-import { FakeFrameScheduler } from './helpers/fakes.ts';
+import { emptyStoryBatch, FakeFrameScheduler } from './helpers/fakes.ts';
 import { checkedReceipt } from './helpers/wasm.ts';
 
 class Frames extends FakeFrameScheduler {
   readonly callbacks: (() => void)[] = [];
   override request(callback: () => void): number { this.callbacks.push(callback); return super.request(callback); }
 }
+/** Synthetic metrics port: no native world events or story stream. */
 class Port implements SimHandle {
   tickValue = 0n;
   nextSeq = 0n;
@@ -25,6 +26,7 @@ class Port implements SimHandle {
   rejectTrigger = false;
   preview = realPreviews()[0]!;
   snapshot(): string { return JSON.stringify({ tick: this.tickValue.toString(), underworld_view: null }); }
+  story_opening(): string { return JSON.stringify(emptyStoryBatch(true)); }
   tick(): bigint { return this.tickValue; }
   player_node_state(): string { return '{"pending":false}'; }
   checksums(): string { return '[]'; }
@@ -37,7 +39,13 @@ class Port implements SimHandle {
   }
   step(): string { this.tickValue++; return '0000000000000001'; }
   run_ticks(n: number): string { this.tickValue += BigInt(n); return '0000000000000001'; }
-  run_until_stop(n: number): string { this.tickValue += BigInt(n); return JSON.stringify({ ran: n, checksum: '0000000000000001', stops: [], actions: [], player_lifecycle: [] }); }
+  run_until_stop(n: number): string {
+    this.tickValue += BigInt(n);
+    const result: RunUntilStopResult = {
+      ran: n, checksum: '0000000000000001', stops: [], actions: [], player_lifecycle: [], story: emptyStoryBatch(),
+    };
+    return JSON.stringify(result);
+  }
   export_replay(): string { return JSON.stringify({ tick: this.tickValue.toString(), inputs: this.batches }); }
 }
 async function setup(options: { ready?: boolean; cap?: number; enabled?: boolean; wasm?: DecisionWasm } = {}) {

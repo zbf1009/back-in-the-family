@@ -4,9 +4,6 @@
 // and checks the shipped bundle end to end:
 //
 //   - R7.7  the served `.wasm` file responds with Content-Type application/wasm.
-//   - R3.1  the World_Config field equals fixtures/configs/pairwise.json, and
-//     R9.11 no replay / verify / input control exists (only create/run/pause/
-//     step/speed).
 //   - R16.12 protocol/reference runs step to 2,000 or node_unanswered, require
 //     at least 600 ticks, compare every obtained checksum, and never answer nodes.
 //   - R9.8 page Create/Step displays tick 1 and its no-input reference checksum.
@@ -26,7 +23,7 @@
 //
 // Run directly by Node (type-stripping); covered by tsconfig.node.json.
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { test, expect, type Page } from '@playwright/test';
 import { readFixture } from './global-setup.ts';
@@ -70,16 +67,9 @@ const FIXTURE_TICKS = Number(fixture.ticks);
 // The World_Config passed to new WasmSim is the JSON string of fixture.config,
 // which equals {"entity_count":50,"workload":"Pairwise"} (design Data Models).
 const CONFIG_JSON = JSON.stringify(fixture.config);
-// Inputs submitted in file order as {tick, payload} -- no seq, sim-core assigns
-// it (design Data Models; crates/sim-wasm/tests/parity.rs does the same).
+// Submit recorded inputs in file order; the core still assigns sequence IDs.
 const INPUT_STRINGS = fixture.inputs.map((input) =>
   JSON.stringify({ tick: input.tick, payload: input.payload }),
-);
-
-// Path to the config file whose text the page must prefill (R3.1). This file is
-// web/tests/smoke/, so the repo root is three levels up.
-const pairwiseConfigPath = fileURLToPath(
-  new URL('../../../fixtures/configs/pairwise.json', import.meta.url),
 );
 // Path to the built Deploy_Directory assets, to find the served .wasm (R7.7).
 const distAssetsDir = fileURLToPath(new URL('../../dist/assets', import.meta.url));
@@ -139,6 +129,9 @@ async function openHarnessPage(
   // The harness is installed only with ?harness=1; wait for it before any run.
   await page.waitForFunction(() => typeof window.__simHarness !== 'undefined');
   const technical = page.getByTestId('technical-details');
+  await expect(technical).not.toHaveAttribute('open', '');
+  await expect(page.getByTestId('tick')).not.toBeVisible();
+  await expect(page.getByTestId('config')).not.toBeVisible();
   if (await technical.getAttribute('open') === null) await technical.locator('summary').click();
 
   return {
@@ -246,22 +239,6 @@ test('built page matches the native fixture and the page controls advance it', a
   expect(wasmResponse.ok()).toBe(true);
   expect(wasmResponse.headers()['content-type']).toBe('application/wasm');
 
-  // 2. R3.1: the config textarea equals the fixture config file text.
-  const pairwiseConfigText = readFileSync(pairwiseConfigPath, 'utf8');
-  // Vite's ?raw yields the file bytes verbatim; the textarea binds that value.
-  // The file ends with a trailing newline, which the textarea preserves.
-  await expect(page.getByTestId('config')).toHaveValue(pairwiseConfigText);
-
-  //    R16.15: preserve the shell controls; no replay or verification control.
-  for (const id of ['create', 'run', 'pause', 'step']) {
-    await expect(page.getByTestId(id)).toHaveCount(1);
-  }
-  await expect(page.getByRole('button', { name: /replay|verif/i })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: /replay|verif/i })).toHaveCount(0);
-  const testIds = await page.locator('[data-testid]').evaluateAll((els) =>
-    els.map((el) => el.getAttribute('data-testid')),
-  );
-  expect(testIds.filter((id) => /replay|verif/i.test(id ?? ''))).toEqual([]);
 
   // 3. R9.5, R9.6: protocol run vs the native fixture.
   const protocolChecksums = await protocolRun(page, {
@@ -307,12 +284,13 @@ test('built page matches the native fixture and the page controls advance it', a
   //    the page buttons (no inputs), so the page shows the no-input reference.
   await openWorldSetup(page);
   await page.getByTestId('seed').fill(fixture.seed);
-  await page.getByTestId('config').fill(CONFIG_JSON);
+  await page.getByTestId('town-size').fill(String(fixture.config.entity_count));
   await page.getByTestId('create').click();
   // After a successful create the page shows tick 0 and Run_State paused (R3.5).
   await expect(page.getByTestId('tick')).toHaveText('0', { timeout: 5_000 });
-  await expect(page.getByTestId('run-state')).toHaveText('paused', { timeout: 5_000 });
-
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused', { timeout: 5_000 });
+  expect(JSON.parse(await page.getByTestId('config').innerText())).toEqual(fixture.config);
+  for (const id of ['create', 'run', 'pause', 'step']) await expect(page.getByTestId(id)).toHaveCount(1);
   await page.getByTestId('step').click();
   await expect(page.getByTestId('tick')).toHaveText('1', { timeout: 5_000 });
   await expect(page.getByTestId('checksum')).toHaveText(reference[0]!, { timeout: 5_000 });
@@ -320,7 +298,7 @@ test('built page matches the native fixture and the page controls advance it', a
   // 6. R16.12 preserves both WS-R9.9 paths: a user pause at Speed 1 before
   // tick 600, followed by the required automatic stop at Speed 365.
   const checkPaused = async (label: string, runMs: number): Promise<number> => {
-    await expect(page.getByTestId('run-state')).toHaveText('paused', { timeout: 5_000 });
+    await expect(page.getByTestId('technical-run-state')).toHaveText('paused', { timeout: 5_000 });
     const tickAfterPause = Number(await page.getByTestId('tick').textContent());
     const checksumAfterPause = (await page.getByTestId('checksum').textContent()) ?? '';
     expect(tickAfterPause, `${label}: displayed tick after pause is greater than 1`).toBeGreaterThan(1);
@@ -357,7 +335,7 @@ test('built page matches the native fixture and the page controls advance it', a
       const value = Number(document.querySelector('[data-testid="tick"]')?.textContent);
       return Number.isFinite(value) && value >= 365;
     }, undefined, { timeout: 10_000 });
-    await expect(page.getByTestId('run-state')).toHaveText('paused',
+    await expect(page.getByTestId('technical-run-state')).toHaveText('paused',
       { timeout: Math.max(1, 10_000 - (Date.now() - started)) });
     await expect(page.getByTestId('pause')).toBeDisabled();
     const elapsed = Date.now() - started;

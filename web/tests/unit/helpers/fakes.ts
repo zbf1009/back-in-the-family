@@ -9,6 +9,15 @@
 // clock independence (Property 6) checkable without any real timing.
 
 import type { Clock, FrameScheduler, SimHandle } from '../../../src/worker/controller.ts';
+import type { StoryBatch } from '../../../src/shared/story.ts';
+
+/** Intentional no-event story stream for synthetic handles, never real WASM. */
+export function emptyStoryBatch(opening = false): StoryBatch {
+  return {
+    version: 1, opening, actors: [], events: [], chronicle: [], dreams: [],
+    cursors: { events: { start: '0', end: '0' }, chronicle: { start: '0', end: '0' } },
+  };
+}
 
 /**
  * A `FrameScheduler` fired by hand. `request(cb)` stores the callback and returns
@@ -109,6 +118,7 @@ export type RecordedCall =
   | { method: 'run_ticks'; n: number }
   | { method: 'run_until_stop'; n: number }
   | { method: 'snapshot' }
+  | { method: 'story_opening' }
   | { method: 'submit_checked'; input: string }
   | { method: 'checksums'; from: bigint; to: bigint }
   | { method: 'player_node_state' }
@@ -162,6 +172,11 @@ export class RecordingSimHandle implements SimHandle {
   snapshot(): string {
     this.#calls.push({ method: 'snapshot' });
     return this.#inner.snapshot();
+  }
+
+  story_opening(): string {
+    this.#calls.push({ method: 'story_opening' });
+    return this.#inner.story_opening();
   }
 
   submit_checked(input: string): string {

@@ -6,16 +6,17 @@ import { SimController, type SimHandle } from '../../src/worker/controller.ts';
 import { DecisionBridge, type DecisionPreview, type DecisionWasm } from '../../src/worker/decision-bridge.ts';
 import { PROJECT_REQUEST_BYTE_CAP, isDecisionError } from '../../src/shared/decision.ts';
 import type { Reply, Request, RunUntilStopResult, WorkerMessage } from '../../src/shared/protocol.ts';
-import { PLAY_RATE, SPEEDS } from '../../src/shared/speeds.ts';
+import { DEFAULT_SPEED, PLAY_RATE, SPEEDS } from '../../src/shared/speeds.ts';
 import { actualSim, ControlledDecisionClient, DecisionClock, HandlerDecisionClient, config, mapping,
   modelDecision, realPreviews, settle, transportPaddedWasm, wasm } from './helpers/decision.ts';
-import { FakeFrameScheduler } from './helpers/fakes.ts';
+import { emptyStoryBatch, FakeFrameScheduler } from './helpers/fakes.ts';
 import { checkedReceipt } from './helpers/wasm.ts';
 
 class Frames extends FakeFrameScheduler {
   readonly callbacks: (() => void)[] = [];
   override request(callback: () => void): number { this.callbacks.push(callback); return super.request(callback); }
 }
+/** Synthetic decision port: no native world events or story stream. */
 class Port implements SimHandle {
   tickValue = 0n;
   nextSeq = 0n;
@@ -25,6 +26,7 @@ class Port implements SimHandle {
   reject: string | null = null;
   previewResult: unknown = realPreviews()[0]!;
   snapshot(): string { return JSON.stringify({ tick: this.tickValue.toString(), underworld_view: null }); }
+  story_opening(): string { return JSON.stringify(emptyStoryBatch(true)); }
   tick(): bigint { return this.tickValue; }
   player_node_state(): string { return '{"pending":false}'; }
   checksums(): string { return '[]'; }
@@ -38,7 +40,13 @@ class Port implements SimHandle {
   preview_node(): string { this.previews++; return JSON.stringify(this.previewResult); }
   step(): string { this.tickValue++; return '0000000000000001'; }
   run_ticks(n: number): string { this.tickValue += BigInt(n); return '0000000000000001'; }
-  run_until_stop(n: number): string { this.tickValue += BigInt(n); return JSON.stringify({ ran: n, checksum: '0000000000000001', stops: [], actions: [], player_lifecycle: [] }); }
+  run_until_stop(n: number): string {
+    this.tickValue += BigInt(n);
+    const result: RunUntilStopResult = {
+      ran: n, checksum: '0000000000000001', stops: [], actions: [], player_lifecycle: [], story: emptyStoryBatch(),
+    };
+    return JSON.stringify(result);
+  }
   export_replay(): string { return JSON.stringify({ ticks: this.tickValue.toString(), inputs: this.batches }); }
 }
 async function setup(options: { ready?: boolean; enabled?: boolean; cap?: number; port?: Port; wasm?: DecisionWasm } = {}) {
@@ -141,7 +149,7 @@ test('rejected and no-node previews produce original typed failure with no infer
 test('unready config zero wait and exhausted budget leave the running frame and pacing untouched', async () => {
   for (const mode of ['pending', 'zero', 'cap'] as const) {
     const h = await setup({ ready: mode !== 'pending', cap: mode === 'cap' ? 0 : 40 });
-    const speed = SPEEDS[0]; const rate = speed * PLAY_RATE;
+    const speed = 1; const rate = speed * PLAY_RATE;
     h.send({ type: 'set-speed', id: 10, speed }); assert.equal(h.reply(10).ok, true);
     if (mode === 'zero') h.send({ type: 'set-decision-wait', id: 2, seconds: 0 });
     h.send({ type: 'run', id: 3 }); const frame = h.frames.pendingHandle;
@@ -333,7 +341,7 @@ test('rejected preview and local typed renderer failure preserve accumulated run
       ...wasm, llm_render_system_one: () => '{"ok":false,"error":{"kind":"render"}}',
     } : wasm });
     if (mode === 'preview') h.port.previewResult = { ok: false, error: { kind: 'no_node' } };
-    const speed = SPEEDS[0]; const rate = speed * PLAY_RATE;
+    const speed = 1; const rate = speed * PLAY_RATE;
     h.send({ type: 'set-speed', id: 10, speed }); assert.equal(h.reply(10).ok, true);
     h.send({ type: 'run', id: 2 });
     // Fifty-ms Frames deliver the full playback rate rather than hitting the
@@ -352,7 +360,7 @@ test('rejected preview and local typed renderer failure preserve accumulated run
 });
 
 test('disabled ready configuration uses rules without changing pending frame or running anchor', async () => {
-  const h = await setup({ enabled: false }); const speed = SPEEDS[0]; const rate = speed * PLAY_RATE;
+  const h = await setup({ enabled: false }); const speed = 1; const rate = speed * PLAY_RATE;
   h.send({ type: 'set-speed', id: 10, speed }); assert.equal(h.reply(10).ok, true);
   h.send({ type: 'run', id: 2 });
   const frame = h.frames.pendingHandle; h.clock.advance(100); h.dream(3);
@@ -434,7 +442,7 @@ test('the input and frame lock is already active inside the WASM preview call', 
       const rejected = h.reply(id);
       assert.ok(!rejected.ok && rejected.kind === 'decision_pending');
       assert.equal(rejected.snapshot.runState, 'running');
-      assert.equal(rejected.snapshot.speed, 1);
+      assert.equal(rejected.snapshot.speed, DEFAULT_SPEED);
       assert.equal(rejected.snapshot.decision?.pending?.requestId, 3);
     }
     return preview();

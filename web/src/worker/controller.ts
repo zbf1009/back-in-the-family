@@ -11,8 +11,9 @@
 
 import type { CheckedSubmission, DecisionNotice, DecisionPreviewError, ErrorKind, PlayerNodeState, Reply, Request, Snapshot, StopPayload, RunUntilStopResult, WorkerMessage } from '../shared/protocol.ts';
 import type { ActionResult, PlayerLifecycleFact, SubmissionReceipt, WorldSnapshot } from '../shared/world-snapshot.ts';
+import type { StoryBatch, StoryDelivery } from '../shared/story.ts';
 import { parseSeed } from '../shared/seed.ts';
-import { isSpeed, SPEEDS, type Speed } from '../shared/speeds.ts';
+import { DEFAULT_SPEED, isSpeed, type Speed } from '../shared/speeds.ts';
 import { TpsWindow } from './tps.ts';
 import { ticksDue } from './pacer.ts';
 import type { DecisionBridge, DecisionPreview, DecisionTiming } from './decision-bridge.ts';
@@ -25,6 +26,7 @@ export interface SimHandle {
   run_ticks(n: number): string;
   run_until_stop(max: number): string;
   snapshot(): string;
+  story_opening(): string;
   /** Returns JSON; malformed payload arrays throw a JsError, not a fatal panic. */
   submit_checked(inputs_json: string): string;
   checksums(from: bigint, to: bigint): string;
@@ -93,8 +95,8 @@ export class SimController {
   #world: World | null = null;
   /** `no-world` iff `#world === null`, unless a fatal error set it to `failed`. */
   #runState: Snapshot['runState'] = 'no-world';
-  /** The current Speed; starts at 1 and is kept across create, run and pause (R4.5). */
-  #speed: Speed = SPEEDS[0];
+  /** New games begin at Life pace; all paces retain the same day rules. */
+  #speed: Speed = DEFAULT_SPEED;
   /** The checksum of the last completed tick, or null before the first tick (R2.5). Reset on create. */
   #lastChecksum: string | null = null;
   /** The one outstanding Frame request; non-null only while `running` (R4.3). */
@@ -105,6 +107,7 @@ export class SimController {
   #decisionOutcome: DecisionNotice | null = null;
   #actions: ActionResult[] = [];
   #playerLifecycle: PlayerLifecycleFact[] = [];
+  #story: StoryDelivery[] = [];
   readonly #actionRequests = new Map<string, { worldId: number; requestId: number }>();
   #cancelDecisionStatus: (() => void) | null = null;
   /** The Ticks_Per_Second window; reset on each run (R2.12, R5.6). */
@@ -318,8 +321,11 @@ export class SimController {
     // replace the old world, so a failed create leaves a running world running
     // (R2.10, R3.6, R3.7).
     let handle: SimHandle;
+    let opening: StoryBatch;
     try {
       handle = this.#createSim(seed.value, req.config);
+      opening = JSON.parse(handle.story_opening());
+      this.#checkStory(opening);
     } catch (e) {
       this.#post(this.#failReply(req, 'sim-error', errorText(e)));
       return;
@@ -335,14 +341,16 @@ export class SimController {
     this.#world = { handle, worldId: this.#nextWorldId++ };
     // Synchronous serial dispatch has no old-World request backlog; startup FIFO must retain every reply.
     this.#runState = 'paused';
+    this.#speed = DEFAULT_SPEED;
     this.#lastChecksum = null; // no tick has run for the new world yet (R3.5)
     this.#decisionOutcome = null;
     this.#actions = [];
     this.#playerLifecycle = [];
+    this.#story = [{ worldId: this.#world.worldId, batch: opening }];
     this.#actionRequests.clear();
     this.#lastTick = handle.tick();
     this.#refreshPending();
-    this.#post(this.#okReply(req));
+    this.#post({ ...this.#okReply(req), world: this.#readWorld(handle) });
   }
 
   #run(req: Request & { type: 'run' }): void {
@@ -725,7 +733,7 @@ export class SimController {
       this.#post({ type: 'status', snapshot: { ...this.#snapshot(now), stop } });
       return true;
     }
-    if (this.#actions.length > 0 || this.#playerLifecycle.length > 0) {
+    if (this.#actions.length > 0 || this.#playerLifecycle.length > 0 || this.#story.length > 0) {
       this.#lastStatusTime = now;
       this.#post({ type: 'status', snapshot: this.#snapshot(now) });
     }
@@ -781,6 +789,10 @@ export class SimController {
       throw new Error('WASM interface error: required actions/player_lifecycle batch leaves');
     }
     const worldId = this.#world!.worldId;
+    this.#checkStory(result.story);
+    if (result.story.events.length > 0 || result.story.chronicle.length > 0 || result.story.dreams.length > 0) {
+      this.#story.push({ worldId, batch: result.story });
+    }
     for (const action of result.actions) {
       const binding = this.#actionRequests.get(action.input_seq);
       this.#actions.push({ ...action, worldId,
@@ -792,6 +804,14 @@ export class SimController {
     this.#lastTick = this.#world!.handle.tick();
     this.#refreshPending();
     return result;
+  }
+
+  #checkStory(batch: StoryBatch): void {
+    if (batch?.version !== 1 || typeof batch.opening !== 'boolean' || !Array.isArray(batch.actors)
+      || !Array.isArray(batch.events) || !Array.isArray(batch.chronicle) || !Array.isArray(batch.dreams)
+      || batch.cursors?.events == null || batch.cursors.chronicle == null) {
+      throw new Error('WASM interface error: required StoryBatch version 1 leaves');
+    }
   }
 
   #stopPayload(result: RunUntilStopResult): StopPayload {
@@ -819,6 +839,7 @@ export class SimController {
     if (message.type === 'fatal') return;
     if (message.snapshot.actions === this.#actions) this.#actions = [];
     if (message.snapshot.playerLifecycle === this.#playerLifecycle) this.#playerLifecycle = [];
+    if (message.snapshot.story === this.#story) this.#story = [];
   }
 
   #readWorld(handle: SimHandle): WorldSnapshot {
@@ -872,6 +893,7 @@ export class SimController {
       playerNode: this.#pending,
       actions: this.#actions,
       playerLifecycle: this.#playerLifecycle,
+      story: this.#story,
       ...(this.#decision === undefined ? {} : { decision: {
         ...this.#decision.bridge.status(),
         pending: this.#decisionPending === null ? null : {

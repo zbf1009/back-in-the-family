@@ -87,6 +87,13 @@ impl WasmSim {
         sim_core::snapshot::snapshot_json(self.inner.world())
     }
 
+    /// Plain-Rust body of [`WasmSim::story_opening`]: exact native story JSON.
+    /// Only fresh successful Create uses this as opening history.
+    pub fn story_opening_json(&self) -> String {
+        serde_json::to_string(&sim_core::story::story_opening(self.inner.world()))
+            .expect("the read-only story prefix serializes")
+    }
+
     /// Plain-Rust body of [`WasmSim::export_replay`].
     pub fn export_replay_json(&self) -> Result<String, String> {
         ReplayFile::from_sim(&self.inner)
@@ -169,6 +176,11 @@ impl WasmSim {
     /// The Snapshot JSON of the current World (R18), compact and read-only.
     pub fn snapshot(&self) -> String {
         self.snapshot_string()
+    }
+
+    /// Read-only fresh-create history with actual actors and half-open cursors.
+    pub fn story_opening(&self) -> String {
+        self.story_opening_json()
     }
 
     /// Audit-only v5 JSON from the live run, including inputs still queued.

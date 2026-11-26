@@ -5,7 +5,7 @@ import fc from 'fast-check';
 import { SimController, type SimHandle } from '../../src/worker/controller.ts';
 import type { PlayerNodeState, Reply, RequestWithoutId, RunUntilStopResult, WorkerMessage } from '../../src/shared/protocol.ts';
 import { SPEEDS } from '../../src/shared/speeds.ts';
-import { FakeClock, FakeFrameScheduler, RecordingSimHandle, messageCollector } from './helpers/fakes.ts';
+import { emptyStoryBatch, FakeClock, FakeFrameScheduler, RecordingSimHandle, messageCollector } from './helpers/fakes.ts';
 import { createSim } from './helpers/wasm.ts';
 
 class CountingClock extends FakeClock {
@@ -44,6 +44,7 @@ class StopSim implements SimHandle {
   }
   tick(): bigint { return this.current; }
   snapshot(): string { return JSON.stringify({ tick: String(this.current), chronicle: this.resolved, underworld_view: null }); }
+  story_opening(): string { return JSON.stringify(emptyStoryBatch(true)); }
   player_node_state(): string { return JSON.stringify(this.pending); }
   checksums(from: bigint, to: bigint): string { return JSON.stringify(this.history.slice(Number(from), Number(to + 1n))); }
   submit(input: string): void {
@@ -86,7 +87,10 @@ class StopSim implements SimHandle {
         break;
       }
     }
-    return JSON.stringify({ ran, checksum: this.history.at(-1) ?? '', stops, actions: [], player_lifecycle: [] });
+    const result: RunUntilStopResult = {
+      ran, checksum: this.history.at(-1) ?? '', stops, actions: [], player_lifecycle: [], story: emptyStoryBatch(),
+    };
+    return JSON.stringify(result);
   }
 }
 
@@ -299,6 +303,7 @@ test('world replacement ignores already-queued callbacks even after the new worl
   const sims: StopSim[] = [];
   const r = rig(() => { const sim = new StopSim(2, ['player_node']); sims.push(sim); return sim; });
   r.send({ type: 'create-world', seed: '1', config: '{}' });
+  r.send({ type: 'set-speed', speed: 1 });
   r.send({ type: 'run' }); const old = r.scheduler.lastCallback!; const scheduled = r.scheduler.pendingHandle!;
   r.clock.advance(100); r.scheduler.flush();
   assert.equal(sims[0].pending.pending, true);
@@ -309,7 +314,7 @@ test('world replacement ignores already-queued callbacks even after the new worl
   old();
   assert.deepEqual(r.handles.map((h) => h.calls.length), calls); assert.equal(r.messages.length, messages);
   assert.equal(r.scheduler.pendingHandle, newHandle, 'stale callback cannot clear the new callback');
-  r.clock.advance(34); r.scheduler.flush(); assert.equal(sims[1].tick(), 1n);
+  r.clock.advance(200); r.scheduler.flush(); assert.equal(sims[1].tick(), 1n);
 });
 
 test('C3 real WASM: refusal at first stop, rejected choice stays shut, accepted choice resolves externally', () => {
@@ -356,6 +361,7 @@ test('C3 real WASM: run after an accepted choice advances Frames and resolves ex
     return createSim(actualSeed, actualConfig);
   }, 987_654_321);
   r.send({ type: 'create-world', seed, config });
+  const createReads = r.handles[0].calls.length;
   r.send({ type: 'set-speed', speed: 365 }); r.send({ type: 'run' });
   while (r.scheduler.isPending) { r.clock.advance(50); r.scheduler.flush(); }
   const stopped = r.send({ type: 'world-snapshot' }); assert.ok(stopped.ok && stopped.world);
@@ -378,13 +384,17 @@ test('C3 real WASM: run after an accepted choice advances Frames and resolves ex
   while (r.scheduler.isPending) { r.clock.advance(50); r.scheduler.flush(); }
   const nextStop = r.messages.filter((message) => message.type === 'status' && message.snapshot.stop).at(-1);
   assert.ok(nextStop && nextStop.type === 'status');
-  for (const call of rec.calls) {
+  assert.equal(rec.calls.filter(call => call.method === 'story_opening').length, 1);
+  for (const [index, call] of rec.calls.entries()) {
     if (call.method === 'run_until_stop') {
       assert.ok(Number.isInteger(call.n) && call.n > 0 && call.n <= 548, 'only bounded tick counts cross the paced seam');
       assert.deepEqual(Object.keys(call).sort(), ['method', 'n']);
     } else if (call.method === 'submit_checked') {
       assert.deepEqual(call, { method: 'submit_checked', input: JSON.stringify([{ ChoosePlayer: { node: '1', option } }]) },
         'checked payload contains exactly the Snapshot node and selected option, no clock/random value');
+    } else if (call.method === 'story_opening') {
+      assert.ok(index < createReads, 'opening is read only during fresh Create, never during a later input or Frame');
+      assert.deepEqual(call, { method: 'story_opening' });
     } else {
       assert.ok(call.method === 'tick' || call.method === 'snapshot' || call.method === 'player_node_state');
       assert.deepEqual(call, { method: call.method }, 'read seams receive no arguments');

@@ -5,6 +5,7 @@ import type { UiState } from '../../src/main/ui-state.ts';
 import { sceneQueue } from '../../src/main/scene-queue.ts';
 import type { DecisionStatus, Reply, Request, Snapshot } from '../../src/shared/protocol.ts';
 import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
+import { transportText } from '../../src/main/player-copy.ts';
 
 function session(patch: Partial<DecisionStatus> = {}): DecisionStatus {
   return { config: 'ready', enabled: true, sessionCap: 40, spent: 1, waitSeconds: 10, pending: null, outcome: null, ...patch };
@@ -117,13 +118,18 @@ test('World replacement clears outcome and hold but retains worker-owned wait ca
   assert.strictEqual(reply(next, { type: 'dream', id: 12, dreamer: 1, intent: 'warn' }, ui.decision!, { snapshot: snapshot(ui, ui.decision!) }), next);
 });
 
-test('typed Dream preview rejection never displays arbitrary error text or records a Dream', () => {
+test('typed Dream preview rejection keeps technical diagnostics separate from player copy and records no Dream', () => {
   for (const previewError of [{ kind: 'no_node' }, { kind: 'malformed' }, { kind: 'rejected', reason: 'provider secret' }] as const) {
     const ui = held();
     const next = reduce(ui, { type: 'reply', request: { type: 'dream', id: 12, dreamer: 1, intent: 'warn' },
       message: { type: 'reply', id: 12, ok: false, kind: 'preview-error', error: 'provider secret', previewError,
         snapshot: snapshot(ui, session()) } });
-    assert.ok(next.error); assert.doesNotMatch(next.error!, /provider secret/);
+    assert.equal(next.error, 'provider secret', 'the technical diagnostic retains the actual failure');
+    assert.equal(next.errorKind, 'preview-error');
+    assert.equal(next.errorOperation, 'dream');
+    const playerError = transportText(next.errorKind!, next.error ?? undefined, next.errorOperation);
+    assert.ok(playerError.trim());
+    assert.doesNotMatch(playerError, /provider secret|private detail/);
     assert.equal(next.actions[0]!.error, next.error);
     assert.equal(next.tick, ui.tick); assert.equal(next.underworldRecorded, null); assert.equal(next.scene, null);
   }
@@ -149,7 +155,7 @@ for (const priorOutcome of [false, true]) {
       ui = reply(ui, { type: 'dream', id: 12, dreamer: 1, intent: 'warn' }, session({
         outcome: { requestId: 12, worldId: 1, kind: 'model', option: 'heed_warning', usage: null },
       }), { world: ui.world! });
-      assert.equal(decisionNotice(ui), 'Decision recorded.');
+      assert.equal(ui.decision?.outcome?.kind, 'model');
       ui = reply(ui, { type: 'step', id: 13 }, ui.decision!, {
         snapshot: { ...snapshot(ui, ui.decision!), tick: '501', checksum: '2222222222222222' },
         world: { ...ui.world!, tick: '501' },
@@ -166,7 +172,13 @@ for (const priorOutcome of [false, true]) {
       kind: 'rejected', error: 'private detail', previewError: { kind: 'rejected', reason: 'insufficient_joss' },
       snapshot: snapshot(before, retained) };
     ui = reduce(sending, { type: 'reply', request: dream, message: failed });
-    assert.equal(ui.error, 'Dream was not recorded. Check the available dreamer and joss paper.');
+    assert.equal(ui.error, failed.error, 'technical diagnostics preserve the raw rejection');
+    assert.equal(ui.errorKind, failed.kind);
+    assert.equal(ui.errorOperation, dream.type);
+    const playerError = transportText(ui.errorKind!, ui.error ?? undefined, ui.errorOperation);
+    assert.ok(playerError.trim());
+    assert.doesNotMatch(playerError, /provider secret|private detail/);
+    assert.deepEqual(ui.world, before.world);
     assert.equal(ui.tick, before.tick); assert.equal(ui.checksum, before.checksum);
     assert.deepEqual(ui.decision, retained); assert.equal(ui.decisionRequestId, 20);
     assert.equal(decisionBusy(ui), false); assert.equal(decisionNotice(ui), null);
@@ -195,7 +207,7 @@ for (const priorOutcome of [false, true]) {
       assert.equal(observed.error, ui.error); assert.equal(decisionBusy(observed), false);
     }
     ui = reduce(ui, { type: 'status', snapshot: snapshot(before, retained) });
-    assert.equal(ui.error, 'Dream was not recorded. Check the available dreamer and joss paper.');
+    assert.equal(ui.error, failed.error);
 
     const runSnapshot: Snapshot = { ...snapshot(before, retained), runState: 'running' };
     ui = reduce(ui, { type: 'request-sent', request: { type: 'run', id: 21 } });

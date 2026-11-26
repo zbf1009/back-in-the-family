@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fc from 'fast-check';
 import { SimController, type SimHandle } from '../../src/worker/controller.ts';
 import type { Request, WorkerMessage } from '../../src/shared/protocol.ts';
-import { PLAY_RATE, SPEEDS } from '../../src/shared/speeds.ts';
+import { DEFAULT_SPEED, PLAY_RATE, SPEEDS } from '../../src/shared/speeds.ts';
 import { createSim, loadWasm } from './helpers/wasm.ts';
 import { FakeClock, FakeFrameScheduler, RecordingSimHandle, messageCollector } from './helpers/fakes.ts';
 import { commandsArb, U64_MAX, type Command } from './helpers/gen.ts';
@@ -32,7 +32,7 @@ function runWithClock(commands: readonly Command[], origin: number, jitter: read
   const references: SimHandle[] = [];
   const history: string[][] = [];
   const pace = new PacingReference();
-  let speed = 1;
+  let speed: number = DEFAULT_SPEED;
   let running = false;
   const controller = new SimController({
     createSim: (seed, config) => {
@@ -92,7 +92,7 @@ function runWithClock(commands: readonly Command[], origin: number, jitter: read
     const reply = replies[0];
     assert.ok(reply.type === 'reply');
     if (reply.ok) {
-      if (cmd.kind === 'create-world') running = false;
+      if (cmd.kind === 'create-world') { running = false; speed = DEFAULT_SPEED; }
       if (cmd.kind === 'run') {
         if (!running) pace.reset(clock.now());
         running = true;

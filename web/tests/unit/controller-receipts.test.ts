@@ -88,7 +88,10 @@ test('actual WASM paused Step publishes Bribe and Haunt immediately without a st
     assert.equal(status.snapshot.tick, '5375'); assert.equal(status.snapshot.checksum, native.checksum);
     assert.deepEqual(status.snapshot.actions, wrapped(native.actions, 1, [bribe.id, haunt.id]));
     assert.deepEqual(status.snapshot.playerLifecycle, native.player_lifecycle);
+    assert.ok(native.story.events.some(event => event.kind.type === 'haunting'));
+    assert.deepEqual(status.snapshot.story, [{ worldId: 1, batch: native.story }]);
     assert.deepEqual(reply.snapshot.actions, []); assert.deepEqual(reply.snapshot.playerLifecycle, []);
+    assert.deepEqual(reply.snapshot.story, []);
     assert.equal(live.export_replay(), direct.export_replay());
     const applied = status.snapshot.actions[0]!;
     assert.ok(applied.kind === 'bribe' && applied.state === 'applied' && applied.ruling);
@@ -131,7 +134,7 @@ test('actual WASM one rebirth stop Status owns both action and playerLifecycle l
 test('actual WASM running action facts bypass the cadence throttle and posted arrays remain immutable', () => {
   const live = waitingSim(); const direct = waitingSim();
   try {
-    const h = rig(live); h.send({ type: 'run' });
+    const h = rig(live); h.send({ type: 'set-speed', speed: 1 }); h.send({ type: 'run' });
     h.clock.advance(34); h.scheduler.flush(); direct.run_until_stop(1);
     const earlier = statuses(h.messages).at(-1)!; const saved = JSON.stringify(earlier);
     const target = targetOf(live); const payload = { Haunt: { target: String(target) } };
@@ -144,6 +147,8 @@ test('actual WASM running action facts bypass the cadence throttle and posted ar
     assert.equal(current.length, 1, 'facts publish at 68 ms, inside the 100 ms cadence window');
     assert.equal(current[0]!.snapshot.runState, 'running'); assert.equal(current[0]!.snapshot.stop, undefined);
     assert.deepEqual(current[0]!.snapshot.actions, wrapped(native.actions, 1, [accepted.id]));
+    assert.ok(native.story.events.some(event => event.kind.type === 'haunting'));
+    assert.deepEqual(current[0]!.snapshot.story, [{ worldId: 1, batch: native.story }]);
     const delivered = JSON.stringify(current[0]);
     h.clock.advance(34); h.scheduler.flush(); direct.run_until_stop(1);
     h.send({ type: 'world-snapshot' });
@@ -164,6 +169,7 @@ test('actual WASM a throwing post retains facts until an explicit read posts suc
       } });
       const target = targetOf(live);
       const accepted = h.send({ type: 'haunt', target }); queued(live, accepted, [{ Haunt: { target: String(target) } }]);
+      h.send({ type: 'set-speed', speed: 1 });
       if (running) {
         h.send({ type: 'run' }); h.clock.advance(34);
         assert.throws(() => h.scheduler.flush(), error => error === failure);
@@ -253,7 +259,7 @@ test('actual WASM failed Create preserves pending request binding and successful
 });
 
 test('actual WASM successful Create discards only old-world undelivered buffers after a throwing publication', () => {
-  const live = waitingSim(); const replacement = waitingSim();
+  const live = waitingSim(); const replacement = new WasmSim(7n, '{"opening_residents":40}');
   try {
     let throws = true;
     const h = rig(live, { createSim: (_seed, value) => value === 'replacement' ? replacement : live,
@@ -261,10 +267,17 @@ test('actual WASM successful Create discards only old-world undelivered buffers 
     h.send({ type: 'haunt', target: targetOf(live) });
     assert.throws(() => h.send({ type: 'step' }), /post failed/);
     throws = false;
-    const created = h.send({ type: 'create-world', seed: '1205', config: 'replacement' });
+    const created = h.send({ type: 'create-world', seed: '7', config: 'replacement' });
     assert.equal(created.snapshot.worldId, 2); assert.deepEqual(created.snapshot.actions, []);
     assert.deepEqual(created.snapshot.playerLifecycle, []);
+    assert.ok(created.ok && created.world);
+    assert.deepEqual(created.world, world(replacement));
+    assert.equal(created.snapshot.tick, '0'); assert.equal(created.snapshot.speed, 1 / 6);
+    const opening = JSON.parse(replacement.story_opening());
+    assert.equal(opening.opening, true); assert.ok(opening.actors.length > 0);
+    assert.deepEqual(created.snapshot.story, [{ worldId: 2, batch: opening }], 'only the matching fresh-generation opening survives');
     assert.deepEqual(h.send({ type: 'decision-status' }).snapshot.actions, []);
+    assert.deepEqual(h.send({ type: 'decision-status' }).snapshot.story, []);
   } finally { live.free(); replacement.free(); }
 });
 
@@ -311,13 +324,16 @@ test('actual WASM rejected model pair binds Bribe only to the final accepted fal
 
 test('actual WASM missing required batch leaves and obsolete checked success are explicit interface errors', () => {
   loadWasm();
-  for (const leaf of ['actions', 'player_lifecycle']) {
+  for (const leaf of ['actions', 'player_lifecycle', 'story']) {
     const sim = new WasmSim(1n, '{"opening_residents":50}');
     try {
       const run = sim.run_until_stop.bind(sim);
       sim.run_until_stop = max => { const result = JSON.parse(run(max)); delete result[leaf]; return JSON.stringify(result); };
       const h = rig(sim); const reply = h.send({ type: 'step' });
-      assert.ok(!reply.ok); assert.match(reply.error, /WASM interface error: required actions\/player_lifecycle/);
+      assert.ok(!reply.ok);
+      assert.match(reply.error, leaf === 'story'
+        ? /WASM interface error: required StoryBatch version 1 leaves/
+        : /WASM interface error: required actions\/player_lifecycle/);
       assert.equal(h.messages.filter(message => message.type === 'fatal').length, 1);
       assert.equal(statuses(h.messages).length, 0);
     } finally { sim.free(); }
@@ -398,4 +414,57 @@ test('actual WASM undelivered observations are not capped at the settled display
     assert.deepEqual(h.send({ type: 'decision-status' }).snapshot.actions, []);
     assert.equal(read.snapshot.actions.length, 25);
   } finally { live.free(); }
+});
+
+test('actual WASM story opening and ordinary suffix survive constructing failed reads until successful transport', () => {
+  const live = waitingSim(); const direct = waitingSim();
+  try {
+    let rejectStory = false;
+    const attempts: Snapshot[] = [];
+    const failure = new Error('story transport failed');
+    const h = rig(live, { post: message => {
+      if (message.type !== 'fatal' && rejectStory && message.snapshot.story?.length) {
+        attempts.push(message.snapshot); throw failure;
+      }
+    } });
+    const opening = JSON.parse(direct.story_opening());
+    const created = h.messages.find((message): message is Reply => message.type === 'reply' && message.id === 1)!;
+    assert.ok(created.ok && created.world);
+    assert.deepEqual(created.world, world(direct));
+    assert.deepEqual(created.snapshot.story, [{ worldId: 1, batch: opening }]);
+    assert.equal(opening.opening, true);
+    assert.ok(opening.actors.length > 0 && opening.events.length > 0);
+    const replay = live.export_replay(); const openingBytes = live.story_opening();
+    live.snapshot(); live.player_node_state();
+    assert.equal(live.story_opening(), openingBytes, 'native reads do not consume opening history');
+    assert.equal(live.export_replay(), replay);
+    assert.deepEqual(h.send({ type: 'decision-status' }).snapshot.story, [], 'successful Create already delivered its opening');
+    const target = targetOf(live);
+    const accepted = h.send({ type: 'haunt', target });
+    assert.ok(accepted.ok && accepted.world);
+    assert.deepEqual(accepted.world, world(direct), 'checked admission carries the actual unchanged world');
+    assert.deepEqual(accepted.submission, checkedReceipt(direct, [{ Haunt: { target: String(target) } }]));
+    rejectStory = true;
+    assert.throws(() => h.send({ type: 'step' }), error => error === failure);
+    const native: RunUntilStopResult = JSON.parse(direct.run_until_stop(1));
+    assert.deepEqual(native.stops, []);
+    assert.equal(native.story.opening, false);
+    assert.ok(native.story.events.some(event => event.kind.type === 'haunting'));
+    assert.equal(native.story.cursors.events.start, opening.cursors.events.end);
+    const captured = attempts[0]!;
+    assert.deepEqual(captured.story, [{ worldId: 1, batch: native.story }]);
+    const saved = JSON.stringify(captured.story); const tick = live.tick();
+    assert.throws(() => h.send({ type: 'decision-status' }), error => error === failure);
+    assert.equal(attempts[1]!.story, captured.story, 'snapshot construction and another throwing emit do not drain story');
+    rejectStory = false;
+    const read = h.send({ type: 'world-snapshot' });
+    assert.ok(read.ok && read.world);
+    assert.equal(read.snapshot.story, captured.story, 'successful transport owns the retained story array');
+    assert.deepEqual(read.world, world(direct));
+    assert.deepEqual(h.send({ type: 'decision-status' }).snapshot.story, []);
+    assert.equal(JSON.stringify(read.snapshot.story), saved);
+    assert.equal(live.tick(), tick, 'reads never rerun the observed day');
+    assert.equal(live.export_replay(), direct.export_replay());
+    assert.equal(statuses(h.messages).length, 0, 'failed publication is neither retried nor reported as delivered');
+  } finally { live.free(); direct.free(); }
 });

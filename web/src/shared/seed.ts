@@ -46,3 +46,26 @@ export function seedProblemMessage(p: SeedProblem): string {
       return 'Seed is too large: the maximum is 18446744073709551615.';
   }
 }
+
+export const TOWN_SIZE_MIN = 40;
+export const TOWN_SIZE_MAX = 60;
+export const DEFAULT_TOWN_SIZE = 50;
+
+/** Main-thread entropy becomes an external replay seed, never core RNG consumption. */
+export function randomSeed(source: Pick<Crypto, 'getRandomValues'> = globalThis.crypto): string {
+  const words = source.getRandomValues(new Uint32Array(2));
+  return ((BigInt(words[0]!) << 32n) | BigInt(words[1]!)).toString();
+}
+
+/** Only a blank optional seed asks for randomness; custom text keeps strict parsing. */
+export function seedForStart(text: string, source?: Pick<Crypto, 'getRandomValues'>): SeedResult {
+  return text === '' ? { ok: true, value: BigInt(randomSeed(source)) } : parseSeed(text);
+}
+
+/** The actual WorldConfig wire has exactly one field: opening_residents. */
+export function townConfig(size: number = DEFAULT_TOWN_SIZE): string {
+  if (!Number.isInteger(size) || size < TOWN_SIZE_MIN || size > TOWN_SIZE_MAX) {
+    throw new RangeError('Town size must be a whole number from 40 to 60.');
+  }
+  return JSON.stringify({ opening_residents: size });
+}

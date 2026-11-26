@@ -3,6 +3,7 @@
 import type { ActionResult, CoreActionResult, PlayerLifecycleFact, PlayerOption, Slot, SubmissionReceipt, TraitName, WorldSnapshot } from './world-snapshot.ts';
 import type { DecisionFallbackReason, DecisionSessionStatus, DecisionUsage } from './decision.ts';
 import type { DecisionMetricsReport } from './decision-metrics.ts';
+import type { StoryBatch, StoryDelivery } from './story.ts';
 
 export type DecisionPreviewError = { kind: 'malformed' | 'no_node' } | { kind: 'rejected'; reason: string };
 export type DecisionNotice = { requestId: number; worldId: number } & (
@@ -21,6 +22,7 @@ export interface StopPayload { reasons: PauseReason[]; world: WorldSnapshot }
 export interface RunUntilStopResult {
   ran: number; checksum: string; stops: Exclude<PauseReason, 'user'>[];
   actions: CoreActionResult[]; player_lifecycle: PlayerLifecycleFact[];
+  story: StoryBatch;
 }
 export type PlayerNodeState = { pending: false } | { pending: true; node: string; answered: boolean };
 export type CheckedSubmission = ({ ok: true } & SubmissionReceipt) | { ok: false; index: number; reason: string };
@@ -67,6 +69,7 @@ export interface Snapshot {
   playerNode: PlayerNodeState; // input-stream-backed read; present on every reply/status
   actions: ActionResult[];
   playerLifecycle: PlayerLifecycleFact[];
+  story?: StoryDelivery[];
   decision?: DecisionStatus; // orthogonal to Run_State and simulation stop reasons
   stop?: StopPayload;       // present only on the message reporting that pause
 }

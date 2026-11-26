@@ -13,12 +13,15 @@
 // type from the client; every value import is erasable (type-only), so the file
 // works unchanged under Vite and Node.
 
-import type { DecisionStatus, Request, RunState, Snapshot, WorkerMessage } from '../shared/protocol.ts';
+import type { DecisionStatus, ErrorKind, Request, RunState, Snapshot, WorkerMessage } from '../shared/protocol.ts';
 import { type SeedProblem, seedProblemMessage } from '../shared/seed.ts';
 import type { ActionResult, PlayerLifecycleFact, SubmissionReceipt, WorldSnapshot } from '../shared/world-snapshot.ts';
 import { closeScene, retireNode, sceneQueue, type SceneClose, type SceneQueue } from './scene-queue.ts';
 import { initialUnderworldForm, type UnderworldForm } from './customization.ts';
 import { addObservation, emptyObservationIndex, hasObservation, type ObservationIndex } from './observation-index.ts';
+import { DEFAULT_SPEED } from '../shared/speeds.ts';
+import { appendStory, createNotebook, type LifeNotebook } from './life-journal.ts';
+import { sourceLabel } from './player-copy.ts';
 
 /**
  * A Worker_Protocol `reply` message, derived from the shared union. This is the
@@ -65,13 +68,17 @@ export interface UiState {
   playerNode: Snapshot['playerNode'];
   /** Latest completed World Snapshot; presentation never computes an outcome. */
   world: WorldSnapshot | null;
+  /** Full current-world history; render ranges never evict these facts. */
+  notebook: LifeNotebook;
   /** One outstanding read, or the tick whose read failed; never both. */
   worldRead: ({ state: 'pending'; worldId: number; tick: string; requestId: number }
     | { state: 'failed'; worldId: number; tick: string; requestId?: number }) | null;
   /** Running statuses since a World carrier or the last read request, capped at ten. */
   worldStatuses: number;
   scene: SceneQueue | null;
+  settledScene: SceneClose | null;
   sceneEpisode: { worldId: number; tick: string; seen: string[] } | null;
+  lastDreamKey: string | null;
   actions: UiAction[];
   settledOmitted: number;
   observedActions: ObservationIndex;
@@ -89,6 +96,8 @@ export interface UiState {
   decisionSendingRequestId: number | null;
   /** Error area text; non-empty while the last reply-or-fatal event was a failure (R5.8). */
   error: string | null;
+  errorKind?: ErrorKind;
+  errorOperation?: Request['type'];
   /** Seed validation message; set by a rejected seed, cleared by a sent create-world (R3.3). */
   seedMessage: string | null;
   /** A create-world request is in flight; the Create control is disabled meanwhile (R3.8). */
@@ -118,9 +127,10 @@ export type UiEvent =
   | { type: 'world-read-start-failed'; worldId: number; tick: string; error: string }
   | { type: 'validation-error'; error: string }
   | { type: 'scene-close'; expected: SceneClose }
+  | { type: 'scene-settled'; expected: SceneClose }
   | { type: 'underworld-form'; form: UnderworldForm };
 
-/** The initial display state: no world, Speed 1 selected, everything else empty (R4.4, R5.2). */
+/** A paused new game starts at Life pace; history begins on successful Create. */
 export function initialUiState(): UiState {
   return {
     worldId: 0,
@@ -128,13 +138,16 @@ export function initialUiState(): UiState {
     tick: null,
     checksum: null,
     tps: null,
-    speed: 1,
+    speed: DEFAULT_SPEED,
     playerNode: { pending: false },
     world: null,
+    notebook: createNotebook(0),
     worldRead: null,
     worldStatuses: 0,
     scene: null,
+    settledScene: null,
     sceneEpisode: null,
+    lastDreamKey: null,
     actions: [],
     settledOmitted: 0,
     observedActions: emptyObservationIndex(),
@@ -201,10 +214,11 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       if (read !== null) next = { ...next, worldRead: null };
       if (replacing) next = {
         ...next, worldId: message.snapshot.worldId, world: null,
+        notebook: createNotebook(message.snapshot.worldId), lastDreamKey: null,
         tick: null, checksum: null, tps: null, playerNode: { pending: false },
         worldRead: next.worldRead?.state === 'pending' ? next.worldRead : null, worldStatuses: 0,
         stepPending: false,
-        scene: null, sceneEpisode: null, underworldRecorded: null, underworldForm: initialUnderworldForm(),
+        scene: null, settledScene: null, sceneEpisode: null, underworldRecorded: null, underworldForm: initialUnderworldForm(),
         actions: [], settledOmitted: 0, observedActions: emptyObservationIndex(), settledRequests: emptyObservationIndex(),
         playerLifecycle: [], observedLifecycle: emptyObservationIndex(), lifecycleEpisode: null,
         decision: null, decisionRequestId: 0, decisionSendingRequestId: null,
@@ -231,11 +245,13 @@ export function reduce(s: UiState, e: UiEvent): UiState {
         if (!staleTrigger && (e.request.type === 'dream' || e.request.type === 'claim') && next.tick !== null && !oldFrame) {
           next = { ...next, underworldRecorded: { worldId: next.worldId, tick: next.tick } };
         }
-        return { ...next, error: oldFrame || staleTrigger ? s.error : null };
+        return { ...next, error: oldFrame || staleTrigger ? s.error : null,
+          errorKind: oldFrame || staleTrigger ? s.errorKind : undefined,
+          errorOperation: oldFrame || staleTrigger ? s.errorOperation : undefined };
       }
       if (staleTrigger) return next;
       const tick = read?.tick ?? s.tick;
-      return { ...next, error: e.request.type === 'dream' ? dreamFailure(message) : message.error,
+      return { ...next, error: message.error, errorKind: message.kind, errorOperation: e.request.type,
         worldRead: e.request.type === 'world-snapshot' && tick !== null && (s.worldRead === null || read !== null)
           ? { state: 'failed', worldId: s.worldId, tick, requestId: e.request.id } : next.worldRead };
     }
@@ -279,7 +295,14 @@ export function reduce(s: UiState, e: UiEvent): UiState {
         decision: s.decision === null ? null : { ...s.decision, pending: null } };
     case 'seed-invalid': return { ...s, seedMessage: seedProblemMessage(e.problem) };
     case 'validation-error': return { ...s, error: e.error };
-    case 'scene-close': return { ...s, scene: closeScene(s.scene, e.expected) };
+    case 'scene-close': {
+      const scene = closeScene(s.scene, e.expected);
+      return scene === s.scene ? s : { ...s, scene, settledScene: null };
+    }
+    case 'scene-settled':
+      return s.scene?.worldId === e.expected.worldId && s.scene.tick === e.expected.tick
+        && s.scene.entries[0] === e.expected.entry && e.expected.entry.node === null
+        ? { ...s, settledScene: e.expected } : s;
     case 'underworld-form': return { ...s, underworldForm: e.form };
   }
 }
@@ -307,7 +330,7 @@ function withWorld(s: UiState, world: WorldSnapshot): UiState {
 }
 
 function expirePresentation(s: UiState): UiState {
-  let scene = s.scene !== null && (s.scene.worldId !== s.worldId || s.scene.tick !== s.tick || s.runState === 'failed') ? null : s.scene;
+  let scene = s.scene !== null && (s.scene.worldId !== s.worldId || s.runState === 'failed') ? null : s.scene;
   if (scene !== null) {
     for (const entry of scene.entries) {
       if (entry.node !== null && (!s.playerNode.pending || s.playerNode.node !== entry.node || s.playerNode.answered
@@ -315,7 +338,7 @@ function expirePresentation(s: UiState): UiState {
     }
   }
   const sceneEpisode = s.sceneEpisode !== null
-    && (s.sceneEpisode.worldId !== s.worldId || s.sceneEpisode.tick !== s.tick) ? null : s.sceneEpisode;
+    && (s.sceneEpisode.worldId !== s.worldId || s.scene === null && s.sceneEpisode.tick !== s.tick) ? null : s.sceneEpisode;
   const recorded = s.underworldRecorded !== null
     && (s.underworldRecorded.worldId !== s.worldId || s.underworldRecorded.tick !== s.tick) ? null : s.underworldRecorded;
   return scene === s.scene && recorded === s.underworldRecorded && sceneEpisode === s.sceneEpisode ? s
@@ -326,14 +349,26 @@ function expirePresentation(s: UiState): UiState {
 function bindPresentation(s: UiState, snapshot: Snapshot): UiState {
   const world = s.world;
   if (world === null || s.tick === null || world.tick !== s.tick || s.runState === 'failed') return s;
-  const reasons = snapshot.stop?.reasons ?? s.scene?.reasons ?? [];
+  const reasons = snapshot.stop?.reasons ?? [];
   const facts = s.lifecycleEpisode === s.tick ? s.playerLifecycle : [];
-  const candidates = sceneQueue(reasons, world, s.worldId, facts);
+  const deliveries = snapshot.story?.filter(delivery => delivery.worldId === s.worldId) ?? [];
+  const dreams = deliveries.flatMap(delivery => delivery.batch.dreams);
+  const events = deliveries.flatMap(delivery => delivery.batch.events);
+  const candidates = sceneQueue(reasons, snapshot.stop?.world ?? world, s.worldId, facts,
+    facts.length === 0 && dreams.length === 0 ? [] : Object.values(s.notebook.actors), dreams, events);
   const previous = s.sceneEpisode?.seen ?? [];
   const seen = new Set(previous);
-  const pending = new Map(s.scene?.entries.map(entry => [entry.identity, entry]) ?? []);
+  const retired = snapshot.stop !== undefined && s.scene !== null && s.scene.tick !== s.tick
+    && s.settledScene?.entry === s.scene.entries[0]
+    && candidates.some(candidate => !seen.has(candidate.identity)) ? s.settledScene.entry : null;
+  const pending = new Map(s.scene?.entries.filter(entry => entry !== retired).map(entry => [entry.identity, entry]) ?? []);
+  let lastDreamKey = s.lastDreamKey;
   const entries: SceneQueue['entries'] = [];
   for (const candidate of [...pending.values(), ...candidates]) {
+    if (candidate.kind === 'dream' && candidate !== pending.get(candidate.identity)) {
+      if (candidate.identity === lastDreamKey) continue;
+      lastDreamKey = candidate.identity;
+    }
     const retained = pending.get(candidate.identity);
     if (candidate.node !== null && (!s.playerNode.pending || s.playerNode.node !== candidate.node || s.playerNode.answered
       || s.actions.some(action => action.worldId === s.worldId && action.request?.type === 'choose'
@@ -347,10 +382,12 @@ function bindPresentation(s: UiState, snapshot: Snapshot): UiState {
     } else if (!seen.has(candidate.identity)) entries.push(candidate);
     seen.add(candidate.identity);
   }
-  if (s.sceneEpisode !== null && seen.size === previous.length
+  if (s.sceneEpisode !== null && seen.size === previous.length && lastDreamKey === s.lastDreamKey
     && entries.length === (s.scene?.entries.length ?? 0) && entries.every((entry, index) => entry === s.scene!.entries[index])) return s;
-  return { ...s, sceneEpisode: { worldId: s.worldId, tick: s.tick, seen: [...seen] },
-    scene: entries.length === 0 ? null : { worldId: s.worldId, tick: s.tick, world, reasons, entries } };
+  return { ...s, lastDreamKey, settledScene: retired === null ? s.settledScene : null,
+    sceneEpisode: { worldId: s.worldId, tick: s.tick, seen: [...seen] },
+    scene: entries.length === 0 ? null : { worldId: s.worldId,
+      tick: entries[0]!.world.tick, world: entries[0]!.world, reasons, entries } };
 }
 
 /** One coherent live-world decision, independent of historical presentation. */
@@ -401,8 +438,8 @@ export function decisionNotice(s: UiState): string | null {
   if (decisionBusy(s)) return null;
   const outcome = s.decision?.outcome;
   if (outcome == null || outcome.worldId !== s.worldId || outcome.requestId !== s.decisionRequestId) return null;
-  return outcome.kind === 'model' ? 'Decision recorded.'
-    : outcome.kind === 'fallback' ? 'Rules recorded.' : 'Decision cancelled.';
+  return outcome.kind === 'model' ? sourceLabel('external')
+    : outcome.kind === 'fallback' ? sourceLabel('rules_default') : 'Decision cancelled.';
 }
 
 function staleDecision(s: UiState, snapshot: Snapshot): boolean {
@@ -431,12 +468,6 @@ function decisionFields(s: UiState, snapshot: Snapshot, requestId = 0): Pick<UiS
     decision.pending?.requestId ?? decision.outcome?.requestId ?? 0, requestId) };
 }
 
-function dreamFailure(message: Extract<ReplyMessage, { ok: false }>): string {
-  if (message.kind === 'cancelled') return 'Decision cancelled.';
-  if (message.previewError?.kind === 'no_node') return 'Dream was not recorded: no decision is available.';
-  if (message.previewError?.kind === 'malformed') return 'Dream was not recorded: decision data is unavailable.';
-  return 'Dream was not recorded. Check the available dreamer and joss paper.';
-}
 
 function terminal(phase: ActionPhase): boolean { return phase === 'applied' || phase === 'rejected' || phase === 'cancelled'; }
 
@@ -464,7 +495,7 @@ function recordReply(s: UiState, request: Request, message: ReplyMessage): UiSta
     return message.ok ? { ...action, phase: 'queued', submission: message.submission ?? null,
       inputSeq: message.submission?.seqs[0] ?? action.inputSeq, error: null }
       : { ...action, phase: message.kind === 'cancelled' ? 'cancelled' : 'rejected',
-        error: request.type === 'dream' ? dreamFailure(message) : message.error };
+        error: message.error };
   }) };
   if (!message.ok) next = { ...next, settledRequests: addObservation(next.settledRequests, String(request.id)) };
   return limitSettled(next);
@@ -480,7 +511,8 @@ function limitSettled(s: UiState): UiState {
 /** Observations are merged before either decision or live-frame freshness gates. */
 function ingest(s: UiState, snapshot: Snapshot): UiState {
   if (snapshot.worldId !== s.worldId) return s;
-  if (snapshot.actions.length === 0 && snapshot.playerLifecycle.length === 0) return s;
+  const notebook = appendStory(s.notebook, snapshot.story ?? []);
+  if (snapshot.actions.length === 0 && snapshot.playerLifecycle.length === 0) return notebook === s.notebook ? s : { ...s, notebook };
   let actions = s.actions;
   let settledOmitted = s.settledOmitted;
   let settledRequests = s.settledRequests;
@@ -567,8 +599,8 @@ function ingest(s: UiState, snapshot: Snapshot): UiState {
   const playerLifecycle = fresh.length === 0 ? s.playerLifecycle : [...(newEpisode ? [] : s.playerLifecycle), ...fresh]
     .sort((a, b) => BigInt(a.event) < BigInt(b.event) ? -1 : BigInt(a.event) > BigInt(b.event) ? 1 : 0);
   const sendingSettled = s.decisionSendingRequestId !== null && hasObservation(settledRequests, String(s.decisionSendingRequestId));
-  if (actions === s.actions && observedLifecycle === s.observedLifecycle && !sendingSettled) return s;
-  return { ...s, actions, settledOmitted, observedActions, settledRequests, playerLifecycle, observedLifecycle,
+  if (actions === s.actions && observedLifecycle === s.observedLifecycle && !sendingSettled && notebook === s.notebook) return s;
+  return { ...s, notebook, actions, settledOmitted, observedActions, settledRequests, playerLifecycle, observedLifecycle,
     lifecycleEpisode: newEpisode ? snapshot.tick : s.lifecycleEpisode,
     decisionSendingRequestId: sendingSettled ? null : s.decisionSendingRequestId };
 }

@@ -169,6 +169,17 @@
     "license": "Apache-2.0",
     "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
   },
+  "runtime_art": [
+    {
+      "source": "web/src/art/stage-paint.ts",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "license_path": "LICENSE",
+      "creation": "Original integer-pixel notebook spreads, memorial portrait frame, Underworld archive shelves/desk/lamp, mourning cloth, inheritance ledger, debt desk, divided quarrel backdrop, childhood toy blocks, school-age chalkboard, adult-life satchel, newborn cradle and Dream message setting. Rectangular fills are authored directly in the renderer; no external imagery, font, new pack or generated image is added.",
+      "materials": "Existing selected person tiles are nearest-neighbor enlarged to 48 logical pixels inside original portrait frames or staging panels. Existing house, candle, cloud and seal crops retain their original Urban/Roguelike/project lineage and are enlarged without modifying their pixels. Ambient breathing/lamp/cloth use CSS transform/opacity over cached compositions, not new sprite images.",
+      "modifications": "No PNG atlas bytes, crop coordinates or original pack license records changed. These original compositional gaps ship as application source, not an additional media input."
+    }
+  ],
   "tiles": [
     {
       "id": "adult_1",
