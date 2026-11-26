@@ -92,7 +92,7 @@ function socialSentence(event: StoryEvent & { kind: Extract<StoryEvent['kind'], 
   switch (kind) {
     case 'help': return [
       `${cap(a)} helped ${b}${degree ? ` ${degree}` : ''}. Help deserves a little space in the town paper, too.`,
-      `${cap(b)} had help from ${a}${degree ? `, ${degree}` : ''}. The town is not entirely a collection of other people's problems.`,
+      `${cap(b)} had ${band === 'low' ? 'a little help' : band === 'high' ? 'considerable help' : 'help'} from ${a}. The town is not entirely a collection of other people's problems.`,
       `${cap(a)} lent ${b} ${band === 'low' ? 'a little help' : band === 'high' ? 'considerable help' : 'a hand'}. A hand makes a better loan than a headache.`,
     ][variant]!;
     case 'gift': return [
@@ -106,7 +106,7 @@ function socialSentence(event: StoryEvent & { kind: Extract<StoryEvent['kind'], 
       `Between ${a} and ${b}, ${band === 'low' ? 'a small' : band === 'high' ? 'an intense' : 'a'} quarrel took place. Harmony does not get this headline.`,
     ][variant]!;
     case 'insult': return [
-      `${cap(a)} ${band === 'low' ? 'insulted mildly' : band === 'high' ? 'insulted harshly' : 'insulted'} ${b}. The compliment column is an entirely different department.`,
+      `${cap(a)} ${band === 'low' ? 'mildly insulted' : band === 'high' ? 'harshly insulted' : 'insulted'} ${b}. The compliment column is an entirely different department.`,
       `${cap(b)} ${pastBe(b)} on the receiving end of ${band === 'low' ? 'a mild' : band === 'high' ? 'a harsh' : 'an'} insult from ${a}. Courtesy would file this under other business.`,
       `${cap(a)} directed ${band === 'low' ? 'a mild' : band === 'high' ? 'a harsh' : 'an'} insult at ${b}. Politeness is not the headline here.`,
     ][variant]!;

@@ -126,17 +126,28 @@ export function nodeKeyScene(worldId: number, world: WorldSnapshot, node: Player
     focal: { kind: 'prop', id: props[0]! } };
 }
 
+/** Signed native birth day at the recorded event day, never a later World age. */
+function actorAgeAtTick(actor: StoryActor | undefined, tick: string): bigint | null {
+  if (actor?.birthDay === undefined) return null;
+  const elapsed = BigInt(tick) - BigInt(actor.birthDay);
+  return elapsed >= 0n ? elapsed / 365n : null;
+}
+
 /** The exact event body supplies the certificate; latest identity stays outside history. */
 export function lifecycleKeyScene(worldId: number, world: WorldSnapshot, fact: PlayerLifecycleFact,
   actors: readonly StoryActor[] = [], events: readonly StoryEvent[] = []): KeySceneView {
   const death = fact.kind === 'death';
   const actor = actors.find(actor => actor.person === fact.body);
   const ageAtDeath = death ? actor?.ageAtDeath : undefined;
-  const numericAge = ageAtDeath !== undefined && BigInt(ageAtDeath) <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(ageAtDeath) : null;
+  const arrival = fact.kind === 'possession' || fact.kind === 'rebuild';
+  const ageAtArrival = arrival ? actorAgeAtTick(actor, fact.tick) : null;
+  const knownAge = ageAtDeath === undefined ? ageAtArrival : BigInt(ageAtDeath);
+  const numericAge = knownAge !== null && knownAge <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(knownAge) : null;
   const age = fact.kind === 'birth' ? 0 : numericAge;
+  const visualAge = arrival && age !== null && age < 3 ? null : age;
   const name = nameLabel(fact.name);
   const people = picturePeople(world, [fact.body], null, actors).map(person => ({
-    ...person, name, origin: fact.origin, age, visual: resolveVisualKey(person.id, age), soul: false,
+    ...person, name, origin: fact.origin, age, visual: resolveVisualKey(person.id, visualAge), soul: false,
     lifeStatus: death ? 'deceased' as const : person.lifeStatus,
   }));
   const props: LifeTile[] = death ? ['coffin', 'candle'] : fact.kind === 'birth' ? ['cradle'] : ['register', 'seal'];
@@ -159,6 +170,7 @@ export function lifecycleKeyScene(worldId: number, world: WorldSnapshot, fact: P
     fields: [{ label: death ? 'Life ended' : fact.kind === 'birth' ? 'Born' : 'Arrived', value: date }],
     note: death ? 'Underworld paper bureau' : fact.kind === 'birth' ? 'A newborn life' : originLabel(fact.origin) };
   if (ageAtDeath !== undefined) document.fields.push({ label: 'Age', value: formatAmount(ageAtDeath) });
+  if (ageAtArrival !== null) document.fields.push({ label: 'Age at arrival', value: formatAmount(ageAtArrival.toString()) });
   if (price !== undefined) document.fields.push({ label: 'Joss paper spent', value: formatAmount(price) });
   if (fact.kind === 'birth' && world.player.body === fact.body && BigInt(world.tick) <= BigInt(fact.tick) + 1n) {
     const parents = world.player.blood_ties.filter(tie => tie.kinship.includes('parent')).map(tie =>
@@ -180,9 +192,14 @@ export function lifecycleKeyScene(worldId: number, world: WorldSnapshot, fact: P
 /** Exact successful input annotation, not a guess from the most recent response. */
 export function dreamKeyScene(worldId: number, world: WorldSnapshot, fact: DreamFact,
   actors: readonly StoryActor[] = []): KeySceneView {
-  const people = picturePeople(world, [fact.ghost, fact.dreamer], null, actors).map(person => ({
-    ...person, age: null, visual: resolveVisualKey(person.id, null), soul: actors.some(actor => actor.person === person.id && actor.soulId === world.player_soul),
-  }));
+  const people = picturePeople(world, [fact.ghost, fact.dreamer], null, actors).map(person => {
+    const actor = actors.find(actor => actor.person === person.id);
+    let knownAge: bigint | null = null;
+    if (person.id === fact.ghost && actor?.ageAtDeath !== undefined) knownAge = BigInt(actor.ageAtDeath);
+    else if (person.id === fact.dreamer) knownAge = actorAgeAtTick(actor, fact.tick);
+    const age = knownAge !== null && knownAge <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(knownAge) : null;
+    return { ...person, age, visual: resolveVisualKey(person.id, age), soul: actor?.soulId === world.player_soul };
+  });
   const recipient = people.find(person => person.id === fact.dreamer)?.name ?? nameLabel(undefined);
   const ghost = people.find(person => person.id === fact.ghost)?.name ?? nameLabel(undefined);
   const sender = actors.some(actor => actor.person === fact.ghost && actor.soulId === world.player_soul) ? 'You' : ghost;

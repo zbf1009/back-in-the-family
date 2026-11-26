@@ -111,7 +111,7 @@ async function readWorld(page: Page): Promise<WorldSnapshot> {
 }
 async function openDisclosure(page: Page, id: 'world-setup' | 'technical-details'): Promise<void> {
   const disclosure = page.getByTestId(id);
-  if (await disclosure.getAttribute('open') === null) await disclosure.locator('summary').click();
+  if (await disclosure.getAttribute('open') === null) await disclosure.locator(':scope > summary').click();
 }
 async function create(page: Page): Promise<void> {
   await openDisclosure(page, 'world-setup');

@@ -1,12 +1,14 @@
 // One real-control recorded-prefix proof explicitly selects Fast; it is not default-Life play.
 import { readFileSync } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { test, expect, type Page } from '@playwright/test';
 import type { Reply, RequestTicket, WorkerMessage, PauseReason } from '../../src/shared/protocol.ts';
 import type { PlayerLifecycleFact, TraitName, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import { DECISION_CONFIG_VERSION } from '../../src/shared/decision.ts';
 import { traitLabel } from '../../src/main/player-copy.ts';
+import type { LifeNotebook } from '../../src/main/life-journal.ts';
+import type { StoryBatch } from '../../src/shared/story.ts';
 
 const FIXTURE = 'seedP-playthrough.replay.json';
 const SMOKE_EVIDENCE = new URL('../../../target/smoke-evidence/', import.meta.url);
@@ -64,6 +66,64 @@ async function request(page: Page, type: 'world-snapshot' | 'run' | 'checksums' 
     if (!window.__simHarness) throw new Error('test harness is missing');
     return window.__simHarness.request(args).reply;
   }, { type, ...extra });
+}
+
+async function downloadRetainedFacts(page: Page, world: WorldSnapshot, worldId: number): Promise<void> {
+  const before = await request(page, 'world-snapshot');
+  expect(before.ok).toBe(true);
+  const replayBefore = await request(page, 'export-replay');
+  if (!replayBefore.ok || replayBefore.replay === undefined) throw Error('Actual pre-download replay is missing');
+  const beforeReplay: unknown = JSON.parse(replayBefore.replay);
+  if (beforeReplay === null || typeof beforeReplay !== 'object' || !('inputs' in beforeReplay) || !Array.isArray(beforeReplay.inputs)) {
+    throw Error('Actual pre-download replay has no input list');
+  }
+  const inputsBefore = beforeReplay.inputs;
+  expect(world.player_wait?.ghost).toBeDefined();
+  const ownDeath = await page.evaluate(({ worldId, ghost, tick }) => window.__playthrough.lifecycle
+    .filter(report => report.worldId === worldId && report.tick === tick).flatMap(report => report.facts)
+    .find(fact => fact.kind === 'death' && fact.body === ghost), { worldId, ghost: world.player_wait!.ghost, tick: world.tick });
+  expect(ownDeath, 'the actual own-Death carrier must be available at this stop').toBeDefined();
+
+  const technical = page.getByTestId('technical-details');
+  if (await technical.getAttribute('open') === null) await technical.locator(':scope > summary').click();
+  const downloadButton = technical.getByRole('button', { name: 'Download life facts', exact: true });
+  const unmerged = technical.locator('details').filter({ has: downloadButton });
+  if (await unmerged.getAttribute('open') === null) await unmerged.locator(':scope > summary').click();
+  const [download] = await Promise.all([page.waitForEvent('download'), downloadButton.click()]);
+  const downloadedPath = await download.path();
+  expect(downloadedPath).not.toBeNull();
+  if (downloadedPath === null) throw Error('Actual life-facts download has no local file');
+  const notebook: LifeNotebook = JSON.parse(await readFile(downloadedPath, 'utf8'));
+  const native: { openingBatch: StoryBatch } = JSON.parse(readFileSync(new URL('../fixtures/journal-seed1205.json', import.meta.url), 'utf8'));
+  const openingLoan = native.openingBatch.events.find(event => event.kind.type === 'loan')!;
+  expect(openingLoan, 'the native fixture must supply the earliest opening loan').toBeDefined();
+  expect(notebook.worldId).toBe(worldId);
+  expect(notebook.events[openingLoan.id]).toEqual(openingLoan);
+  expect(notebook.opening[`e:${openingLoan.id}`]).toBe(true);
+  expect(notebook.identities).toContain(`e:${openingLoan.id}`);
+  expect(notebook.events[ownDeath!.event]?.tick).toBe(ownDeath!.tick);
+  expect(notebook.events[ownDeath!.event]?.kind).toEqual({ type: 'death', person: ownDeath!.body });
+  expect(notebook.actors[ownDeath!.body]?.name).toBe(ownDeath!.name);
+  expect(notebook.identities).toContain(`e:${ownDeath!.event}`);
+
+  const town = page.getByRole('button', { name: 'Around town', exact: true });
+  await town.click();
+  await expect(town).toHaveAttribute('aria-pressed', 'true');
+  const life = page.getByRole('button', { name: 'Your life', exact: true });
+  await life.click();
+  await expect(life).toHaveAttribute('aria-pressed', 'true');
+  const after = await request(page, 'world-snapshot');
+  expect(after.ok).toBe(true);
+  expect(after.snapshot.tick).toBe(before.snapshot.tick);
+  expect(after.snapshot.checksum).toBe(before.snapshot.checksum);
+  expect(after.world?.tick).toBe(before.world?.tick);
+  const replayAfter = await request(page, 'export-replay');
+  if (!replayAfter.ok || replayAfter.replay === undefined) throw Error('Actual post-download replay is missing');
+  const afterReplay: unknown = JSON.parse(replayAfter.replay);
+  if (afterReplay === null || typeof afterReplay !== 'object' || !('inputs' in afterReplay) || !Array.isArray(afterReplay.inputs)) {
+    throw Error('Actual post-download replay has no input list');
+  }
+  expect(afterReplay.inputs).toEqual(inputsBefore);
 }
 
 
@@ -209,9 +269,9 @@ test(`${FIXTURE}: explicit Fast recorded-prefix controls play choices, death, Dr
   await page.goto('/?harness=1');
   await page.waitForFunction(() => window.__simHarness !== undefined);
   const technical = page.getByTestId('technical-details');
-  if (await technical.getAttribute('open') === null) await technical.locator('summary').click();
+  if (await technical.getAttribute('open') === null) await technical.locator(':scope > summary').click();
   const setup = page.getByTestId('world-setup');
-  if (await setup.getAttribute('open') === null) await setup.locator('summary').click();
+  if (await setup.getAttribute('open') === null) await setup.locator(':scope > summary').click();
   await page.getByTestId('seed').fill(fixture.seed);
   await page.getByTestId('town-size').fill('50');
   await page.getByTestId('create').click();
@@ -288,6 +348,7 @@ test(`${FIXTURE}: explicit Fast recorded-prefix controls play choices, death, Dr
         await expect(page.locator('[data-testid="operation-receipt"][data-kind="choose"][data-phase="received"]').first()).toBeVisible();
       }
       if (stage.reasons.includes('player_died')) {
+        await downloadRetainedFacts(page, world, reply.snapshot.worldId);
         await expect(page.getByTestId('scene-close')).toBeVisible();
         await page.getByTestId('scene-close').click();
         await expect(page.locator('[data-testid="key-scene"][data-category="death"]')).toHaveCount(0);

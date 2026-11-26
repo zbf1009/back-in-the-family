@@ -132,7 +132,7 @@ async function openHarnessPage(
   await expect(technical).not.toHaveAttribute('open', '');
   await expect(page.getByTestId('tick')).not.toBeVisible();
   await expect(page.getByTestId('config')).not.toBeVisible();
-  if (await technical.getAttribute('open') === null) await technical.locator('summary').click();
+  if (await technical.getAttribute('open') === null) await technical.locator(':scope > summary').click();
 
   return {
     finish() {
@@ -218,7 +218,7 @@ async function referenceRun(
 }
 async function openWorldSetup(page: Page): Promise<void> {
   const disclosure = page.getByTestId('world-setup');
-  if (await disclosure.getAttribute('open') === null) await disclosure.locator('summary').click();
+  if (await disclosure.getAttribute('open') === null) await disclosure.locator(':scope > summary').click();
 }
 
 

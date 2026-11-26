@@ -205,7 +205,7 @@ async function readLongTasks(page: Page): Promise<number[]> {
 }
 async function openWorldSetup(page: Page): Promise<void> {
   const disclosure = page.getByTestId('world-setup');
-  if (await disclosure.getAttribute('open') === null) await disclosure.locator('summary').click();
+  if (await disclosure.getAttribute('open') === null) await disclosure.locator(':scope > summary').click();
 }
 
 // --- shared page setup (same shape as fixture.spec) -------------------------
@@ -250,7 +250,7 @@ async function openHarnessPage(
 
   await page.goto('/?harness=1');
   const technical = page.getByTestId('technical-details');
-  if (await technical.getAttribute('open') === null) await technical.locator('summary').click();
+  if (await technical.getAttribute('open') === null) await technical.locator(':scope > summary').click();
 
   return {
     finish() {

@@ -9,6 +9,7 @@ import type { Snapshot } from '../../src/shared/protocol.ts';
 import type { PlayerFamily, PlayerLifecycleFact, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import type { DreamFact, StoryActor, StoryEvent } from '../../src/shared/story.ts';
 import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
+import { PERSON_TILES } from '../../src/art/life-view-atlas.ts';
 
 const families: PlayerFamily[] = ['family_death', 'inheritance', 'debt_due', 'feud', 'life_stage'];
 const facts: PlayerLifecycleFact[] = [
@@ -100,6 +101,18 @@ test('LV-C4 historical lifecycle ages never borrow a later current body age or i
       const historical = lifecycleKeyScene(7, world, fact).people[0]!;
       assert.deepEqual([historical.id, historical.name, historical.age],
         [fact.body, fact.name, fact.kind === 'birth' ? 0 : null]);
+      if (fact.kind === 'possession' || fact.kind === 'rebuild') {
+        const actor: StoryActor = { person: fact.body, soulId: world.player_soul, name: fact.name,
+          sex: 'male', origin: fact.origin, birthDay: String(BigInt(fact.tick) - 38n * 365n) };
+        const known = lifecycleKeyScene(7, world, fact, [actor]);
+        assert.equal(known.people[0]!.age, 38, 'Recorded birth day wins over every later World age');
+        assert.ok(!known.props.includes('cradle'));
+        const young = lifecycleKeyScene(7, world, fact, [{ ...actor, birthDay: fact.tick }]);
+        assert.equal(young.people[0]!.age, 0);
+        assert.ok(!PERSON_TILES.baby.some(visual => visual === young.people[0]!.visual), 'Arrival does not establish a newborn portrait');
+        assert.ok(!young.props.includes('cradle'));
+        assert.equal(lifecycleKeyScene(7, world, fact, [{ ...actor, person: fact.body + 1 }]).people[0]!.age, null);
+      }
     }
   }
 });
@@ -115,7 +128,10 @@ test('Death certificate uses only the matching native actor age, never a later r
   assert.deepEqual(known.certificate, { name: fact.name, date: fact.tick, age: actor.ageAtDeath });
   assert.equal(known.people[0]!.age, null, 'An unsafe numeric age is never rounded into the portrait');
   assert.deepEqual(lifecycleKeyScene(7, world, fact, [{ ...actor, ageAtDeath: '73' }]).people[0]!.age, 73);
-  assert.equal(lifecycleKeyScene(7, world, { ...fact, kind: 'possession' }, [actor]).people[0]!.age, null);
+  const arrival = lifecycleKeyScene(7, world, { ...fact, kind: 'possession' }, [actor]);
+  assert.equal(arrival.people[0]!.age, 2);
+  assert.ok(!PERSON_TILES.baby.some(visual => visual === arrival.people[0]!.visual));
+  assert.ok(!arrival.props.includes('cradle'));
 });
 
 
@@ -166,6 +182,15 @@ test('Exact Dream scenes retain captured input, response date and numeric event 
   assert.equal(view.world, world); assert.equal(view.dream, fact); assert.equal(view.date, fact.tick);
   assert.deepEqual(view.source, { kind: 'event', eventId: fact.eventId });
   assert.deepEqual(view.people.map(person => person.id), [fact.ghost, fact.dreamer]);
+  assert.deepEqual(view.people.map(person => person.age), [null, null], 'Later World ages are not historical Dream ages');
+  const actors: StoryActor[] = [
+    { person: fact.ghost, soulId: world.player_soul, name: 'Recorded ghost', sex: 'female', origin: 'native', ageAtDeath: '60' },
+    { person: fact.dreamer, soulId: 'recipient-soul', name: 'Recorded recipient', sex: 'male', origin: 'native', birthDay: '-15927' },
+  ];
+  assert.deepEqual(dreamKeyScene(7, world, fact, actors).people.map(person => person.age), [60, 45]);
+  const later = { ...world, tick: '40000', residents: world.residents.map(person => ({ ...person, age: 90 })) };
+  assert.deepEqual(dreamKeyScene(7, later, fact, actors).people.map(person => person.age), [60, 45]);
+  assert.deepEqual(dreamKeyScene(7, later, fact, [{ ...actors[1]!, birthDay: '499' }]).people.map(person => person.age), [null, null]);
   const noDate = dreamKeyScene(7, world, { ...fact, interpretation: {
     node: fact.interpretation!.node, applied: fact.interpretation!.applied,
     source: fact.interpretation!.source, rulesDefault: fact.interpretation!.rulesDefault,

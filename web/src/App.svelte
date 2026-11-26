@@ -28,7 +28,6 @@
   let actualSeed = $state('');
   let actualConfig = $state('');
   let replay = $state('');
-  let factExport = $state('');
   let sprites: SpriteSet | null = $state(null);
   let assetError: string | null = $state(null);
   let fastForward: TemporaryPace | null = $state(null);
@@ -122,7 +121,7 @@
     const requestedConfig = townConfig(townSize);
     const message = await sendRequest({ type: 'create-world', seed: requestedSeed, config: requestedConfig });
     if (message?.ok && message.snapshot.worldId === ui.worldId) {
-      actualSeed = requestedSeed; actualConfig = requestedConfig; replay = ''; factExport = '';
+      actualSeed = requestedSeed; actualConfig = requestedConfig; replay = '';
     }
   }
   async function onRun(): Promise<void> {
@@ -175,7 +174,14 @@
     const message = await sendRequest({ type: 'export-replay' });
     if (message?.ok && message.snapshot.worldId === ui.worldId) replay = message.replay ?? '';
   }
-  function onExportFacts(): void { factExport = JSON.stringify(ui.notebook, null, 2); }
+  function onExportFacts(): void {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(ui.notebook, null, 2)], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `life-facts-world-${ui.worldId}.json`;
+    link.click();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }
   $effect(() => {
     let mounted = true;
     void loadLifeSprites().then(loaded => { if (mounted) sprites = loaded; }, error => { if (mounted) assetError = String(error); });
@@ -264,8 +270,7 @@
     {#if replay}<pre class="replay">{replay}</pre>{/if}
     <details><summary>Unmerged life facts</summary>
       <p>{ui.notebook.identities.length} records; all current-world actors and records retained.</p>
-      <button type="button" onclick={onExportFacts} disabled={ui.world === null}>Read raw life facts</button>
-      {#if factExport}<pre class="replay">{factExport}</pre>{/if}
+      <button type="button" onclick={onExportFacts} disabled={ui.world === null}>Download life facts</button>
     </details>
   </details>
 </main>
