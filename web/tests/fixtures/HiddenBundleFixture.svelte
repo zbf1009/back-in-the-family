@@ -13,7 +13,7 @@
   const baseline = JSON.parse(baselineBytes) as WorldSnapshot;
   const source = {
     baseline: 'fixtures/parity/seed1-pairwise.snapshot-500.json',
-    modifiedFields: ['Canonical decimal Soul IDs', 'Constructed Waiting carrier', 'Ordered rebuild-arrival and death facts for one historical body'],
+    modifiedFields: ['Canonical decimal Soul IDs', 'Constructed Waiting carrier', 'Ordered rebuild-arrival and death facts for one historical body', 'Constructed checksum sentinel, not a native checksum receipt'],
     limits: 'COMPONENT-ONLY construction. Not live App/WASM, native admission, a receipt, replay, or gameplay evidence.',
   };
   const arrivalOnly = new URLSearchParams(location.search).get('state') === 'arrival-only';
@@ -60,7 +60,7 @@
     world.underworld_view = null;
     world.birth_slots = [];
     world.standing_slots = [];
-    const initial = { ...initialUiState(), worldId, tick, world, runState: 'paused' as const };
+    const initial = { ...initialUiState(), worldId, tick, world, checksum: '0000000000000000', runState: 'paused' as const };
     return reduce(initial, { type: 'status', snapshot: status(initial, onlyArrival ? facts.slice(0, 1) : facts) });
   }
   function record(value: Record<string, unknown>): void { callbacks = [...callbacks, value]; }
@@ -95,7 +95,7 @@
   onMount(() => {
     const evidenceWindow = window as Window & { __hiddenBundleFixture?: { read(): unknown } };
     evidenceWindow.__hiddenBundleFixture = { read: () => structuredClone($state.snapshot({ mode: 'COMPONENT-ONLY', source,
-      ui: { worldId: ui.worldId, tick: ui.tick, world: ui.world, scene: ui.scene, settledScene: ui.settledScene, actions: ui.actions }, callbacks })) };
+      ui: { worldId: ui.worldId, tick: ui.tick, checksum: ui.checksum, world: ui.world, scene: ui.scene, settledScene: ui.settledScene, actions: ui.actions }, callbacks })) };
     void loadLifeSprites().then(value => { sprites = value; }).catch(error => {
       assetError = error instanceof Error ? error.message : String(error);
     });

@@ -63,20 +63,22 @@ const candidateConfig: TreeConfig<GroupMetadata, GroupMetadata, Totals> = {
   combine: (left, value, right) => combineTotals(combineTotals(left, value.totals), right),
 };
 type Candidates = PersistentTree<GroupMetadata, GroupMetadata, Totals>;
+const finalConfig: TreeConfig<GroupMetadata, GroupMetadata, undefined> = { compare: compareGroup, empty: undefined, combine: () => undefined };
+type FinalGroups = PersistentTree<GroupMetadata, GroupMetadata>;
 export interface JournalIndex {
   readonly claims: PersistentTree<string, string>;
   readonly links: PersistentTree<string, PersistentTree<string, true>>;
   readonly chronicles: PersistentTree<string, GroupMetadata>;
   readonly repeats: PersistentTree<string, References>;
   readonly weeks: PersistentTree<string, Candidates>;
-  readonly life: Candidates;
-  readonly town: Candidates;
-  readonly all: Candidates;
+  readonly life: FinalGroups;
+  readonly town: FinalGroups;
+  readonly all: FinalGroups;
   readonly promotion: PersistentTree<string, StoryEvent>;
   readonly latestPrimary: StoryIdentity | null;
 }
 export function createJournalIndex(): JournalIndex {
-  return { claims: keyedStore(), links: keyedStore(), chronicles: keyedStore(), repeats: keyedStore(), weeks: keyedStore(), life: new PersistentTree(candidateConfig), town: new PersistentTree(candidateConfig), all: new PersistentTree(candidateConfig), promotion: new PersistentTree({ compare: compareDecimal, empty: undefined, combine: () => undefined }), latestPrimary: null };
+  return { claims: keyedStore(), links: keyedStore(), chronicles: keyedStore(), repeats: keyedStore(), weeks: keyedStore(), life: new PersistentTree(finalConfig), town: new PersistentTree(finalConfig), all: new PersistentTree(finalConfig), promotion: new PersistentTree({ compare: compareDecimal, empty: undefined, combine: () => undefined }), latestPrimary: null };
 }
 function eventReference(event: StoryEvent): EventReference {
   return { identity: `e:${event.id}`, id: event.id, tick: event.tick, repeat: repeatedKey(event), amount: event.kind.type === 'repayment' ? BigInt(event.kind.amount) : 0n };
@@ -161,7 +163,10 @@ export class JournalIndexWriter {
   event(event: StoryEvent, opening: boolean): void {
     if (event.relevance !== 'background') this.index = { ...this.index, latestPrimary: `e:${event.id}` };
     const interested = this.index.links.get(event.id);
-    if (interested) for (const [index] of interested) this.updateChronicle(index, group => ({ ...group, missing: group.missing - 1 }));
+    if (interested) {
+      for (const [index] of interested) this.updateChronicle(index, group => ({ ...group, missing: group.missing - 1 }));
+      this.index = { ...this.index, links: this.index.links.delete(event.id) };
+    }
     const owner = this.index.claims.get(event.id);
     if (owner !== undefined) this.updateChronicle(owner, group => this.chronicleEvent(group, event, true));
     else this.unclaimed(event, opening, true);
@@ -170,10 +175,12 @@ export class JournalIndexWriter {
     const references = new PersistentTree(chronicleRefConfig);
     let group: GroupMetadata = { identity: `c:${record.index}`, identityTick: record.tick, from: record.tick, to: record.tick, primary: true, milestone: true, opening, totals: references.aggregate, references, constituents: null, missing: 0 };
     for (const id of new Set(record.appended)) {
-      const interested = this.index.links.get(id) ?? keyedStore<string, true>();
-      this.index = { ...this.index, links: this.index.links.set(id, interested.set(record.index, true)) };
       const event = events.get(id);
-      if (!event) group = { ...group, missing: group.missing + 1 };
+      if (!event) {
+        const interested = this.index.links.get(id) ?? keyedStore<string, true>();
+        this.index = { ...this.index, links: this.index.links.set(id, interested.set(record.index, true)) };
+        group = { ...group, missing: group.missing + 1 };
+      }
       const owner = this.index.claims.get(id);
       if (owner !== undefined && compareDecimal(owner, record.index) <= 0) continue;
       if (event) {
@@ -206,27 +213,62 @@ export class GroupMembers implements IndexedSequence<StoryIdentity> {
       if (start === 0) result.push(this.group.identity);
       start = Math.max(0, start - 1); end--;
     }
-    if (!this.group.constituents) return result.concat(this.group.references.slice(start, end).map(ref => ref.identity));
-    const roots = [...this.group.constituents.values()].map(group => group.references);
-    // Rank selection visits constituent indexes, not their fact arrays. Bounds shrink
-    // each iteration; only the requested member page is materialized or rendered.
-    for (let rank = start; rank < end; rank++) {
-      const intervals = roots.map(root => ({ root, low: 0, high: root.size }));
-      while (true) {
-        const pivots = intervals.filter(part => part.low < part.high).map(part => part.root.at(Math.floor((part.low + part.high) / 2))!).sort(compareReference);
-        const pivot = pivots[Math.floor(pivots.length / 2)]!;
-        const before = roots.reduce((count, root) => count + root.rank(pivot), 0);
-        if (before === rank) { result.push(pivot.identity); break; }
-        for (const part of intervals) {
-          const position = part.root.rank(pivot);
-          if (before < rank) part.low = Math.max(part.low, position + (part.root.get(pivot) ? 1 : 0));
-          else part.high = Math.min(part.high, position);
-        }
-      }
-    }
+    for (const reference of this.references(start, end)) result.push(reference.identity);
     return result;
   }
+  private *references(start: number, end: number): IterableIterator<EventReference> {
+    if (!this.group.constituents) { yield* this.group.references.values(start, end); return; }
+    const parts = [...this.group.constituents.values()].map(group => ({ root: group.references, low: 0, high: group.references.size, position: 0 }));
+    // Locate the first requested rank once; subsequent members share successor cursors.
+    if (start > 0) while (true) {
+      const pivots = parts.filter(part => part.low < part.high).map(part => ({ part, reference: part.root.at(Math.floor((part.low + part.high) / 2))! })).sort((a, b) => compareReference(a.reference, b.reference));
+      const pivot = pivots[Math.floor(pivots.length / 2)]!;
+      let before = 0;
+      for (const part of parts) { part.position = part.root.rank(pivot.reference); before += part.position; }
+      if (before === start) break;
+      for (const part of parts) {
+        if (before < start) part.low = Math.max(part.low, part.position + (part === pivot.part ? 1 : 0));
+        else part.high = Math.min(part.high, part.position);
+      }
+    }
+    const heap: { cursor: IterableIterator<EventReference>; reference: EventReference }[] = [];
+    for (const part of parts) {
+      const cursor = part.root.values(part.position);
+      const next = cursor.next();
+      if (next.done) continue;
+      const entry = { cursor, reference: next.value };
+      let index = heap.length;
+      heap.push(entry);
+      while (index > 0) {
+        const parent = Math.floor((index - 1) / 2);
+        if (compareReference(heap[parent]!.reference, entry.reference) <= 0) break;
+        heap[index] = heap[parent]!; index = parent;
+      }
+      heap[index] = entry;
+    }
+    for (let rank = start; rank < end && heap.length; rank++) {
+      const first = heap[0]!;
+      yield first.reference;
+      if (rank + 1 >= end) return;
+      const next = first.cursor.next();
+      if (next.done) {
+        const last = heap.pop()!;
+        if (!heap.length) return;
+        heap[0] = last;
+      } else first.reference = next.value;
+      const entry = heap[0]!;
+      let index = 0;
+      while (index * 2 + 1 < heap.length) {
+        let child = index * 2 + 1;
+        if (child + 1 < heap.length && compareReference(heap[child + 1]!.reference, heap[child]!.reference) < 0) child++;
+        if (compareReference(entry.reference, heap[child]!.reference) <= 0) break;
+        heap[index] = heap[child]!; index = child;
+      }
+      heap[index] = entry;
+    }
+  }
   *[Symbol.iterator](): IterableIterator<StoryIdentity> {
-    for (let start = 0; start < this.length; start += 24) yield* this.slice(start, start + 24);
+    if (this.group.identity.startsWith('c:')) yield this.group.identity;
+    for (const reference of this.references(0, this.group.totals.count)) yield reference.identity;
   }
 }

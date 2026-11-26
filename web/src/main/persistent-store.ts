@@ -110,18 +110,7 @@ export class PersistentTree<K, V, A = undefined> implements Iterable<[K, V]> {
     }
     return count;
   }
-  slice(start = 0, end = this.size): V[] {
-    const result: V[] = [];
-    const visit = (node: Node<K, V, A> | null, offset: number): void => {
-      if (!node || offset >= end || offset + node.size <= start) return;
-      const index = offset + size(node.left);
-      visit(node.left, offset);
-      if (index >= start && index < end) result.push(node.value);
-      visit(node.right, index + 1);
-    };
-    visit(this.root, 0);
-    return result;
-  }
+  slice(start = 0, end = this.size): V[] { return [...this.values(start, end)]; }
   *[Symbol.iterator](): IterableIterator<[K, V]> {
     function* walk(node: Node<K, V, A> | null): IterableIterator<[K, V]> {
       if (!node) return;
@@ -131,7 +120,24 @@ export class PersistentTree<K, V, A = undefined> implements Iterable<[K, V]> {
     }
     yield* walk(this.root);
   }
-  *values(): IterableIterator<V> { for (const [, value] of this) yield value; }
+  /** Seek once by rank, then walk successors without reopening the root for each value. */
+  *values(start = 0, end = this.size): IterableIterator<V> {
+    start = Math.max(0, Math.ceil(start)); end = Math.min(this.size, end);
+    if (end <= start) return;
+    const stack: Node<K, V, A>[] = [];
+    let node = this.root, skip = start;
+    while (node) {
+      const before = size(node.left);
+      if (skip <= before) { stack.push(node); node = node.left; }
+      else { skip -= before + 1; node = node.right; }
+    }
+    for (let index = start; index < end && stack.length; index++) {
+      const current = stack.pop()!;
+      yield current.value;
+      node = current.right;
+      while (node) { stack.push(node); node = node.left; }
+    }
+  }
 }
 export function keyedStore<K extends string | number, V>(): PersistentTree<K, V> {
   return new PersistentTree({ compare: (a, b) => {

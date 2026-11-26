@@ -126,6 +126,7 @@ export type UiEvent =
   | { type: 'seed-invalid'; problem: SeedProblem }
   | { type: 'request-sent'; request: Request; worldId?: number }
   | { type: 'request-failed'; request: Request; worldId: number; error: string }
+  | { type: 'request-start-failed'; worldId: number; operation: Request['type']; error: string }
   | { type: 'world-read-start-failed'; worldId: number; tick: string; error: string }
   | { type: 'validation-error'; error: string }
   | { type: 'scene-close'; expected: SceneClose }
@@ -188,7 +189,10 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       if (worldId !== s.worldId || s.runState === 'failed') return s;
       let next = recordSent(s, e.request, worldId);
       switch (e.request.type) {
-        case 'create-world': return { ...next, seedMessage: null, createPending: true };
+        case 'create-world': return { ...next, seedMessage: null, createPending: true,
+          error: next.errorKind === 'validation' ? null : next.error,
+          errorKind: next.errorKind === 'validation' ? undefined : next.errorKind,
+          errorOperation: next.errorKind === 'validation' ? undefined : next.errorOperation };
         case 'step': return { ...next, stepPending: true };
         case 'dream':
         case 'bribe':
@@ -288,6 +292,9 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       return gameplay(e.request) ? next : { ...next, error: 'Completion unknown. No retry was sent.',
         errorKind: 'sim-error', errorOperation: e.request.type };
     }
+    case 'request-start-failed':
+      return e.worldId !== s.worldId || s.runState === 'failed' ? s
+        : { ...s, error: e.error, errorKind: 'sim-error', errorOperation: e.operation };
     case 'world-read-start-failed':
       if (e.worldId !== s.worldId || e.tick !== s.tick || s.runState === 'failed' || s.worldRead?.state === 'pending') return s;
       return { ...s, error: e.error, errorKind: 'sim-error', errorOperation: 'world-snapshot',
@@ -298,8 +305,11 @@ export function reduce(s: UiState, e: UiEvent): UiState {
         createPending: false, stepPending: false, worldRead: null,
         actions: s.actions.filter(action => terminal(action.phase)), decisionSendingRequestId: null,
         decision: s.decision === null ? null : { ...s.decision, pending: null } };
-    case 'seed-invalid': return { ...s, seedMessage: seedProblemMessage(e.problem) };
-    case 'validation-error': return { ...s, error: e.error, errorKind: 'validation', errorOperation: undefined };
+    case 'seed-invalid': return { ...s, seedMessage: seedProblemMessage(e.problem),
+      error: s.errorKind === 'validation' ? null : s.error,
+      errorKind: s.errorKind === 'validation' ? undefined : s.errorKind,
+      errorOperation: s.errorKind === 'validation' ? undefined : s.errorOperation };
+    case 'validation-error': return { ...s, error: e.error, errorKind: 'validation', errorOperation: undefined, seedMessage: null };
     case 'scene-close': {
       const scene = closeScene(s.scene, e.expected);
       return scene === s.scene ? s : { ...s, scene, settledScene: null };

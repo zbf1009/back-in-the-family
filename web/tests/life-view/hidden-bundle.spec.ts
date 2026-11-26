@@ -9,7 +9,7 @@ const ORIGIN = process.env.LIFE_HIDDEN_BUNDLE_COMPONENT_ORIGIN ?? 'http://localh
 interface FixtureEvidence {
   mode: 'COMPONENT-ONLY';
   source: { baseline: string; modifiedFields: string[]; limits: string };
-  ui: Pick<UiState, 'worldId' | 'tick' | 'world' | 'scene' | 'settledScene' | 'actions'>;
+  ui: Pick<UiState, 'worldId' | 'tick' | 'checksum' | 'world' | 'scene' | 'settledScene' | 'actions'>;
   callbacks: Record<string, unknown>[];
 }
 interface AnimationEvidence { identity: string | null; category: string | null }
@@ -90,24 +90,40 @@ async function open(page: Page, arrivalOnly = false): Promise<FixtureEvidence> {
   expect(fixture.source.limits).toContain('Not live App/WASM');
   return fixture;
 }
-async function finalScene(page: Page, entry: SceneEntry, expectedCalls: number): Promise<void> {
+async function sceneFacts(page: Page, entry: SceneEntry, settledText = false): Promise<void> {
   const scene = page.getByTestId('key-scene');
+  const view = entry.keyScene!;
+  expect(entry.identity).toBe(JSON.stringify(view.identity));
   await expect(scene).toHaveAttribute('data-identity', entry.identity);
+  await expect(scene).toHaveAttribute('data-category', view.category);
+  await expect(scene).toHaveAccessibleName(view.title);
+  for (const line of view.lines) {
+    await expect(scene.locator('.accessible-facts')).toContainText(line);
+    if (settledText) await expect(scene.locator('.scene-paragraphs')).toContainText(line);
+  }
+  for (const field of view.document.fields) {
+    await expect(scene.locator('.accessible-facts')).toContainText(field.label);
+    await expect(scene.locator('.accessible-facts')).toContainText(field.value);
+  }
+}
+function unchangedWorld(fixture: FixtureEvidence, baseline: FixtureEvidence): void {
+  expect(fixture.ui.worldId).toBe(baseline.ui.worldId);
+  expect(fixture.ui.tick).toBe(baseline.ui.tick);
+  expect(fixture.ui.checksum).toBe(baseline.ui.checksum);
+  expect(fixture.ui.world).toEqual(baseline.ui.world);
+  expect(fixture.ui.actions).toEqual([]);
+  expect(fixture.callbacks.filter(callback => ['choose', 'dream', 'claim', 'bribe', 'haunt'].includes(String(callback.kind)))).toEqual([]);
+}
+async function finalScene(page: Page, entry: SceneEntry, expectedCalls: number, baseline: FixtureEvidence): Promise<void> {
+  const scene = page.getByTestId('key-scene');
   await expect(scene).toHaveAttribute('data-beat', 'settled');
-  expect(await scene.locator('.scene-paragraphs p').textContent()).toBe(entry.keyScene!.lines.join('\n\n'));
+  await sceneFacts(page, entry, true);
   expect((await animationCalls(page)).length).toBe(expectedCalls);
-  expect(await scene.evaluate(element => ({
-    animations: element.getAnimations({ subtree: true }).length,
-    people: getComputedStyle(element.querySelector('.people-layer')!).transform,
-    certificate: getComputedStyle(element.querySelector('.stage-document')!).opacity,
-    departure: getComputedStyle(element.querySelector('.departure-layer')!).opacity,
-    willChange: [...element.querySelectorAll('.picture-layer, .stage-document')].every(layer => (layer as HTMLElement).style.willChange === ''),
-  }))).toEqual({ animations: 0, people: 'none', certificate: '1', departure: '0', willChange: true });
+  expect(await scene.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0);
   const fixture = await readFixture(page);
   expect(fixture.ui.settledScene?.entry.identity).toBe(entry.identity);
   expect(fixture.callbacks.filter(callback => callback.kind === 'settled' && callback.identity === entry.identity).at(-1)).toMatchObject({ accepted: true });
-  expect(fixture.ui.actions).toEqual([]);
-  expect(fixture.callbacks.filter(callback => ['choose', 'dream', 'claim', 'bribe', 'haunt'].includes(String(callback.kind)))).toEqual([]);
+  unchangedWorld(fixture, baseline);
 }
 
 test('Hidden arrival/death bundle stays final through Continue; visible tick and World bundles still perform', async ({ page, context }, testInfo) => {
@@ -117,13 +133,13 @@ test('Hidden arrival/death bundle stays final through Continue; visible tick and
   expect([arrival!.keyScene!.category, death!.keyScene!.category]).toEqual(['rebirth', 'death']);
   const calls = (await animationCalls(page)).length;
   const other = await background(page, context);
-  await finalScene(page, arrival!, calls);
+  await finalScene(page, arrival!, calls, initial);
   await page.bringToFront();
   await expect.poll(() => page.evaluate(() => document.hidden)).toBe(false);
-  await finalScene(page, arrival!, calls);
+  await finalScene(page, arrival!, calls, initial);
   await expect(page.getByTestId('scene-close')).toHaveText('Continue');
   await page.getByTestId('scene-close').press('Enter');
-  await finalScene(page, death!, calls);
+  await finalScene(page, death!, calls, initial);
   const continued = await readFixture(page);
   expect(continued.ui.scene!.entries.map(entry => entry.identity)).toEqual([death!.identity]);
   expect(continued.callbacks.filter(callback => callback.kind === 'close')).toEqual([
@@ -131,7 +147,13 @@ test('Hidden arrival/death bundle stays final through Continue; visible tick and
   ]);
   await page.getByTestId('scene-close').press('Enter');
   await expect(page.getByTestId('key-scene')).toHaveCount(0);
-  expect((await readFixture(page)).callbacks.filter(callback => callback.kind === 'close').at(-1)).toMatchObject({ identity: death!.identity, settled: true, accepted: true });
+  const closed = await readFixture(page);
+  expect(closed.ui.scene).toBeNull();
+  expect(closed.callbacks.filter(callback => callback.kind === 'close')).toEqual([
+    { kind: 'close', identity: arrival!.identity, settled: true, accepted: true },
+    { kind: 'close', identity: death!.identity, settled: true, accepted: true },
+  ]);
+  unchangedWorld(closed, initial);
 
   await page.getByTestId('fixture-next-bundle').press('Enter');
   await expect.poll(async () => (await animationCalls(page)).length).toBeGreaterThan(calls);
@@ -139,7 +161,12 @@ test('Hidden arrival/death bundle stays final through Continue; visible tick and
   expect(nextTick.ui.worldId).toBe(initial.ui.worldId);
   expect(nextTick.ui.tick).not.toBe(initial.ui.tick);
   await expect(page.getByTestId('key-scene')).not.toHaveAttribute('data-beat', 'settled');
-  expect(await page.locator('.scene-paragraphs p').textContent()).not.toBe(nextTick.ui.scene!.entries[0]!.keyScene!.lines.join('\n\n'));
+  await sceneFacts(page, nextTick.ui.scene!.entries[0]!);
+  expect((await animationCalls(page)).slice(calls)).toContainEqual({
+    identity: nextTick.ui.scene!.entries[0]!.identity, category: nextTick.ui.scene!.entries[0]!.keyScene!.category,
+  });
+  expect(nextTick.ui.checksum).toBe(initial.ui.checksum);
+  expect(nextTick.ui.actions).toEqual([]);
 
   const tickCalls = (await animationCalls(page)).length;
   await page.getByTestId('fixture-next-world').press('Enter');
@@ -148,9 +175,14 @@ test('Hidden arrival/death bundle stays final through Continue; visible tick and
   expect(nextWorld.ui.worldId).toBe(initial.ui.worldId + 1);
   expect(nextWorld.ui.tick).toBe(nextTick.ui.tick);
   await expect(page.getByTestId('key-scene')).not.toHaveAttribute('data-beat', 'settled');
+  await sceneFacts(page, nextWorld.ui.scene!.entries[0]!);
+  expect((await animationCalls(page)).slice(tickCalls)).toContainEqual({
+    identity: nextWorld.ui.scene!.entries[0]!.identity, category: nextWorld.ui.scene!.entries[0]!.keyScene!.category,
+  });
+  expect(nextWorld.ui.checksum).toBe(initial.ui.checksum);
   expect(nextWorld.ui.actions).toEqual([]);
   await testInfo.attach('component-only-hidden-bundle-evidence', {
-    body: JSON.stringify({ initial, continued, nextTick, nextWorld, animationCalls: await animationCalls(page) }, null, 2), contentType: 'application/json',
+    body: JSON.stringify({ initial, continued, closed, nextTick, nextWorld, animationCalls: await animationCalls(page) }, null, 2), contentType: 'application/json',
   });
   await other.close();
 });
@@ -167,15 +199,25 @@ test('A death entry delivered while truly hidden joins the settled bundle withou
   const [arrival, death] = appended.ui.scene!.entries;
   expect(arrival!.identity).toBe(initial.ui.scene!.entries[0]!.identity);
   expect(death!.keyScene!.category).toBe('death');
-  await finalScene(page, arrival!, calls);
+  await finalScene(page, arrival!, calls, initial);
   await page.bringToFront();
   await expect.poll(() => page.evaluate(() => document.hidden)).toBe(false);
   await page.getByTestId('scene-close').press('Enter');
-  await finalScene(page, death!, calls);
+  await finalScene(page, death!, calls, initial);
   const continued = await readFixture(page);
   expect(continued.callbacks.filter(callback => callback.kind === 'close').at(-1)).toMatchObject({ identity: arrival!.identity, settled: true, accepted: true });
+  expect(continued.ui.scene!.entries.map(entry => entry.identity)).toEqual([death!.identity]);
+  await page.getByTestId('scene-close').press('Enter');
+  await expect(page.getByTestId('key-scene')).toHaveCount(0);
+  const closed = await readFixture(page);
+  expect(closed.ui.scene).toBeNull();
+  expect(closed.callbacks.filter(callback => callback.kind === 'close')).toEqual([
+    { kind: 'close', identity: arrival!.identity, settled: true, accepted: true },
+    { kind: 'close', identity: death!.identity, settled: true, accepted: true },
+  ]);
+  unchangedWorld(closed, initial);
   await testInfo.attach('component-only-hidden-arrival-evidence', {
-    body: JSON.stringify({ initial, appended, continued, animationCalls: await animationCalls(page) }, null, 2), contentType: 'application/json',
+    body: JSON.stringify({ initial, appended, continued, closed, animationCalls: await animationCalls(page) }, null, 2), contentType: 'application/json',
   });
   await other.close();
 });

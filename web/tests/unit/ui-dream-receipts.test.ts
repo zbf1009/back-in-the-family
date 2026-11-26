@@ -109,3 +109,64 @@ test('Local validation replaces stale transport classifications without changing
   assert.equal(failedRead.errorKind, 'sim-error', 'a later transport fault cannot inherit local-validation presentation');
   assert.equal(failedRead.error, 'postMessage failed');
 });
+
+test('Changing the invalid Create field replaces previous local feedback without touching the world', () => {
+  const initial = state();
+  const seedError = reduce(initial, { type: 'seed-invalid', problem: 'non-digit' });
+  assert.notEqual(seedError.seedMessage, null);
+  const townError = reduce(seedError, { type: 'validation-error', error: 'Invalid town size: range 40–60' });
+  assert.equal(townError.seedMessage, null);
+  assert.equal(townError.errorKind, 'validation');
+  assert.notEqual(townError.error, null);
+  const nextSeedError = reduce(townError, { type: 'seed-invalid', problem: 'too-large' });
+  assert.notEqual(nextSeedError.seedMessage, null);
+  assert.equal(nextSeedError.error, null);
+  assert.equal(nextSeedError.errorKind, undefined);
+  for (const current of [seedError, townError, nextSeedError]) {
+    assert.equal(current.world, initial.world);
+    assert.equal(current.tick, initial.tick);
+    assert.equal(current.checksum, initial.checksum);
+    assert.equal(current.actions, initial.actions);
+    assert.equal(current.notebook, initial.notebook);
+  }
+});
+
+test('A Seed correction does not erase a distinct transport failure', () => {
+  const initial = { ...state(), error: 'Read failed', errorKind: 'sim-error' as const,
+    errorOperation: 'world-snapshot' as const };
+  const current = reduce(initial, { type: 'seed-invalid', problem: 'non-digit' });
+  assert.equal(current.error, initial.error);
+  assert.equal(current.errorKind, initial.errorKind);
+  assert.equal(current.errorOperation, initial.errorOperation);
+});
+
+test('Preissuance pace transport failures remain distinct from validation and cannot affect another world', () => {
+  const initial = reduce(state(), { type: 'validation-error', error: 'Invalid town size' });
+  const event = { type: 'request-start-failed' as const, worldId: initial.worldId,
+    operation: 'set-speed' as const, error: 'Control transport failed' };
+  const failed = reduce(initial, event);
+  assert.equal(failed.errorKind, 'sim-error');
+  assert.equal(failed.errorOperation, 'set-speed');
+  assert.equal(failed.world, initial.world);
+  assert.equal(failed.tick, initial.tick);
+  assert.equal(failed.actions, initial.actions);
+  assert.equal(reduce(initial, { ...event, worldId: initial.worldId + 1 }), initial);
+  const fatal = reduce(initial, { type: 'fatal', error: 'Worker gone' });
+  assert.equal(reduce(fatal, event), fatal);
+});
+
+test('A valid Create clears corrected local fields before its reply without clearing a transport failure', () => {
+  const request: Request = { type: 'create-world', id: 1, seed: '1205', config: '{"opening_residents":50}' };
+  for (const initial of [
+    reduce(state(), { type: 'seed-invalid', problem: 'non-digit' }),
+    reduce(state(), { type: 'validation-error', error: 'Invalid town size' }),
+  ]) {
+    const pending = reduce(initial, { type: 'request-sent', request, worldId: initial.worldId });
+    assert.equal(pending.seedMessage, null);
+    assert.equal(pending.error, null);
+    assert.equal(pending.createPending, true);
+    assert.equal(pending.world, initial.world);
+  }
+  const transport = { ...state(), error: 'Read failed', errorKind: 'sim-error' as const };
+  assert.equal(reduce(transport, { type: 'request-sent', request, worldId: transport.worldId }).error, transport.error);
+});

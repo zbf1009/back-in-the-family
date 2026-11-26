@@ -42,6 +42,25 @@ test('Persistent keyed stores and identity sequences share untouched paths and p
   assert.equal(sequence.at(-1), 1024);
 });
 
+test('Persistent value cursors bound ordered ranges and keep their captured root after updates', () => {
+  let store = keyedStore<number, number>();
+  for (let index = 1023; index >= 0; index--) store = store.set(index, index);
+  const oldRoot = store.root;
+  const cursor = store.values(1000, 1024);
+  assert.equal(cursor.next().value, 1000);
+  const changed = store.delete(1001).set(1024, 1024);
+  assert.deepEqual([...cursor], Array.from({ length: 23 }, (_, index) => 1001 + index));
+  assert.deepEqual([...store.values(1000, 1004)], [1000, 1001, 1002, 1003]);
+  assert.deepEqual([...changed.values(1000, 1004)], [1000, 1002, 1003, 1004]);
+  assert.deepEqual([...store.values(-3, 3)], [0, 1, 2]);
+  assert.deepEqual([...store.values(1024, 1028)], []);
+  assert.deepEqual([...store.values(12, 12)], []);
+  assert.deepEqual([...store.values(12, 8)], []);
+  assert.deepEqual(store.slice(1.5, 3), [2]);
+  assert.deepEqual([...store.values(1.5, 3)], [2]);
+  assert.equal(store.root, oldRoot);
+});
+
 test('Late Chronicle claims steal from repeated/weekly groups in native Chronicle order without changing prior roots', () => {
   const events = Array.from({ length: 5 }, (_, index) => payment(String(index + 1), '1'));
   events.push({ ...social, id: '6', tick: '2', relevance: 'background', actorContext: [] });
@@ -68,16 +87,35 @@ test('Late linked events clear every missing notice but join only the earliest c
     { ...record, index: '9', tick: '20', appended: ['9007199254740994', '9007199254740993'] },
     { ...record, index: '8', tick: '20', appended: ['9007199254740993'] },
   ]));
+  assert.deepEqual([...pending.journal.links.get('9007199254740993')!.values()], [true, true]);
+  assert.equal(pending.journal.links.size, 2);
   assert.ok(journalRange(pending, context).every(group => /not reached/.test(group.text)));
-  const complete = add(pending, batch([
-    payment('9007199254740994', '18'), payment('9007199254740993', '19'),
-  ]));
+  const first = payment('9007199254740994', '18'), shared = payment('9007199254740993', '19');
+  const partial = add(pending, batch([first]));
+  assert.equal(partial.journal.links.size, 1);
+  assert.equal(partial.journal.links.get(first.id), undefined);
+  assert.equal(partial.journal.chronicles.get('9')!.missing, 1);
+  assert.equal(partial.journal.chronicles.get('8')!.missing, 1);
+  const complete = add(partial, batch([shared]));
+  assert.equal(complete.journal.links.size, 0);
+  assert.equal(complete.journal.claims.get(shared.id), '8');
+  assert.equal(complete.events.get(first.id), first);
+  assert.equal(complete.events.get(shared.id), shared);
+  assert.deepEqual(complete.chronicle.get('9')!.appended, ['9007199254740994', '9007199254740993']);
+  assert.equal(add(complete, batch([first, shared])), complete, 'duplicate facts do not notify resolved waiters again');
+  const late = add(complete, batch([], [{ ...record, index: '7', tick: '21', appended: [shared.id, shared.id] }]));
+  assert.equal(late.journal.links.size, 0, 'available linked facts never register a waiter');
+  assert.equal(late.journal.claims.get(shared.id), '7');
+  assert.equal(late.journal.chronicles.get('7')!.missing, 0);
+  assert.equal(late.journal.chronicles.get('8')!.missing, 0);
+  assert.deepEqual(late.chronicle.get('7')!.appended, [shared.id, shared.id]);
   const groups = journalRange(complete, context);
   assert.ok(groups.every(group => !/not reached/.test(group.text)));
   assert.deepEqual([...groups.find(group => group.id === '9:c:8')!.members], ['c:8', 'e:9007199254740993']);
   assert.deepEqual([...groups.find(group => group.id === '9:c:9')!.members], ['c:9', 'e:9007199254740994']);
   assert.equal(groups.find(group => group.id === '9:c:9')!.from, '18');
   assert.ok(journalRange(pending, context).every(group => /not reached/.test(group.text)));
+  assert.equal(pending.journal.links.size, 2, 'resolved links leave old roots intact');
 });
 
 test('Cross-week repayment extension removes only its old weekly contribution and retains exact aggregates', () => {
@@ -85,6 +123,12 @@ test('Cross-week repayment extension removes only its old weekly contribution an
   const other = { ...social, id: '6', tick: '2', relevance: 'background' as const, actorContext: [] };
   const before = add(createNotebook(9), batch([...payments, other]));
   assert.equal(journalGroupCount(before, 'town'), 1);
+  for (const section of ['life', 'town', 'all'] as const) assert.equal(before.journal[section].aggregate, undefined);
+  const candidates = before.journal.weeks.get('false:false:0')!;
+  assert.equal(candidates.aggregate.count, 6);
+  assert.equal(candidates.aggregate.sum, 5n * 9007199254740993n);
+  assert.equal(candidates.at(0)!.references.aggregate.count, 5);
+  assert.equal(candidates.at(0)!.references.aggregate.sum, 5n * 9007199254740993n);
   const after = add(before, batch([payment('7', '8')]));
   const groups = journalRange(after, context, 'town');
   assert.equal(groups.length, 2);
@@ -114,9 +158,61 @@ test('Opening and observed contexts remain distinct, and weekly members retain n
   assert.deepEqual(journalMemberLines(group, weekly, context, 3).map(line => line.identity), expected.slice(3));
 });
 
+test('Weekly expansion locates once per page and iteration shares native-order merge cursors', () => {
+  const events = Array.from({ length: 4096 }, (_, index) => {
+    const event = payment(String(9007199254740993n + BigInt(index)), String(index % 7));
+    return { ...event, kind: { ...event.kind, type: 'repayment' as const, payer: 10, payee: 11 + index % 32, amount: '9007199254740993' } };
+  });
+  const notebook = add(createNotebook(9), batch([...events].reverse()));
+  const original = notebook.journal.town.at(0)!;
+  const expected = [...events].sort((a, b) => Number(BigInt(a.tick) - BigInt(b.tick)) || Number(BigInt(a.id) - BigInt(b.id))).map(event => `e:${event.id}`);
+  let calls = { at: 0, rank: 0, cursors: 0 };
+  let constituents = original.constituents!;
+  const count = constituents.size;
+  for (const group of original.constituents!.values()) {
+    const references = new Proxy(group.references, {
+      get(target, property, receiver) {
+        if (property === 'get') return () => { throw new Error('Member selection must not look up every constituent at each rank'); };
+        if (property === 'at') return (index: number) => { calls.at++; return target.at(index); };
+        if (property === 'rank') return (reference: Parameters<typeof target.rank>[0]) => { calls.rank++; return target.rank(reference); };
+        if (property === 'values') return (start?: number, end?: number) => { calls.cursors++; return target.values(start, end); };
+        return Reflect.get(target, property, receiver);
+      },
+    });
+    constituents = constituents.set(group, { ...group, references });
+  }
+  const metadata = { ...original, constituents };
+  const tracked: LifeNotebook = { ...notebook, journal: { ...notebook.journal, town: notebook.journal.town.set(metadata, metadata) } };
+  const group = journalRange(tracked, context, 'town')[0]!;
+  assert.deepEqual(group.members.slice(3900, 3901), expected.slice(3900, 3901));
+  const one = calls;
+  calls = { at: 0, rank: 0, cursors: 0 };
+  assert.deepEqual(journalMemberLines(group, tracked, context, 3900).map(line => line.identity), expected.slice(3900, 3900 + JOURNAL_EXPANSION_SIZE));
+  assert.deepEqual(calls, one, 'a 24-member page shares the same positioning work as one member');
+  assert.equal(calls.cursors, count);
+  calls = { at: 0, rank: 0, cursors: 0 };
+  assert.deepEqual([...group.members], expected);
+  assert.deepEqual(calls, { at: 0, rank: 0, cursors: count }, 'iteration initializes each constituent only once');
+  assert.deepEqual(group.members.slice(-24), expected.slice(-24));
+  assert.equal(group.members.at(-1), expected.at(-1));
+  assert.deepEqual(group.members.slice(4000, 3900), []);
+  const cursor = group.members[Symbol.iterator]();
+  assert.equal(cursor.next().value, expected[0]);
+  const changed = add(notebook, batch([], [{ ...record, index: '1', tick: '8', appended: [events[0]!.id] }]));
+  const remaining: string[] = [];
+  for (let next = cursor.next(); !next.done; next = cursor.next()) remaining.push(next.value);
+  assert.deepEqual(remaining, expected.slice(1));
+  assert.deepEqual([...journalRange(notebook, context, 'town')[0]!.members], expected);
+  assert.equal(journalGroupCount(changed, 'town'), 1);
+  assert.deepEqual([...journalRange(changed, context, 'town')[0]!.members], expected.filter(identity => identity !== `e:${events[0]!.id}`));
+  assert.equal(original.constituents!.aggregate.count, events.length);
+  assert.equal(original.constituents!.aggregate.sum, BigInt(events.length) * 9007199254740993n);
+});
+
 test('Section and endpoint are selected before rendering; body/actor changes touch visible text only', () => {
   const events = Array.from({ length: 360 }, (_, index) => ({ ...milestone, id: String(index + 1), tick: String(index), relevance: index % 2 ? 'self' as const : 'background' as const }));
   const original = add(createNotebook(9), batch(events));
+  for (const section of ['life', 'town', 'all'] as const) assert.equal(original.journal[section].aggregate, undefined);
   const reads: string[] = [];
   const tracked: LifeNotebook = { ...original, events: new Proxy(original.events, {
     get(target, property, receiver) {

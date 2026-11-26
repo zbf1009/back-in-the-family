@@ -10,7 +10,7 @@ test('each ordinary pace remains owed until its same-world restoration acknowled
     for (const kind of ['stop', 'pause', 'cancel', 'error'] as const) {
       const stopped = transitionTemporaryPace(begun.fastForward, 4, begun.speed, { kind, worldId: 4 });
       assert.equal(stopped.fastForward?.phase, 'stopping');
-      assert.equal(stopped.fastForward?.previousSpeed, speed);
+      assert.equal(stopped.fastForward?.targetSpeed, speed);
       const restoring = transitionTemporaryPace(stopped.fastForward, 4, begun.speed, { kind: 'restore', worldId: 4 });
       assert.equal(restoring.speed, speed);
       const sent = transitionTemporaryPace(restoring.fastForward, 4, begun.speed, { kind: 'request-sent', worldId: 4, requestId: 12 });
@@ -31,16 +31,37 @@ test('repeated begin preserves original pace and cannot interrupt restoration', 
   }
 });
 
-test('manual selection retains the saved pace until its own ACK, and rejection restores the original', () => {
+test('manual selection replaces the restoration target and rejection never restores the original', () => {
   const begun = transitionTemporaryPace(null, 8, DEFAULT_SPEED, { kind: 'begin', worldId: 8 });
   const selected = transitionTemporaryPace(begun.fastForward, 8, begun.speed, { kind: 'select', worldId: 8, speed: 7 });
   assert.equal(selected.fastForward?.phase, 'selecting');
-  assert.equal(selected.fastForward?.previousSpeed, DEFAULT_SPEED);
+  assert.equal(selected.fastForward?.targetSpeed, 7);
   const sent = transitionTemporaryPace(selected.fastForward, 8, begun.speed, { kind: 'request-sent', worldId: 8, requestId: 20 });
   assert.deepEqual(transitionTemporaryPace(sent.fastForward, 8, 7, { kind: 'accepted', worldId: 8, requestId: 20 }), { fastForward: null, speed: 7 });
   const failed = transitionTemporaryPace(sent.fastForward, 8, begun.speed, { kind: 'error', worldId: 8 });
-  assert.equal(failed.speed, DEFAULT_SPEED);
+  assert.equal(failed.speed, 7);
   assert.equal(failed.fastForward?.phase, 'stopping');
+});
+
+test('stop and Pause preserve the selected target and its matching speed acknowledgement', () => {
+  const begun = transitionTemporaryPace(null, 8, DEFAULT_SPEED, { kind: 'begin', worldId: 8 });
+  const selected = transitionTemporaryPace(begun.fastForward, 8, begun.speed, { kind: 'select', worldId: 8, speed: 1 });
+  const sent = transitionTemporaryPace(selected.fastForward, 8, selected.speed, { kind: 'request-sent', worldId: 8, requestId: 20 });
+  for (const kind of ['stop', 'pause'] as const) {
+    const stopped = transitionTemporaryPace(sent.fastForward, 8, sent.speed, { kind, worldId: 8 });
+    assert.equal(stopped.fastForward?.phase, 'selecting');
+    assert.equal(stopped.fastForward?.requestId, 20);
+    assert.equal(stopped.fastForward?.targetSpeed, 1);
+    assert.equal(stopped.fastForward?.paused, kind === 'stop');
+    const paused = transitionTemporaryPace(stopped.fastForward, 8, stopped.speed, { kind: 'paused', worldId: 8 });
+    assert.equal(paused.fastForward?.paused, true);
+    assert.deepEqual(transitionTemporaryPace(paused.fastForward, 8, paused.speed, { kind: 'accepted', worldId: 8, requestId: 19 }), paused);
+    assert.deepEqual(transitionTemporaryPace(paused.fastForward, 8, paused.speed, { kind: 'accepted', worldId: 8, requestId: 20 }), { fastForward: null, speed: 1 });
+    const failed = transitionTemporaryPace(paused.fastForward, 8, paused.speed, { kind: 'error', worldId: 8 });
+    const restoring = transitionTemporaryPace(failed.fastForward, 8, failed.speed, { kind: 'restore', worldId: 8 });
+    assert.equal(restoring.fastForward?.targetSpeed, 1);
+    assert.equal(restoring.speed, 1);
+  }
 });
 
 test('Pause acknowledgement advances recovery but does not settle the saved speed', () => {
@@ -58,7 +79,7 @@ test('failed Create preserves restoration; new World and stale callbacks are epo
   const stopping = transitionTemporaryPace(begun.fastForward, 5, begun.speed, { kind: 'stop', worldId: 5 });
   assert.deepEqual(transitionTemporaryPace(stopping.fastForward, 5, stopping.speed, { kind: 'create-failed', worldId: 5 }), stopping);
   const stale: PaceEvent[] = [
-    ...(['begin', 'stop', 'error', 'pause', 'cancel', 'create-failed', 'world-created', 'restore'] as const).map(kind => ({ kind, worldId: 4 })),
+    ...(['begin', 'stop', 'error', 'pause', 'paused', 'cancel', 'create-failed', 'world-created', 'restore'] as const).map(kind => ({ kind, worldId: 4 })),
     { kind: 'select', speed: 90, worldId: 4 },
     { kind: 'accepted', requestId: 1, worldId: 4 },
     { kind: 'request-sent', requestId: 1, worldId: 4 },

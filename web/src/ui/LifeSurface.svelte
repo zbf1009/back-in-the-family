@@ -26,40 +26,55 @@
     onClose(expected: SceneClose): void;
     onSettled(expected: SceneClose): void;
   } = $props();
+  const scene = $derived(ui.scene);
+  const worldId = $derived(ui.worldId);
   const decision = $derived(currentDecision(ui));
-  const head = $derived(ui.scene?.entries[0] ?? null);
+  const head = $derived(scene?.entries[0] ?? null);
   const paperwork = $derived(operationStates(ui));
   const otherPaperwork = $derived(paperwork.filter(state => state.kind === 'choose'
     ? decision === null : ui.world?.player.place !== 'waiting'));
   const closeHead = $derived.by(() => {
-    const queue = ui.scene;
+    const queue = scene;
     const entry = queue?.entries[0];
     return queue === null || entry === undefined || entry.node !== null ? undefined
       : () => onClose({ worldId: queue.worldId, tick: queue.tick, entry });
   });
   const settledHead = $derived.by(() => {
-    const queue = ui.scene;
+    const queue = scene;
     const entry = queue?.entries[0];
     return queue === null || entry === undefined || entry.node !== null ? undefined
       : () => onSettled({ worldId: queue.worldId, tick: queue.tick, entry });
   });
   let hidden = $state(typeof document !== 'undefined' && document.hidden);
   let settledBundle = $state.raw<{ worldId: number; entries: ReadonlySet<SceneEntry> } | null>(null);
-  const preSettled = $derived(hidden || (ui.scene !== null && settledBundle !== null
-    && settledBundle.worldId === ui.scene.worldId && head !== null && settledBundle.entries.has(head)));
+  const preSettled = $derived(hidden || (scene !== null && settledBundle !== null
+    && settledBundle.worldId === scene.worldId && head !== null && settledBundle.entries.has(head)));
+  let retainedQueue: SceneQueue | null | undefined;
+  let retainedWorldId = 0;
+  let retainedHidden = false;
 
-  function retainSettledEntries(queue: SceneQueue | null, isHidden: boolean): void {
+  function retainSettledEntries(queue: SceneQueue | null, currentWorldId: number, isHidden: boolean): void {
+    if (queue === retainedQueue && currentWorldId === retainedWorldId && isHidden === retainedHidden) return;
+    retainedQueue = queue;
+    retainedWorldId = currentWorldId;
+    retainedHidden = isHidden;
     if (queue === null) { settledBundle = null; return; }
     const previous = settledBundle?.worldId === queue.worldId ? settledBundle.entries : null;
-    const entries = new Set(queue.entries.filter(entry => isHidden || previous?.has(entry)));
-    if (previous !== null && entries.size === previous.size && [...entries].every(entry => previous.has(entry))) return;
+    const entries = new Set<SceneEntry>();
+    let added = false;
+    for (const entry of queue.entries) {
+      const wasSettled = previous?.has(entry) ?? false;
+      if (isHidden || wasSettled) { entries.add(entry); if (!wasSettled) added = true; }
+    }
+    if (previous !== null && !added && entries.size === previous.size) return;
     settledBundle = { worldId: queue.worldId, entries };
   }
 
   $effect.pre(() => {
-    const queue = ui.scene;
+    const queue = scene;
+    const currentWorldId = worldId;
     const isHidden = hidden;
-    untrack(() => retainSettledEntries(queue, isHidden));
+    untrack(() => retainSettledEntries(queue, currentWorldId, isHidden));
   });
   let mapOpen = $state(false);
   let mapWorld = 0;
@@ -69,7 +84,7 @@
     const update = () => { filesOpen = !narrow.matches; };
     const visibilityChanged = () => {
       // Keep the entire bundle, including carriers received before this return.
-      retainSettledEntries(ui.scene, hidden || document.hidden);
+      retainSettledEntries(scene, worldId, hidden || document.hidden);
       hidden = document.hidden;
     };
     narrow.addEventListener('change', update);
@@ -88,7 +103,7 @@
   <div class="reading-lane">
     <section class="scene-context" aria-label="The current scene">
       {#if head?.keyScene !== null && head?.keyScene !== undefined}
-        {#key head.identity}<KeyScene view={head.keyScene} {sprites} {presentationVersion} {preSettled} onClose={closeHead} onSettled={settledHead} next={(ui.scene?.entries.length ?? 0) > 1} />{/key}
+        {#key head.identity}<KeyScene view={head.keyScene} {sprites} {presentationVersion} {preSettled} onClose={closeHead} onSettled={settledHead} next={(scene?.entries.length ?? 0) > 1} />{/key}
       {:else}
         <ScenePicture world={ui.world} {sprites} kind={decision?.family ?? (ui.world?.player.place === 'waiting' ? 'waiting' : 'living')} node={decision} running={ui.runState === 'running'} worldKey={ui.worldId} />
       {/if}
