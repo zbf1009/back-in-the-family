@@ -1041,9 +1041,9 @@ test('LU-R2: ordinary Story deliveries retain old facts and actors through rebir
   ]);
   assert.ok(expected.size > 120, 'actual native history exceeds the visible render range');
   assert.deepEqual(new Set(retained.identities), expected);
-  for (const event of native.events) assert.deepEqual(retained.events[event.id], event);
-  for (const record of native.chronicle) assert.deepEqual(retained.chronicle[record.index], record);
-  for (const actor of native.actors) assert.deepEqual(retained.actors[actor.person], actor);
+  for (const event of native.events) assert.deepEqual(retained.events.get(event.id), event);
+  for (const record of native.chronicle) assert.deepEqual(retained.chronicle.get(record.index), record);
+  for (const actor of native.actors) assert.deepEqual(retained.actors.get(actor.person), actor);
   const nextTick = String(BigInt(native.sampleTicks) + 1n);
   ui = reduce(ui, { type: 'status', snapshot: { ...deliverySnapshot(ui), tick: nextTick,
     stop: { reasons: ['player_reborn'], world: { ...deliveryWorld, tick: nextTick } } } });
@@ -1055,7 +1055,7 @@ test('LU-R2: ordinary Story deliveries retain old facts and actors through rebir
   ui = deliveryReply(ui, { ...create, seed: '2' }, { ...deliverySnapshot(ui), worldId: 2, tick: '0' });
   assert.equal(ui.notebook.worldId, 2);
   assert.equal(ui.notebook.identities.length, 0);
-  assert.deepEqual(ui.notebook.actors, {});
+  assert.equal(ui.notebook.actors.size, 0);
   const fresh = ui;
   ui = reduce(ui, { type: 'status', snapshot: delivered });
   assert.equal(ui, fresh, 'old World story cannot repopulate the new notebook');

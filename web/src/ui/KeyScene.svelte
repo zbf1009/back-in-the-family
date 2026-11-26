@@ -5,9 +5,9 @@
   import { dateLabel } from '../main/calendar.ts';
   import ScenePicture from './ScenePicture.svelte';
 
-  const { view, sprites, onClose, presentationVersion = 0, onSettled, next = false }: {
+  const { view, sprites, onClose, presentationVersion = 0, onSettled, next = false, preSettled = false }: {
     view: KeySceneView; sprites: SpriteSet | null; onClose?: () => void;
-    presentationVersion?: number; onSettled?: () => void; next?: boolean;
+    presentationVersion?: number; onSettled?: () => void; next?: boolean; preSettled?: boolean;
   } = $props();
   type Layers = { base: HTMLCanvasElement; people: HTMLCanvasElement; focal: HTMLCanvasElement;
     departure?: HTMLCanvasElement; certificate?: HTMLElement; counterpart?: HTMLCanvasElement };
@@ -93,7 +93,7 @@
     const id = identity;
     const current = layers;
     const artReady = sprites !== null;
-    const quiet = reduced || hidden;
+    const quiet = reduced || hidden || preSettled;
     if (current === null) return;
     release(current);
     if (!artReady || quiet || playedIdentity === id) {

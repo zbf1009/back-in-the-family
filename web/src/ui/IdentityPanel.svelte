@@ -9,7 +9,7 @@
   const body = $derived(world?.residents.find(person => person.id === world.player.body));
   const ghost = $derived(world?.player_wait?.ghost);
   const names = $derived(world === null ? null : namesById(world));
-  function name(person: number): string { return nameLabel(names?.get(person) ?? ui.notebook?.actors[person]?.name); }
+  function name(person: number): string { return nameLabel(names?.get(person) ?? ui.notebook?.actors.get(person)?.name); }
   function age(person: number): number | null { return world?.residents.find(resident => resident.id === person)?.age ?? null; }
   const rememberers = $derived(new Set(world?.player.past_life_ties.map(tie => tie.rememberer)).size);
 </script>
@@ -52,9 +52,10 @@
     <details>
       <summary>Earlier lives · {world.player.earlier_bodies.length}</summary>
       {#each world.player.earlier_bodies as earlier (earlier.id)}
+        {@const ageAtDeath = ui.notebook?.actors.get(earlier.id)?.ageAtDeath}
         <div class="earlier-file">
           <PeopleCard person={earlier.id} name={earlier.name} detail={originLabel(earlier.origin)} />
-          <p>Died {dateLabel(earlier.death)}{ui.notebook?.actors[earlier.id]?.ageAtDeath !== undefined ? ` · Age ${ui.notebook.actors[earlier.id]!.ageAtDeath}` : ''}</p>
+          <p>Died {dateLabel(earlier.death)}{ageAtDeath !== undefined ? ` · Age ${ageAtDeath}` : ''}</p>
         </div>
       {:else}<p class="empty">This notebook has no earlier lives.</p>{/each}
     </details>

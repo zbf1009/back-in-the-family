@@ -1,7 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { dateLabel, formatAmount } from '../main/calendar.ts';
-  import { journalGroups, journalMemberLines, journalRange, JOURNAL_EXPANSION_SIZE, JOURNAL_RANGE_SIZE, type LifeNotebook } from '../main/life-journal.ts';
+  import { journalGroupCount, journalMemberLines, journalRange, latestPrimaryIdentity, latestTownEvent, JOURNAL_EXPANSION_SIZE, JOURNAL_RANGE_SIZE, type LifeNotebook } from '../main/life-journal.ts';
   import { renderTownPromotion } from '../main/journal-templates.ts';
   import type { StoryEvent } from '../shared/story.ts';
 
@@ -21,19 +21,10 @@
   let lastPrimaryAt = $state(0);
   const worldKey = $derived(notebook.worldId);
   const context = $derived({ playerSoul, currentBody });
-  const groups = $derived(journalGroups(notebook, context));
-  const primary = $derived(groups.filter(group => group.primary));
-  const town = $derived(groups.filter(group => !group.primary));
-  const history = $derived(section === 'life' ? primary : town);
-  const end = $derived(Math.min(rangeEnd ?? history.length, history.length));
-  const visible = $derived([...journalRange(history, end)].reverse());
-  const primaryIdentity = $derived.by(() => {
-    for (let index = notebook.identities.length - 1; index >= 0; index--) {
-      const identity = notebook.identities[index]!;
-      if (identity.startsWith('c:') || notebook.events[identity.slice(2)]?.relevance !== 'background') return identity;
-    }
-    return null;
-  });
+  const historyCount = $derived(journalGroupCount(notebook, section));
+  const end = $derived(Math.min(rangeEnd ?? historyCount, historyCount));
+  const visible = $derived([...journalRange(notebook, context, section, end)].reverse());
+  const primaryIdentity = $derived(latestPrimaryIdentity(notebook));
   const promotionText = $derived(promotion ? renderTownPromotion(promotion, notebook.actors, { ...context, dreams: notebook.dreams }) : '');
 
   $effect(() => {
@@ -52,7 +43,7 @@
     worldKey; speed;
     const timer = setInterval(() => {
       if (document.hidden || section !== 'life' || performance.now() - lastPrimaryAt < 5500) return;
-      const candidate = untrack(() => town.flatMap(group => group.events).filter(event => !notebook.opening[`e:${event.id}`] && (lastPromotedId === null || BigInt(event.id) > BigInt(lastPromotedId))).reduce<StoryEvent | null>((latest, event) => latest === null || BigInt(event.id) > BigInt(latest.id) ? event : latest, null));
+      const candidate = untrack(() => latestTownEvent(notebook, lastPromotedId));
       if (candidate === null) return;
       promotion = candidate;
       lastPromotedId = candidate.id;
@@ -63,8 +54,8 @@
     section = next; rangeEnd = null; expanded = null; memberStart = 0;
   }
   function moveRange(delta: number): void {
-    rangeEnd = Math.min(history.length, Math.max(Math.min(JOURNAL_RANGE_SIZE, history.length), end + delta));
-    if (rangeEnd === history.length) rangeEnd = null;
+    rangeEnd = Math.min(historyCount, Math.max(Math.min(JOURNAL_RANGE_SIZE, historyCount), end + delta));
+    if (rangeEnd === historyCount) rangeEnd = null;
     expanded = null; memberStart = 0;
   }
 </script>
@@ -87,11 +78,11 @@
     </aside>
   {/if}
 
-  {#if history.length > JOURNAL_RANGE_SIZE}
+  {#if historyCount > JOURNAL_RANGE_SIZE}
     <nav class="history-range" aria-label="Read notebook history">
       <button type="button" disabled={end <= JOURNAL_RANGE_SIZE} onclick={() => moveRange(-JOURNAL_RANGE_SIZE)}>Read earlier</button>
       <span>{rangeEnd === null ? 'Latest accounts' : 'Earlier accounts'}</span>
-      <button type="button" disabled={end >= history.length} onclick={() => moveRange(JOURNAL_RANGE_SIZE)}>Read later</button>
+      <button type="button" disabled={end >= historyCount} onclick={() => moveRange(JOURNAL_RANGE_SIZE)}>Read later</button>
       {#if rangeEnd !== null}<button type="button" onclick={() => { rangeEnd = null; expanded = null; memberStart = 0; }}>Back to latest</button>{/if}
     </nav>
   {/if}

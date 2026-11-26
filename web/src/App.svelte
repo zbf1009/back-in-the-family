@@ -20,6 +20,7 @@
   import { claimRequest, dreamRequest, parseBribeAmount, type UnderworldForm } from './main/customization.ts';
   import { feedbackView, identitySummary, underworldView } from './main/view-model.ts';
   import { DEFAULT_DECISION_WAIT_SECONDS } from './shared/decision.ts';
+  import { exportNotebook } from './main/life-journal.ts';
 
   const { client, bridge }: { client: SimClient; bridge: EventBridge } = $props();
   let ui: UiState = $state(initialUiState());
@@ -31,33 +32,91 @@
   let sprites: SpriteSet | null = $state(null);
   let assetError: string | null = $state(null);
   let fastForward: TemporaryPace | null = $state(null);
+  let speedRequest: { worldId: number; id: number; pending: boolean } | null = $state(null);
+  let runRequest: { worldId: number; id: number } | null = null;
+  let recoveryBlocked: 'hold' | 'failed' | null = null;
   let presentationVersion = $state(0);
   const identity = $derived(identitySummary(ui));
   const buttons = $derived(controls(ui));
   const held = $derived(decisionBusy(ui));
   const notice = $derived(decisionNotice(ui));
+  const paceBusy = $derived.by(() => {
+    const request = speedRequest;
+    const pace = fastForward;
+    return request?.pending === true || pace !== null && pace.phase !== 'moving';
+  });
   const feedback = $derived(feedbackView(ui));
   const openingBody = $derived(ui.world?.residents.find(person => person.id === ui.world?.player.body));
-  const playerError = $derived(ui.error === null ? null : transportText(ui.errorKind ?? 'sim-error', ui.error, ui.errorOperation));
+  const playerError = $derived(ui.error === null ? null : ui.errorKind === 'validation'
+    ? ui.error : transportText(ui.errorKind ?? 'sim-error', ui.error, ui.errorOperation));
 
   function onClose(expected: SceneClose): void { dispatch({ type: 'scene-close', expected }); }
   function onSettled(expected: SceneClose): void { dispatch({ type: 'scene-settled', expected }); }
   function dispatch(event: UiEvent): void {
     const previousWorld = ui.worldId;
+    const obsoleteSpeed = (event.type === 'reply' || event.type === 'request-failed') && event.request.type === 'set-speed'
+      && (speedRequest?.worldId !== event.worldId || speedRequest?.id !== event.request.id);
+    // Late ACKs still contribute their facts, but cannot undo a newer pace request.
+    const olderSpeed = event.type === 'reply' && speedRequest !== null && speedRequest.worldId === event.worldId && event.request.id < speedRequest.id;
+    const olderRunState = event.type === 'reply' && (event.request.type === 'run' || event.request.type === 'pause')
+      && event.message.snapshot.runState !== 'failed' && runRequest !== null && runRequest.worldId === event.worldId && event.request.id < runRequest.id;
+    if (event.type === 'reply' && (olderSpeed || olderRunState)) {
+      event = { ...event, message: { ...event.message, snapshot: { ...event.message.snapshot,
+        ...(olderSpeed ? { speed: ui.speed } : {}), ...(olderRunState ? { runState: ui.runState } : {}) } } };
+    }
     ui = reduce(ui, event);
-    if (ui.worldId !== previousWorld) fastForward = null;
+    if (ui.worldId !== previousWorld) {
+      fastForward = null; speedRequest = null; runRequest = null; recoveryBlocked = null;
+    }
+    if (event.type === 'request-sent' && event.worldId === ui.worldId && fastForward?.worldId === ui.worldId
+      && (event.request.type === 'set-speed' && ['starting', 'restoring', 'selecting'].includes(fastForward.phase)
+        || event.request.type === 'pause' && fastForward.phase === 'stopping')) {
+      fastForward = transitionTemporaryPace(fastForward, ui.worldId, ui.speed as Speed,
+        { kind: 'request-sent', worldId: ui.worldId, requestId: event.request.id }).fastForward;
+    }
     const snapshot = event.type === 'status' ? event.snapshot : event.type === 'reply' ? event.message.snapshot : null;
-    const sameWorld = snapshot?.worldId === ui.worldId || 'worldId' in event && event.worldId === ui.worldId;
-    const failed = event.type === 'fatal' || event.type === 'worker-error'
-      || sameWorld && (event.type === 'request-failed' && event.request.type !== 'create-world'
-        || event.type === 'reply' && !event.message.ok && event.request.type !== 'create-world');
-    if (fastForward?.worldId === ui.worldId && (snapshot?.worldId === ui.worldId && snapshot.stop !== undefined || failed)) {
-      const restored = transitionTemporaryPace(fastForward, ui.worldId, ui.speed as Speed,
-        { kind: failed ? 'error' : 'stop', worldId: ui.worldId });
-      fastForward = restored.fastForward;
-      if (ui.runState !== 'failed' && restored.speed !== ui.speed) void sendRequest({ type: 'set-speed', speed: restored.speed });
+    const sameWorld = event.type === 'reply' ? event.worldId === ui.worldId && snapshot?.worldId === ui.worldId
+      : event.type === 'status' ? snapshot?.worldId === ui.worldId : 'worldId' in event && event.worldId === ui.worldId;
+    const failed = sameWorld && !obsoleteSpeed && (event.type === 'request-failed' && event.request.type !== 'create-world'
+      || event.type === 'reply' && !event.message.ok && event.request.type !== 'create-world');
+    if ((event.type === 'reply' || event.type === 'request-failed') && event.request.type === 'set-speed'
+      && speedRequest !== null && speedRequest.worldId === event.worldId && speedRequest.id === event.request.id) speedRequest = { ...speedRequest, pending: false };
+    if (ui.runState !== 'failed' && fastForward?.worldId === ui.worldId) {
+      if (sameWorld && event.type === 'reply' && event.message.ok && !obsoleteSpeed
+        && fastForward.requestId === event.request.id) {
+        fastForward = transitionTemporaryPace(fastForward, ui.worldId, ui.speed as Speed,
+          { kind: 'accepted', worldId: ui.worldId, requestId: event.request.id }).fastForward;
+      }
+      if (failed && fastForward !== null) {
+        if (fastForward.phase === 'restoring' || fastForward.phase === 'stopping') {
+          if ((event.type === 'reply' || event.type === 'request-failed') && fastForward.requestId === event.request.id) {
+            fastForward = { ...fastForward, requestId: null };
+            recoveryBlocked = event.type === 'reply' && !event.message.ok && event.message.kind === 'decision_pending' ? 'hold' : 'failed';
+          }
+        } else {
+          fastForward = transitionTemporaryPace(fastForward, ui.worldId, ui.speed as Speed,
+            { kind: 'error', worldId: ui.worldId }).fastForward;
+        }
+      } else if (snapshot?.worldId === ui.worldId && snapshot.stop !== undefined && fastForward !== null
+        && ['starting', 'moving', 'selecting'].includes(fastForward.phase)) {
+        fastForward = transitionTemporaryPace(fastForward, ui.worldId, ui.speed as Speed,
+          { kind: 'stop', worldId: ui.worldId }).fastForward;
+      }
+      if (!failed && recoveryBlocked === 'hold' && !decisionBusy(ui)) recoveryBlocked = null;
+      restorePace();
     }
     if (worldSnapshotNeeded(ui)) void sendRequest({ type: 'world-snapshot' });
+  }
+  function restorePace(): void {
+    if (fastForward?.worldId !== ui.worldId || fastForward.requestId !== null || ui.createPending
+      || decisionBusy(ui) || ui.runState === 'failed' || recoveryBlocked !== null) return;
+    if (fastForward.phase === 'stopping') {
+      if (ui.runState === 'running') { void sendRequest({ type: 'pause' }); return; }
+      if (ui.runState !== 'paused') return;
+      fastForward = transitionTemporaryPace(fastForward, ui.worldId, ui.speed as Speed,
+        { kind: 'restore', worldId: ui.worldId }).fastForward;
+    }
+    if (fastForward?.phase === 'restoring') void sendRequest({ type: 'set-speed', speed: fastForward.previousSpeed });
   }
 
   async function sendRequest(input: RequestWithoutId): Promise<ReplyMessage | null> {
@@ -67,11 +126,21 @@
     try {
       const ticket = client.request(input);
       request = { ...input, id: ticket.requestId } as Request;
+      if (input.type === 'set-speed') speedRequest = { worldId, id: ticket.requestId, pending: true };
+      if (input.type === 'run' || input.type === 'pause') runRequest = { worldId, id: ticket.requestId };
       dispatch({ type: 'request-sent', request, worldId });
       const message = await ticket.reply;
       dispatch({ type: 'reply', request, worldId, message });
       return message;
     } catch (error) {
+      if (request === undefined && fastForward?.worldId === worldId) {
+        if (input.type === 'pause' && fastForward.phase === 'stopping'
+          || input.type === 'set-speed' && fastForward.phase === 'restoring') recoveryBlocked = 'failed';
+        else if (input.type === 'set-speed' && (fastForward.phase === 'starting' || fastForward.phase === 'selecting')) {
+          fastForward = transitionTemporaryPace(fastForward, worldId, ui.speed as Speed,
+            { kind: 'error', worldId }).fastForward;
+        }
+      }
       if (request !== undefined) dispatch({ type: 'request-failed', request, worldId, error: String(error) });
       else if (input.type === 'world-snapshot' && tick !== null) dispatch({ type: 'world-read-start-failed', worldId, tick, error: String(error) });
       else if (worldId === ui.worldId) dispatch({ type: 'validation-error', error: String(error) });
@@ -125,39 +194,46 @@
     }
   }
   async function onRun(): Promise<void> {
-    if (!controls(ui).run) return;
+    if (!controls(ui).run || ui.createPending || paceBusy) return;
     presentationVersion++;
     await sendRequest({ type: 'run' });
   }
   async function onPause(): Promise<void> {
-    if (!controls(ui).pause) return;
+    if (!controls(ui).pause || ui.createPending || fastForward?.phase === 'stopping' && fastForward.requestId !== null) return;
     presentationVersion++;
+    if (fastForward?.worldId === ui.worldId) {
+      recoveryBlocked = null;
+      fastForward = transitionTemporaryPace(fastForward, ui.worldId, ui.speed as Speed,
+        { kind: 'pause', worldId: ui.worldId }).fastForward;
+    }
     await sendRequest({ type: 'pause' });
   }
   async function onStep(): Promise<void> {
-    if (!controls(ui).step) return;
+    if (!controls(ui).step || ui.createPending || paceBusy) return;
     presentationVersion++;
     await sendRequest({ type: 'step' });
   }
   async function onFastForward(): Promise<void> {
-    if (!controls(ui).run || held || fastForward !== null) return;
+    if (!controls(ui).run || ui.createPending || held || fastForward !== null || paceBusy) return;
     const worldId = ui.worldId;
     const transition = transitionTemporaryPace(null, worldId, ui.speed as Speed, { kind: 'begin', worldId });
-    const mode = transition.fastForward;
-    fastForward = mode;
+    fastForward = transition.fastForward;
+    recoveryBlocked = null;
     presentationVersion++;
     const changed = await sendRequest({ type: 'set-speed', speed: transition.speed });
-    if (!changed?.ok || ui.worldId !== worldId || fastForward === null || fastForward.worldId !== worldId) return;
-    if (controls(ui).run) await sendRequest({ type: 'run' });
+    if (!changed?.ok || ui.worldId !== worldId || speedRequest?.id !== changed.id
+      || fastForward?.worldId !== worldId || fastForward.phase !== 'moving' || ui.runState === 'failed') return;
+    if (controls(ui).run && !ui.createPending) await sendRequest({ type: 'run' });
     else {
-      fastForward = null;
-      await sendRequest({ type: 'set-speed', speed: mode!.previousSpeed });
+      fastForward = transitionTemporaryPace(fastForward, worldId, ui.speed as Speed, { kind: 'stop', worldId }).fastForward;
+      restorePace();
     }
   }
   async function onSpeedChange(event: Event): Promise<void> {
     const speed = Number((event.currentTarget as HTMLSelectElement).value);
-    if (held || !isSpeed(speed)) return;
-    fastForward = transitionTemporaryPace(fastForward, ui.worldId, ui.speed as Speed, { kind: 'select', worldId: ui.worldId, speed }).fastForward;
+    if (held || ui.createPending || ui.runState === 'failed' || fastForward !== null && fastForward.phase !== 'moving' || !isSpeed(speed)) return;
+    fastForward = transitionTemporaryPace(fastForward, ui.worldId, ui.speed as Speed,
+      { kind: 'select', worldId: ui.worldId, speed }).fastForward;
     await sendRequest({ type: 'set-speed', speed });
   }
   async function onWaitChange(event: Event): Promise<void> {
@@ -175,7 +251,7 @@
     if (message?.ok && message.snapshot.worldId === ui.worldId) replay = message.replay ?? '';
   }
   function onExportFacts(): void {
-    const url = URL.createObjectURL(new Blob([JSON.stringify(ui.notebook, null, 2)], { type: 'application/json' }));
+    const url = URL.createObjectURL(new Blob([JSON.stringify(exportNotebook(ui.notebook), null, 2)], { type: 'application/json' }));
     const link = document.createElement('a');
     link.href = url;
     link.download = `life-facts-world-${ui.worldId}.json`;
@@ -208,14 +284,14 @@
       <div class="header-actions">
         <p class="clock"><time data-testid="game-date">{dateLabel(ui.tick ?? ui.world.tick)}</time> · <span data-testid="run-state">{runStateLabel(ui.runState)}</span></p>
         <section class="controls" aria-label="Life pace">
-          <button type="button" data-testid="run" disabled={!buttons.run} onclick={onRun}>Play</button>
-          <button type="button" data-testid="pause" disabled={!buttons.pause} onclick={onPause}>Pause</button>
-          <button type="button" data-testid="step" disabled={!buttons.step} onclick={onStep}>One day</button>
-          <label>Pace <select data-testid="speed" disabled={held || ui.createPending} value={ui.speed} onchange={onSpeedChange}>
+          <button type="button" data-testid="run" disabled={!buttons.run || ui.createPending || paceBusy} onclick={onRun}>Play</button>
+          <button type="button" data-testid="pause" disabled={!buttons.pause || ui.createPending || fastForward?.phase === 'stopping' && fastForward.requestId !== null} onclick={onPause}>Pause</button>
+          <button type="button" data-testid="step" disabled={!buttons.step || ui.createPending || paceBusy} onclick={onStep}>One day</button>
+          <label>Pace <select data-testid="speed" disabled={held || ui.createPending || fastForward !== null && fastForward.phase !== 'moving'} value={ui.speed} onchange={onSpeedChange}>
             {#each SPEEDS as speed (speed)}<option value={speed}>{paceLabel(speed)}</option>{/each}
           </select></label>
         </section>
-        <button type="button" class="fast-forward" data-testid="fast-forward" title={FAST_FORWARD_HELP} disabled={!buttons.run || held || fastForward !== null} onclick={onFastForward}>
+        <button type="button" class="fast-forward" data-testid="fast-forward" title={FAST_FORWARD_HELP} disabled={!buttons.run || ui.createPending || held || fastForward !== null || paceBusy} onclick={onFastForward}>
           {fastForward !== null ? 'Moving ahead…' : FAST_FORWARD_LABEL}
         </button>
       </div>
@@ -231,7 +307,6 @@
         <details data-testid="world-setup"><summary>Advanced</summary>
           <label>Seed <input data-testid="seed" type="text" inputmode="numeric" bind:value={seed} placeholder="Leave blank for a new town" /></label>
           <label>Town size <input data-testid="town-size" type="number" min={TOWN_SIZE_MIN} max={TOWN_SIZE_MAX} bind:value={townSize} /></label>
-          {#if ui.seedMessage !== null}<p role="alert" data-testid="seed-message">{ui.seedMessage}</p>{/if}
         </details>
       </div>
     </section>
@@ -251,6 +326,7 @@
       <button type="button" data-testid="create" disabled={!buttons.create} onclick={onCreate}>Start a new game</button>
     </details>
   {/if}
+  {#if ui.seedMessage !== null}<p role="alert" class="error" data-testid="seed-message">{ui.seedMessage}</p>{/if}
   {#if assetError !== null}<p role="alert" data-testid="art-error">The illustration could not be opened. Your words and actions are still available.</p>
   {:else if sprites === null}<p role="status" data-testid="art-loading">Opening the picture book…</p>{/if}
   {#if playerError !== null}<p role="alert" class="error" data-testid="error">{playerError}</p>{/if}

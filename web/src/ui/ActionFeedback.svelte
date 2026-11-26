@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { OperationState } from '../shared/operation-state.ts';
-  import type { StoryActor } from '../shared/story.ts';
+  import type { JournalActors } from '../main/journal-templates.ts';
   import OperationDocument from './OperationDocument.svelte';
-  const { operationStates = [], actors = {} }: {
-    operationStates?: readonly OperationState[]; actors?: Readonly<Record<number, StoryActor>>;
+  const { operationStates = [], actors }: {
+    operationStates?: readonly OperationState[]; actors?: JournalActors;
   } = $props();
 </script>
 

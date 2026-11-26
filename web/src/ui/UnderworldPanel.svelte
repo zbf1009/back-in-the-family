@@ -56,9 +56,9 @@
   function delta(event: Event): -1 | 1 | null { const value = selected(event); return value === '' ? null : Number(value) as -1 | 1; }
   const ghost = $derived(ui.world?.player_wait?.ghost);
   const deceased = $derived(ui.world?.player.earlier_bodies.find(body => body.id === ghost));
-  const actor = $derived(ghost === undefined ? undefined : ui.notebook?.actors[ghost]);
+  const actor = $derived(ghost === undefined ? undefined : ui.notebook?.actors.get(ghost));
   const names = $derived(ui.world === null ? null : namesById(ui.world));
-  function name(person: number): string { return nameLabel(names?.get(person) ?? ui.notebook?.actors[person]?.name); }
+  function name(person: number): string { return nameLabel(names?.get(person) ?? ui.notebook?.actors.get(person)?.name); }
   function age(person: number): number | null { return ui.world?.residents.find(resident => resident.id === person)?.age ?? null; }
   function receipts(kind: OperationState['kind']): readonly OperationState[] { return operationStates.filter(state => state.worldId === ui.worldId && state.kind === kind); }
   function family(slot: Slot): string {

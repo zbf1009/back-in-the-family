@@ -1,10 +1,10 @@
 <script lang="ts">
   import type { WorldSnapshot } from '../shared/world-snapshot.ts';
-  import type { StoryActor } from '../shared/story.ts';
+  import type { JournalActors } from '../main/journal-templates.ts';
   import { dateLabel } from '../main/calendar.ts';
   import { kinshipLabel, nameLabel, originLabel } from '../main/player-copy.ts';
   import PeopleCard from './PeopleCard.svelte';
-  const { world, actors = {} }: { world: WorldSnapshot; actors?: Readonly<Record<number, StoryActor>> } = $props();
+  const { world, actors }: { world: WorldSnapshot; actors?: JournalActors } = $props();
   const body = $derived(world.residents.find(person => person.id === world.player.body));
   const household = $derived(world.households.find(home => home.id === body?.household));
   const members = $derived(world.residents.filter(person => person.id !== body?.id && person.alive && household?.members.includes(person.id)));
@@ -18,7 +18,7 @@
   <header><h2 id="opening-heading">Your life begins here</h2><p>{dateLabel(world.tick)}</p></header>
   {#if body !== undefined}
     <PeopleCard person={body.id} name={body.name} age={body.age} detail={originLabel(body.origin)} current />
-  {:else}<p>{nameLabel(world.player.body === null ? undefined : actors[world.player.body]?.name)}</p>{/if}
+  {:else}<p>{nameLabel(world.player.body === null ? undefined : actors?.get(world.player.body)?.name)}</p>{/if}
   <p class="invitation">The day is yours when you press Play. Nothing advances while you read.</p>
   <div class="family-pages">
     <section aria-labelledby="opening-household"><h3 id="opening-household">Your household</h3>

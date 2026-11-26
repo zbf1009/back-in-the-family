@@ -1,10 +1,16 @@
 import { DEFAULT_SPEED, FAST_FORWARD_SPEED, type Speed } from '../shared/speeds.ts';
 
-export interface TemporaryPace { worldId: number; previousSpeed: Speed }
+export interface TemporaryPace {
+  worldId: number;
+  previousSpeed: Speed;
+  phase: 'starting' | 'moving' | 'stopping' | 'restoring' | 'selecting';
+  requestId: number | null;
+}
 export interface PaceTransition { fastForward: TemporaryPace | null; speed: Speed }
 export type PaceEvent = { worldId: number } & (
-  | { kind: 'begin' | 'stop' | 'error' | 'cancel' | 'pause' | 'create-failed' | 'world-created' }
+  | { kind: 'begin' | 'stop' | 'error' | 'cancel' | 'pause' | 'restore' | 'create-failed' | 'world-created' }
   | { kind: 'select'; speed: Speed }
+  | { kind: 'request-sent' | 'accepted'; requestId: number }
 );
 
 /**
@@ -18,18 +24,22 @@ export function transitionTemporaryPace(
   event: PaceEvent,
 ): PaceTransition {
   if (event.worldId !== worldId) return { fastForward, speed };
+  if (event.kind === 'world-created') return { fastForward: null, speed: DEFAULT_SPEED };
+  if (event.kind === 'begin') return fastForward === null
+    ? { fastForward: { worldId, previousSpeed: speed, phase: 'starting', requestId: null }, speed: FAST_FORWARD_SPEED }
+    : { fastForward, speed };
+  if (fastForward?.worldId !== worldId) return { fastForward, speed: event.kind === 'select' ? event.speed : speed };
   switch (event.kind) {
-    case 'world-created': return { fastForward: null, speed: DEFAULT_SPEED };
     case 'create-failed': return { fastForward, speed };
-    case 'select': return { fastForward: null, speed: event.speed };
-    case 'begin':
-      return {
-        fastForward: fastForward?.worldId === worldId ? fastForward : { worldId, previousSpeed: speed },
-        speed: FAST_FORWARD_SPEED,
-      };
+    case 'select': return { fastForward: { ...fastForward, phase: 'selecting', requestId: null }, speed: event.speed };
+    case 'request-sent': return { fastForward: { ...fastForward, requestId: event.requestId }, speed };
+    case 'accepted':
+      if (fastForward.requestId !== event.requestId) return { fastForward, speed };
+      if (fastForward.phase === 'restoring' || fastForward.phase === 'selecting') return { fastForward: null, speed };
+      return { fastForward: { ...fastForward, phase: fastForward.phase === 'starting' ? 'moving' : 'restoring', requestId: null },
+        speed: fastForward.phase === 'stopping' ? fastForward.previousSpeed : speed };
+    case 'restore': return { fastForward: { ...fastForward, phase: 'restoring', requestId: null }, speed: fastForward.previousSpeed };
     case 'stop': case 'error': case 'cancel': case 'pause':
-      return fastForward?.worldId === worldId
-        ? { fastForward: null, speed: fastForward.previousSpeed }
-        : { fastForward, speed };
+      return { fastForward: { ...fastForward, phase: 'stopping', requestId: null }, speed: fastForward.previousSpeed };
   }
 }

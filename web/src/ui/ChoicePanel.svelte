@@ -12,7 +12,7 @@
   } = $props();
   const choice = $derived(currentDecision(ui));
   const names = $derived(ui.world === null ? null : namesById(ui.world));
-  function name(person: number): string { return nameLabel(names?.get(person) ?? ui.notebook?.actors[person]?.name); }
+  function name(person: number): string { return nameLabel(names?.get(person) ?? ui.notebook?.actors.get(person)?.name); }
   const receipts = $derived(operationStates.filter(state => state.kind === 'choose' && state.worldId === ui.worldId));
 </script>
 

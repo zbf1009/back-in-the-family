@@ -2,11 +2,11 @@ import type { ActorContext, DreamFact, SocialKind, StoryActor, StoryBatch, Story
 import { dateLabel, formatAmount, formatMoney } from './calendar.ts';
 import { dreamIntentLabel, dreamResponseLabel, familyLabel, kinshipLabel, nameLabel, optionLabel, SKIP_LABELS } from './player-copy.ts';
 
-export type JournalActors = Readonly<Record<number, StoryActor>>;
+export type JournalActors = Pick<ReadonlyMap<number, StoryActor>, 'get'>;
 export interface JournalContext {
   playerSoul: string;
   currentBody: number | null;
-  dreams?: Readonly<Record<string, DreamFact>>;
+  dreams?: Pick<ReadonlyMap<string, DreamFact>, 'get'>;
 }
 export type SocialBand = 'low' | 'medium' | 'high';
 export interface TemplateFrame {
@@ -38,7 +38,7 @@ export function frameEligible(frame: TemplateFrame, event: StoryEvent): boolean 
 }
 function cap(text: string): string { return text.charAt(0).toUpperCase() + text.slice(1); }
 function chosenContext(contexts: readonly ActorContext[], actors: JournalActors, context: JournalContext): ActorContext | undefined {
-  const relevant = contexts.filter(candidate => actors[candidate.relativeTo]?.soulId === context.playerSoul);
+  const relevant = contexts.filter(candidate => actors.get(candidate.relativeTo)?.soulId === context.playerSoul);
   const matching = relevant.filter(candidate => candidate.actors.some(actor => actor.person === candidate.relativeTo));
   return matching.find(candidate => candidate.relativeTo === context.currentBody && candidate.basis === 'observed-day-end')
     ?? matching.find(candidate => candidate.basis === 'observed-day-end')
@@ -61,14 +61,14 @@ function kinNoun(role: NonNullable<ActorContext['actors'][number]['kinRole']>, a
   return kinshipLabel(role).toLowerCase();
 }
 export function storyPerson(person: number, actors: JournalActors, context: JournalContext, contexts: readonly ActorContext[]): string {
-  const actor = actors[person];
+  const actor = actors.get(person);
   const name = nameLabel(actor?.name);
   const focus = chosenContext(contexts, actors, context);
   const ownContext = contexts.find(candidate => candidate.relativeTo === person && actor?.soulId === context.playerSoul);
   if (ownContext) return person === context.currentBody ? 'you' : `you (in your earlier life as ${name})`;
   const kinRole = focus?.actors.find(candidate => candidate.person === person)?.kinRole;
   if (!kinRole || !focus) return name;
-  const historical = focus.relativeTo === context.currentBody ? '' : ` in your life as ${nameLabel(actors[focus.relativeTo]?.name)}`;
+  const historical = focus.relativeTo === context.currentBody ? '' : ` in your life as ${nameLabel(actors.get(focus.relativeTo)?.name)}`;
   const basis = focus.basis === 'opening-current' ? 'at the opening' : focus.basis === 'observed-day-start' ? "at the day's start" : 'at the time';
   return `your ${kinNoun(kinRole, actor)} ${name} (${basis}${historical})`;
 }
@@ -128,7 +128,7 @@ function eventSentence(event: StoryEvent, actors: JournalActors, context: Journa
   switch (k.type) {
     case 'birth': return [`${cap(p(k.person))} ${pastBe(p(k.person))} born. A new life has begun in town.`, `A new life begins with ${p(k.person)}, who ${pastBe(p(k.person))} born. The beginning deserves a whole line.`, `${cap(p(k.person))} entered the world by birth. The town's story has a new beginning.`][variant]!;
     case 'death': {
-      const age = actors[k.person]?.ageAtDeath;
+      const age = actors.get(k.person)?.ageAtDeath;
       const detail = age === undefined ? '' : ` at age ${formatAmount(age)}`;
       return [`${cap(p(k.person))} died${detail}. A life ends; its place in this town's story remains.`, `The town's death notices now include ${p(k.person)}, who died${detail}.`, `This life reached its last day: ${p(k.person)} died${detail}. The notebook keeps the name.`][variant]!;
     }
@@ -143,7 +143,7 @@ function eventSentence(event: StoryEvent, actors: JournalActors, context: Journa
     case 'offering': return [`${cap(p(k.offerer))} burned ${formatAmount(k.amount)} in joss paper for ${p(k.ghost)}; ${formatAmount(k.credited)} was credited. An offering has its own place in the town's story.`, `For ${p(k.ghost)}, ${p(k.offerer)} burned ${formatAmount(k.amount)} in joss paper. The credited amount was ${formatAmount(k.credited)}.`, `${cap(p(k.offerer))} made an offering for ${p(k.ghost)}, burning ${formatAmount(k.amount)} in joss paper. The credit came to ${formatAmount(k.credited)}.`][variant]!;
     case 'bribe_offering': return [`${cap(p(k.ghost))} spent ${formatAmount(k.amount)} joss paper on a bribe to ${p(k.magistrate)}. The Underworld's manners have a price tag.`, `A bribe to ${p(k.magistrate)} cost ${p(k.ghost)} ${formatAmount(k.amount)} joss paper. A payment gets its own line; a ruling gets its own say.`, `${cap(p(k.ghost))} paid ${p(k.magistrate)} a bribe of ${formatAmount(k.amount)} joss paper. The bureaucracy can be very particular about its courtesies.`][variant]!;
     case 'dream': {
-      const annotation = context.dreams?.[event.id];
+      const annotation = context.dreams?.get(event.id);
       const intent = annotation ? ` Intended message: ${dreamIntentLabel(annotation.intent)}.` : ' The message intent is not on this page.';
       const response = annotation?.interpretation ? ` Recorded response: ${dreamResponseLabel(annotation.interpretation.applied)}. Its effects are a separate matter.` : ' No response is on file with this message.';
       const sentence = [`${cap(p(k.ghost))} sent ${p(k.dreamer)} a dream, spending ${formatAmount(k.price)} joss paper. Even dreams have expenses down here.`, `A dream went from ${p(k.ghost)} to ${p(k.dreamer)}, at a price of ${formatAmount(k.price)} joss paper. The Underworld puts a price on reaching out.`, `${cap(p(k.dreamer))} ${pastBe(p(k.dreamer))} sent a dream by ${p(k.ghost)}. Sending it cost ${formatAmount(k.price)} joss paper; correspondence takes unusual forms down here.`][variant]!;
@@ -206,12 +206,12 @@ export function renderTemplateCorpus(batches: readonly StoryBatch[], context: { 
   events: CorpusFrame[];
   chronicle: { frameId: string; index: string; source: StoryChronicle['source']; chooserAbsent: boolean; skipped: StoryChronicle['skipped']; text: string }[];
 } {
-  const actors: Record<number, StoryActor> = {};
-  const dreams: Record<string, DreamFact> = {};
+  const actors = new Map<number, StoryActor>();
+  const dreams = new Map<string, DreamFact>();
   const events = batches.flatMap(batch => batch.events);
   for (const batch of batches) {
-    for (const actor of batch.actors) actors[actor.person] = { ...actors[actor.person], ...actor };
-    for (const dream of batch.dreams) dreams[dream.eventId] = dream;
+    for (const actor of batch.actors) actors.set(actor.person, { ...actors.get(actor.person), ...actor });
+    for (const dream of batch.dreams) dreams.set(dream.eventId, dream);
   }
   const rendering = { ...context, dreams };
   return {

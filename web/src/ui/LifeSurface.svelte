@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import type { UiState } from '../main/ui-state.ts';
   import { currentDecision } from '../main/ui-state.ts';
-  import type { SceneClose } from '../main/scene-queue.ts';
+  import type { SceneClose, SceneEntry, SceneQueue } from '../main/scene-queue.ts';
   import type { UnderworldForm } from '../main/customization.ts';
   import type { feedbackView } from '../main/view-model.ts';
   import { operationStates } from '../main/operation-state.ts';
@@ -43,14 +43,41 @@
     return queue === null || entry === undefined || entry.node !== null ? undefined
       : () => onSettled({ worldId: queue.worldId, tick: queue.tick, entry });
   });
+  let hidden = $state(typeof document !== 'undefined' && document.hidden);
+  let settledBundle = $state.raw<{ worldId: number; entries: ReadonlySet<SceneEntry> } | null>(null);
+  const preSettled = $derived(hidden || (ui.scene !== null && settledBundle !== null
+    && settledBundle.worldId === ui.scene.worldId && head !== null && settledBundle.entries.has(head)));
+
+  function retainSettledEntries(queue: SceneQueue | null, isHidden: boolean): void {
+    if (queue === null) { settledBundle = null; return; }
+    const previous = settledBundle?.worldId === queue.worldId ? settledBundle.entries : null;
+    const entries = new Set(queue.entries.filter(entry => isHidden || previous?.has(entry)));
+    if (previous !== null && entries.size === previous.size && [...entries].every(entry => previous.has(entry))) return;
+    settledBundle = { worldId: queue.worldId, entries };
+  }
+
+  $effect.pre(() => {
+    const queue = ui.scene;
+    const isHidden = hidden;
+    untrack(() => retainSettledEntries(queue, isHidden));
+  });
   let mapOpen = $state(false);
   let mapWorld = 0;
   let filesOpen = $state(typeof window !== 'undefined' && !window.matchMedia('(max-width: 1150px)').matches);
   onMount(() => {
     const narrow = window.matchMedia('(max-width: 1150px)');
     const update = () => { filesOpen = !narrow.matches; };
+    const visibilityChanged = () => {
+      // Keep the entire bundle, including carriers received before this return.
+      retainSettledEntries(ui.scene, hidden || document.hidden);
+      hidden = document.hidden;
+    };
     narrow.addEventListener('change', update);
-    return () => narrow.removeEventListener('change', update);
+    document.addEventListener('visibilitychange', visibilityChanged);
+    return () => {
+      narrow.removeEventListener('change', update);
+      document.removeEventListener('visibilitychange', visibilityChanged);
+    };
   });
   $effect(() => {
     if (ui.worldId !== mapWorld) { mapWorld = ui.worldId; mapOpen = false; }
@@ -61,7 +88,7 @@
   <div class="reading-lane">
     <section class="scene-context" aria-label="The current scene">
       {#if head?.keyScene !== null && head?.keyScene !== undefined}
-        {#key head.identity}<KeyScene view={head.keyScene} {sprites} {presentationVersion} onClose={closeHead} onSettled={settledHead} next={(ui.scene?.entries.length ?? 0) > 1} />{/key}
+        {#key head.identity}<KeyScene view={head.keyScene} {sprites} {presentationVersion} {preSettled} onClose={closeHead} onSettled={settledHead} next={(ui.scene?.entries.length ?? 0) > 1} />{/key}
       {:else}
         <ScenePicture world={ui.world} {sprites} kind={decision?.family ?? (ui.world?.player.place === 'waiting' ? 'waiting' : 'living')} node={decision} running={ui.runState === 'running'} worldKey={ui.worldId} />
       {/if}

@@ -7,7 +7,7 @@ import type { Reply, RequestTicket, WorkerMessage, PauseReason } from '../../src
 import type { PlayerLifecycleFact, TraitName, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import { DECISION_CONFIG_VERSION } from '../../src/shared/decision.ts';
 import { traitLabel } from '../../src/main/player-copy.ts';
-import type { LifeNotebook } from '../../src/main/life-journal.ts';
+import type { LifeNotebookExport } from '../../src/main/life-journal.ts';
 import type { DreamFact, StoryBatch } from '../../src/shared/story.ts';
 
 const FIXTURE = 'seedP-playthrough.replay.json';
@@ -96,7 +96,7 @@ async function downloadRetainedFacts(page: Page, world: WorldSnapshot, worldId: 
   const downloadedPath = await download.path();
   expect(downloadedPath).not.toBeNull();
   if (downloadedPath === null) throw Error('Actual life-facts download has no local file');
-  const notebook: LifeNotebook = JSON.parse(await readFile(downloadedPath, 'utf8'));
+  const notebook: LifeNotebookExport = JSON.parse(await readFile(downloadedPath, 'utf8'));
   const native: { openingBatch: StoryBatch } = JSON.parse(readFileSync(new URL('../fixtures/journal-seed1205.json', import.meta.url), 'utf8'));
   const openingLoan = native.openingBatch.events.find(event => event.kind.type === 'loan')!;
   expect(openingLoan, 'the native fixture must supply the earliest opening loan').toBeDefined();
@@ -414,8 +414,16 @@ test(`${FIXTURE}: explicit Fast recorded-prefix controls play choices, death, Dr
   // last_tick is a checksum-prefix endpoint, NOT an invented automatic stop.
   // Run past rebirth; stop observing at the first real status reaching that prefix.
   await page.waitForFunction(() => window.__playthrough.endedAt !== undefined, undefined, { timeout: B });
-  if (await page.getByTestId('pause').isEnabled()) await page.getByTestId('pause').click();
-  await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
+  await test.step('Pause beyond the checksum-prefix endpoint, unless native play has already stopped', async () => {
+    const pause = page.getByTestId('pause');
+    const runState = page.getByTestId('technical-run-state');
+    // Keyboard activation avoids click's scrolling/actionability race. If a
+    // native stop disables Pause first, the button does not activate; the
+    // actual paused state below, not successful Pause submission, is required.
+    if (await pause.isEnabled()) await pause.press('Enter');
+    await expect(runState).toHaveText('paused');
+    expect(BigInt(await page.getByTestId('tick').innerText())).toBeGreaterThanOrEqual(BigInt(stages.last_tick));
+  });
   const stopsThroughEndpoint = await page.evaluate((lastTick) => window.__playthrough.stops.filter(
     stop => stop.tick !== null && BigInt(stop.tick) <= BigInt(lastTick),
   ), stages.last_tick);

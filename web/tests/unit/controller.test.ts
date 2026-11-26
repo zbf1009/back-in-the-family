@@ -8,8 +8,8 @@
 //   - A WASM load failure (R2.8): a controller that never loaded answers every
 //     queued and every later request with a `load-failed` reply carrying the load
 //     error text, posts exactly one `fatal`, and reports Run_State `failed`.
-//   - Status cadence: quiet frames remain throttled, while new story facts may
-//     publish immediately and no running window goes silent for over a second.
+//   - Status cadence: ordinary story facts remain throttled, while action and
+//     lifecycle facts publish immediately; no running window goes silent for over a second.
 //   - A fresh create-world returns to the Life playback rate.
 //   - create-world while running with a bad config (R3.6, R3.7): the failed create
 //     leaves the old world running with its worldId.
@@ -123,8 +123,8 @@ function assertLoadFailed(reply: ReplyMessage, loadError: string): void {
 
 // --- R2.12 + design: status cadence ------------------------------------------
 
-// Real observation-bearing statuses bypass cadence; quiet statuses stay throttled.
-test('running status cadence remains bounded while new facts publish immediately', () => {
+// Ordinary story statuses respect cadence; only action/lifecycle facts bypass it.
+test('running status cadence remains bounded while ordinary story facts respect the throttle', () => {
   loadWasm();
   const scheduler = new FakeFrameScheduler();
   const clock = new FakeClock(0);
@@ -156,8 +156,8 @@ test('running status cadence remains bounded while new facts publish immediately
     const gap = times[i] - times[i - 1];
     assert.ok(gap <= 1_000, `running status gap ${gap} ms must be <= 1000`);
     const current = statuses[i]!.snapshot;
-    if (current.actions.length === 0 && current.playerLifecycle.length === 0 && current.story?.length === 0) {
-      assert.ok(gap >= 100, `quiet status gap ${gap} ms must respect the throttle`);
+    if (current.actions.length === 0 && current.playerLifecycle.length === 0) {
+      assert.ok(gap >= 100, `ordinary status gap ${gap} ms must respect the throttle`);
     }
   }
 

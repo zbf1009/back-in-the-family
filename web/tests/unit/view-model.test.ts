@@ -6,6 +6,7 @@ import fc from 'fast-check';
 import { feedbackView, identitySummary, viewModel, namesById } from '../../src/main/view-model.ts';
 import { currentDecision, initialUiState, reduce } from '../../src/main/ui-state.ts';
 import { sceneQueue } from '../../src/main/scene-queue.ts';
+import { exportNotebook } from '../../src/main/life-journal.ts';
 import type { PlayerOption, Preview, StakeUnit, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 
 import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
@@ -35,7 +36,8 @@ test('Property 24: Snapshot whole years, signed previews, Stakes and Needed rema
         underworld_view: null,
       };
       const ui = uiFor(world);
-      const before = JSON.stringify(ui);
+      const snapshot = () => JSON.stringify({ ...ui, notebook: exportNotebook(ui.notebook) });
+      const before = snapshot();
       const view = viewModel(ui)!;
       assert.equal(view.body!.age, age, 'Snapshot age is already whole years (Property 24 alternative)');
       assert.equal(view.body!.name, world.residents.find(person => person.id === world.player.body)!.name);
@@ -63,7 +65,7 @@ test('Property 24: Snapshot whole years, signed previews, Stakes and Needed rema
           assert.ok(missingLines[index]!.includes(BigInt(item.amount).toLocaleString('en-US')), 'Needed payment amounts keep every u64 digit');
         }
       }
-      assert.equal(JSON.stringify(ui), before);
+      assert.equal(snapshot(), before);
     }), { numRuns: RUNS });
 });
 

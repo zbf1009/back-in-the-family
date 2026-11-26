@@ -1,7 +1,8 @@
 import type { PauseReason } from '../shared/protocol.ts';
 import type { PlayerLifecycleFact, WorldSnapshot } from '../shared/world-snapshot.ts';
-import type { DreamFact, StoryActor, StoryEvent } from '../shared/story.ts';
+import type { DreamFact, StoryEvent } from '../shared/story.ts';
 import { dreamKeyScene, dreamResolutionKeyScene, lifecycleKeyScene, nodeKeyScene, type KeySceneView } from './key-scene.ts';
+import type { JournalActors } from './journal-templates.ts';
 
 export type SceneKind = 'funeral' | 'inheritance' | 'dream' | 'birth';
 
@@ -21,7 +22,7 @@ export interface SceneQueue {
 }
 
 export function sceneQueue(reasons: readonly PauseReason[], world: WorldSnapshot, worldId: number,
-  lifecycle: readonly PlayerLifecycleFact[], actors: readonly StoryActor[] = [],
+  lifecycle: readonly PlayerLifecycleFact[], actors?: JournalActors,
   dreams: readonly DreamFact[] = [], events: readonly StoryEvent[] = []): SceneEntry[] {
   const ordered = [
     ...lifecycle.map(fact => ({ event: fact.event, view: lifecycleKeyScene(worldId, world, fact, actors, events) })),

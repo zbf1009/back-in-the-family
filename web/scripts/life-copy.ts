@@ -7,6 +7,7 @@ import ts from 'typescript';
 import * as copy from '../src/main/player-copy.ts';
 import type { StoryBatch } from '../src/shared/story.ts';
 import { renderTemplateCorpus } from '../src/main/journal-templates.ts';
+import { appendStory, createNotebook, exportNotebook, type LifeNotebookExport } from '../src/main/life-journal.ts';
 
 // Only rendered text positions are inspected; scripts, conditions and machine attributes are not copy.
 const textAttributes: Record<string, true> = {
@@ -111,10 +112,7 @@ const opening = sample.batches.find(batch => batch.opening);
 const focus = opening?.events.flatMap(event => event.actorContext)[0]?.relativeTo;
 const actor = opening?.actors.find(actor => actor.person === focus);
 if (sample.seed !== '1205' || actor === undefined) throw new Error('The actual seed-1205 opening identity is required');
-const actors: Record<number, StoryBatch['actors'][number]> = {};
-for (const batch of sample.batches) {
-  for (const recorded of batch.actors) actors[recorded.person] = { ...actors[recorded.person], ...recorded };
-}
+const notebook: LifeNotebookExport = exportNotebook(appendStory(createNotebook(0), sample.batches.map(batch => ({ worldId: 0, batch }))));
 let currentBody: number | null = actor.person;
 const events = sample.batches.flatMap(batch => batch.events).sort((left, right) => {
   const leftId = BigInt(left.id);
@@ -126,7 +124,7 @@ for (const event of events) {
   if (kind.type === 'death') {
     if (kind.person === currentBody) currentBody = null;
   } else if ((kind.type === 'birth' || kind.type === 'possession' || kind.type === 'rebuild')
-    && actors[kind.person]?.soulId === actor.soulId) currentBody = kind.person;
+    && notebook.actors[kind.person]?.soulId === actor.soulId) currentBody = kind.person;
 }
 const corpus = renderTemplateCorpus(sample.batches, { playerSoul: actor.soulId, currentBody });
 const lines = [

@@ -4,12 +4,13 @@ import fc from 'fast-check';
 import { WasmSim, verify_replay } from '../../../target/wasm-pkg/sim_wasm.js';
 import { DecisionMetrics, type DecisionMetricsReport } from '../../src/shared/decision-metrics.ts';
 import { PROJECT_REQUEST_BYTE_CAP, type DecisionFamily, type ModelDecision } from '../../src/shared/decision.ts';
-import type { Reply, Request, RunUntilStopResult, WorkerMessage } from '../../src/shared/protocol.ts';
+import type { Reply, Request, RequestWithoutId, RunUntilStopResult, Snapshot, WorkerMessage } from '../../src/shared/protocol.ts';
 import { SimController, type SimHandle } from '../../src/worker/controller.ts';
+import type { StoryBatch, StoryDelivery } from '../../src/shared/story.ts';
 import { DecisionBridge, DecisionFailure, type DecisionPreview, type DecisionWasm } from '../../src/worker/decision-bridge.ts';
 import { actualSim, ControlledDecisionClient, DecisionClock, HandlerDecisionClient, config, mapping, modelDecision,
   realPreviews, settle, transportPaddedWasm, wasm } from './helpers/decision.ts';
-import { emptyStoryBatch, FakeFrameScheduler } from './helpers/fakes.ts';
+import { emptyStoryBatch, FakeClock, FakeFrameScheduler } from './helpers/fakes.ts';
 import { checkedReceipt } from './helpers/wasm.ts';
 
 class Frames extends FakeFrameScheduler {
@@ -48,6 +49,132 @@ class Port implements SimHandle {
   }
   export_replay(): string { return JSON.stringify({ tick: this.tickValue.toString(), inputs: this.batches }); }
 }
+
+/** One ordinary observation per advancing batch, independent of playback speed. */
+class StoryPort extends Port {
+  readonly observed: StoryBatch[] = [];
+  next: Partial<Pick<RunUntilStopResult, 'stops' | 'actions' | 'player_lifecycle'>> = {};
+  override run_until_stop(n: number): string {
+    const result: RunUntilStopResult = { ...JSON.parse(super.run_until_stop(n)), ...this.next };
+    this.next = {};
+    const index = this.observed.length;
+    result.story.events.push({ id: String(index), tick: String(this.tickValue), kind: { type: 'birth', person: index },
+      causedBy: [], tags: 0, relevance: 'townlife', relevanceBasis: 'observed-day-start-end', actorContext: [] });
+    result.story.cursors.events = { start: String(index), end: String(index + 1) };
+    this.observed.push(result.story);
+    return JSON.stringify(result);
+  }
+}
+
+function storyRig(post?: (message: WorkerMessage) => void) {
+  const port = new StoryPort(); const clock = new FakeClock(); const frames = new FakeFrameScheduler();
+  const messages: WorkerMessage[] = [];
+  const controller = new SimController({ createSim: () => port, clock, scheduler: frames,
+    post: message => { post?.(message); messages.push(message); } });
+  controller.ready(); let id = 0;
+  const send = (request: RequestWithoutId): Reply => {
+    const requestId = ++id; controller.handle({ ...request, id: requestId } as Request);
+    const reply = messages.find((message): message is Reply => message.type === 'reply' && message.id === requestId);
+    assert.ok(reply); return reply;
+  };
+  send({ type: 'create-world', seed: '1', config: '{}' });
+  const frame = () => { clock.advance(40); assert.ok(frames.flush()); };
+  const statuses = () => messages.filter((message): message is Extract<WorkerMessage, { type: 'status' }> => message.type === 'status');
+  const expected = (from = 0): StoryDelivery[] => port.observed.slice(from).map(batch => ({ worldId: 1, batch }));
+  const delivered = () => messages.flatMap(message => message.type === 'fatal' ? [] :
+    (message.snapshot.story ?? []).filter(delivery => !delivery.batch.opening));
+  return { port, clock, frames, messages, send, frame, statuses, expected, delivered };
+}
+
+test('ordinary story batches respect the 100 ms Status cadence at every advancing playback speed', () => {
+  for (const speed of [1, 7, 30, 90, 365]) {
+    const h = storyRig(); h.send({ type: 'set-speed', speed }); h.send({ type: 'run' });
+    h.frame();
+    assert.equal(h.port.observed.length, 1); assert.equal(h.statuses().length, 1);
+    const first = h.statuses()[0]!.snapshot.story;
+    assert.deepEqual(h.delivered(), h.expected());
+    h.frame(); h.frame();
+    assert.equal(h.port.observed.length, 3, `speed ${speed} produces a story batch each frame`);
+    assert.equal(h.statuses().length, 1, 'ordinary facts stay buffered inside the throttle');
+    assert.deepEqual(h.delivered(), h.expected().slice(0, 1));
+    h.frame();
+    assert.equal(h.statuses().length, 2);
+    assert.deepEqual(h.statuses()[1]!.snapshot.story, h.expected(1), 'the next regular Status transfers the entire suffix');
+    assert.deepEqual(first, h.expected().slice(0, 1), 'later buffering cannot mutate an already delivered batch');
+    assert.deepEqual(h.delivered(), h.expected(), 'every ordinary fact is delivered exactly once');
+    h.frame();
+    assert.equal(h.statuses().length, 2);
+    assert.deepEqual(h.send({ type: 'world-snapshot' }).snapshot.story, h.expected(4), 'an explicit operation transfers only the remaining suffix immediately');
+    assert.deepEqual(h.send({ type: 'world-snapshot' }).snapshot.story, []);
+    assert.deepEqual(h.delivered(), h.expected());
+  }
+});
+
+test('stops and action or lifecycle facts publish immediately with all buffered ordinary story', () => {
+  for (const kind of ['stop', 'action', 'lifecycle'] as const) {
+    const h = storyRig(); h.send({ type: 'set-speed', speed: 30 }); h.send({ type: 'run' });
+    h.frame(); h.frame();
+    assert.equal(h.statuses().length, 1);
+    if (kind === 'stop') h.port.next.stops = ['player_node'];
+    else if (kind === 'action') h.port.next.actions = [{ kind: 'haunt', state: 'rejected', reason: 'no_ghost',
+      input_seq: '0', tick: String(h.port.tickValue + 1n), target: 31 }];
+    else h.port.next.player_lifecycle = [{ event: 'life', tick: String(h.port.tickValue + 1n),
+      kind: 'birth', body: 31, name: 'Person', origin: 'native' }];
+    h.frame();
+    const statuses = h.statuses(); assert.equal(statuses.length, 2, `${kind} bypasses the ordinary cadence`);
+    const urgent = statuses[1]!.snapshot;
+    assert.deepEqual(urgent.story, h.expected(1));
+    assert.equal(urgent.actions.length, kind === 'action' ? 1 : 0);
+    assert.equal(urgent.playerLifecycle.length, kind === 'lifecycle' ? 1 : 0);
+    if (kind === 'stop') {
+      assert.deepEqual(urgent.stop?.reasons, ['player_node']); assert.equal(urgent.runState, 'paused');
+      assert.equal(h.frames.isPending, false);
+    }
+    const read = h.send({ type: 'world-snapshot' });
+    assert.deepEqual(read.snapshot.story, []); assert.deepEqual(read.snapshot.actions, []);
+    assert.deepEqual(read.snapshot.playerLifecycle, []); assert.deepEqual(h.delivered(), h.expected());
+  }
+});
+
+test('pause and paused Step or choose-and-run replies deliver ordinary story without waiting for Status', () => {
+  for (const operation of ['pause', 'step', 'choose-and-run'] as const) {
+    const h = storyRig(); h.send({ type: 'set-speed', speed: 30 }); h.send({ type: 'run' });
+    h.frame(); h.frame();
+    const paused = h.send({ type: 'pause' });
+    assert.deepEqual(paused.snapshot.story, h.expected(1)); assert.deepEqual(paused.snapshot.stop?.reasons, ['user']);
+    if (operation !== 'pause') {
+      const reply = h.send(operation === 'step' ? { type: 'step' } :
+        { type: 'choose-and-run', node: 'node', option: 'stay_away' });
+      assert.equal(reply.ok, true); assert.equal(reply.snapshot.runState, 'paused');
+      assert.deepEqual(reply.snapshot.story, h.expected(2), 'the advancing operation itself transfers its new ordinary fact');
+    }
+    assert.equal(h.statuses().length, 1, 'ordinary Step facts do not need a separate Status publication');
+    assert.deepEqual(h.send({ type: 'world-snapshot' }).snapshot.story, []);
+    assert.deepEqual(h.delivered(), h.expected());
+  }
+});
+
+test('a throttled story suffix drains only after a successful transport', () => {
+  let reject = false; const attempted: Snapshot[] = []; const failure = Error('story transport failed');
+  const h = storyRig(message => {
+    if (reject && message.type !== 'fatal' && message.snapshot.story?.length) {
+      attempted.push(message.snapshot); throw failure;
+    }
+  });
+  h.send({ type: 'set-speed', speed: 30 }); h.send({ type: 'run' }); h.frame();
+  h.frame(); h.frame(); reject = true;
+  assert.throws(() => h.frame(), error => error === failure);
+  assert.equal(h.statuses().length, 1, 'failed emission is not a consumable publication');
+  assert.deepEqual(attempted[0]!.story, h.expected(1));
+  assert.throws(() => h.send({ type: 'world-snapshot' }), error => error === failure);
+  assert.equal(attempted[1]!.story, attempted[0]!.story, 'constructing another snapshot does not drain the suffix');
+  reject = false;
+  const read = h.send({ type: 'world-snapshot' });
+  assert.equal(read.snapshot.story, attempted[0]!.story);
+  assert.deepEqual(h.send({ type: 'world-snapshot' }).snapshot.story, []);
+  assert.deepEqual(read.snapshot.story, h.expected(1));
+  assert.deepEqual(h.delivered(), h.expected(), 'successful publications contain every fact once, including the failed suffix');
+});
 async function setup(options: { ready?: boolean; cap?: number; enabled?: boolean; wasm?: DecisionWasm } = {}) {
   const clock = new DecisionClock(); const frames = new Frames(); const client = new ControlledDecisionClient();
   const bridge = new DecisionBridge(client, options.wasm ?? wasm, mapping, clock);

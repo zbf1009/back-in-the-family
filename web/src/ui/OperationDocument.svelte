@@ -1,9 +1,9 @@
 <script lang="ts">
   import type { OperationState } from '../shared/operation-state.ts';
-  import type { StoryActor } from '../shared/story.ts';
+  import type { JournalActors } from '../main/journal-templates.ts';
   import { dateLabel, formatAmount } from '../main/calendar.ts';
   import { OPERATION_LABELS, OPERATION_PHASE_LABELS, dreamIntentLabel, dreamResponseLabel, nameLabel, refusalText, rulingLabel, sourceLabel, RULING_ACCESS_NOTE } from '../main/player-copy.ts';
-  const { state, actors = {} }: { state: OperationState; actors?: Readonly<Record<number, StoryActor>> } = $props();
+  const { state, actors }: { state: OperationState; actors?: JournalActors } = $props();
 </script>
 
 <article class="receipt" class:refused={state.phase === 'refused'} aria-label={`${OPERATION_LABELS[state.kind]} receipt`}
@@ -18,7 +18,7 @@
   {:else if state.phase === 'cancelled'}<p>The decision was cancelled. This does not undo an applied action.</p>
   {:else if state.phase === 'refused'}<p>{refusalText(state.reason ?? '')}</p>{/if}
   {#if state.result?.state === 'rejected'}
-    <p>{state.result.kind === 'bribe' ? `Requested payment: ${formatAmount(state.result.amount)} joss paper.` : `Requested target: ${nameLabel(actors[state.result.target]?.name)}.`}</p>
+    <p>{state.result.kind === 'bribe' ? `Requested payment: ${formatAmount(state.result.amount)} joss paper.` : `Requested target: ${nameLabel(actors?.get(state.result.target)?.name)}.`}</p>
   {/if}
   {#if state.result?.state === 'applied'}
     {@const result = state.result}
@@ -29,13 +29,13 @@
         <p class="note">{sourceLabel(result.ruling.source)}. {RULING_ACCESS_NOTE}</p>
       {:else}<p>No ruling recorded. No answer is needed from you.</p>{/if}
     {:else}
-      <p>Target: {nameLabel(actors[result.target]?.name)}. Joss paper spent: <strong>{formatAmount(result.price)}</strong>.</p>
+      <p>Target: {nameLabel(actors?.get(result.target)?.name)}. Joss paper spent: <strong>{formatAmount(result.price)}</strong>.</p>
       <p>Recorded haunting intensity: {formatAmount(result.intensity)}.</p>
       <p class="note">Reported mood adjustment: {formatAmount(result.mood_delta)}. This is not a measured final change in mood or relationship.</p>
     {/if}
   {/if}
   {#if state.dream !== undefined}
-    <p>To {nameLabel(actors[state.dream.dreamer]?.name)} · {dreamIntentLabel(state.dream.intent)}</p>
+    <p>To {nameLabel(actors?.get(state.dream.dreamer)?.name)} · {dreamIntentLabel(state.dream.intent)}</p>
     <p>Joss paper spent: <strong>{formatAmount(state.dream.price)}</strong>.</p>
     {#if state.dream.interpretation !== undefined}
       <p>Recorded response: {dreamResponseLabel(state.dream.interpretation.applied)}.</p>

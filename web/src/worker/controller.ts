@@ -733,7 +733,7 @@ export class SimController {
       this.#post({ type: 'status', snapshot: { ...this.#snapshot(now), stop } });
       return true;
     }
-    if (this.#actions.length > 0 || this.#playerLifecycle.length > 0 || this.#story.length > 0) {
+    if (this.#actions.length > 0 || this.#playerLifecycle.length > 0) {
       this.#lastStatusTime = now;
       this.#post({ type: 'status', snapshot: this.#snapshot(now) });
     }

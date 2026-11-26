@@ -1,5 +1,6 @@
 import type { Origin, PlayerFamily, PlayerLifecycleFact, PlayerNode, WorldSnapshot } from '../shared/world-snapshot.ts';
 import type { DreamFact, StoryActor, StoryEvent } from '../shared/story.ts';
+import type { JournalActors } from './journal-templates.ts';
 import { resolveVisualKey, type LifeTile, type Tint, type VisualKey } from '../art/sprites.ts';
 import { dreamIntentLabel, dreamResponseLabel, familyLabel, nameLabel, originLabel } from './player-copy.ts';
 import { dateLabel, formatAmount, formatMoney } from './calendar.ts';
@@ -46,13 +47,13 @@ export interface KeySceneView {
 
 /** Current residents and retained references remain separate from historical ages. */
 export function picturePeople(world: WorldSnapshot, ids: readonly number[], node: PlayerNode | null,
-  actors: readonly StoryActor[] = []): PicturePerson[] {
+  actors?: JournalActors): PicturePerson[] {
   return [...new Set(ids)].map(id => {
     const person = world.residents.find(person => person.id === id)
       ?? (world.magistrate.id === id ? world.magistrate : undefined);
     const earlier = world.player.earlier_bodies.find(body => body.id === id);
     const retainedName = world.person_names.find(person => person.id === id);
-    const actor = actors.find(actor => actor.person === id);
+    const actor = actors?.get(id);
     return {
       id, name: nameLabel(person?.name ?? earlier?.name ?? retainedName?.name ?? actor?.name),
       age: person?.age ?? null, origin: person?.origin ?? earlier?.origin ?? actor?.origin ?? null,
@@ -68,7 +69,7 @@ export function picturePeople(world: WorldSnapshot, ids: readonly number[], node
 }
 
 export function nodeKeyScene(worldId: number, world: WorldSnapshot, node: PlayerNode,
-  actors: readonly StoryActor[] = []): KeySceneView {
+  actors?: JournalActors): KeySceneView {
   const chooser = world.player.body;
   const ids = node.family === 'family_death' || chooser === null ? node.stakes.who : [chooser, ...node.stakes.who];
   const people = picturePeople(world, ids, node, actors);
@@ -135,9 +136,9 @@ function actorAgeAtTick(actor: StoryActor | undefined, tick: string): bigint | n
 
 /** The exact event body supplies the certificate; latest identity stays outside history. */
 export function lifecycleKeyScene(worldId: number, world: WorldSnapshot, fact: PlayerLifecycleFact,
-  actors: readonly StoryActor[] = [], events: readonly StoryEvent[] = []): KeySceneView {
+  actors?: JournalActors, events: readonly StoryEvent[] = []): KeySceneView {
   const death = fact.kind === 'death';
-  const actor = actors.find(actor => actor.person === fact.body);
+  const actor = actors?.get(fact.body);
   const ageAtDeath = death ? actor?.ageAtDeath : undefined;
   const arrival = fact.kind === 'possession' || fact.kind === 'rebuild';
   const ageAtArrival = arrival ? actorAgeAtTick(actor, fact.tick) : null;
@@ -174,7 +175,7 @@ export function lifecycleKeyScene(worldId: number, world: WorldSnapshot, fact: P
   if (price !== undefined) document.fields.push({ label: 'Joss paper spent', value: formatAmount(price) });
   if (fact.kind === 'birth' && world.player.body === fact.body && BigInt(world.tick) <= BigInt(fact.tick) + 1n) {
     const parents = world.player.blood_ties.filter(tie => tie.kinship.includes('parent')).map(tie =>
-      nameLabel(world.residents.find(person => person.id === tie.person)?.name ?? actors.find(actor => actor.person === tie.person)?.name));
+      nameLabel(world.residents.find(person => person.id === tie.person)?.name ?? actors?.get(tie.person)?.name));
     if (parents.length > 0) {
       document.fields.push({ label: 'Parents on file', value: parents.join(', ') });
       lines.push(`The parent files name ${parents.join(', ')} as of ${dateLabel(world.tick)}.`);
@@ -191,9 +192,9 @@ export function lifecycleKeyScene(worldId: number, world: WorldSnapshot, fact: P
 
 /** Exact successful input annotation, not a guess from the most recent response. */
 export function dreamKeyScene(worldId: number, world: WorldSnapshot, fact: DreamFact,
-  actors: readonly StoryActor[] = []): KeySceneView {
+  actors?: JournalActors): KeySceneView {
   const people = picturePeople(world, [fact.ghost, fact.dreamer], null, actors).map(person => {
-    const actor = actors.find(actor => actor.person === person.id);
+    const actor = actors?.get(person.id);
     let knownAge: bigint | null = null;
     if (person.id === fact.ghost && actor?.ageAtDeath !== undefined) knownAge = BigInt(actor.ageAtDeath);
     else if (person.id === fact.dreamer) knownAge = actorAgeAtTick(actor, fact.tick);
@@ -202,7 +203,7 @@ export function dreamKeyScene(worldId: number, world: WorldSnapshot, fact: Dream
   });
   const recipient = people.find(person => person.id === fact.dreamer)?.name ?? nameLabel(undefined);
   const ghost = people.find(person => person.id === fact.ghost)?.name ?? nameLabel(undefined);
-  const sender = actors.some(actor => actor.person === fact.ghost && actor.soulId === world.player_soul) ? 'You' : ghost;
+  const sender = actors?.get(fact.ghost)?.soulId === world.player_soul ? 'You' : ghost;
   const response = fact.interpretation === undefined ? 'No response recorded' : dreamResponseLabel(fact.interpretation.applied);
   const fields: SceneDocument['fields'] = [{ label: 'Sent', value: dateLabel(fact.tick) }, { label: 'Message', value: dreamIntentLabel(fact.intent) },
     { label: 'Joss paper spent', value: formatAmount(fact.price) }, { label: 'Recorded response', value: response, role: 'response' }];

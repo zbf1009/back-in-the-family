@@ -155,7 +155,7 @@ function actionText(action: UiAction, ui: UiState, state?: OperationState): stri
   if (result?.state === 'rejected') return `Processing declined. ${refusalText(result.reason)} ${dateLabel(result.tick)}.`;
   if (result?.state === 'applied') {
     if (result.kind === 'haunt') {
-      const person = nameLabel(ui.notebook.actors[result.target]?.name ?? ui.world?.residents.find(person => person.id === result.target)?.name);
+      const person = nameLabel(ui.notebook.actors.get(result.target)?.name ?? ui.world?.residents.find(person => person.id === result.target)?.name);
       return `Haunt petition processed for ${person}. ${formatAmount(result.price)} joss paper charged. Reported mood effect: ${formatAmount(result.mood_delta)} before its limits. ${dateLabel(result.tick)}.`;
     }
     const ruling = result.ruling === null ? 'No ruling recorded.'

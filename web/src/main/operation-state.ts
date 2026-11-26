@@ -12,7 +12,6 @@ function operationKind(type: Request['type']): OperationState['kind'] | null {
 
 /** Only exact same-world result/sequence joins upgrade an admission receipt. */
 export function operationStates(ui: UiState): OperationState[] {
-  const dreams = Object.values(ui.notebook.dreams);
   const states: OperationState[] = [];
   for (const action of ui.actions) {
     if (action.worldId !== ui.worldId || action.requestId === null || action.request === null) continue;
@@ -20,7 +19,7 @@ export function operationStates(ui: UiState): OperationState[] {
     if (kind === null) continue;
     const inputSeqs = action.submission?.seqs ?? (action.inputSeq === null ? [] : [action.inputSeq]);
     const result = action.result?.worldId === ui.worldId ? action.result : undefined;
-    const dream = kind === 'dream' ? dreams.find(fact => inputSeqs.includes(fact.inputSeq)) : undefined;
+    const dream = kind === 'dream' ? action.dream : undefined;
     let phase: OperationState['phase'];
     if (result?.state === 'rejected') phase = 'refused';
     else if (result?.state === 'applied' || dream !== undefined) phase = 'processed';

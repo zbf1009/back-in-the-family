@@ -104,14 +104,14 @@ test('LV-C4 historical lifecycle ages never borrow a later current body age or i
       if (fact.kind === 'possession' || fact.kind === 'rebuild') {
         const actor: StoryActor = { person: fact.body, soulId: world.player_soul, name: fact.name,
           sex: 'male', origin: fact.origin, birthDay: String(BigInt(fact.tick) - 38n * 365n) };
-        const known = lifecycleKeyScene(7, world, fact, [actor]);
+        const known = lifecycleKeyScene(7, world, fact, new Map([[actor.person, actor]]));
         assert.equal(known.people[0]!.age, 38, 'Recorded birth day wins over every later World age');
         assert.ok(!known.props.includes('cradle'));
-        const young = lifecycleKeyScene(7, world, fact, [{ ...actor, birthDay: fact.tick }]);
+        const young = lifecycleKeyScene(7, world, fact, new Map([[actor.person, { ...actor, birthDay: fact.tick }]]));
         assert.equal(young.people[0]!.age, 0);
         assert.ok(!PERSON_TILES.baby.some(visual => visual === young.people[0]!.visual), 'Arrival does not establish a newborn portrait');
         assert.ok(!young.props.includes('cradle'));
-        assert.equal(lifecycleKeyScene(7, world, fact, [{ ...actor, person: fact.body + 1 }]).people[0]!.age, null);
+        assert.equal(lifecycleKeyScene(7, world, fact, new Map([[fact.body + 1, { ...actor, person: fact.body + 1 }]])).people[0]!.age, null);
       }
     }
   }
@@ -122,13 +122,13 @@ test('Death certificate uses only the matching native actor age, never a later r
   const world = waitingSnapshot();
   const actor: StoryActor = { person: fact.body, soulId: world.player_soul, name: fact.name,
     sex: 'female', origin: fact.origin, birthDay: '-365', ageAtDeath: '9007199254740993' };
-  const absent = lifecycleKeyScene(7, world, fact, [{ ...actor, person: fact.body + 1 }]);
+  const absent = lifecycleKeyScene(7, world, fact, new Map([[fact.body + 1, { ...actor, person: fact.body + 1 }]]));
   assert.deepEqual(absent.certificate, { name: fact.name, date: fact.tick });
-  const known = lifecycleKeyScene(7, world, fact, [actor]);
+  const known = lifecycleKeyScene(7, world, fact, new Map([[actor.person, actor]]));
   assert.deepEqual(known.certificate, { name: fact.name, date: fact.tick, age: actor.ageAtDeath });
   assert.equal(known.people[0]!.age, null, 'An unsafe numeric age is never rounded into the portrait');
-  assert.deepEqual(lifecycleKeyScene(7, world, fact, [{ ...actor, ageAtDeath: '73' }]).people[0]!.age, 73);
-  const arrival = lifecycleKeyScene(7, world, { ...fact, kind: 'possession' }, [actor]);
+  assert.deepEqual(lifecycleKeyScene(7, world, fact, new Map([[actor.person, { ...actor, ageAtDeath: '73' }]])).people[0]!.age, 73);
+  const arrival = lifecycleKeyScene(7, world, { ...fact, kind: 'possession' }, new Map([[actor.person, actor]]));
   assert.equal(arrival.people[0]!.age, 2);
   assert.ok(!PERSON_TILES.baby.some(visual => visual === arrival.people[0]!.visual));
   assert.ok(!arrival.props.includes('cradle'));
@@ -183,20 +183,20 @@ test('Exact Dream scenes retain captured input, response date and numeric event 
   assert.deepEqual(view.source, { kind: 'event', eventId: fact.eventId });
   assert.deepEqual(view.people.map(person => person.id), [fact.ghost, fact.dreamer]);
   assert.deepEqual(view.people.map(person => person.age), [null, null], 'Later World ages are not historical Dream ages');
-  const actors: StoryActor[] = [
-    { person: fact.ghost, soulId: world.player_soul, name: 'Recorded ghost', sex: 'female', origin: 'native', ageAtDeath: '60' },
-    { person: fact.dreamer, soulId: 'recipient-soul', name: 'Recorded recipient', sex: 'male', origin: 'native', birthDay: '-15927' },
-  ];
+  const actors = new Map<number, StoryActor>([
+    [fact.ghost, { person: fact.ghost, soulId: world.player_soul, name: 'Recorded ghost', sex: 'female', origin: 'native', ageAtDeath: '60' }],
+    [fact.dreamer, { person: fact.dreamer, soulId: 'recipient-soul', name: 'Recorded recipient', sex: 'male', origin: 'native', birthDay: '-15927' }],
+  ]);
   assert.deepEqual(dreamKeyScene(7, world, fact, actors).people.map(person => person.age), [60, 45]);
   const later = { ...world, tick: '40000', residents: world.residents.map(person => ({ ...person, age: 90 })) };
   assert.deepEqual(dreamKeyScene(7, later, fact, actors).people.map(person => person.age), [60, 45]);
-  assert.deepEqual(dreamKeyScene(7, later, fact, [{ ...actors[1]!, birthDay: '499' }]).people.map(person => person.age), [null, null]);
+  assert.deepEqual(dreamKeyScene(7, later, fact, new Map([[fact.dreamer, { ...actors.get(fact.dreamer)!, birthDay: '499' }]])).people.map(person => person.age), [null, null]);
   const noDate = dreamKeyScene(7, world, { ...fact, interpretation: {
     node: fact.interpretation!.node, applied: fact.interpretation!.applied,
     source: fact.interpretation!.source, rulesDefault: fact.interpretation!.rulesDefault,
   } });
   assert.equal(noDate.dream!.interpretation!.tick, undefined);
-  const entries = sceneQueue([], world, 7, [facts[3]!, facts[0]!], [], [fact]);
+  const entries = sceneQueue([], world, 7, [facts[3]!, facts[0]!], new Map(), [fact]);
   assert.deepEqual(entries.map(entry => entry.identity), [facts[0]!.event, fact.eventId, facts[3]!.event].map(event => JSON.stringify([7, event])));
 });
 
@@ -216,10 +216,10 @@ test('Arrival price requires exact event, actual arrival kind and matching perso
   const world = waitingSnapshot();
   const event: StoryEvent = { id: fact.event, tick: fact.tick, kind: { type: 'possession', person: fact.body, price: '9007199254740993' },
     causedBy: [], tags: 0, relevance: 'self', relevanceBasis: 'observed-day-start-end', actorContext: [] };
-  assert.equal(lifecycleKeyScene(7, world, fact, [], [event]).arrivalPrice, '9007199254740993');
+  assert.equal(lifecycleKeyScene(7, world, fact, new Map(), [event]).arrivalPrice, '9007199254740993');
   for (const invalid of [{ ...event, id: '1' }, { ...event, kind: { type: 'rebuild' as const, person: fact.body, price: '5' } },
     { ...event, kind: { type: 'possession' as const, person: fact.body + 1, price: '5' } }]) {
-    assert.equal(lifecycleKeyScene(7, world, fact, [], [invalid]).arrivalPrice, undefined);
+    assert.equal(lifecycleKeyScene(7, world, fact, new Map(), [invalid]).arrivalPrice, undefined);
   }
 });
 
