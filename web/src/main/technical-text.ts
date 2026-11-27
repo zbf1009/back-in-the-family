@@ -13,6 +13,7 @@ export const TECHNICAL_TEXT = {
   startGameFirst: 'Start a game first.',
   gameStartFailed: "The game couldn't start.",
   gameStopped: 'The game hit a problem and stopped.',
+  requestProblem: 'That request ran into a problem.',
   seedInvalid: "That seed won't work. Digits only.",
   pauseFirst: 'Pause first.',
   answerFirst: 'Answer the question in front of you first.',

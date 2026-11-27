@@ -20,12 +20,18 @@
   let lastPromotedId = $state<string | null>(null);
   let lastPrimaryAt = $state(0);
   const worldKey = $derived(notebook.worldId);
+  const renderRevision = $derived(notebook.renderRevision);
+  // Clock carriers advance independently; retain prose roots until a factual revision or new World.
+  const historicalNotebook = $derived.by(() => {
+    worldKey; renderRevision;
+    return untrack(() => notebook);
+  });
   const context = $derived({ playerSoul, currentBody });
-  const historyCount = $derived(journalGroupCount(notebook, section));
+  const historyCount = $derived(journalGroupCount(historicalNotebook, section));
   const end = $derived(Math.min(rangeEnd ?? historyCount, historyCount));
-  const visible = $derived([...journalRange(notebook, context, section, end)].reverse());
-  const primaryIdentity = $derived(latestPrimaryIdentity(notebook));
-  const promotionText = $derived(promotion ? journalTownPromotion(notebook, promotion, { ...context, dreams: notebook.dreams }) : '');
+  const visible = $derived([...journalRange(historicalNotebook, context, section, end)].reverse());
+  const primaryIdentity = $derived(latestPrimaryIdentity(historicalNotebook));
+  const promotionText = $derived(promotion ? journalTownPromotion(historicalNotebook, promotion, { ...context, dreams: historicalNotebook.dreams }) : '');
 
   $effect(() => {
     worldKey;
@@ -107,7 +113,7 @@
             {#if expanded === group.id}
               <div class="member-accounts">
                 <ol>
-                  {#each journalMemberLines(group, notebook, context, memberStart) as line (line.identity)}
+                  {#each journalMemberLines(group, historicalNotebook, context, memberStart) as line (line.identity)}
                     <li><span class="member-date">{dateLabel(line.tick)}</span><p>{line.text}</p></li>
                   {/each}
                 </ol>

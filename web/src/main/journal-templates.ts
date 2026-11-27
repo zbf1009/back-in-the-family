@@ -172,12 +172,15 @@ export function renderChronicleFrame(_variant: 0 | 1 | 2, record: StoryChronicle
   const p = (id: number | undefined) => id === undefined ? undefined : storyPerson(id, actors, context, context.actorContext ?? record.actorContext);
   const deceased = p(record.stakes.who[0]);
   const other = p(record.stakes.who.find(person => person !== context.currentBody));
-  const sentence = supportedText(CHOICE_RESULT_TEXT[record.applied], { "d's": deceased === undefined ? undefined : possessive(deceased), m: p(record.stakes.who[1]), o: other, "o's": other === undefined ? undefined : possessive(other) });
+  // Forgiveness is part 0; its separate Help part is not claimed by the approved sentence.
+  // Every other result sentence needs all of its selected option's parts to have succeeded.
+  const supported = record.applied === 'forgive_debt' ? !record.skipped.some(part => part.part === 0) : record.skipped.length === 0;
+  const sentence = supported ? supportedText(CHOICE_RESULT_TEXT[record.applied], { "d's": deceased === undefined ? undefined : possessive(deceased), m: p(record.stakes.who[1]), o: other, "o's": other === undefined ? undefined : possessive(other) }) : null;
   const source = CHOICE_SOURCE_TEXT[record.source];
   const lead = typeof source === 'string' ? source : source[Number(BigInt(record.index) % BigInt(source.length))]!;
   const absent = record.chooserAbsent ? CHOICE_SOURCE_TEXT.absent : '';
   const skipped = record.skipped.map(part => supportedText(CHOICE_SOURCE_TEXT.skipped, { reason: SKIP_LABELS[part.reason] }) ?? '').join('');
-  return (sentence ? lead + sentence : '') + absent + skipped;
+  return lead + (sentence ?? '') + absent + skipped;
 }
 export function renderStoryChronicle(record: StoryChronicle, actors: JournalActors, context: JournalContext): string {
   return renderChronicleFrame(Number(BigInt(record.index) % 3n) as 0 | 1 | 2, record, actors, context);

@@ -71,10 +71,13 @@ export class LifeContextWriter {
   constructor(worldId: number, index: LifeContextIndex, world?: WorldSnapshot) {
     this.worldId = worldId;
     this.index = index;
-    if (world && (index.currentTick === null || decimal(world.tick, index.currentTick) >= 0) && (index.currentTick !== world.tick || worldLifePhase(worldId, world)?.key !== index.current?.key)) {
-      const current = worldLifePhase(worldId, world);
-      const lives = current?.kind === 'life' && !index.lives.get(current.person) ? index.lives.set(current.person, current) : index.lives;
-      this.index = { ...index, playerSoul: index.playerSoul ?? world.player_soul, initial: index.initial ?? current, current, currentTick: world.tick, lives };
+    if (world && (index.currentTick === null || decimal(world.tick, index.currentTick) >= 0)) {
+      const observed = worldLifePhase(worldId, world);
+      if (index.currentTick !== world.tick || observed?.key !== index.current?.key) {
+        const current = observed?.key === index.current?.key && observed?.name === index.current?.name ? index.current : observed;
+        const lives = current?.kind === 'life' && !index.lives.get(current.person) ? index.lives.set(current.person, current) : index.lives;
+        this.index = { ...index, playerSoul: index.playerSoul ?? world.player_soul, initial: index.initial ?? current, current, currentTick: world.tick, lives };
+      }
     }
   }
   lifecycle(fact: PlayerLifecycleFact, actors: JournalActors, contexts: readonly ActorContext[] = []): void {
@@ -99,7 +102,7 @@ export class LifeContextWriter {
     this.lifecycle({ event: event.id, tick: event.tick, kind: event.kind.type as PlayerLifecycleFact['kind'], body: person, name: actor?.name ?? '', origin: actor?.origin === 'possessed' || actor?.origin === 'rebuilt' ? actor.origin : 'native' }, actors, event.actorContext);
   }
   capture(record: StoryEvent | StoryChronicle, actors: JournalActors, opening: boolean, linked?: EntryContext | null, admitted?: AdmittedChoiceContext): EntryContext | null {
-    const soul = this.index.playerSoul;
+    const soul = admitted?.playerSoul ?? linked?.playerSoul ?? this.index.playerSoul;
     if (soul === null) return null;
     const contexts = record.actorContext;
     const isEvent = 'id' in record;

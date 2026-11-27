@@ -604,6 +604,12 @@ function ingest(s: UiState, snapshot: Snapshot, explicitWorld?: WorldSnapshot): 
   const world = explicitWorld ?? snapshot.stop?.world ?? s.world;
   const notebook = appendStory(s.notebook, snapshot.story ?? [], { ...(world === null ? {} : { world }), lifecycle: snapshot.playerLifecycle, choices: s.choiceContexts });
   const memorial = bindMemorial(s, notebook, snapshot, world);
+  // A newly opened memorial replaces only the visible, exactly settled head.
+  // Reuse Close identity guards and retain the undisplayed FIFO and seen episode.
+  if (s.memorial === null && memorial.memorial !== null && s.scene?.worldId === s.worldId && s.settledScene !== null) {
+    const scene = closeScene(s.scene, s.settledScene);
+    if (scene !== s.scene) s = { ...s, scene, settledScene: null };
+  }
   if (snapshot.actions.length === 0 && snapshot.playerLifecycle.length === 0) {
     const next = notebook === s.notebook && memorial.memorial === s.memorial && memorial.settledMemorial === s.settledMemorial
       ? s : { ...s, notebook, ...memorial };

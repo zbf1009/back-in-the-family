@@ -117,7 +117,7 @@ export const NEEDED_LABELS = {
 } as const satisfies Record<Needed['kind'], string>;
 
 export const TRANSPORT_LABELS = {
-  'sim-error': TECHNICAL_TEXT.gameStopped, 'invalid-seed': TECHNICAL_TEXT.seedInvalid,
+  'sim-error': TECHNICAL_TEXT.requestProblem, 'invalid-seed': TECHNICAL_TEXT.seedInvalid,
   'invalid-speed': TECHNICAL_TEXT.paceInvalid, 'invalid-tick': TECHNICAL_TEXT.dateInvalid,
   'no-world': TECHNICAL_TEXT.startGameFirst, 'invalid-state': TECHNICAL_TEXT.pauseFirst,
   'load-failed': TECHNICAL_TEXT.gameStartFailed, rejected: TECHNICAL_TEXT.genericRefusal,
@@ -188,7 +188,8 @@ export function neededText(needed: Needed): string {
   }
 }
 /** Diagnostics never become player prose; only an exact native refusal label is reused. */
-export function transportText(kind: ErrorKind | 'fatal', diagnostic?: string, operation?: Request['type']): string {
+export function transportText(kind: ErrorKind | 'fatal', runState: RunState, diagnostic?: string, operation?: Request['type']): string {
+  if (kind === 'fatal' || runState === 'failed') return TRANSPORT_LABELS.fatal;
   if (kind === 'rejected') return refusalText(diagnostic ?? '');
   if (kind === 'sim-error' && operation === 'create-world') return TRANSPORT_LABELS['load-failed'];
   return TRANSPORT_LABELS[kind];

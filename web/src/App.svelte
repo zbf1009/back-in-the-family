@@ -62,7 +62,7 @@
   const feedback = $derived(feedbackView(ui));
   const openingBody = $derived(ui.world?.residents.find(person => person.id === ui.world?.player.body));
   const playerError = $derived(ui.error === null ? null : ui.errorKind === 'validation'
-    ? ui.error : transportText(ui.errorKind ?? 'sim-error', ui.error, ui.errorOperation));
+    ? ui.error : transportText(ui.errorKind ?? 'sim-error', ui.runState, ui.error, ui.errorOperation));
 
   function onClose(expected: SceneClose): void { dispatch({ type: 'scene-close', expected }); }
   function onSettled(expected: SceneClose): void { dispatch({ type: 'scene-settled', expected }); }

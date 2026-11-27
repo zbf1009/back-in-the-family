@@ -20,7 +20,10 @@ export interface LifeNotebook {
   readonly opening: PersistentTree<StoryIdentity, boolean>;
   readonly cursors: StoryBatch['cursors'] | null;
   readonly journal: JournalIndex;
+  /** Only roots read by historical rendering advance this revision, never the phase clock. */
+  readonly renderRevision: number;
   readonly contexts: PersistentTree<StoryIdentity, EntryContext>;
+  /** Only entries without a captured EntryContext retain a separate fallback actor root. */
   readonly actorRoots: PersistentTree<StoryIdentity, PersistentTree<number, StoryActor>>;
   readonly phaseActors: PersistentTree<string, PersistentTree<number, StoryActor>>;
   readonly phases: LifeContextIndex;
@@ -56,7 +59,7 @@ export const JOURNAL_RANGE_SIZE = 120;
 export const JOURNAL_EXPANSION_SIZE = 24;
 
 export function createNotebook(worldId: number): LifeNotebook {
-  return { worldId, actors: keyedStore(), events: keyedStore(), chronicle: keyedStore(), dreams: keyedStore(), dreamsByInputSeq: keyedStore(), identities: new PersistentSequence(), opening: keyedStore(), cursors: null, journal: createJournalIndex(), contexts: keyedStore(), actorRoots: keyedStore(), phaseActors: keyedStore(), phases: createLifeContextIndex(), chronicleByNode: keyedStore() };
+  return { worldId, actors: keyedStore(), events: keyedStore(), chronicle: keyedStore(), dreams: keyedStore(), dreamsByInputSeq: keyedStore(), identities: new PersistentSequence(), opening: keyedStore(), cursors: null, journal: createJournalIndex(), renderRevision: 0, contexts: keyedStore(), actorRoots: keyedStore(), phaseActors: keyedStore(), phases: createLifeContextIndex(), chronicleByNode: keyedStore() };
 }
 /** Delivery epochs are checked here as well as at the client seam. Rebirth is not a new epoch. */
 export function appendStory(notebook: LifeNotebook, deliveries: readonly StoryDelivery[], binding: StoryBinding = {}): LifeNotebook {
@@ -101,8 +104,7 @@ export function appendStory(notebook: LifeNotebook, deliveries: readonly StoryDe
       }
       if (!choice && !linked) phaseActors = phaseActors.set(captured.phase.key, root);
       contexts = contexts.set(identity, captured);
-    }
-    actorRoots = actorRoots.set(identity, root);
+    } else actorRoots = actorRoots.set(identity, root);
     return captured;
   };
   for (let index = 0; index < admitted.length; index++) {
@@ -149,7 +151,10 @@ export function appendStory(notebook: LifeNotebook, deliveries: readonly StoryDe
       changed = true;
     }
   }
-  return changed || phaseWriter.index !== notebook.phases ? { worldId: notebook.worldId, actors, events, chronicle, dreams, dreamsByInputSeq, identities, opening, cursors, journal: writer.index, contexts, actorRoots, phaseActors, phases: phaseWriter.index, chronicleByNode } : notebook;
+  const renderChanged = actors !== notebook.actors || events !== notebook.events || chronicle !== notebook.chronicle
+    || dreams !== notebook.dreams || writer.index !== notebook.journal || contexts !== notebook.contexts || actorRoots !== notebook.actorRoots;
+  const renderRevision = notebook.renderRevision + Number(renderChanged);
+  return changed || phaseWriter.index !== notebook.phases ? { worldId: notebook.worldId, actors, events, chronicle, dreams, dreamsByInputSeq, identities, opening, cursors, journal: writer.index, renderRevision, contexts, actorRoots, phaseActors, phases: phaseWriter.index, chronicleByNode } : notebook;
 }
 export function exportNotebook(notebook: LifeNotebook): LifeNotebookExport {
   return { worldId: notebook.worldId, actors: Object.fromEntries(notebook.actors), events: Object.fromEntries(notebook.events), chronicle: Object.fromEntries(notebook.chronicle), dreams: Object.fromEntries(notebook.dreams), identities: [...notebook.identities], opening: Object.fromEntries(notebook.opening) as Record<StoryIdentity, boolean>, cursors: notebook.cursors };

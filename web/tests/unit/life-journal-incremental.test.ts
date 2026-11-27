@@ -300,6 +300,7 @@ test('Dream sequence receipts index raw facts directly and export retains only t
   assert.equal(before.dreamsByInputSeq.get(dream.inputSeq), undefined);
   assert.equal(after.identities, before.identities);
   assert.equal(after.journal, before.journal, 'late annotations do not rebuild any grouping or offscreen story text');
+  assert.equal(after.renderRevision, before.renderRevision + 1, 'late Dream prose invalidates rendering without rebuilding grouping');
   assert.notEqual(journalRange(after, context)[0]!.text, beforeText);
   assert.equal(journalRange(before, context)[0]!.text, beforeText);
   assert.equal(add(after, { ...batch(), dreams: [dream] }), after);
@@ -323,4 +324,70 @@ test('Latest primary uses arrival order while promotion uses eligible unclaimed 
   assert.equal(latestTownEvent(notebook, null)!.id, '9007199254740991');
   assert.equal(latestTownEvent(prior, null)!.id, '9007199254740992');
   assert.equal(latestPrimaryIdentity(notebook), 'c:1');
+});
+
+test('Clock-only native World updates advance the guard without revising bounded historical rendering', () => {
+  const events = Array.from({ length: 360 }, (_, index) => ({ ...milestone, id: String(index + 1), tick: String(index), kind: { type: 'marriage' as const, a: 10, b: 11 } }));
+  const original = appendStory(createNotebook(9), [{ worldId: 9, batch: { ...batch(events), actors: native.actors } }], { world: openingWorld });
+  Object.freeze(original);
+  Object.freeze(original.phases);
+  const currentTick = (BigInt(openingWorld.tick) + 400n).toString();
+  const advanced = appendStory(original, [], { world: { ...openingWorld, tick: currentTick } });
+  assert.notEqual(advanced, original);
+  assert.equal(advanced.phases.currentTick, currentTick);
+  assert.equal(original.phases.currentTick, openingWorld.tick);
+  assert.equal(advanced.phases.current, original.phases.current);
+  assert.equal(advanced.renderRevision, original.renderRevision);
+  for (const root of ['actors', 'events', 'chronicle', 'dreams', 'journal', 'contexts', 'actorRoots', 'phaseActors'] as const) assert.equal(advanced[root], original[root], root);
+  const oldWorld: WorldSnapshot = { ...openingWorld, tick: (BigInt(currentTick) - 1n).toString(), player: { ...openingWorld.player, body: 61 } };
+  assert.equal(appendStory(advanced, [], { world: oldWorld }), advanced, 'even a newer-than-original but older-than-current World cannot change the body');
+  const before = journalRange(original, context, 'life', JOURNAL_RANGE_SIZE);
+  assert.equal(before.length, JOURNAL_RANGE_SIZE);
+  assert.deepEqual(journalRange(advanced, context, 'life', JOURNAL_RANGE_SIZE), before);
+  const cursorOnly = add(advanced, { ...batch(), cursors: { events: { start: '0', end: '999' }, chronicle: { start: '0', end: '0' } } });
+  assert.notEqual(cursorOnly.cursors, advanced.cursors);
+  assert.equal(cursorOnly.renderRevision, advanced.renderRevision);
+  const appended = add(cursorOnly, batch([{ ...events[0]!, id: '361', tick: currentTick }]));
+  assert.equal(appended.renderRevision, cursorOnly.renderRevision + 1);
+  assert.equal(journalRange(original, context, 'life', JOURNAL_RANGE_SIZE).length, JOURNAL_RANGE_SIZE);
+});
+
+test('EntryContext owns captured actors while mixed direct callers retain only their actual fallback roots', () => {
+  const events = Array.from({ length: 360 }, (_, index) => ({ ...milestone, id: String(index + 1), tick: String(index), kind: { type: 'marriage' as const, a: 10, b: 11 } }));
+  const captured = appendStory(createNotebook(9), [{ worldId: 9, batch: { ...batch(events), actors: native.actors } }], { world: openingWorld });
+  assert.equal(captured.contexts.size, events.length);
+  assert.equal(captured.actorRoots.size, 0);
+  for (const identity of captured.identities) assert.equal(entryContext(captured, identity)!.actors, captured.actors);
+  const direct = add(createNotebook(9), { ...batch([events[0]!]), actors: native.actors });
+  assert.equal(direct.contexts.size, 0);
+  assert.equal(direct.actorRoots.size, 1);
+  const fallbackRoot = direct.actorRoots.get('e:1')!;
+  const oldText = journalRange(direct, context)[0]!.text;
+  const actor = native.actors.find(actor => actor.person === 10)!;
+  const mixed = appendStory(direct, [{ worldId: 9, batch: { ...batch([events[1]!]), actors: [{ ...actor, name: 'Later assigned name' }] } }], { world: openingWorld });
+  assert.equal(mixed.actorRoots, direct.actorRoots);
+  assert.equal(mixed.actorRoots.get('e:1'), fallbackRoot);
+  assert.equal(entryContext(mixed, 'e:1'), null);
+  assert.ok(entryContext(mixed, 'e:2'));
+  assert.equal(mixed.actorRoots.get('e:2'), undefined);
+  assert.equal(journalRange(mixed, context).find(group => group.members.at(0) === 'e:1')!.text, oldText);
+  assert.equal(direct.events.size, 1);
+  assert.equal(mixed.events.get('1'), events[0]);
+  assert.equal(mixed.events.get('2'), events[1]);
+});
+
+test('A direct exact-node admission captures EntryContext even before a World establishes the phase index', () => {
+  const bound = appendStory(createNotebook(9), [{ worldId: 9, batch: { ...batch([milestone]), actors: native.actors } }], { world: openingWorld });
+  const admission = entryContext(bound, `e:${milestone.id}`)!;
+  const selected: StoryChronicle = { ...record, node: 'direct-admission', appended: [], actorContext: [] };
+  const notebook = appendStory(createNotebook(9), [{ worldId: 9, batch: batch([], [selected]) }], { choices: { get: node => node === selected.node ? admission : undefined } });
+  const captured = entryContext(notebook, `c:${selected.index}`)!;
+  assert.equal(notebook.phases.playerSoul, null);
+  assert.equal(captured.phase, admission.phase);
+  assert.equal(captured.playerSoul, admission.playerSoul);
+  assert.equal(captured.actors, admission.actors);
+  assert.equal(captured.focus, admission.focus);
+  assert.equal(notebook.contexts.size, 1);
+  assert.equal(notebook.actorRoots.size, 0);
+  assert.equal(notebook.chronicle.get(selected.index), selected);
 });

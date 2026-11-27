@@ -19,17 +19,26 @@ test('transport diagnostics and unknown named requirements never leak as player 
     'sim-error', 'invalid-seed', 'invalid-speed', 'invalid-tick', 'no-world', 'invalid-state',
     'load-failed', 'rejected', 'node_unanswered', 'decision_pending', 'invalid-wait', 'preview-error', 'cancelled',
   ] satisfies ErrorKind[]) {
-    const text = transportText(kind, diagnostic);
+    const text = transportText(kind, 'running', diagnostic);
     assert.ok(text.length > 0);
     assert.ok(!text.includes(diagnostic));
     assert.ok(!text.includes('18446744073709551615'));
   }
   for (const reason of [diagnostic, 'toString', '__proto__', 'constructor']) {
-    assert.equal(refusalText(reason), transportText('rejected'));
+    assert.equal(refusalText(reason), transportText('rejected', 'paused'));
     assert.equal(neededText({ kind: 'named', name: reason }), refusalText(reason));
   }
-  assert.equal(transportText('rejected', 'node_pending'), refusalText('node_pending'));
-  assert.equal(transportText('sim-error', diagnostic, 'create-world'), transportText('load-failed'));
+  assert.equal(transportText('rejected', 'paused', 'node_pending'), refusalText('node_pending'));
+  assert.equal(transportText('sim-error', 'paused', diagnostic, 'create-world'), transportText('load-failed', 'paused'));
+});
+
+test('nonfatal failures do not claim a stop, while confirmed failed and fatal states do', () => {
+  const stopped = transportText('fatal', 'failed');
+  for (const runState of ['running', 'paused'] as const) {
+    assert.notEqual(transportText('sim-error', runState, 'ticket timeout', 'set-speed'), stopped);
+    assert.equal(transportText('sim-error', 'failed', 'ticket timeout', 'set-speed'), stopped);
+    assert.equal(transportText('fatal', runState, 'worker stopped'), stopped);
+  }
 });
 
 test('Needed keeps exact date and payment role, including a reservation in your name', () => {

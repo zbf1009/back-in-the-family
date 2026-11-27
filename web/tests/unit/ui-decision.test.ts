@@ -126,7 +126,7 @@ test('typed Dream preview rejection keeps technical diagnostics separate from pl
     assert.equal(next.error, 'provider secret', 'the technical diagnostic retains the actual failure');
     assert.equal(next.errorKind, 'preview-error');
     assert.equal(next.errorOperation, 'dream');
-    const playerError = transportText(next.errorKind!, next.error ?? undefined, next.errorOperation);
+    const playerError = transportText(next.errorKind!, next.runState, next.error ?? undefined, next.errorOperation);
     assert.ok(playerError.trim());
     assert.doesNotMatch(playerError, /provider secret|private detail/);
     assert.equal(next.actions[0]!.error, next.error);
@@ -174,7 +174,7 @@ for (const priorOutcome of [false, true]) {
     assert.equal(ui.error, failed.error, 'technical diagnostics preserve the raw rejection');
     assert.equal(ui.errorKind, failed.kind);
     assert.equal(ui.errorOperation, dream.type);
-    const playerError = transportText(ui.errorKind!, ui.error ?? undefined, ui.errorOperation);
+    const playerError = transportText(ui.errorKind!, ui.runState, ui.error ?? undefined, ui.errorOperation);
     assert.ok(playerError.trim());
     assert.doesNotMatch(playerError, /provider secret|private detail/);
     assert.deepEqual(ui.world, before.world);

@@ -1,0 +1,259 @@
+{
+  "source": "target/life-in-view-evidence/c4-operation-choose-inheritance-pay_debts-15.json",
+  "seed": "11",
+  "playerSoul": "S-0009",
+  "currentBody": 9,
+  "node": {
+    "id": "6",
+    "family": "inheritance",
+    "fired": "15158",
+    "choice_tick": "15159",
+    "resolves": "15159",
+    "stakes": {
+      "who": [
+        8,
+        10
+      ],
+      "amount": "60000",
+      "unit": "money",
+      "by": "15159"
+    },
+    "options": [
+      {
+        "id": "keep_it",
+        "preview": []
+      },
+      {
+        "id": "thank_family",
+        "preview": [
+          {
+            "person": 9,
+            "what": "affinity",
+            "delta": "2"
+          },
+          {
+            "person": 10,
+            "what": "affinity",
+            "delta": "2"
+          }
+        ]
+      },
+      {
+        "id": "pay_debts",
+        "preview": [
+          {
+            "person": 9,
+            "what": "money",
+            "delta": "-1016"
+          },
+          {
+            "person": 35,
+            "what": "money",
+            "delta": "1016"
+          }
+        ]
+      }
+    ],
+    "rules_default": "pay_debts"
+  },
+  "chronicle": [
+    {
+      "tick": "851",
+      "family": "debt_due",
+      "stakes": {
+        "who": [
+          21
+        ],
+        "amount": "776",
+        "unit": "money",
+        "by": "880"
+      },
+      "applied": "repay_now",
+      "source": "external",
+      "chooser_absent": false,
+      "skipped": []
+    },
+    {
+      "tick": "4649",
+      "family": "debt_due",
+      "stakes": {
+        "who": [
+          7
+        ],
+        "amount": "1037",
+        "unit": "money",
+        "by": "4678"
+      },
+      "applied": "forgive_debt",
+      "source": "external",
+      "chooser_absent": false,
+      "skipped": []
+    },
+    {
+      "tick": "5377",
+      "family": "debt_due",
+      "stakes": {
+        "who": [
+          25
+        ],
+        "amount": "4465",
+        "unit": "money",
+        "by": "5407"
+      },
+      "applied": "demand_payment",
+      "source": "auto_resolved",
+      "chooser_absent": false,
+      "skipped": []
+    },
+    {
+      "tick": "10675",
+      "family": "debt_due",
+      "stakes": {
+        "who": [
+          8
+        ],
+        "amount": "3122",
+        "unit": "money",
+        "by": "10704"
+      },
+      "applied": "demand_payment",
+      "source": "external",
+      "chooser_absent": false,
+      "skipped": []
+    },
+    {
+      "tick": "12972",
+      "family": "debt_due",
+      "stakes": {
+        "who": [
+          53
+        ],
+        "amount": "2185",
+        "unit": "money",
+        "by": "13001"
+      },
+      "applied": "ask_for_time",
+      "source": "external",
+      "chooser_absent": false,
+      "skipped": []
+    },
+    {
+      "tick": "13851",
+      "family": "debt_due",
+      "stakes": {
+        "who": [
+          47
+        ],
+        "amount": "585",
+        "unit": "money",
+        "by": "13881"
+      },
+      "applied": "repay_now",
+      "source": "auto_resolved",
+      "chooser_absent": false,
+      "skipped": [
+        {
+          "part": 0,
+          "reason": "out_of_bounds"
+        }
+      ]
+    },
+    {
+      "tick": "14217",
+      "family": "debt_due",
+      "stakes": {
+        "who": [
+          35
+        ],
+        "amount": "2938",
+        "unit": "money",
+        "by": "14246"
+      },
+      "applied": "ask_for_time",
+      "source": "external",
+      "chooser_absent": false,
+      "skipped": []
+    },
+    {
+      "tick": "14692",
+      "family": "debt_due",
+      "stakes": {
+        "who": [
+          27
+        ],
+        "amount": "3029",
+        "unit": "money",
+        "by": "14722"
+      },
+      "applied": "repay_now",
+      "source": "auto_resolved",
+      "chooser_absent": false,
+      "skipped": [
+        {
+          "part": 0,
+          "reason": "out_of_bounds"
+        }
+      ]
+    },
+    {
+      "tick": "15065",
+      "family": "debt_due",
+      "stakes": {
+        "who": [
+          10
+        ],
+        "amount": "1729",
+        "unit": "money",
+        "by": "15095"
+      },
+      "applied": "repay_now",
+      "source": "auto_resolved",
+      "chooser_absent": false,
+      "skipped": [
+        {
+          "part": 0,
+          "reason": "out_of_bounds"
+        }
+      ]
+    },
+    {
+      "tick": "15158",
+      "family": "family_death",
+      "stakes": {
+        "who": [
+          8,
+          39
+        ],
+        "amount": "12",
+        "unit": "affinity",
+        "by": "15159"
+      },
+      "applied": "comfort_mourner",
+      "source": "auto_resolved",
+      "chooser_absent": false,
+      "skipped": []
+    },
+    {
+      "tick": "15159",
+      "family": "inheritance",
+      "stakes": {
+        "who": [
+          8,
+          10
+        ],
+        "amount": "60000",
+        "unit": "money",
+        "by": "15159"
+      },
+      "applied": "pay_debts",
+      "source": "external",
+      "chooser_absent": false,
+      "skipped": [
+        {
+          "part": 0,
+          "reason": "insufficient_money"
+        }
+      ]
+    }
+  ]
+}

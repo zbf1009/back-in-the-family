@@ -825,3 +825,27 @@ test('Playing failed acceleration leaves manual Pause-and-pace recovery without 
   await expect(page.getByTestId('fast-forward')).toBeEnabled();
   expect(await requests(page)).toEqual([accelerate, pause, restore]);
 });
+
+for (const running of [true, false]) {
+  test(`nonfatal set-speed timeout keeps ${running ? 'Playing' : 'Paused'} facts distinct from a confirmed worker failure`, async ({ page }) => {
+    await openApp(page, true); await createWorld(page);
+    if (running) await startPlaying(page);
+    await page.clock.install();
+    await page.getByTestId('speed').selectOption('30');
+    const speed = await lastRequest(page, 'set-speed');
+    await page.clock.fastForward(30_001);
+    const error = page.getByTestId('error');
+    await expect(error).toHaveAttribute('data-error-kind', 'sim-error');
+    const requestProblem = await error.innerText();
+    await expect(page.getByTestId('technical-run-state')).toHaveText(running ? 'running' : 'paused');
+    await status(page, { runState: running ? 'running' : 'paused', tick: '501' });
+    await expect(page.getByTestId('tick')).toHaveText('501');
+    if (running) await expect(error).toHaveText(requestProblem);
+    else await expect(error).toHaveCount(0);
+    expect(await requests(page)).toEqual([speed]);
+    await page.evaluate(() => window.__paceHarness.fatal('worker-error'));
+    await expect(page.getByTestId('technical-run-state')).toHaveText('failed');
+    expect(await error.innerText()).not.toBe(requestProblem);
+    expect(await requests(page)).toEqual([speed]);
+  });
+}

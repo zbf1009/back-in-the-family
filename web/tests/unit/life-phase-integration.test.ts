@@ -278,6 +278,98 @@ test('Close, replacement scene and lifecycle boundaries do not let Death redeliv
   }
 });
 
+for (const pendingDream of [false, true]) {
+  test(`an ordinary kin memorial replaces only the settled visible rebirth, preserving pending facts=${pendingDream}`, () => {
+    let ui = playerDeath(createCarrierState(snapshot));
+    assert.ok(ui.scene);
+    ui = reduce(ui, { type: 'scene-settled', expected: { worldId: ui.worldId, tick: ui.scene.tick, entry: ui.scene.entries[0]! } });
+    ui = playerRebirth(ui);
+    assert.equal(ui.scene?.entries[0]?.keyScene?.lifecycle?.kind, 'possession');
+    const rebirth: SceneClose = { worldId: ui.worldId, tick: ui.scene!.tick, entry: ui.scene!.entries[0]! };
+    const request = { type: 'run', id: 45 } as const;
+    ui = reduce(ui, { type: 'request-sent', request });
+    ui = reduce(ui, { type: 'reply', request, message: { type: 'reply', id: request.id, ok: true,
+      snapshot: carrierSnapshot(ui, { runState: 'running' }) } });
+    ui = reduce(ui, { type: 'scene-settled', expected: rebirth });
+    assert.strictEqual(ui.scene?.entries[0], rebirth.entry, 'Play and settlement leave the unclosed scene visible');
+    if (pendingDream) ui = deliver(ui, batch({ dreams: [{ eventId: '913', inputSeq: '46', tick: '502',
+      ghost: 2, dreamer: 4, intent: 'warn', price: '20' }] }));
+    const pending = ui.scene!.entries.slice(1);
+    const seen = ui.sceneEpisode!.seen;
+    const world = ui.world; const actions = ui.actions;
+    const facts = memorialFacts(ui, [kinDeath('920', { tick: '503', actorContext: actorContext(4) })]);
+    const ordinary = carrierSnapshot(ui, { tick: '503', story: [{ worldId: ui.worldId, batch: facts }] });
+    assert.equal(ordinary.stop, undefined, 'an ordinary Death must not require a simulation stop');
+    ui = reduce(ui, { type: 'status', snapshot: ordinary });
+    const close = memorialClose(ui);
+    assert.equal(ui.runState, 'running');
+    assert.equal(ui.memorial!.capture.playerBody, 4);
+    assert.equal(ui.settledScene, null);
+    assert.deepEqual(ui.scene?.entries ?? [], pending);
+    if (pendingDream) {
+      assert.ok(ui.sceneEpisode!.seen.includes(rebirth.entry.identity), 'the retired identity remains seen while undisplayed facts remain');
+      assert.deepEqual(ui.sceneEpisode!.seen, seen);
+    }
+    assert.strictEqual(reduce(ui, { type: 'scene-close', expected: rebirth }), ui);
+    assert.strictEqual(reduce(ui, { type: 'scene-settled', expected: rebirth }), ui);
+    for (const wrong of [{ ...close, worldId: 2 }, { ...close, tick: '503' }, { ...close, entry: { ...close.entry } }]) {
+      assert.strictEqual(reduce(ui, { type: 'scene-close', expected: wrong }), ui);
+    }
+    ui = reduce(ui, { type: 'scene-close', expected: close });
+    assert.equal(ui.memorial, null);
+    assert.deepEqual(ui.scene?.entries ?? [], pending);
+    assert.strictEqual(reduce(ui, { type: 'scene-close', expected: rebirth }), ui);
+    assert.strictEqual(reduce(ui, { type: 'scene-close', expected: close }), ui);
+    assert.strictEqual(ui.world, world); assert.strictEqual(ui.actions, actions);
+    assert.equal(ui.tick, '503');
+    assert.ok(ui.notebook.events.get('912') && ui.notebook.events.get('920'));
+    if (pendingDream) {
+      assert.ok(ui.notebook.dreams.get('913'));
+      assert.equal(ui.scene?.entries[0]?.keyScene?.source.kind, 'event');
+      const next = { worldId: ui.scene!.worldId, tick: ui.scene!.tick, entry: pending[0]! };
+      ui = reduce(ui, { type: 'scene-close', expected: next });
+      assert.equal(ui.scene, null, 'the preserved pending fact still has a legal exact Close');
+    }
+    ui = reduce(ui, { type: 'status', snapshot: ordinary });
+    assert.equal(ui.memorial, null, 'the admitted Death does not reopen');
+    assert.equal(ui.scene, null, 'redelivery cannot resurrect the retired rebirth or closed Dream');
+  });
+}
+
+for (const settlement of ['none', 'wrong-world', 'wrong-tick', 'copied-entry'] as const) {
+  test(`a memorial preserves a rebirth without an exact settled head: ${settlement}`, () => {
+    let ui = playerRebirth(playerDeath(createCarrierState(snapshot)));
+    const first = { worldId: ui.worldId, tick: ui.scene!.tick, entry: ui.scene!.entries[0]! };
+    ui = reduce(ui, { type: 'scene-close', expected: first });
+    assert.equal(ui.scene?.entries[0]?.keyScene?.lifecycle?.kind, 'possession');
+    const scene = ui.scene!;
+    const expected = { worldId: ui.worldId, tick: scene.tick, entry: scene.entries[0]! };
+    if (settlement !== 'none') ui = { ...ui, settledScene: settlement === 'wrong-world' ? { ...expected, worldId: 2 }
+      : settlement === 'wrong-tick' ? { ...expected, tick: (BigInt(scene.tick) + 1n).toString() } : { ...expected, entry: { ...expected.entry } } };
+    ui = deliver(ui, memorialFacts(ui, [kinDeath('920', { tick: '503', actorContext: actorContext(4) })]), undefined, { tick: '503' });
+    const close = memorialClose(ui);
+    assert.strictEqual(ui.scene, scene, 'an unsettled or scheduled next scene is not the replaced settled head');
+    ui = reduce(ui, { type: 'scene-close', expected: close });
+    assert.strictEqual(ui.scene, scene);
+  });
+}
+
+test('replacing a memorial does not retire a settled scene hidden behind the existing card', () => {
+  let ui = playerRebirth(playerDeath(createCarrierState(snapshot)));
+  ui = reduce(ui, { type: 'scene-close', expected: { worldId: ui.worldId, tick: ui.scene!.tick, entry: ui.scene!.entries[0]! } });
+  const hidden = { worldId: ui.worldId, tick: ui.scene!.tick, entry: ui.scene!.entries[0]! };
+  ui = deliver(ui, memorialFacts(ui, [kinDeath('920', { tick: '503', actorContext: actorContext(4) })]), undefined, { tick: '503' });
+  const firstCard = memorialClose(ui);
+  ui = reduce(ui, { type: 'scene-settled', expected: hidden });
+  assert.strictEqual(ui.settledScene?.entry, hidden.entry);
+  ui = deliver(ui, memorialFacts(ui, [kinDeath('921', { tick: '504', actorContext: actorContext(4) })]), undefined, { tick: '504' });
+  assert.equal(ui.memorial?.capture.eventId, '921');
+  assert.strictEqual(ui.scene?.entries[0], hidden.entry);
+  assert.strictEqual(reduce(ui, { type: 'scene-close', expected: firstCard }), ui);
+  ui = reduce(ui, { type: 'scene-close', expected: memorialClose(ui) });
+  assert.strictEqual(ui.scene?.entries[0], hidden.entry);
+});
+
 test('a newly delivered old-life or waiting-phase kin Death cannot open a memorial in the reborn life', () => {
   let ui = playerRebirth(playerDeath(createCarrierState(snapshot)));
   const event = kinDeath('930');

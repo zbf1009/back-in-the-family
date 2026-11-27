@@ -4,14 +4,15 @@ import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { Locator, Page, TestInfo } from '@playwright/test';
 import type { UiState } from '../../src/main/ui-state.ts';
-import type { Needed, Preview, Traits, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import type { Preview, Traits, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import type { LifeNotebookExport } from '../../src/main/life-journal.ts';
 import { TRAITS } from '../../src/main/customization.ts';
-import { REJECTION_LABELS, TRAIT_LABELS, UNIT_LABELS } from '../../src/main/player-copy.ts';
+import { TRAIT_LABELS, UNIT_LABELS } from '../../src/main/player-copy.ts';
 import { test, expect, nativeZoomMetrics, nativeZoomScreenshot } from './native-zoom.ts';
 import {
   scenarios, openOperations, restoreScenario, worldRead, replayRead, probeRead, saveOperation,
 } from './operations-fixture.ts';
+import { verifyApplicationRequirements } from './application-requirements.ts';
 
 const ROOT = new URL('../../../', import.meta.url);
 const EVIDENCE = new URL('target/life-unfolds/lu-p1-zoom/', ROOT);
@@ -73,21 +74,6 @@ async function disclosureWithKeys(page: Page, id: string, open: boolean): Promis
 function decimal(text: string): bigint {
   expect(text).toMatch(/^[+−-]?(?:\d{1,3}(?:,\d{3})+|\d+)$/);
   return BigInt(text.replace(/,/g, '').replace('−', '-'));
-}
-function decodeNeeded(text: string): Needed {
-  const date = /^Opens Year (-?\d+), Day (\d+)(?: — Halloween)?\.$/.exec(text);
-  if (date !== null) {
-    const day = BigInt(date[2]!);
-    expect(day >= 1n && day <= 365n).toBe(true);
-    return { kind: 'wait_until', tick: ((BigInt(date[1]!) - 1n) * 365n + day - 1n).toString() };
-  }
-  const joss = /^You are ([\d,]+) joss paper short\.$/.exec(text);
-  if (joss !== null) return { kind: 'joss_short', amount: decimal(joss[1]!).toString() };
-  const cap = /^Your yearly allowance is ([\d,]+) short\.$/.exec(text);
-  if (cap !== null) return { kind: 'cap_room_short', amount: decimal(cap[1]!).toString() };
-  const named = Object.entries(REJECTION_LABELS).find(([, label]) => label === text);
-  if (named === undefined) throw Error(`An application requirement lost its factual identity: ${text}`);
-  return { kind: 'named', name: named[0] };
 }
 function personName(world: WorldSnapshot, person: number): string {
   const name = world.residents.find(record => record.id === person)?.name
@@ -177,7 +163,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 640
         await expect(amount).toHaveAttribute('data-price', slot.price);
         expect(decimal((await amount.innerText()).split(' joss paper')[0]!)).toBe(BigInt(slot.price));
         const needed = row.getByRole('list', { name: 'Application requirements', exact: true }).getByRole('listitem');
-        expect((await needed.allTextContents()).map(text => decodeNeeded(text.trim()))).toEqual(slot.status.needed);
+        await verifyApplicationRequirements(needed, slot.status.needed);
         const apply = page.getByTestId(`claim-${slot.slot}`);
         await expect(apply).toHaveCount(1);
         if (!slot.status.claimable || !slot.status.affordable || slot.slot === 'rebuilt_body') await expect(apply).toBeDisabled();

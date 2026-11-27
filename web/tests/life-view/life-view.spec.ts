@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { expect, test, type Locator, type Page, type TestInfo } from '@playwright/test';
 import type { Reply, Request, RequestTicket, RequestWithoutId, Snapshot } from '../../src/shared/protocol.ts';
 import type { UiAction, UiState } from '../../src/main/ui-state.ts';
-import type { Needed, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import type { WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import type { StoryDelivery, StoryEventKind } from '../../src/shared/story.ts';
 import { DECISION_CONFIG_VERSION } from '../../src/shared/decision.ts';
 import type { LifeNotebookExport, LifePhase } from '../../src/main/life-journal.ts';
@@ -18,6 +18,7 @@ import type { OperationState } from '../../src/shared/operation-state.ts';
 import { previewLabel } from '../../src/main/player-copy.ts';
 import { formatAmount } from '../../src/main/calendar.ts';
 import { PORTRAIT_ATLAS, PORTRAIT_CELL, portraitId } from '../../src/art/portraits.ts';
+import { verifyApplicationRequirements } from './application-requirements.ts';
 
 const PREVIEW = 'http://localhost:4173';
 const COMPONENT = 'http://localhost:5174';
@@ -725,27 +726,6 @@ function decodeDisplayedDate(text: string): string {
   expect(match[3] !== undefined).toBe(day === 1n);
   return ((BigInt(match[1]!) - 1n) * 365n + day - 1n).toString();
 }
-function decodeNeeded(text: string): Needed {
-  const opening = /^Opens (.+)\.$/.exec(text);
-  if (opening !== null) return { kind: 'wait_until', tick: decodeDisplayedDate(opening[1]!) };
-  const joss = /^You are ([\d,]+) joss paper short\.$/.exec(text);
-  if (joss !== null) return { kind: 'joss_short', amount: decodeDisplayedAmount(joss[1]!) };
-  const cap = /^Your yearly allowance is ([\d,]+) short\.$/.exec(text);
-  if (cap !== null) return { kind: 'cap_room_short', amount: decodeDisplayedAmount(cap[1]!) };
-  // Decode the six actual named conditions in the constructed stress carrier,
-  // independently of the renderer's expected-copy function.
-  const named: Record<string, string> = {
-    "That isn't a personality we can build.": 'bad_customization',
-    'Adjustments are for rebuilt bodies only.': 'customization_not_allowed',
-    'That opening has closed.': 'slot_closed',
-    'That one is already yours.': 'claimed_by_you',
-    "One opening per soul. You're holding one.": 'claim_held',
-    "The town's books are full.": 'id_exhausted',
-  };
-  const name = named[text];
-  if (name === undefined) throw Error(`Unrecognized displayed requirement: ${text}`);
-  return { kind: 'named', name };
-}
 
 for (const viewport of [{ width: 640, height: 360 }, { width: 512, height: 320 }]) {
   test(`COMPONENT-ONLY full Waiting targets, traits, slots and raw archive at ${viewport.width}px`, async ({ page }, info) => {
@@ -798,8 +778,7 @@ for (const viewport of [{ width: 640, height: 360 }, { width: 512, height: 320 }
         : slot.kind === 'imported_vessel' ? 'Borrow a body' : 'Build a body';
       await expect(row.locator('strong')).toHaveText(name);
       const needed = row.getByRole('list', { name: 'Application requirements', exact: true }).getByRole('listitem');
-      await expect(needed).toHaveCount(slot.status.needed.length);
-      for (const [index, requirement] of slot.status.needed.entries()) expect(decodeNeeded(await needed.nth(index).innerText())).toEqual(requirement);
+      await verifyApplicationRequirements(needed, slot.status.needed);
       const button = page.getByTestId(`claim-${slot.slot}`);
       // Rebuilt orders were exercised above for every Set/Adjust trait. Without
       // a completed order this path is genuinely unavailable after cancellation.

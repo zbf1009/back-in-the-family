@@ -5,7 +5,7 @@
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { test as nativeTest, nativeZoomMetrics, nativeZoomScreenshot } from './native-zoom.ts';
 import { OPERATION_LABELS, optionLabel } from '../../src/main/player-copy.ts';
-import { TECHNICAL_TEXT } from '../../src/main/technical-text.ts';
+import { LIFE_SCENE_TEXT, TECHNICAL_TEXT } from '../../src/main/technical-text.ts';
 import type { UiState } from '../../src/main/ui-state.ts';
 import type { LifeNotebookExport, LifePhase } from '../../src/main/life-journal.ts';
 import type { ChoiceResultView } from '../../src/main/choice-result.ts';
@@ -20,6 +20,9 @@ interface Evidence {
   ui: Pick<UiState, 'worldId' | 'tick' | 'checksum' | 'runState' | 'world' | 'actions'> & {
     phase: LifePhase | null; notebook: LifeNotebookExport;
     memorial: { identity: string; capture: MemorialCapture; lines: string[] } | null;
+    scene: { worldId: number; tick: string; entries: { identity: string; kind: string; node: string | null;
+      source: { kind: string; eventId?: string } | null }[] } | null;
+    settledScene: string | null;
     result: ChoiceResultView | null; slips: OperationState[];
   };
   callbacks: { kind: string; identity: string; tickBefore: string | null; tickAfter: string | null;
@@ -184,6 +187,62 @@ for (const replacement of ['Deliver next choice', 'Deliver player death', 'Deliv
       await expect(memorial(page)).toHaveCount(0);
       expect((await evidence(page)).ui.notebook.events['900']?.kind.type).toBe('death');
     }
+  });
+}
+
+for (const pendingDream of [false, true]) {
+  test(`rebirth, Play and settlement, ordinary kin Death, then Close never re-exposes the old scene; pending Dream=${pendingDream}`, async ({ page }) => {
+    const waiting = await open(page, 'waiting');
+    const funeral = page.getByRole('region', { name: LIFE_SCENE_TEXT.death.title, exact: true });
+    await funeral.getByRole('button', { name: TECHNICAL_TEXT.skip, exact: true }).press('Enter');
+    await expect.poll(async () => (await evidence(page)).ui.settledScene).toBe(waiting.ui.scene?.entries[0]?.identity);
+    await carrier(page, 'Deliver player rebirth');
+    const rebirth = page.getByRole('region', { name: LIFE_SCENE_TEXT.possession.title, exact: true });
+    await expect(rebirth).toBeVisible();
+    const beforePlay = await evidence(page);
+    const oldIdentity = beforePlay.ui.scene!.entries[0]!.identity;
+    expect(beforePlay.ui.scene!.entries[0]!.source).toEqual({ kind: 'event', eventId: '912' });
+    await carrier(page, 'Deliver Play acknowledgement');
+    await rebirth.getByRole('button', { name: TECHNICAL_TEXT.skip, exact: true }).press('Enter');
+    await expect.poll(async () => (await evidence(page)).ui.settledScene).toBe(oldIdentity);
+    await expect(rebirth).toBeVisible();
+    if (pendingDream) await carrier(page, 'Deliver pending Dream');
+    const pending = (await evidence(page)).ui.scene!.entries.slice(1);
+    expect(pending).toHaveLength(pendingDream ? 1 : 0);
+    await carrier(page, 'Deliver current-life kin Death');
+    await expect(memorial(page)).toBeVisible();
+    await expect(rebirth).toHaveCount(0);
+    const opened = await evidence(page);
+    expect(opened.ui.runState).toBe('running');
+    expect(opened.ui.tick).toBe('503');
+    expect(opened.ui.world?.tick).toBe('502');
+    expect(opened.ui.memorial?.capture.playerBody).toBe(4);
+    expect(opened.ui.memorial?.capture.eventId).toBe('920');
+    expect(opened.ui.settledScene).toBeNull();
+    expect(opened.ui.scene?.entries ?? []).toEqual(pending);
+    await carrier(page, 'Deliver pre-Play scene Close');
+    expect((await evidence(page)).callbacks.at(-1)).toMatchObject({ kind: 'close', identity: oldIdentity, accepted: false });
+    await expect(memorial(page)).toBeVisible();
+    await memorial(page).getByRole('button', { name: TECHNICAL_TEXT.skip, exact: true }).press('Enter');
+    await expect.poll(async () => (await evidence(page)).callbacks.some(callback => callback.kind === 'settled'
+      && callback.identity === opened.ui.memorial!.identity && callback.accepted)).toBe(true);
+    await memorial(page).getByRole('button', { name: TECHNICAL_TEXT.close, exact: true }).press('Enter');
+    await expect(memorial(page)).toHaveCount(0);
+    await expect(rebirth).toHaveCount(0);
+    if (pendingDream) {
+      await expect(page.getByRole('region', { name: LIFE_SCENE_TEXT.dream.title, exact: true })).toBeVisible();
+    }
+    const closed = await evidence(page);
+    expect(closed.ui.scene?.entries ?? []).toEqual(pending);
+    expect(closed.ui.notebook.events['912']?.kind.type).toBe('possession');
+    expect(closed.ui.notebook.events['920']?.kind.type).toBe('death');
+    if (pendingDream) expect(closed.ui.notebook.dreams['913']?.inputSeq).toBe('46');
+    unchangedInputsAndClock(closed, opened);
+    await carrier(page, 'Deliver pre-Play scene Close');
+    const stale = await evidence(page);
+    expect(stale.callbacks.at(-1)).toMatchObject({ kind: 'close', identity: oldIdentity, accepted: false });
+    expect(stale.ui.scene?.entries ?? []).toEqual(pending);
+    await expect(rebirth).toHaveCount(0);
   });
 }
 

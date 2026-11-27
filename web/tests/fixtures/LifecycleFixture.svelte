@@ -31,6 +31,7 @@
   let presentationVersion = $state(0);
   let requestId = 100;
   let chronicleIndex = 0;
+  let prePlayClose = $state.raw<SceneClose | null>(null);
   let callbacks = $state.raw<{ kind: string; identity: string; tickBefore: string | null; tickAfter: string | null;
     actionsBefore: number; actionsAfter: number; accepted: boolean }[]>([]);
   let requests = $state.raw<Request[]>([]);
@@ -40,9 +41,13 @@
   function sceneCallback(kind: 'close' | 'settled', expected: SceneClose): void {
     const previous = ui;
     dispatch({ type: kind === 'close' ? 'scene-close' : 'scene-settled', expected });
+    const accepted = kind === 'close'
+      ? previous.memorial?.entry === expected.entry ? ui.memorial === null
+        : previous.scene?.entries[0] === expected.entry && ui.scene?.entries[0] !== expected.entry
+      : ui.settledMemorial?.entry === expected.entry || ui.settledScene?.entry === expected.entry;
     callbacks = [...callbacks, { kind, identity: expected.entry.identity,
       tickBefore: previous.tick, tickAfter: ui.tick, actionsBefore: previous.actions.length, actionsAfter: ui.actions.length,
-      accepted: kind === 'close' ? previous.memorial !== null && ui.memorial === null : ui.settledMemorial?.entry === expected.entry }];
+      accepted }];
   }
   async function onChoose(worldId: number, node: string, option: PlayerOption): Promise<void> {
     if (worldId !== ui.worldId) throw Error('Choice callback belongs to an obsolete fixture World');
@@ -80,12 +85,24 @@
     void admit({ type: 'haunt', id: ++requestId, target });
   }
   function playback(runState: 'running' | 'paused'): void {
+    if (runState === 'running' && ui.memorial === null && ui.scene !== null) {
+      prePlayClose = { worldId: ui.scene.worldId, tick: ui.scene.tick, entry: ui.scene.entries[0]! };
+    }
     const request: Request = { type: runState === 'running' ? 'run' : 'pause', id: ++requestId };
     requests = [...requests, request];
     dispatch({ type: 'request-sent', request });
     dispatch({ type: 'reply', request, message: { type: 'reply', id: request.id, ok: true,
       snapshot: carrierSnapshot(ui, { runState, ...(runState === 'paused' ? { stop: { reasons: ['user'], world: ui.world! } } : {}) }) } });
     presentationVersion++;
+  }
+  function currentLifeKinDeath(): void {
+    const tick = (BigInt(ui.tick!) + 1n).toString();
+    const event = kinDeath('920', { tick, actorContext: actorContext(ui.world!.player.body!) });
+    ui = deliver(ui, memorialFacts(ui, [event]), undefined, { tick });
+  }
+  function pendingDream(): void {
+    ui = deliver(ui, batch({ dreams: [{ eventId: '913', inputSeq: '46', tick: ui.tick!,
+      ghost: 2, dreamer: 4, intent: 'warn', price: '20' }] }));
   }
   function result(exact: boolean): void {
     const node = exact ? ui.actions.slice().reverse().find(action => action.choice !== undefined)?.choice?.node : choiceNode('999');
@@ -109,6 +126,10 @@
         actions: ui.actions, phase: currentLifePhase(ui.notebook, ui.world), notebook: exportNotebook(ui.notebook),
         memorial: ui.memorial === null ? null : { identity: ui.memorial.entry.identity, capture: ui.memorial.capture,
           lines: memorialKeyScene(ui.memorial.capture).lines },
+        scene: ui.scene === null ? null : { worldId: ui.scene.worldId, tick: ui.scene.tick,
+          entries: ui.scene.entries.map(entry => ({ identity: entry.identity, kind: entry.kind, node: entry.node,
+            source: entry.keyScene?.source ?? null })) },
+        settledScene: ui.settledScene?.entry.identity ?? null,
         result: choiceResult(ui), slips: operationStates(ui) }, callbacks, requests }) };
     Object.defineProperty(window, '__lifecycleFixture', { value: evidence, configurable: true });
     void loadLifeSprites().then(value => { sprites = value; }).catch(error => { assetError = String(error); });
@@ -122,6 +143,9 @@
   <details><summary>Constructed carrier controls</summary>
     <div role="group" aria-label="Component-only factual deliveries">
       <button onclick={() => { ui = deliver(ui, memorialFacts(ui)); }}>Deliver kin Death</button>
+      <button onclick={currentLifeKinDeath}>Deliver current-life kin Death</button>
+      <button onclick={pendingDream}>Deliver pending Dream</button>
+      <button disabled={prePlayClose === null} onclick={() => { if (prePlayClose !== null) sceneCallback('close', prePlayClose); }}>Deliver pre-Play scene Close</button>
       <button onclick={() => { ui = deliver(ui, batch({ events: [estate()] })); }}>Deliver exact Estate</button>
       <button onclick={() => { ui = deliver(ui, batch({ events: [estate('903', { causedBy: ['899'] })] })); }}>Deliver unrelated Estate</button>
       <button onclick={() => { ui = deliver(ui, batch({ events: [kinDeath(), estate()] })); }}>Redeliver Death and Estate</button>

@@ -107,7 +107,7 @@
     <div id={`slot-details-${slot.slot}`}>
       {#if !slot.status.announced}<p class="path">{TECHNICAL_TEXT.pathUnannounced}</p>{/if}
       {#if !slot.status.claimable}<p class="path">{TECHNICAL_TEXT.pathNotClaimable}</p>{/if}
-      {#if slot.status.needed.length > 0}<ul class="needed" aria-label="Application requirements">{#each slot.status.needed as needed, index (index)}<li>{neededText(needed)}</li>{/each}</ul>{/if}
+      {#if slot.status.needed.length > 0}<ul class="needed" aria-label="Application requirements">{#each slot.status.needed as needed, index (index)}<li data-needed-kind={needed.kind} data-needed-name={needed.kind === 'named' ? needed.name : undefined} data-amount={needed.kind === 'joss_short' || needed.kind === 'cap_room_short' ? needed.amount : undefined} data-tick={needed.kind === 'wait_until' ? needed.tick : undefined}>{neededText(needed)}</li>{/each}</ul>{/if}
     </div>
   </li>
 {/snippet}

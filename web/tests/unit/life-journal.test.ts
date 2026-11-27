@@ -2,13 +2,16 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { appendStory, createNotebook, entryContext, exportNotebook, journalGroupCount, journalMemberLines, journalRange, JOURNAL_EXPANSION_SIZE, JOURNAL_RANGE_SIZE, type JournalGroup, type LifeNotebook } from '../../src/main/life-journal.ts';
-import { CHRONICLE_FRAMES, frameEligible, renderChronicleFrame, renderEventFrame, renderStoryEvent, renderTemplateCorpus, socialBand, storyPerson, TEMPLATE_FRAMES } from '../../src/main/journal-templates.ts';
+import { CHRONICLE_FRAMES, frameEligible, renderChronicleFrame, renderEventFrame, renderStoryChronicle, renderStoryEvent, renderTemplateCorpus, socialBand, storyPerson, TEMPLATE_FRAMES } from '../../src/main/journal-templates.ts';
 import { formatAmount, formatMoney } from '../../src/main/calendar.ts';
-import { nameLabel } from '../../src/main/player-copy.ts';
-import { CHOICE_SOURCE_TEXT } from '../../src/main/technical-text.ts';
+import { nameLabel, SKIP_LABELS } from '../../src/main/player-copy.ts';
+import { CHOICE_RESULT_TEXT, CHOICE_SOURCE_TEXT, supportedText } from '../../src/main/technical-text.ts';
 import type { LifePhase } from '../../src/main/life-context.ts';
 import type { StoryActor, StoryBatch, StoryChronicle, StoryDelivery, StoryEvent } from '../../src/shared/story.ts';
-import type { WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import type { ChronicleEntry, PlayerNode, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import { choiceResult } from '../../src/main/choice-result.ts';
+import { reduce } from '../../src/main/ui-state.ts';
+import { batch as carrierBatch, carrierSnapshot, createCarrierState, deliver, offerChoice } from '../fixtures/lifecycle-carriers.ts';
 
 // Selected facts from the actual native seed-1205 recorded replay traversal.
 // This fixture is not a fabricated World or a claim that this selection is a complete suffix.
@@ -21,6 +24,13 @@ const deliveries: StoryDelivery[] = [{ worldId: 7, batch: fixture.openingBatch }
 const context = { playerSoul: 'S-0010', currentBody: 10 };
 const openingWorld: WorldSnapshot = JSON.parse(readFileSync(new URL('../fixtures/journal-seed1205-opening.world.json', import.meta.url), 'utf8'));
 const binding = { world: openingWorld };
+// Verbatim selected saved Snapshot results; DTO-only fields below adapt the consumer seam.
+const seed11: { source: string; seed: string; playerSoul: string; currentBody: number; node: PlayerNode; chronicle: ChronicleEntry[] } = JSON.parse(readFileSync(new URL('../fixtures/journal-seed11-results.json', import.meta.url), 'utf8'));
+
+function seed11Chronicle(entry: ChronicleEntry, index: number): StoryChronicle {
+  const { chooser_absent, ...result } = entry;
+  return { ...result, index: String(index), ...(index === seed11.chronicle.length - 1 ? { node: seed11.node.id } : {}), chooserAbsent: chooser_absent, appended: [], actorContext: [] };
+}
 
 function freeze<T>(value: T): T {
   if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -60,6 +70,8 @@ test('Notebook retains every selected native identity, actor, cause and opening 
   for (const record of fixture.chronicle) assert.deepEqual(complete.chronicle.get(record.index), record);
   for (const actor of fixture.actors) assert.deepEqual(complete.actors.get(actor.person), actor);
   assert.deepEqual(complete.cursors, fixture.cursors);
+  assert.equal(complete.contexts.size, complete.identities.length);
+  assert.equal(complete.actorRoots.size, 0, 'actual captured entries never allocate a duplicate fallback index');
   freeze(complete);
   assert.equal(appendStory(complete, deliveries, binding), complete, 'redelivery is not another narrative event');
   assert.equal(appendStory(complete, [{ worldId: 8, batch: facts }]), complete);
@@ -254,4 +266,74 @@ test('Automatic Chronicle source alternation follows the retained index rather t
     assert.equal(renderChronicleFrame(1, record, actors, context), text);
     assert.equal(renderChronicleFrame(2, record, actors, context), text);
   }
+});
+
+function skippedChronicleFacts(record: StoryChronicle): string {
+  const source = CHOICE_SOURCE_TEXT[record.source];
+  const lead = typeof source === 'string' ? source : source[Number(BigInt(record.index) % BigInt(source.length))]!;
+  const absent = record.chooserAbsent ? CHOICE_SOURCE_TEXT.absent : '';
+  const skipped = record.skipped.map(part => CHOICE_SOURCE_TEXT.skipped.replaceAll('{reason}', SKIP_LABELS[part.reason])).join('');
+  return lead + absent + skipped;
+}
+
+test('Saved seed-11 skipped repayments omit unsupported success without losing source or skipped facts', () => {
+  const rendering = { playerSoul: seed11.playerSoul, currentBody: seed11.currentBody };
+  const records = seed11.chronicle.map(seed11Chronicle).filter(record => record.skipped.length);
+  assert.equal(seed11.seed, '11');
+  const inheritance = records.find(record => record.applied === 'pay_debts')!;
+  assert.deepEqual(inheritance.skipped, [{ part: 0, reason: 'insufficient_money' }]);
+  assert.equal(inheritance.node, seed11.node.id);
+  const notebook = appendStory(createNotebook(11), [{ worldId: 11, batch: { ...facts, actors: [], events: [], chronicle: records, dreams: [] } }]);
+  const before = JSON.stringify(exportNotebook(notebook));
+  for (const record of records) {
+    const text = renderStoryChronicle(record, notebook.actors, rendering);
+    assert.equal(text, skippedChronicleFacts(record), 'a skipped repayment retains only source, absence, and skipped facts');
+    if (record.source === 'auto_resolved') assert.ok(text.startsWith(CHOICE_SOURCE_TEXT.auto_resolved[Number(BigInt(record.index) % 2n)]!));
+    for (const frame of CHRONICLE_FRAMES) assert.equal(renderChronicleFrame(frame.variant, record, notebook.actors, rendering), text);
+    const group = journalRange(notebook, rendering).find(group => group.members.at(0) === `c:${record.index}`)!;
+    assert.equal(group.text, text);
+    assert.equal(journalMemberLines(group, notebook, rendering)[0]!.text, text);
+    assert.deepEqual(notebook.chronicle.get(record.index), record);
+  }
+  assert.equal(renderStoryChronicle(inheritance, notebook.actors, rendering), skippedChronicleFacts(inheritance));
+  assert.equal(JSON.stringify(exportNotebook(notebook)), before);
+});
+
+test('Chronicle success depends on the claimed effect parts, not the selected option alone', () => {
+  const base = seed11Chronicle(seed11.chronicle.at(-1)!, seed11.chronicle.length - 1);
+  const skipped: StoryChronicle['skipped'] = [{ part: 0, reason: 'missing_person' }];
+  const failed = skippedChronicleFacts({ ...base, skipped });
+  for (const applied of ['comfort_mourner', 'send_flowers', 'thank_family', 'pay_debts', 'repay_now', 'ask_for_time', 'demand_payment', 'forgive_debt', 'apologize', 'retaliate', 'ask_for_a_toy', 'visit_grandparents', 'ask_for_nothing', 'stand_up_to_bully', 'tell_a_teacher', 'keep_quiet', 'get_a_job', 'help_at_home', 'tend_the_shrine'] as const) {
+    assert.equal(renderStoryChronicle({ ...base, applied, skipped }, new Map(), context), failed, applied);
+  }
+  for (const applied of ['thank_family', 'visit_grandparents', 'stand_up_to_bully', 'tell_a_teacher', 'get_a_job', 'help_at_home'] as const) {
+    assert.equal(renderStoryChronicle({ ...base, applied, skipped: [{ ...skipped[0]!, part: 1 }] }, new Map(), context), failed, applied);
+  }
+  const other = fixture.actors.find(actor => actor.person !== context.currentBody && actor.name.trim())!;
+  const forgiveness = { ...base, applied: 'forgive_debt' as const, stakes: { ...base.stakes, who: [other.person] }, skipped: [{ ...skipped[0]!, part: 1 }] };
+  const forgiven = renderStoryChronicle(forgiveness, new Map([[other.person, other]]), context);
+  const success = supportedText(CHOICE_RESULT_TEXT.forgive_debt, { o: other.name, "o's": `${other.name}'s` });
+  assert.notEqual(success, null);
+  assert.equal(forgiven, success + skippedChronicleFacts(forgiveness), 'the independent Help failure does not undo successful debt forgiveness');
+  const absent = { ...base, source: 'rules_default' as const, chooserAbsent: true, skipped };
+  assert.equal(renderStoryChronicle(absent, new Map(), context), skippedChronicleFacts(absent));
+});
+
+test('Main choice result uses the same skipped-result renderer as journal rows and expansion', () => {
+  // Consumer-boundary admission carrier; only the saved selected result is native seed-11 evidence.
+  let ui = offerChoice(createCarrierState(openingWorld), seed11.node);
+  const request = { type: 'choose' as const, id: 10, node: seed11.node.id, option: 'pay_debts' } as const;
+  const sent = reduce(ui, { type: 'request-sent', request });
+  ui = reduce(sent, { type: 'reply', request, message: { type: 'reply', id: request.id, ok: true,
+    submission: { tick: ui.tick!, seqs: ['10'] }, snapshot: carrierSnapshot(sent, { playerNode: { pending: true, node: request.node, answered: true } }) } });
+  const record = seed11Chronicle(seed11.chronicle.at(-1)!, seed11.chronicle.length - 1);
+  ui = deliver(ui, carrierBatch({ chronicle: [record] }));
+  const result = choiceResult(ui)!;
+  assert.equal(result.kind, 'result');
+  assert.equal(result.text, skippedChronicleFacts(record));
+  const rendering = { playerSoul: ui.world!.player_soul, currentBody: ui.world!.player.body };
+  const group = journalRange(ui.notebook, rendering).find(group => group.members.at(0) === `c:${record.index}`)!;
+  assert.equal(result.text, group.text);
+  assert.equal(result.text, journalMemberLines(group, ui.notebook, rendering)[0]!.text);
+  assert.equal(ui.notebook.chronicle.get(record.index), record);
 });
