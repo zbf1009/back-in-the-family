@@ -22,7 +22,7 @@ test('all origins always use the exact approved opening and unconditional final 
   ] as const;
   for (const [origin, opening] of openings) {
     const output = renderObituaryTemplate({ ...minimal, deceased: { ...minimal.deceased, origin } });
-    assert.equal(output, `${opening} In lieu of flowers, joss paper. The deceased is not going far.`);
+    assert.deepEqual(output.split('\n'), [opening, OBITUARY_TEMPLATE_TEXT.closing]);
     assert.doesNotMatch(output, /\b(?:you|your|source|model|template|recorded|actual)\b|[()]/iu);
   }
 });
@@ -38,9 +38,9 @@ test('joint and one-sided positive counts never use demands as collections or tu
     const [x, y] = pair.split('/').map(value => value === 'null' ? null : value);
     const output = renderObituaryTemplate({ ...minimal,
       debtActions: { forgivenDebts: x!, demandsMade: '4', peopleAskedForPayment: '3' }, collections: { debtsPaidOn: y! } });
-    const beforeClosing = output.slice(0, output.indexOf(OBITUARY_TEMPLATE_TEXT.closing));
-    if (line) assert.ok(beforeClosing.endsWith(`${line} `));
-    else assert.doesNotMatch(beforeClosing, /Forgave|Collected|collected/u);
+    const lines = output.split('\n');
+    if (line) assert.equal(lines.at(-2), line);
+    else assert.doesNotMatch(output, /Forgave|Collected|collected/u);
     assert.doesNotMatch(output, /asked|demands|collected on 4/u);
   }
   const large = renderObituaryTemplate({ ...minimal,
@@ -51,7 +51,7 @@ test('joint and one-sided positive counts never use demands as collections or tu
 test('zero offering omits the line, one uses One person, and larger counts use the exact plural', () => {
   for (const [burners, line] of [['0', ''], ['1', 'One person burned joss paper.'], ['2', '2 people burned joss paper.'], ['1000', '1,000 people burned joss paper.']]) {
     const output = renderObituaryTemplate({ ...minimal, jossBurnersOnDeathDay: burners! });
-    if (line) assert.ok(output.includes(`${line} ${OBITUARY_TEMPLATE_TEXT.closing}`));
+    if (line) assert.equal(output.split('\n').at(-2), line);
     else assert.doesNotMatch(output, /burned joss paper/u);
     assert.doesNotMatch(output, /\b(?:0|1) people\b/u);
   }
@@ -74,10 +74,18 @@ test('actual complete native facts retain the Author paragraph exactly as the po
 
 test('native family lines group actual first names by relation with semicolons in the seven-line order', () => {
   const output = renderObituaryTemplate(positive.facts);
-  assert.equal(output, 'Nadine Bradley, 60, died Year 15, Day 263, having lived here the whole time. There was no alternative. Survived by husband Marvin; son Marcus; grandsons Ben and Leo. Preceded in death by husband Clifford. Collected on 4 debts. Leaves an estate valued at $229,012. 2 people burned joss paper. In lieu of flowers, joss paper. The deceased is not going far.');
+  assert.deepEqual(output.split('\n'), [
+    'Nadine Bradley, 60, died Year 15, Day 263, having lived here the whole time. There was no alternative.',
+    'Survived by husband Marvin; son Marcus; grandsons Ben and Leo.',
+    'Preceded in death by husband Clifford.',
+    'Collected on 4 debts.',
+    'Leaves an estate valued at $229,012.',
+    '2 people burned joss paper.',
+    'In lieu of flowers, joss paper. The deceased is not going far.',
+  ]);
   assert.doesNotMatch(output, /Bradley;|Jenkins|Rhodes|\b(?:you|your|source|model|template|recorded|actual)\b|[()]/iu);
   const joint = renderObituaryTemplate({ ...positive.facts, debtActions: { ...positive.facts.debtActions, forgivenDebts: '2' } });
-  assert.ok(joint.includes('Preceded in death by husband Clifford. Forgave 2 debts and collected on 4. Leaves an estate valued at $229,012. 2 people burned joss paper.'));
+  assert.equal(joint.split('\n')[3], 'Forgave 2 debts and collected on 4.');
 });
 
 test('mechanical neutral relation slots and English joins retain stable supplied person order', () => {

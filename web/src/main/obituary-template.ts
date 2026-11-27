@@ -59,5 +59,5 @@ export function renderObituaryTemplate(facts: ObituaryFactsV1): string {
   if (burners === 1n) lines.push(text.oneBurner);
   else if (burners > 1n) lines.push(fill(text.burners, { k: formatAmount(facts.jossBurnersOnDeathDay) }));
   lines.push(text.closing);
-  return lines.join(' ');
+  return lines.join('\n');
 }

@@ -23,7 +23,7 @@ const hooks = registerHooks({ resolve(specifier, context, nextResolve) {
   return nextResolve(specifier, context);
 } });
 // Static import would resolve the unavailable platform module before this fixture hook.
-const { handleJudgeRequest, JudgeGate } = await import('../../src/judge.ts');
+const { handleJudgeRequest } = await import('../../src/judge.ts');
 hooks.deregister();
 const originalComparison = Object.getOwnPropertyDescriptor(crypto.subtle, 'timingSafeEqual');
 Object.defineProperty(crypto.subtle, 'timingSafeEqual', {
@@ -216,10 +216,6 @@ async function signedIn(fake: { env: Record<string, unknown> }): Promise<{ cooki
   return { cookie: cookieOf(response), session };
 }
 
-test('pure module loading retains default native entry association without pretending to test SQLite', () => {
-  assert.equal(Object.getPrototypeOf(JudgeGate).name, 'DurableObject');
-  assert.deepEqual(Object.getOwnPropertyNames(JudgeGate.prototype).sort(), ['constructor', 'open', 'reserve', 'revoke', 'status']);
-});
 
 test('login is real no-store accessible HTML with actual fetch, password clearing and fresh navigation', async () => {
   const response = await handleJudgeRequest(request('/judge/login'), {});

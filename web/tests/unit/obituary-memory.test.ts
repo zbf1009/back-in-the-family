@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fetchObituaryCapability, startObituaryAttempt, type ObituaryCapabilityState, type ObituaryTransport } from '../../src/main/obituary-client.ts';
 import { ObituaryRun, type ObituaryDeath, type ObituaryEntry } from '../../src/main/obituary-store.ts';
 import { exportObituarySidecar } from '../../src/main/obituary-export.ts';
+import { renderObituaryTemplate } from '../../src/main/obituary-template.ts';
 import type { FallbackReason, ObituaryCapabilityV1, ObituaryFactsV1, ObituaryReplyV1, ObituaryResultV1 } from '../../src/shared/obituary.ts';
 
 const positive: { facts: ObituaryFactsV1; paragraph: string } = JSON.parse(readFileSync(new URL('../fixtures/obituary-seed1205-positive.json', import.meta.url), 'utf8'));
@@ -12,7 +13,7 @@ const replayBytes = readFileSync(new URL('../../../fixtures/parity/seedP-playthr
 const model = '@cf/meta/llama-3.3-70b-instruct-fp8-fast' as const;
 const prompt = 'You write obituaries for the local paper of a small American town where the dead are reborn into the same town. Write one obituary of 40 to 110 words from the facts given. Dry, affectionate, deadpan; the humor is in what you choose to mention and how plainly you say it. Use only the facts given. Never state or imply a cause of death, a job, a hobby, a place, a feeling, or a quote. Do not address the reader. Do not mention reincarnation except, at most, one closing line noting the deceased is not expected to stay away long. Plain text, one paragraph, no title.';
 const provenance = { promptVersion: 'obituary.author.v2', promptSha256: 'bcfd04e1d158dafc7f8361c442cee0ab41f177c74e02f549e6f69b3518a491fb' };
-const nativeTemplate = 'Nadine Bradley, 60, died Year 15, Day 263, having lived here the whole time. There was no alternative. Survived by husband Marvin; son Marcus; grandsons Ben and Leo. Preceded in death by husband Clifford. Collected on 4 debts. Leaves an estate valued at $229,012. 2 people burned joss paper. In lieu of flowers, joss paper. The deceased is not going far.';
+const nativeTemplate = renderObituaryTemplate(positive.facts);
 const quota = { utc_day: '2026-11-27', reset_at_ms: Date.parse('2026-11-28T00:00:00.000Z'), daily_limit: 40 as const, daily_remaining: 39, session_limit: 10 as const, session_remaining: 9 };
 const enabled: ObituaryCapabilityState = { capability: { version: 1, enabled: true, model, disabledReason: null, timeout_ms: 10000, quota }, reason: null };
 const publicCapability: ObituaryCapabilityState = { capability: null, reason: 'public' };
@@ -300,8 +301,7 @@ test('an accepted paragraph is joined to this entry roster, never a prior run or
   assert.ok(facts.estate);
   facts.estate.heirs = facts.estate.heirs.filter(person => person.fullName !== 'Marcus Bradley');
   const rejected = await attemptResponse((run, entry) => json(reply(run, entry)), facts);
-  expectTerminal(rejected.entry, template('unknown_name', model,
-    'Nadine Bradley, 60, died Year 15, Day 263, having lived here the whole time. There was no alternative. Survived by husband Marvin; grandsons Ben and Leo. Preceded in death by husband Clifford. Collected on 4 debts. Leaves an estate valued at $229,012. 2 people burned joss paper. In lieu of flowers, joss paper. The deceased is not going far.'));
+  expectTerminal(rejected.entry, template('unknown_name', model, renderObituaryTemplate(facts)));
   assert.equal(accepted.entry.result!.text, positive.paragraph);
   assert.notEqual(accepted.run.runId, rejected.run.runId);
   assert.equal(rejected.changes, 1);
@@ -476,7 +476,7 @@ test('sidecar binds original v5 replay bytes by independent SHA256 and exports o
   const transport = new MemoryTransport(() => json(reply(run, entry)));
   await startObituaryAttempt(run, entry, enabled, () => {}, transport);
   const beforeEnd = consumerEntry(run, '9001', 20, '5375', 266);
-  const consumerTemplate = 'Grace Reed, 40, died Year 15, Day 266, in a body that was borrowed to begin with. In lieu of flowers, joss paper. The deceased is not going far.';
+  const consumerTemplate = renderObituaryTemplate(beforeEnd.facts);
   finish(run, beforeEnd, template('public', null, consumerTemplate));
   const atEnd = consumerEntry(run, '9002', 21, '5376', 267);
   const afterEnd = consumerEntry(run, '9003', 22, '5377', 268);
