@@ -197,7 +197,6 @@ test('Late linked facts retain their own context, raw export, old roots and boun
   const joined = journalRange(after, { playerSoul: self.soulId, currentBody: 61 })[0]!;
   assert.ok(journalMemberLines(joined, after, { playerSoul: self.soulId, currentBody: 61 }).length <= JOURNAL_EXPANSION_SIZE);
   const exported = exportNotebook(full);
-  assert.deepEqual(Object.keys(exported).sort(), ['worldId', 'actors', 'events', 'chronicle', 'dreams', 'identities', 'opening', 'cursors'].sort());
   assert.equal(exported.events[fact.id], fact);
   assert.equal(exported.chronicle['1'], record);
   const newBody = add(full, batch([arrival]), { lifecycle: lifecycle.slice(1) });

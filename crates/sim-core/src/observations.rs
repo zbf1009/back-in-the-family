@@ -252,10 +252,11 @@ pub struct RunUntilStopResult {
     pub story: crate::story::StoryBatch,
 }
 
-/// Two read-only points sharing one owned state in the existing loop.
+/// Read-only application, successful-death and completed-tick boundaries.
 pub(crate) trait TickObserver {
     fn applied(&mut self, world: &World, input: &TickInput);
     fn completed(&mut self, _world: &World, _inputs: &[TickInput], _outcomes: &[InputOutcome]) {}
+    fn successful_death(&mut self, _world: &World, _deceased: PersonId, _death: EventId) {}
 }
 // Replay audit's successful-prefix callback remains a real consumer of this seam.
 impl<F: FnMut(&World, &TickInput)> TickObserver for F {
@@ -298,6 +299,10 @@ impl Collector {
     }
 }
 impl TickObserver for Collector {
+    fn successful_death(&mut self, world: &World, deceased: PersonId, death: EventId) {
+        self.story.successful_death(world, deceased, death);
+    }
+
     fn applied(&mut self, world: &World, input: &TickInput) {
         let (result, fired) = match input.payload {
             InputPayload::Dream {
@@ -1147,6 +1152,28 @@ mod tests {
             assert_eq!(arrival.name, retained.name.text(retained.sex));
             assert_eq!(death.name, arrival.name);
             assert_eq!(retained.life, Life::Dead { death: Tick(1) });
+            let [summary] = report.story.own_death_summaries.as_slice() else {
+                panic!("an arrival/death tick must capture the new body's own-death summary");
+            };
+            assert_eq!(summary.body, arrival.body);
+            assert_eq!(summary.death_event, death.event);
+            assert_eq!(summary.tick, death.tick);
+            let wire_summary = serde_json::to_value(summary).unwrap();
+            for key in [
+                "spouse",
+                "livingChildren",
+                "livingGrandchildren",
+                "deceasedSpouses",
+                "deceasedParents",
+                "deceasedChildren",
+                "deceasedSiblings",
+            ] {
+                assert_eq!(
+                    wire_summary[key],
+                    serde_json::json!([]),
+                    "known-empty {key}"
+                );
+            }
             let actor = report
                 .story
                 .actors

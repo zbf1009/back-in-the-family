@@ -15,6 +15,7 @@
 use crate::economy::{Flow, flow};
 use crate::events::{CausedBy, EventKind, EventTag, EventTags};
 use crate::ids::{EventId, HouseholdId, PersonId, PropertyId};
+use crate::observations::TickObserver;
 use crate::rng::{StreamTag, below, draw};
 use crate::values::RelationTag;
 use crate::world::{Life, PropertyKind, SoulPlace, World};
@@ -23,7 +24,7 @@ use crate::world::{Life, PropertyKind, SoulPlace, World};
 const MORTALITY_ROLL: u64 = 0;
 
 /// Rolls mortality for every Resident, then settles each death in Person ID order.
-pub(crate) fn process_deaths(world: &mut World) {
+pub(crate) fn process_deaths(world: &mut World, observer: &mut impl TickObserver) {
     let mut dying: Vec<PersonId> = Vec::new();
     for person in world.persons.values() {
         if !matches!(person.life, Life::Alive { .. }) {
@@ -43,13 +44,13 @@ pub(crate) fn process_deaths(world: &mut World) {
         }
     }
     for deceased in dying {
-        settle_death(world, deceased);
+        settle_death(world, deceased, observer);
     }
 }
 
 /// Settles one death: `death` Event, waiting Soul, estate, Debts and Relations, then
 /// `Life::Dead` and the Household removal (design "Deaths" steps 1 to 7).
-fn settle_death(world: &mut World, deceased: PersonId) {
+fn settle_death(world: &mut World, deceased: PersonId, observer: &mut impl TickObserver) {
     let Some(person) = world.persons.get(&deceased) else {
         return;
     };
@@ -76,6 +77,7 @@ fn settle_death(world: &mut World, deceased: PersonId) {
         debug_assert!(false, "the death Event of {deceased:?} was refused");
         return;
     };
+    observer.successful_death(world, deceased, death);
 
     // A dying mother's open Birth_Slots close in her death tick, with no birth (design
     // "Birth_Slots"; a claim on them is released in task 3.3).
@@ -357,6 +359,7 @@ fn remove_household_if_empty(world: &mut World, household: HouseholdId) {
 mod tests {
     use super::*;
     use crate::ids::Tick;
+    use crate::input::TickInput;
     use crate::invariants::total_money;
     use crate::values::{RelTags, Score};
     use crate::world::{Debt, Property, Relation, World, WorldConfig};
@@ -461,7 +464,7 @@ mod tests {
             link(&mut world, deceased, heir, RelationTag::Child);
         }
 
-        settle_death(&mut world, deceased);
+        settle_death(&mut world, deceased, &mut |_: &World, _: &TickInput| {});
 
         assert_eq!(money(&world, heirs[0]), before[0].saturating_add(4));
         assert_eq!(money(&world, heirs[1]), before[1].saturating_add(3));
@@ -509,7 +512,7 @@ mod tests {
         );
         let sinks_before = world.flows.sinks;
 
-        settle_death(&mut world, deceased);
+        settle_death(&mut world, deceased, &mut |_: &World, _: &TickInput| {});
 
         assert!(
             world
@@ -558,7 +561,7 @@ mod tests {
             },
         );
 
-        settle_death(&mut world, deceased);
+        settle_death(&mut world, deceased, &mut |_: &World, _: &TickInput| {});
 
         assert!(!world.debts.contains_key(&loan), "the Debt is closed");
         assert!(
@@ -609,7 +612,7 @@ mod tests {
             },
         );
 
-        settle_death(&mut world, deceased);
+        settle_death(&mut world, deceased, &mut |_: &World, _: &TickInput| {});
 
         assert_eq!(
             world.debts[&loan].debtor, heir,
@@ -665,7 +668,7 @@ mod tests {
             },
         );
 
-        settle_death(&mut world, deceased);
+        settle_death(&mut world, deceased, &mut |_: &World, _: &TickInput| {});
 
         assert!(
             !world.debts.contains_key(&loan),
@@ -718,7 +721,7 @@ mod tests {
         link(&mut world, deceased, friend, RelationTag::Neighbor);
         link(&mut world, deceased, parent, RelationTag::Parent);
 
-        settle_death(&mut world, deceased);
+        settle_death(&mut world, deceased, &mut |_: &World, _: &TickInput| {});
 
         assert_eq!(
             world.relations.get(&(friend, deceased)),
@@ -759,7 +762,7 @@ mod tests {
         world.relations.remove(&(someone, old));
         debug_assert_eq!(world.age_years(&world.persons[&old]), 120);
 
-        process_deaths(&mut world);
+        process_deaths(&mut world, &mut |_: &World, _: &TickInput| {});
 
         assert_eq!(
             world.persons[&old].life,
@@ -790,7 +793,7 @@ mod tests {
             panic!("the subject is a Resident");
         };
 
-        settle_death(&mut world, deceased);
+        settle_death(&mut world, deceased, &mut |_: &World, _: &TickInput| {});
 
         assert_eq!(
             world.souls.places[&soul],
@@ -826,7 +829,7 @@ mod tests {
         let sinks_before = world.flows.sinks;
         let sources = world.flows.sources;
 
-        settle_death(&mut world, deceased);
+        settle_death(&mut world, deceased, &mut |_: &World, _: &TickInput| {});
 
         let sink_delta = world.flows.sinks.saturating_sub(sinks_before);
         assert_eq!(
@@ -835,5 +838,59 @@ mod tests {
             "every dollar of the estate moved to an heir or left through Escheat"
         );
         assert_eq!(world.flows.sources, sources);
+    }
+
+    #[test]
+    fn successful_death_callback_precedes_all_settlement_cleanup() {
+        struct BeforeCleanup {
+            body: PersonId,
+            spouse: PersonId,
+            calls: usize,
+        }
+        impl TickObserver for BeforeCleanup {
+            fn applied(&mut self, _world: &World, _input: &TickInput) {}
+            fn successful_death(&mut self, world: &World, body: PersonId, death: EventId) {
+                self.calls += 1;
+                assert_eq!(body, self.body);
+                let person = &world.persons()[&body];
+                assert!(matches!(person.life, Life::Alive { money: 123, .. }));
+                assert_eq!(world.souls().places[&person.soul], SoulPlace::Body(body));
+                assert!(
+                    world.relations()[&(body, self.spouse)]
+                        .tags
+                        .contains(RelationTag::Spouse)
+                );
+                let event = world.log().events().last().unwrap();
+                assert_eq!(event.id, death);
+                assert_eq!(event.kind, EventKind::Death { person: body });
+                assert_eq!(event.tick, world.tick());
+            }
+        }
+        let mut world = world();
+        let ids = residents(&world);
+        let body = ids[0];
+        let spouse = ids[1];
+        set_money(&mut world, body, 123);
+        drop_properties(&mut world, body);
+        drop_relations_from(&mut world, body);
+        link(&mut world, body, spouse, RelationTag::Spouse);
+        let mut observer = BeforeCleanup {
+            body,
+            spouse,
+            calls: 0,
+        };
+        settle_death(&mut world, PersonId(u64::MAX), &mut observer);
+        assert_eq!(
+            observer.calls, 0,
+            "unknown person is not a successful death"
+        );
+        settle_death(&mut world, body, &mut observer);
+        assert_eq!(observer.calls, 1);
+        assert!(matches!(world.persons()[&body].life, Life::Dead { .. }));
+        settle_death(&mut world, body, &mut observer);
+        assert_eq!(
+            observer.calls, 1,
+            "already-dead body cannot recapture a summary"
+        );
     }
 }

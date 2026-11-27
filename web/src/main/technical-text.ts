@@ -166,6 +166,8 @@ export const TECHNICAL_TEXT = {
   pathNotClaimable: 'Not taking applications.',
   credits: 'Credits',
   creditsTitle: 'Credits and licenses',
+  obituaryTitle: 'Obituary',
+  obituaryExport: 'Export obituary archive',
 } as const;
 
 export const CHOICE_DOCUMENT_TEXT = {

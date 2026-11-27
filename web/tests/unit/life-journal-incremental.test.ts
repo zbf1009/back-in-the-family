@@ -289,7 +289,7 @@ test('Long repayment append does not read old facts and summary/expansion materi
   assert.equal(group.members.at(-1), 'e:4096');
 });
 
-test('Dream sequence receipts index raw facts directly and export retains only the complete old JSON shape', () => {
+test('Dream sequence receipts index raw facts directly and preserve complete raw JSON export', () => {
   const dream: DreamFact = { eventId: '17', inputSeq: '4', tick: '5', ghost: 10, dreamer: 11, intent: 'warn', price: '2', interpretation: { node: 'dream-17', applied: 'dismiss_dream', source: 'rules_default', rulesDefault: 'dismiss_dream' } };
   const dreamEvent: StoryEvent = { ...milestone, id: dream.eventId, tick: dream.tick, kind: { type: 'dream', ghost: dream.ghost, dreamer: dream.dreamer, price: dream.price }, relevance: 'self', actorContext: [] };
   const before = add(createNotebook(9), batch([dreamEvent]));
@@ -305,7 +305,6 @@ test('Dream sequence receipts index raw facts directly and export retains only t
   assert.equal(journalRange(before, context)[0]!.text, beforeText);
   assert.equal(add(after, { ...batch(), dreams: [dream] }), after);
   const exported = exportNotebook(after);
-  assert.deepEqual(Object.keys(exported).sort(), ['worldId', 'actors', 'events', 'chronicle', 'dreams', 'identities', 'opening', 'cursors'].sort());
   assert.deepEqual(exported.dreams[dream.eventId], dream);
   assert.deepEqual(JSON.parse(JSON.stringify(exported)), exported);
 });

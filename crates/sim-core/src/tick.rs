@@ -93,7 +93,7 @@ impl World {
         crate::outsiders::release_outsiders(self);
         crate::underworld::place_player_if_overdue(self);
         // 4. Deaths, inheritance and debts at death.
-        crate::death::process_deaths(self);
+        crate::death::process_deaths(self, observer);
         crate::intro::update(self);
         // 5. Offerings by the living, including today's funerals.
         crate::underworld::process_offerings(self);
@@ -137,7 +137,7 @@ impl World {
         crate::underworld::resolve_pending(&mut world);
         crate::outsiders::release_outsiders(&mut world);
         crate::underworld::place_player_if_overdue(&mut world);
-        crate::death::process_deaths(&mut world);
+        crate::death::process_deaths(&mut world, &mut |_: &World, _: &TickInput| {});
         world
     }
 

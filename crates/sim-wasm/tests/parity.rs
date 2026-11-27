@@ -838,3 +838,158 @@ fn real_waiting_wasm_batch_retains_early_applied_and_rejected_actions() {
         serde_json::json!({"ok":true,"tick":wasm.tick().to_string(),"seqs":[]})
     );
 }
+
+/// The actual first own-death delivery contains complete kin and the whole funeral day.
+#[wasm_bindgen_test(unsupported = test)]
+fn own_death_summary_native_wasm_and_replay_parity() {
+    use sim_core::ids::{PersonId, Tick};
+    use sim_core::replay::ReplayFile;
+    use sim_core::tick::Sim;
+    use sim_core::world::WorldConfig;
+
+    let source = ReplayFile::from_json_str(include_str!(
+        "../../../fixtures/parity/seedP-playthrough.replay.json"
+    ))
+    .unwrap();
+    let mut core = Sim::new(source.seed, WorldConfig::try_from(source.config).unwrap()).unwrap();
+    let mut wasm =
+        WasmSim::create(source.seed, &serde_json::to_string(&source.config).unwrap()).unwrap();
+    for input in source.inputs.iter().take(3) {
+        core.submit(Tick(input.tick), input.payload.into()).unwrap();
+        wasm.submit_json(
+            &serde_json::json!({"tick":input.tick.to_string(),"payload":input.payload}).to_string(),
+        )
+        .unwrap();
+    }
+    let before = wasm.snapshot_string();
+    let opening = wasm.story_opening_json();
+    assert_eq!(
+        opening,
+        serde_json::to_string(&sim_core::story::story_opening(core.world())).unwrap()
+    );
+    assert_eq!(before, wasm.snapshot_string());
+    assert!(
+        serde_json::from_str::<Value>(&opening)
+            .unwrap()
+            .get("ownDeathSummaries")
+            .is_none()
+    );
+    let mut summaries = 0;
+    while core.world().tick().0 < 5_373 {
+        let max = u32::try_from(5_373 - core.world().tick().0).unwrap();
+        let report = core.run_until_stop_observed(max);
+        assert!(report.ran > 0);
+        let wire = wasm.run_until_stop_json(max);
+        assert_eq!(wire, serde_json::to_string(&report).unwrap());
+        assert_eq!(wasm.tick(), core.world().tick().0);
+        let wire: Value = serde_json::from_str(&wire).unwrap();
+        if report.story.own_death_summaries.is_empty() {
+            assert!(wire["story"].get("ownDeathSummaries").is_none());
+            continue;
+        }
+        summaries += report.story.own_death_summaries.len();
+        assert_eq!(core.world().tick(), Tick(5_373));
+        assert_eq!(wire["checksum"], "8a1b9da5de15bb91");
+        let [summary] = report.story.own_death_summaries.as_slice() else {
+            panic!("exactly one own-death summary in the completed death-day report");
+        };
+        assert_eq!(summary.body, PersonId(10));
+        assert_eq!(summary.death_event.0, 2_368);
+        assert_eq!(summary.tick, Tick(5_372));
+        assert!(report.player_lifecycle.iter().any(|fact| {
+            fact.event == summary.death_event
+                && fact.body == summary.body
+                && fact.tick == summary.tick
+        }));
+        let wire_summary = &wire["story"]["ownDeathSummaries"][0];
+        assert_eq!(wire_summary["body"], 10);
+        assert_eq!(wire_summary["deathEvent"], "2368");
+        assert_eq!(wire_summary["tick"], "5372");
+        for key in [
+            "spouse",
+            "livingChildren",
+            "livingGrandchildren",
+            "deceasedSpouses",
+            "deceasedParents",
+            "deceasedChildren",
+            "deceasedSiblings",
+        ] {
+            let relatives = wire_summary[key].as_array().unwrap();
+            let mut previous = None;
+            for relative in relatives {
+                let id = relative["person"].as_u64().unwrap();
+                assert!(previous.is_none_or(|previous| previous < id));
+                previous = Some(id);
+                let person = &core.world().persons()[&PersonId(id)];
+                assert_eq!(relative["name"], person.name.text(person.sex));
+                assert_eq!(relative["sex"], person.sex.as_str());
+            }
+        }
+        assert!(
+            summary
+                .deceased_spouses
+                .iter()
+                .any(|person| { person.name == "Clifford Bradley" && person.relation == "spouse" })
+        );
+        assert!(
+            summary
+                .spouse
+                .iter()
+                .any(|person| person.name == "Marvin Jenkins")
+        );
+        let estate: Vec<_> = report
+            .story
+            .events
+            .iter()
+            .filter(|event| {
+                event.caused_by.contains(&summary.death_event)
+                    && matches!(
+                        event.kind.0,
+                        sim_core::events::EventKind::Inheritance { .. }
+                    )
+            })
+            .collect();
+        assert_eq!(
+            estate.len(),
+            2,
+            "completed death-day estate, not partial Death delivery"
+        );
+        let offerings: Vec<_> = report
+            .story
+            .events
+            .iter()
+            .filter(|event| {
+                event.tick == summary.tick
+                    && matches!(event.kind.0,
+                        sim_core::events::EventKind::Offering { ghost, .. } if ghost == summary.body)
+            })
+            .collect();
+        assert_eq!(offerings.len(), 2, "completed funeral-day offerings");
+    }
+    assert_eq!(summaries, 1);
+    assert_eq!(core.checksums(), &source.checksums[..5_373]);
+    assert_eq!(
+        wasm.snapshot_string(),
+        sim_core::snapshot::snapshot_json(core.world())
+    );
+    let replay = wasm.export_replay_json().unwrap();
+    assert_eq!(
+        replay,
+        ReplayFile::from_sim(&core)
+            .unwrap()
+            .to_json_string()
+            .unwrap()
+    );
+    let replay_wire: Value = serde_json::from_str(&replay).unwrap();
+    assert_eq!(replay_wire["version"], 5);
+    assert!(replay_wire.get("ownDeathSummaries").is_none());
+    verify_replay_str(&replay).unwrap();
+    let empty: Value = serde_json::from_str(&wasm.run_until_stop_json(0)).unwrap();
+    assert!(empty["story"].get("ownDeathSummaries").is_none());
+    assert!(
+        serde_json::from_str::<Value>(&wasm.story_opening_json())
+            .unwrap()
+            .get("ownDeathSummaries")
+            .is_none()
+    );
+}

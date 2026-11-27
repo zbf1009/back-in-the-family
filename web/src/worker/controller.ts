@@ -18,6 +18,7 @@ import { TpsWindow } from './tps.ts';
 import { ticksDue } from './pacer.ts';
 import type { DecisionBridge, DecisionPreview, DecisionTiming } from './decision-bridge.ts';
 import type { DecisionFamily, DecisionOutcome } from '../shared/decision.ts';
+import { parseOwnDeathKinSummary } from '../shared/obituary.ts';
 
 /** WasmSim's API, injected so tests can drive pacing without a real clock. */
 export interface SimHandle {
@@ -790,7 +791,19 @@ export class SimController {
     }
     const worldId = this.#world!.worldId;
     this.#checkStory(result.story);
-    if (result.story.events.length > 0 || result.story.chronicle.length > 0 || result.story.dreams.length > 0) {
+    const summaries = result.story.ownDeathSummaries ?? [];
+    for (const fact of result.player_lifecycle) {
+      if (fact.kind !== 'death') continue;
+      if (summaries.filter(summary => summary.deathEvent === fact.event && summary.body === fact.body && summary.tick === fact.tick).length !== 1) {
+        throw new Error('WASM interface error: own Death requires one complete death-time kin summary');
+      }
+    }
+    for (const summary of summaries) {
+      if (!result.player_lifecycle.some(fact => fact.kind === 'death' && fact.event === summary.deathEvent && fact.body === summary.body && fact.tick === summary.tick)) {
+        throw new Error('WASM interface error: death-time kin summary has no matching own Death');
+      }
+    }
+    if (result.story.events.length > 0 || result.story.chronicle.length > 0 || result.story.dreams.length > 0 || summaries.length > 0) {
       this.#story.push({ worldId, batch: result.story });
     }
     for (const action of result.actions) {
@@ -811,6 +824,10 @@ export class SimController {
       || !Array.isArray(batch.events) || !Array.isArray(batch.chronicle) || !Array.isArray(batch.dreams)
       || batch.cursors?.events == null || batch.cursors.chronicle == null) {
       throw new Error('WASM interface error: required StoryBatch version 1 leaves');
+    }
+    if (batch.ownDeathSummaries !== undefined && (!Array.isArray(batch.ownDeathSummaries)
+      || batch.ownDeathSummaries.some(summary => parseOwnDeathKinSummary(summary) === null))) {
+      throw new Error('WASM interface error: complete death-time kin summary leaves');
     }
   }
 

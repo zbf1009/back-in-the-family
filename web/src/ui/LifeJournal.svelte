@@ -4,13 +4,16 @@
   import { journalGroupCount, journalMemberLines, journalRange, journalTownPromotion, latestPrimaryIdentity, latestTownEvent, JOURNAL_EXPANSION_SIZE, JOURNAL_RANGE_SIZE, type LifeNotebook } from '../main/life-journal.ts';
   import { TECHNICAL_TEXT, supportedText } from '../main/technical-text.ts';
   import type { StoryEvent } from '../shared/story.ts';
+  import ObituaryCard from './ObituaryCard.svelte';
+  import type { ObituaryEntry } from '../main/obituary-store.ts';
 
-  const { notebook, playerSoul, currentBody, running, speed }: {
+  const { notebook, playerSoul, currentBody, running, speed, obituaries = [] }: {
     notebook: LifeNotebook;
     playerSoul: string;
     currentBody: number | null;
     running: boolean;
     speed: number;
+    obituaries?: readonly ObituaryEntry[];
   } = $props();
   let section = $state<'life' | 'town'>('life');
   let rangeEnd = $state<number | null>(null);
@@ -32,6 +35,7 @@
   const historyCount = $derived(journalGroupCount(historicalNotebook, section));
   const end = $derived(Math.min(rangeEnd ?? historyCount, historyCount));
   const visible = $derived([...journalRange(historicalNotebook, context, section, end)].reverse());
+  const obituariesByLife = $derived(new Map(obituaries.map(entry => [entry.death.lifeKey, entry])));
   const primaryIdentity = $derived(latestPrimaryIdentity(historicalNotebook));
   const promotionText = $derived(promotion ? journalTownPromotion(historicalNotebook, promotion, { ...context, dreams: historicalNotebook.dreams }) : '');
 
@@ -102,6 +106,8 @@
           {#if group.phase && (index === 0 || visible[index - 1]?.phase?.key !== group.phase.key)}
             {@const heading = group.phase.kind === 'waiting' ? TECHNICAL_TEXT.waiting : supportedText(TECHNICAL_TEXT.life, { 'Full Name': group.phase.name ?? undefined })}
             {#if heading}<h3 class="phase-heading">{heading}</h3>{/if}
+            {@const obituary = obituariesByLife.get(group.phase.key)}
+            {#if obituary !== undefined}<ObituaryCard entry={obituary} />{/if}
           {/if}
           <div class="entry-date">
             <span>{dateLabel(group.from)}{group.to !== group.from ? ` – ${dateLabel(group.to)}` : ''}</span>

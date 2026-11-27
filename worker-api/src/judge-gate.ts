@@ -1,6 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 import { configuredCount } from './handler.ts';
 import type { ActiveJudgeSession, JudgeOpen, JudgeReservation, JudgeRPC, JudgeSession, Quota } from './judge-contract.ts';
+import type { ObituaryReservation } from '../../web/src/shared/obituary.ts';
 
 export type JudgeEnv = JudgeBindings & { JUDGE_CODE?: string };
 
@@ -30,6 +31,11 @@ export class JudgeGate extends DurableObject<JudgeEnv> implements JudgeRPC {
         utc_day TEXT PRIMARY KEY,
         admitted INTEGER NOT NULL DEFAULT 0 CHECK(admitted BETWEEN 0 AND 40)
       )`).toArray();
+      ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS obituary_claims (
+        token_sha256 TEXT NOT NULL,
+        operation_key TEXT NOT NULL CHECK(length(operation_key) = 64 AND operation_key NOT GLOB '*[^0-9a-f]*'),
+        PRIMARY KEY (token_sha256, operation_key)
+      )`).toArray();
     });
   }
 
@@ -43,6 +49,8 @@ export class JudgeGate extends DurableObject<JudgeEnv> implements JudgeRPC {
   }
 
   #session(token: string | null, epoch: string, now: number): SessionRow | null {
+    this.ctx.storage.sql.exec(`DELETE FROM obituary_claims WHERE token_sha256 IN
+      (SELECT token_sha256 FROM sessions WHERE expires_at_ms <= ?)`, now).toArray();
     if (token === null) return null;
     const row = this.ctx.storage.sql.exec<SessionRow>(
       'SELECT expires_at_ms, admitted, code_epoch FROM sessions WHERE token_sha256 = ?', token,
@@ -111,6 +119,7 @@ export class JudgeGate extends DurableObject<JudgeEnv> implements JudgeRPC {
     requireHash(token_sha256, true);
     this.ctx.storage.transactionSync(() => {
       if (token_sha256 !== null) {
+        this.ctx.storage.sql.exec('DELETE FROM obituary_claims WHERE token_sha256 = ?', token_sha256).toArray();
         this.ctx.storage.sql.exec('DELETE FROM sessions WHERE token_sha256 = ?', token_sha256).toArray();
       }
     });
@@ -126,6 +135,33 @@ export class JudgeGate extends DurableObject<JudgeEnv> implements JudgeRPC {
       if (row === null) return { kind: 'anonymous' };
       const quota = this.#quota(row, now);
       if (quota.daily_remaining === 0 || quota.session_remaining === 0) return { kind: 'rate_limited', quota };
+      this.ctx.storage.sql.exec('UPDATE sessions SET admitted = admitted + 1 WHERE token_sha256 = ?', token_sha256).toArray();
+      this.ctx.storage.sql.exec(`INSERT INTO daily (utc_day, admitted) VALUES (?, 1)
+        ON CONFLICT(utc_day) DO UPDATE SET admitted = admitted + 1`, quota.utc_day).toArray();
+      return { kind: 'admitted', quota: {
+        ...quota, daily_remaining: quota.daily_remaining - 1, session_remaining: quota.session_remaining - 1,
+      } };
+    });
+  }
+
+  async reserveObituary(token_sha256: string, code_epoch: string, operationKey: string): Promise<ObituaryReservation> {
+    this.#configured();
+    requireHash(token_sha256);
+    requireHash(code_epoch);
+    requireHash(operationKey);
+    return this.ctx.storage.transactionSync((): ObituaryReservation => {
+      const now = Date.now();
+      const row = this.#session(token_sha256, code_epoch, now);
+      if (row === null) return { kind: 'anonymous' };
+      const quota = this.#quota(row, now);
+      const claimed = this.ctx.storage.sql.exec(
+        'SELECT operation_key FROM obituary_claims WHERE token_sha256 = ? AND operation_key = ?', token_sha256, operationKey,
+      ).toArray();
+      if (claimed.length !== 0) return { kind: 'duplicate', quota };
+      if (quota.daily_remaining === 0 || quota.session_remaining === 0) return { kind: 'rate_limited', quota };
+      this.ctx.storage.sql.exec(
+        'INSERT INTO obituary_claims (token_sha256, operation_key) VALUES (?, ?)', token_sha256, operationKey,
+      ).toArray();
       this.ctx.storage.sql.exec('UPDATE sessions SET admitted = admitted + 1 WHERE token_sha256 = ?', token_sha256).toArray();
       this.ctx.storage.sql.exec(`INSERT INTO daily (utc_day, admitted) VALUES (?, 1)
         ON CONFLICT(utc_day) DO UPDATE SET admitted = admitted + 1`, quota.utc_day).toArray();

@@ -7,6 +7,7 @@ import type { DurableObjectStorageHandle, Miniflare, MiniflareOptions, V4FetchHa
 import type * as MiniflareTools from 'worker-tools/miniflare';
 import type * as WranglerTools from '../../../web/node_modules/wrangler';
 import { decisionObject } from '../../../web/src/shared/decision.ts';
+import { OBITUARY_MODEL, OBITUARY_SYSTEM_PROMPT, parseObituaryFacts } from '../../../web/src/shared/obituary.ts';
 import { nativeResult } from './decision.ts';
 import { root, sourceConfig } from '../../scripts/profile.ts';
 import type { JudgeSourceConfig, SourceConfig, WorkerProfile } from '../../scripts/profile.ts';
@@ -40,7 +41,10 @@ export class FakeAI extends WorkerEntrypoint {
   async run(model, input, options) {
     if (options?.returnRawResponse !== true) throw new Error('Expected native raw transport option');
     await this.env.CALLS.fetch('http://calls.local/', { method: 'POST', body: JSON.stringify({ model, input, options }) });
-    return new Response(this.env.RESULT, { status: this.env.STATUS, headers: { 'content-type': 'application/json' } });
+    const result = this.env.RESULT === null
+      ? model === this.env.OBITUARY_MODEL ? this.env.OBITUARY_RESULT : this.env.DECISION_RESULT
+      : this.env.RESULT;
+    return new Response(result, { status: this.env.STATUS, headers: { 'content-type': 'application/json' } });
   }
 }
 export default {
@@ -182,11 +186,31 @@ export async function profileRuntimeFixture(
     };
     const fake: V4WorkerOptions = {
       name: 'fake-ai', compatibilityDate: config.compatibility_date, modules: true, script: fakeScript,
-      bindings: { RESULT: JSON.stringify(options.result === undefined ? nativeResult() : options.result), STATUS: options.status ?? 200 },
+      bindings: {
+        RESULT: options.result === undefined ? null : JSON.stringify(options.result),
+        DECISION_RESULT: JSON.stringify(nativeResult()), OBITUARY_MODEL,
+        OBITUARY_RESULT: JSON.stringify({ response: 'Ada Bell died on Day 1 of Year 1, aged 60, having lived here the whole time. She was born in town. In lieu of flowers, joss paper. The deceased is not going far and is not expected to stay away long.' }),
+        STATUS: options.status ?? 200,
+      },
       serviceBindings: { CALLS: async request => {
         const call: unknown = await request.json();
         assert.ok(decisionObject(call));
         assert.deepEqual(call.options, { returnRawResponse: true });
+        if (call.model === OBITUARY_MODEL) {
+          assert.ok(decisionObject(call.input));
+          assert.deepEqual(Object.keys(call.input).sort(), ['max_tokens', 'messages', 'stream', 'temperature']);
+          assert.equal(call.input.max_tokens, 256);
+          assert.equal(call.input.temperature, 0.3);
+          assert.equal(call.input.stream, false);
+          assert.ok(Array.isArray(call.input.messages) && call.input.messages.length === 2);
+          const [system, user] = call.input.messages;
+          assert.ok(decisionObject(system) && decisionObject(user));
+          assert.deepEqual(system, { role: 'system', content: OBITUARY_SYSTEM_PROMPT });
+          assert.deepEqual(Object.keys(user).sort(), ['content', 'role']);
+          assert.equal(user.role, 'user');
+          assert.equal(typeof user.content, 'string');
+          assert.ok(typeof user.content === 'string' && parseObituaryFacts(JSON.parse(user.content)) !== null);
+        }
         calls.push({ model: call.model, input: call.input });
         return new tools.Response(null, { status: 204 });
       } },
@@ -217,6 +241,16 @@ export default {
           async reserve(...args) {
             await env.FIXTURE_EVENTS.fetch('http://fixture-events.local/attempt', { method: 'POST' });
             const result = await target.reserve(...args);
+            if (result.kind === 'admitted') {
+              const event = await env.FIXTURE_EVENTS.fetch('http://fixture-events.local/committed', { method: 'POST' });
+              if (await event.text() === 'reject') throw new Error('Fixture admission transport rejection');
+            }
+            return result;
+          },
+          async reserveObituary(...args) {
+            await env.FIXTURE_EVENTS.fetch('http://fixture-events.local/attempt', { method: 'POST' });
+            const result = await target.reserveObituary(...args);
+            if (typeof result[Symbol.dispose] !== 'function') throw new Error('Expected native RPC result lifetime metadata');
             if (result.kind === 'admitted') {
               const event = await env.FIXTURE_EVENTS.fetch('http://fixture-events.local/committed', { method: 'POST' });
               if (await event.text() === 'reject') throw new Error('Fixture admission transport rejection');

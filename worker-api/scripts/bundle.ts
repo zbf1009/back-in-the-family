@@ -8,7 +8,8 @@ import type { WorkerProfile } from './profile.ts';
 const sharedFiles = ['worker-api/src/http.ts', 'worker-api/src/handler.ts', 'web/src/shared/decision.ts', 'web/src/shared/decision-contract.ts'];
 const sourceFiles = {
   generic: ['worker-api/src/index.ts', ...sharedFiles],
-  judge: ['worker-api/src/judge.ts', 'worker-api/src/judge-gate.ts', 'worker-api/src/judge-contract.ts', ...sharedFiles],
+  judge: ['worker-api/src/judge.ts', 'worker-api/src/judge-gate.ts', 'worker-api/src/judge-contract.ts',
+    'worker-api/src/obituary.ts', 'web/src/shared/obituary.ts', 'web/src/main/obituary-template.ts', 'web/src/main/calendar.ts', ...sharedFiles],
 };
 export function digest(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');

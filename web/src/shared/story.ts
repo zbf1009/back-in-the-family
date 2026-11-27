@@ -1,5 +1,6 @@
 import type { DreamIntent } from './protocol.ts';
 import type { Kinship, Origin, PlayerFamily, PlayerOption, SkipReason, Stakes, WorldSnapshot } from './world-snapshot.ts';
+import type { OwnDeathKinSummaryV1 } from './obituary.ts';
 
 /** Read-only native history; decimal identities are not player-facing copy. */
 export interface StoryActor {
@@ -81,6 +82,7 @@ export interface StoryBatch {
   events: StoryEvent[];
   chronicle: StoryChronicle[];
   dreams: DreamFact[];
+  ownDeathSummaries?: OwnDeathKinSummaryV1[];
   cursors: { events: StoryCursor; chronicle: StoryCursor };
 }
 export interface StoryDelivery { worldId: number; batch: StoryBatch }

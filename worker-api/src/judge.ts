@@ -4,6 +4,8 @@ import { JudgeGate } from './judge-gate.ts';
 import type { JudgeEnv } from './judge-gate.ts';
 import type { JudgeOpen, JudgeReservation, JudgeRPC, JudgeSession, Quota } from './judge-contract.ts';
 import { decisionObject, isDecisionCount, PROJECT_REQUEST_BYTE_CAP } from '../../web/src/shared/decision.ts';
+import { handleObituaryPost, obituaryCapability, obituaryFailure } from './obituary.ts';
+import type { ObituaryAI } from './obituary.ts';
 
 export { JudgeGate };
 
@@ -78,13 +80,14 @@ function validReservation(value: unknown): value is JudgeReservation {
   return value.kind === 'rate_limited' && (value.quota.daily_remaining === 0 || value.quota.session_remaining === 0);
 }
 function rpc(value: unknown): value is JudgeRPC {
-  return decisionObject(value) && ['status', 'open', 'revoke', 'reserve'].every(method => typeof value[method] === 'function');
+  return decisionObject(value) && ['status', 'open', 'revoke', 'reserve', 'reserveObituary'].every(method => typeof value[method] === 'function');
 }
-function configured(env: Record<string, unknown>): env is Record<string, unknown> & {
+function configured(env: Record<string, unknown>, allowDisabled = false): env is Record<string, unknown> & {
   JUDGE_CODE: string;
   JUDGE_GATE: { getByName(name: string): unknown };
 } {
-  return (env.INFERENCE_ENABLED === true || env.INFERENCE_ENABLED === 'true')
+  return ((env.INFERENCE_ENABLED === true || env.INFERENCE_ENABLED === 'true')
+      || (allowDisabled && (env.INFERENCE_ENABLED === false || env.INFERENCE_ENABLED === 'false')))
     && configuredCount(env.MAX_REQUEST_BYTES) === PROJECT_REQUEST_BYTE_CAP
     && configuredCount(env.SESSION_CAP) === 10 && configuredCount(env.JUDGE_DAILY_CAP) === 40
     && configuredCount(env.JUDGE_SESSION_TTL_SECONDS) === 86400 && canonical(env.JUDGE_CODE)
@@ -220,25 +223,30 @@ sessionRequest('GET').catch(() => { status.textContent = errors.unavailable; }).
 </html>`;
 
 /** Route and method checks precede every credential, namespace and storage operation. */
-export async function handleJudgeRequest(request: Request, environment: unknown): Promise<Response> {
+export async function handleJudgeRequest(request: Request, environment: unknown, ctx?: Pick<ExecutionContext, 'waitUntil'>): Promise<Response> {
   const path = new URL(request.url).pathname;
   const portal = path === '/api/judge' || path.startsWith('/api/judge/');
   const login = path === '/judge/login';
   const sessionRoute = path === '/api/judge/session';
   const configRoute = path === '/api/decision/config';
   const decisionRoute = path === '/api/decision';
+  const obituaryConfigRoute = path === '/api/judge/obituary/config';
+  const obituaryRoute = path === '/api/obituary';
+  const narration = obituaryConfigRoute || obituaryRoute;
   const root = path === '/';
-  if (portal && !sessionRoute) return portalFailure('not_found');
+  if (portal && !sessionRoute && !obituaryConfigRoute) return portalFailure('not_found');
   if (login) {
     if (request.method !== 'GET') return portalFailure('method_not_allowed', 'GET');
     return new Response(LOGIN_HTML, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' } });
   }
-  if (!sessionRoute && !configRoute && !decisionRoute && !root) return handleRequest(request, environment);
-  const allow = sessionRoute ? 'GET, POST, DELETE' : decisionRoute ? 'POST' : 'GET';
+  if (!sessionRoute && !configRoute && !decisionRoute && !root && !narration) return handleRequest(request, environment);
+  const allow = sessionRoute ? 'GET, POST, DELETE' : decisionRoute || obituaryRoute ? 'POST' : 'GET';
   if (!(sessionRoute ? ['GET', 'POST', 'DELETE'].includes(request.method) : request.method === allow)) {
+    if (narration) return obituaryFailure('request_invalid', 405, allow);
     return sessionRoute ? portalFailure('method_not_allowed', allow) : failure('method_not_allowed', allow);
   }
   if ((request.method === 'POST' || request.method === 'DELETE') && !sameOrigin(request)) {
+    if (narration) return obituaryFailure('request_invalid', 403);
     return sessionRoute ? portalFailure('forbidden') : failure('disabled');
   }
   let submitted: string | undefined;
@@ -254,7 +262,8 @@ export async function handleJudgeRequest(request: Request, environment: unknown)
     submitted = body.value.code;
   }
   const env = decisionObject(environment) ? environment : {};
-  if (!configured(env)) return sessionRoute ? portalFailure('unavailable') : failure(root ? 'unavailable' : 'disabled');
+  if (!configured(env, narration)) return narration ? obituaryFailure('capability_unavailable', 503)
+    : sessionRoute ? portalFailure('unavailable') : failure(root ? 'unavailable' : 'disabled');
   const parsedCookie = cookie(request);
   try {
     if (submitted !== undefined) {
@@ -285,6 +294,17 @@ export async function handleJudgeRequest(request: Request, environment: unknown)
     const session: unknown = await gate.status(tokenHash, epoch);
     if (!validSession(session)) throw new Error('Judge gate unavailable');
     if (sessionRoute) return clearInvalid(json(session), parsedCookie.present, session);
+    if (narration) {
+      if (session.state === 'anonymous' || tokenHash === null) {
+        return clearInvalid(obituaryFailure('anonymous', 401), parsedCookie.present, session);
+      }
+      const inferenceEnabled = env.INFERENCE_ENABLED === true || env.INFERENCE_ENABLED === 'true';
+      if (obituaryConfigRoute) return obituaryCapability(session, inferenceEnabled);
+      if (!inferenceEnabled) return obituaryFailure('disabled', 503);
+      const response = await handleObituaryPost(request, env.AI as ObituaryAI, gate, tokenHash, epoch, ctx);
+      if (response.status === 401) response.headers.set('Set-Cookie', CLEAR_COOKIE);
+      return response;
+    }
     if (root) {
       if (session.state === 'anonymous') {
         return clearInvalid(new Response(null, { status: 303, headers: { Location: '/judge/login', 'Cache-Control': 'no-store' } }), parsedCookie.present, session);
@@ -308,12 +328,13 @@ export async function handleJudgeRequest(request: Request, environment: unknown)
     if (revoked) response.headers.set('Set-Cookie', CLEAR_COOKIE);
     return response;
   } catch {
-    return sessionRoute ? portalFailure('unavailable') : failure('unavailable');
+    return narration ? obituaryFailure(obituaryConfigRoute ? 'capability_unavailable' : 'admission_unavailable', 503)
+      : sessionRoute ? portalFailure('unavailable') : failure('unavailable');
   }
 }
 
 export default {
-  fetch(request, env) {
-    return handleJudgeRequest(request, env);
+  fetch(request, env, ctx) {
+    return handleJudgeRequest(request, env, ctx);
   },
 } satisfies ExportedHandler<JudgeEnv>;

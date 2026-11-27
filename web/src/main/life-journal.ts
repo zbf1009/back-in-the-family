@@ -6,6 +6,7 @@ import { keyedStore, PersistentSequence, type IndexedSequence, type PersistentTr
 import type { WorldSnapshot } from '../shared/world-snapshot.ts';
 import { createLifeContextIndex, LifeContextWriter, worldLifePhase, type EntryContext, type LifeContextIndex, type LifePhase, type StoryBinding } from './life-context.ts';
 import { TECHNICAL_TEXT, supportedText } from './technical-text.ts';
+import { parseOwnDeathKinSummary, type OwnDeathKinSummaryV1 } from '../shared/obituary.ts';
 export type { AdmittedChoiceContext, EntryContext, LifePhase, StoryBinding } from './life-context.ts';
 export { renderStoryChronicle, renderStoryEvent } from './journal-templates.ts';
 
@@ -16,6 +17,7 @@ export interface LifeNotebook {
   readonly chronicle: PersistentTree<string, StoryChronicle>;
   readonly dreams: PersistentTree<string, DreamFact>;
   readonly dreamsByInputSeq: PersistentTree<string, DreamFact>;
+  readonly ownDeathSummaries: PersistentTree<string, OwnDeathKinSummaryV1>;
   readonly identities: PersistentSequence<StoryIdentity>;
   readonly opening: PersistentTree<StoryIdentity, boolean>;
   readonly cursors: StoryBatch['cursors'] | null;
@@ -36,6 +38,7 @@ export interface LifeNotebookExport {
   readonly events: Readonly<Record<string, StoryEvent>>;
   readonly chronicle: Readonly<Record<string, StoryChronicle>>;
   readonly dreams: Readonly<Record<string, DreamFact>>;
+  readonly ownDeathSummaries: Readonly<Record<string, OwnDeathKinSummaryV1>>;
   readonly identities: readonly StoryIdentity[];
   readonly opening: Readonly<Record<StoryIdentity, boolean>>;
   readonly cursors: StoryBatch['cursors'] | null;
@@ -59,11 +62,11 @@ export const JOURNAL_RANGE_SIZE = 120;
 export const JOURNAL_EXPANSION_SIZE = 24;
 
 export function createNotebook(worldId: number): LifeNotebook {
-  return { worldId, actors: keyedStore(), events: keyedStore(), chronicle: keyedStore(), dreams: keyedStore(), dreamsByInputSeq: keyedStore(), identities: new PersistentSequence(), opening: keyedStore(), cursors: null, journal: createJournalIndex(), renderRevision: 0, contexts: keyedStore(), actorRoots: keyedStore(), phaseActors: keyedStore(), phases: createLifeContextIndex(), chronicleByNode: keyedStore() };
+  return { worldId, actors: keyedStore(), events: keyedStore(), chronicle: keyedStore(), dreams: keyedStore(), dreamsByInputSeq: keyedStore(), ownDeathSummaries: keyedStore(), identities: new PersistentSequence(), opening: keyedStore(), cursors: null, journal: createJournalIndex(), renderRevision: 0, contexts: keyedStore(), actorRoots: keyedStore(), phaseActors: keyedStore(), phases: createLifeContextIndex(), chronicleByNode: keyedStore() };
 }
 /** Delivery epochs are checked here as well as at the client seam. Rebirth is not a new epoch. */
 export function appendStory(notebook: LifeNotebook, deliveries: readonly StoryDelivery[], binding: StoryBinding = {}): LifeNotebook {
-  let { actors, events, chronicle, dreams, dreamsByInputSeq, identities, opening, cursors, contexts, actorRoots, phaseActors, chronicleByNode } = notebook;
+  let { actors, events, chronicle, dreams, dreamsByInputSeq, ownDeathSummaries, identities, opening, cursors, contexts, actorRoots, phaseActors, chronicleByNode } = notebook;
   const writer = new JournalIndexWriter(notebook.journal);
   const phaseWriter = new LifeContextWriter(notebook.worldId, notebook.phases, binding.world);
   const admitted = deliveries.filter(delivery => delivery.worldId === notebook.worldId);
@@ -146,6 +149,16 @@ export function appendStory(notebook: LifeNotebook, deliveries: readonly StoryDe
       if (!prior || compareDecimal(dream.eventId, prior.eventId) < 0) dreamsByInputSeq = dreamsByInputSeq.set(dream.inputSeq, dream);
       changed = true;
     }
+    for (const summary of batch.ownDeathSummaries ?? []) {
+      if (ownDeathSummaries.get(summary.deathEvent)) continue;
+      const valid = parseOwnDeathKinSummary(summary);
+      const death = events.get(summary.deathEvent);
+      if (valid === null || death?.kind.type !== 'death' || death.kind.person !== summary.body || death.tick !== summary.tick) {
+        throw new Error('Own-death summary does not match its actual Death observation.');
+      }
+      ownDeathSummaries = ownDeathSummaries.set(summary.deathEvent, summary);
+      changed = true;
+    }
     if (cursors === null || BigInt(batch.cursors.events.end) > BigInt(cursors.events.end) || BigInt(batch.cursors.chronicle.end) > BigInt(cursors.chronicle.end)) {
       cursors = batch.cursors;
       changed = true;
@@ -154,10 +167,10 @@ export function appendStory(notebook: LifeNotebook, deliveries: readonly StoryDe
   const renderChanged = actors !== notebook.actors || events !== notebook.events || chronicle !== notebook.chronicle
     || dreams !== notebook.dreams || writer.index !== notebook.journal || contexts !== notebook.contexts || actorRoots !== notebook.actorRoots;
   const renderRevision = notebook.renderRevision + Number(renderChanged);
-  return changed || phaseWriter.index !== notebook.phases ? { worldId: notebook.worldId, actors, events, chronicle, dreams, dreamsByInputSeq, identities, opening, cursors, journal: writer.index, renderRevision, contexts, actorRoots, phaseActors, phases: phaseWriter.index, chronicleByNode } : notebook;
+  return changed || phaseWriter.index !== notebook.phases ? { worldId: notebook.worldId, actors, events, chronicle, dreams, dreamsByInputSeq, ownDeathSummaries, identities, opening, cursors, journal: writer.index, renderRevision, contexts, actorRoots, phaseActors, phases: phaseWriter.index, chronicleByNode } : notebook;
 }
 export function exportNotebook(notebook: LifeNotebook): LifeNotebookExport {
-  return { worldId: notebook.worldId, actors: Object.fromEntries(notebook.actors), events: Object.fromEntries(notebook.events), chronicle: Object.fromEntries(notebook.chronicle), dreams: Object.fromEntries(notebook.dreams), identities: [...notebook.identities], opening: Object.fromEntries(notebook.opening) as Record<StoryIdentity, boolean>, cursors: notebook.cursors };
+  return { worldId: notebook.worldId, actors: Object.fromEntries(notebook.actors), events: Object.fromEntries(notebook.events), chronicle: Object.fromEntries(notebook.chronicle), dreams: Object.fromEntries(notebook.dreams), ownDeathSummaries: Object.fromEntries(notebook.ownDeathSummaries), identities: [...notebook.identities], opening: Object.fromEntries(notebook.opening) as Record<StoryIdentity, boolean>, cursors: notebook.cursors };
 }
 export function entryContext(notebook: LifeNotebook, identity: StoryIdentity): EntryContext | null {
   return notebook.contexts.get(identity) ?? null;

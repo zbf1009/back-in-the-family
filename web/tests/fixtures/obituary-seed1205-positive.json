@@ -1,0 +1,34 @@
+{
+  "sourceWitness": "obituary-seed1205-native-witness.json",
+  "sourceChecksum": "8a1b9da5de15bb91",
+  "facts": {
+    "version": 1,
+    "deceased": {
+      "fullName": "Nadine Bradley",
+      "sex": "female",
+      "ageYears": 60,
+      "deathDate": { "year": "15", "day": 263, "label": "Year 15, Day 263" },
+      "origin": "born in town"
+    },
+    "survivors": [
+      { "fullName": "Marvin Jenkins", "firstName": "Marvin", "sex": "male", "relation": "husband" },
+      { "fullName": "Marcus Bradley", "firstName": "Marcus", "sex": "male", "relation": "son" },
+      { "fullName": "Ben Rhodes", "firstName": "Ben", "sex": "male", "relation": "grandson" },
+      { "fullName": "Leo Rhodes", "firstName": "Leo", "sex": "male", "relation": "grandson" }
+    ],
+    "precededInDeath": [
+      { "fullName": "Clifford Bradley", "firstName": "Clifford", "sex": "male", "relation": "husband" }
+    ],
+    "debtActions": { "forgivenDebts": "0", "demandsMade": "4", "peopleAskedForPayment": "3" },
+    "collections": { "debtsPaidOn": "4" },
+    "estate": {
+      "valueDollars": "229012",
+      "heirs": [
+        { "fullName": "Marcus Bradley", "relation": "son" },
+        { "fullName": "Marvin Jenkins", "relation": "husband" }
+      ]
+    },
+    "jossBurnersOnDeathDay": "2"
+  },
+  "paragraph": "Nadine Bradley died on Day 263 of Year 15, aged 60, having never lived anywhere else. She is survived by her husband Marvin, her son Marcus, and her grandsons Ben and Leo, and was preceded in death by her husband Clifford. She asked three people for her money back. She leaves an estate valued at $229,012. Two people burned joss paper. She is not expected to stay away long."
+}

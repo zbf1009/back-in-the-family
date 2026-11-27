@@ -82,8 +82,14 @@ export function viewModel(ui: UiState) {
   };
 }
 
+export interface FeedbackView {
+  actions: (UiAction & { text: string })[];
+  settledOmitted: number;
+  playerLifecycle: UiState['playerLifecycle'];
+}
+
 /** Receipt and observation feedback does not depend on a World Snapshot. */
-export function feedbackView(ui: UiState) {
+export function feedbackView(ui: UiState): FeedbackView {
   return {
     actions: ui.actions.map(action => ({ ...action, text: actionText(action) })),
     settledOmitted: ui.settledOmitted,

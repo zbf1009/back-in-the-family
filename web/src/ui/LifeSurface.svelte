@@ -4,7 +4,7 @@
   import { currentDecision } from '../main/ui-state.ts';
   import type { SceneClose, SceneEntry, SceneQueue } from '../main/scene-queue.ts';
   import type { UnderworldForm } from '../main/customization.ts';
-  import type { feedbackView } from '../main/view-model.ts';
+  import type { FeedbackView } from '../main/view-model.ts';
   import { operationStates } from '../main/operation-state.ts';
   import { choiceResult } from '../main/choice-result.ts';
   import { memorialKeyScene } from '../main/memorial.ts';
@@ -19,9 +19,11 @@
   import ActionFeedback from './ActionFeedback.svelte';
   import LifeJournal from './LifeJournal.svelte';
   import KeyScene from './KeyScene.svelte';
+  import ObituaryCard from './ObituaryCard.svelte';
+  import type { ObituaryEntry } from '../main/obituary-store.ts';
 
-  const { ui, sprites, feedback, presentationVersion = 0, onChoose, onForm, onDream, onClaim, onBribe, onHaunt, onClose, onSettled }: {
-    ui: UiState; sprites: SpriteSet | null; feedback: ReturnType<typeof feedbackView>; presentationVersion?: number;
+  const { ui, sprites, feedback, obituaries = [], presentationVersion = 0, onChoose, onForm, onDream, onClaim, onBribe, onHaunt, onClose, onSettled }: {
+    ui: UiState; sprites: SpriteSet | null; feedback: FeedbackView; obituaries?: readonly ObituaryEntry[]; presentationVersion?: number;
     onChoose(worldId: number, node: string, option: PlayerOption): Promise<void>;
     onForm(form: UnderworldForm): void; onDream(): Promise<void>; onClaim(slot: Slot): Promise<void>;
     onBribe(worldId: number, amount: string): void; onHaunt(worldId: number, target: number): void;
@@ -35,6 +37,10 @@
   const head = $derived(memorial?.entry ?? scene?.entries[0] ?? null);
   const headView = $derived(memorial === null ? head?.keyScene : memorialKeyScene(memorial.capture));
   const result = $derived(choiceResult(ui));
+  const place = $derived(ui.world?.player.place);
+  const waitingGhost = $derived(ui.world?.player_wait?.ghost);
+  const currentObituary = $derived(place === 'waiting' ? obituaries.find(entry => entry.death.personId === waitingGhost) : undefined);
+  const historicalObituaries = $derived(obituaries.filter(entry => entry !== currentObituary));
   const paperwork = $derived(operationStates(ui));
   const otherPaperwork = $derived(paperwork.filter(state => state.kind === 'choose'
     ? decision === null : ui.world?.player.place !== 'waiting'));
@@ -117,6 +123,7 @@
         <ScenePicture world={ui.world} actors={ui.notebook.actors} {sprites} kind={decision?.family ?? (ui.world?.player.place === 'waiting' ? 'waiting' : 'living')} node={decision} running={ui.runState === 'running'} worldKey={ui.worldId} />
       {/if}
     </section>
+    {#if currentObituary !== undefined}<ObituaryCard entry={currentObituary} />{/if}
     <section id="current-action" class="current-action" tabindex="-1" aria-label="Your next action">
       {#if result !== null}
         <p class="choice-result" role="status" data-testid="choice-result" data-result-kind={result.kind} data-node={result.node}>{result.text}</p>
@@ -130,7 +137,7 @@
       <ActionFeedback operationStates={otherPaperwork} actors={ui.notebook.actors} />
     </section>
     {#if ui.world !== null}
-      <LifeJournal notebook={ui.notebook} playerSoul={ui.world.player_soul} currentBody={ui.world.player.body} running={ui.runState === 'running'} speed={ui.speed} />
+      <LifeJournal notebook={ui.notebook} playerSoul={ui.world.player_soul} currentBody={ui.world.player.body} running={ui.runState === 'running'} speed={ui.speed} obituaries={historicalObituaries} />
     {/if}
     <details class="technical-results"><summary>Technical result records</summary>
       {#each feedback.actions as action, index (action.requestId ?? 'input-' + action.inputSeq + '-' + index)}

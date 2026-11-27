@@ -101,7 +101,7 @@ impl WasmSim {
             .map_err(|e| e.to_string())
     }
 
-    /// Plain-Rust body of `run_until_stop`; the JSON field order is part of its reply.
+    /// Plain-Rust body of `run_until_stop`; completed-day Story includes own-death kin.
     pub fn run_until_stop_json(&mut self, max: u32) -> String {
         let result = self.inner.run_until_stop_observed(max);
         serde_json::to_string(&result).expect("the typed run report serializes")
@@ -188,7 +188,8 @@ impl WasmSim {
         self.export_replay_json().map_err(|e| JsError::new(&e))
     }
 
-    /// Up to `max` core ticks; pauses on the first stop tick, without a Worker gate.
+    /// Up to `max` complete core ticks, including death-time kin and funeral facts;
+    /// pauses on the first stop tick without a Worker gate.
     pub fn run_until_stop(&mut self, max: u32) -> String {
         self.run_until_stop_json(max)
     }

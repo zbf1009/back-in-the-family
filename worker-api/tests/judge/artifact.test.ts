@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type * as TypeScriptTools from '../../../web/node_modules/typescript';
-import { digest } from '../../scripts/bundle.ts';
+import { checkedWorkerBundle, digest, sourceDigests } from '../../scripts/bundle.ts';
 import { root, validateJudgeHostedConfig, validateJudgeSourceConfig } from '../../scripts/profile.ts';
 import { requireTools } from '../../scripts/tools.ts';
 import { JUDGE_MANIFEST_PATH, JUDGE_SOURCE_PATHS, judgeCliContext, validateJudgeExpectation, validateJudgeManifest } from '../../../scripts/check-judge-artifact.ts';
@@ -14,6 +14,9 @@ import { jsonBytes, readClosedTree } from '../../../scripts/artifact-inputs.ts';
 import { selectSdkLock, validateSdkLock } from '../../../scripts/artifact-sdk-lock.ts';
 import { consumerCLI, independentArtifact } from '../../../scripts/tests/artifact-fixture.ts';
 import type { IndependentArtifact } from '../../../scripts/tests/artifact-fixture.ts';
+import { runtimeFixture } from '../helpers/runtime.ts';
+import { currentStaticDeployment } from '../../../scripts/check-hosted-candidate.ts';
+import type * as WranglerTools from '../../../web/node_modules/wrangler';
 
 let owned: string;
 let fixture: IndependentArtifact;
@@ -198,7 +201,8 @@ test('source/hosted SQLite semantics and SDK graph negatives use actual owned so
 });
 
 test('fresh source/blob checks reject stale code and generated declaration bytes', async t => {
-  for (const path of ['worker-api/src/judge.ts', 'worker-api/judge-configuration.d.ts', 'worker-api/runtime-configuration.d.ts']) await t.test(path, async () => {
+  for (const path of ['worker-api/src/judge.ts', 'worker-api/src/obituary.ts', 'web/src/shared/obituary.ts',
+    'web/src/main/obituary-template.ts', 'web/src/main/calendar.ts', 'worker-api/judge-configuration.d.ts', 'worker-api/runtime-configuration.d.ts']) await t.test(path, async () => {
     const original = await readFile(join(fixture.project, path));
     await writeFile(join(fixture.project, path), Buffer.concat([original, Buffer.from('\n// owned stale fixture\n')]));
     try { assert.notEqual(consumerCLI(fixture.project, args('check', expected, manifestSHA)).status, 0); }
@@ -252,4 +256,49 @@ test('closed packet and regular-file guards reject unlisted files and changed im
     command.push('--packet', packet);
     const result = consumerCLI(fixture.project, command); assert.notEqual(result.status, 0); assert.match(result.stderr, /symlink|regular/i);
   } finally { await rm(link); }
+});
+
+test('every actual narration import belongs to the immutable judge source and bundle stamp closure', async t => {
+  const paths = ['worker-api/src/obituary.ts', 'web/src/shared/obituary.ts', 'web/src/main/obituary-template.ts', 'web/src/main/calendar.ts'];
+  const sources = await sourceDigests(fixture.project, 'judge');
+  for (const path of paths) {
+    assert.ok(JUDGE_SOURCE_PATHS.includes(path) && Object.hasOwn(sources, path), 'Actual narration imports require both source and bundle pins');
+    await t.test(`omitted ${path}`, () => checkMutation(manifest => {
+      delete manifest.sources.digests[path];
+      manifest.sources.sha256 = digest(jsonBytes(manifest.sources.digests));
+    }));
+  }
+  const stampPath = join(fixture.project, 'target/judge-worker/build.json');
+  const original = await readFile(stampPath);
+  for (const path of paths) {
+    const stamp = JSON.parse(original.toString('utf8'));
+    delete stamp.sources[path];
+    await writeFile(stampPath, JSON.stringify(stamp));
+    try { await assert.rejects(checkedWorkerBundle(fixture.project, 'judge'), /stale or modified/); }
+    finally { await writeFile(stampPath, original); }
+  }
+});
+
+test('actual public assets-only profile gains no model binding or route; generic and default-off make zero narration AI calls', async () => {
+  const production = await currentStaticDeployment(root);
+  const wrangler = requireTools('wrangler') as typeof WranglerTools;
+  const loaded = wrangler.experimental_readRawConfig({ config: production.configPath }, { useRedirectIfAvailable: false, hideWarnings: true });
+  const config = loaded.rawConfig;
+  assert.equal(config.main, undefined);
+  assert.equal(config.ai, undefined);
+  assert.equal(config.routes, undefined);
+  assert.equal(config.durable_objects, undefined);
+  for (const INFERENCE_ENABLED of ['false', 'true']) {
+    const generic = await runtimeFixture({ variables: { INFERENCE_ENABLED }, externalFault: false });
+    try {
+      for (const [path, method] of [['/api/judge/obituary/config', 'GET'], ['/api/obituary', 'POST']] as const) {
+        const response = await generic.runtime.dispatchFetch('https://public.test' + path, {
+          method, ...(method === 'POST' ? { body: '{}' } : {}),
+        });
+        assert.equal(response.status, 404);
+        await response.body?.cancel();
+      }
+      assert.equal(generic.calls.length, 0);
+    } finally { await generic.dispose(); }
+  }
 });

@@ -17,6 +17,7 @@ import { currentStaticDeployment } from './check-hosted-candidate.ts';
 const SHA = /^[a-f0-9]{64}$/;
 export const JUDGE_MANIFEST_PATH = 'target/judge-worker/judge-manifest.json';
 export const JUDGE_SOURCE_PATHS = [
+  'worker-api/src/obituary.ts', 'web/src/shared/obituary.ts', 'web/src/main/obituary-template.ts', 'web/src/main/calendar.ts',
   'worker-api/judge.jsonc', 'worker-api/judge-hosted.jsonc', 'worker-api/judge-configuration.d.ts',
   'worker-api/worker-configuration.d.ts', 'worker-api/runtime-configuration.d.ts',
   'worker-api/tsconfig.judge.json', 'worker-api/tsconfig.judge.node.json', 'worker-api/tsconfig.judge.unit.json', 'worker-api/tsconfig.node.json',
@@ -140,10 +141,13 @@ export async function proveJudgeNativeExports(projectRoot = root): Promise<void>
     const session: unknown = await status.json();
     assertSame(session, { version: 'judge-session-v1', state: 'anonymous', expires_at_ms: null, quota: null }, 'Actual JudgeGate RPC export differs');
     const storage = await fixture.storage();
-    // Match the runtime proof's exact pinned workerd/inspection metadata names;
-    // no _cf_* wildcard may hide a third application table.
+    // Only the approved additive narration claim table joins the unchanged budget tables;
+    // the exact pinned system metadata names cannot hide any other application table.
     const tables = await storage.exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT GLOB 'sqlite_*' AND name NOT IN ('_cf_KV', '_cf_EXTERNALS', '_cf_METADATA', '_cf_ALARM', '__miniflare_do_name') ORDER BY name");
-    assertSame(tables.map(row => row.name), ['daily', 'sessions'], 'Actual JudgeGate storage must be SQLite with exactly two application tables');
+    assertSame(tables.map(row => row.name), ['daily', 'obituary_claims', 'sessions'], 'Actual JudgeGate SQLite application tables differ');
+    const claims = await storage.exec<{ name: string; pk: number }>('PRAGMA table_info(obituary_claims)');
+    assert.ok(claims.length === 2 && claims.some(row => row.name === 'token_sha256' && row.pk === 1)
+      && claims.some(row => row.name === 'operation_key' && row.pk === 2), 'Narration claims must use the session/operation composite primary key');
     assert.ok(fixture.calls.length === 0, 'Native export proof must dispatch no AI');
   } finally { await fixture.dispose(); }
 }

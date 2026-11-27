@@ -1,3 +1,5 @@
+import type { ObituaryReservation } from '../../web/src/shared/obituary.ts';
+
 export type Quota = {
   utc_day: string;
   reset_at_ms: number;
@@ -22,4 +24,5 @@ export interface JudgeRPC {
   open(candidate_sha256: string, existing_sha256: string | null, code_epoch: string): Promise<JudgeOpen>;
   revoke(token_sha256: string | null): Promise<void>;
   reserve(token_sha256: string, code_epoch: string): Promise<JudgeReservation>;
+  reserveObituary(token_sha256: string, code_epoch: string, operationKey: string): Promise<ObituaryReservation>;
 }

@@ -13,6 +13,9 @@ import { decisionRequest, nativeResult, publicBody } from '../helpers/decision.t
 import type { PublicResponse } from '../helpers/decision.ts';
 import { judgeRuntimeFixture } from '../helpers/judge-runtime.ts';
 import type { JudgeRuntimeFixture, JudgeRuntimeFixtureOptions } from '../helpers/judge-runtime.ts';
+import { OBITUARY_MODEL, OBITUARY_SYSTEM_PROMPT, parseObituaryCapability, parseObituaryReply, parseObituaryError } from '../../../web/src/shared/obituary.ts';
+import type { ObituaryFactsV1 } from '../../../web/src/shared/obituary.ts';
+import { renderObituaryTemplate } from '../../../web/src/main/obituary-template.ts';
 import type * as RuntimeTools from 'worker-tools/miniflare';
 
 const origin = 'https://judge.test';
@@ -25,6 +28,22 @@ const now = Date.parse('2026-11-23T12:34:56.789Z');
 const day = '2026-11-23';
 const navigation = { Accept: 'text/html', 'Sec-Fetch-Mode': 'navigate', 'Sec-Fetch-Dest': 'document' };
 const hash = (value: string) => createHash('sha256').update(value, 'ascii').digest('hex');
+const obituaryFacts: ObituaryFactsV1 = {
+  version: 1, deceased: { fullName: 'Ada Bell', sex: 'female', ageYears: 60,
+    deathDate: { year: '1', day: 1, label: 'Year 1, Day 1 — Halloween' }, origin: 'born in town' },
+  survivors: [], precededInDeath: [], debtActions: { forgivenDebts: null, demandsMade: null, peopleAskedForPayment: null },
+  collections: { debtsPaidOn: null }, estate: null, jossBurnersOnDeathDay: '0',
+};
+const obituaryRequest = (key = 'a'.repeat(64)) => ({ version: 1, operationKey: key, facts: obituaryFacts });
+function submitObituary(fixture: JudgeRuntimeFixture, cookie?: string, value: unknown = obituaryRequest(), headers: Record<string, string> = {}) {
+  return fixture.runtime.dispatchFetch(origin + '/api/obituary', { method: 'POST', body: JSON.stringify(value),
+    headers: { Origin: origin, 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}), ...headers } });
+}
+async function narrationError(response: PublicResponse, error: string, status: number) {
+  assert.equal(response.status, status);
+  const parsed = parseObituaryError(await body(response));
+  assert.ok(parsed !== null && parsed.error === error, 'Closed narration rejection');
+}
 
 async function fixtureCase(run: (fixture: JudgeRuntimeFixture) => Promise<void>, options: JudgeRuntimeFixtureOptions = {}): Promise<void> {
   const fixture = await judgeRuntimeFixture({ ...options, nowMs: options.nowMs ?? now,
@@ -215,7 +234,7 @@ test('checked default fetch and declarative native JudgeGate execute real SQLite
   });
 });
 
-test('SQLite has exactly the two application tables, hashed credentials and persistent primary-key/count/expiry constraints', async () => {
+test('SQLite preserves the two budget tables and permits only the additive session/operation claim table', async () => {
   await fixtureCase(async fixture => {
     const authenticated = await login(fixture);
     const sql = await fixture.storage();
@@ -223,7 +242,8 @@ test('SQLite has exactly the two application tables, hashed credentials and pers
     // adds exactly __miniflare_do_name. Do not hide arbitrary application tables
     // behind a fixture/system prefix wildcard.
     const tables = await sql.exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT GLOB 'sqlite_*' AND name NOT IN ('_cf_KV', '_cf_EXTERNALS', '_cf_METADATA', '_cf_ALARM', '__miniflare_do_name') ORDER BY name");
-    assert.ok(tables.length === 2 && tables[0]!.name === 'daily' && tables[1]!.name === 'sessions', 'Exactly sessions and daily application tables');
+    assert.ok(tables.length === 3 && tables[0]!.name === 'daily' && tables[1]!.name === 'obituary_claims'
+      && tables[2]!.name === 'sessions', 'Only the approved three application tables');
     const sessionColumns = await sql.exec<{ name: string; pk: number }>('PRAGMA table_info(sessions)');
     assert.ok(sessionColumns.length === 4 && ['token_sha256', 'expires_at_ms', 'admitted', 'code_epoch']
       .every(name => sessionColumns.some(column => column.name === name)), 'Closed stored session columns');
@@ -231,6 +251,9 @@ test('SQLite has exactly the two application tables, hashed credentials and pers
     const dailyColumns = await sql.exec<{ name: string; pk: number }>('PRAGMA table_info(daily)');
     assert.ok(dailyColumns.length === 2 && dailyColumns.some(column => column.name === 'utc_day' && column.pk === 1)
       && dailyColumns.some(column => column.name === 'admitted'), 'One UTC-day primary key, no session-per-day table');
+    const claimColumns = await sql.exec<{ name: string; pk: number; notnull: number }>('PRAGMA table_info(obituary_claims)');
+    assert.ok(claimColumns.length === 2 && claimColumns.some(column => column.name === 'token_sha256' && column.pk === 1 && column.notnull === 1)
+      && claimColumns.some(column => column.name === 'operation_key' && column.pk === 2 && column.notnull === 1), 'Session/operation composite claim key only');
     const rows = await sql.exec('SELECT * FROM sessions');
     const token = authenticated.cookie.slice(cookieName.length + 1);
     assert.ok(rows.length === 1 && rows[0]!.token_sha256 === hash(token) && rows[0]!.code_epoch === hash(code), 'Only credential hashes are stored');
@@ -246,6 +269,8 @@ test('SQLite has exactly the two application tables, hashed credentials and pers
       ['UPDATE daily SET admitted = ? WHERE utc_day = ?', [41, day]],
       ['INSERT INTO sessions (token_sha256, expires_at_ms, admitted, code_epoch) VALUES (?, ?, 0, ?)', [tokenHash, authenticated.session.expires_at_ms, hash(code)]],
       ['INSERT INTO daily (utc_day, admitted) VALUES (?, 0)', [day]],
+      ['INSERT INTO obituary_claims (token_sha256, operation_key) VALUES (?, ?)', [tokenHash, 'bad']],
+      ['INSERT INTO obituary_claims (token_sha256, operation_key) VALUES (?, ?)', [tokenHash, 'A'.repeat(64)]],
     ];
     for (const [query, parameters] of invalidSQL) {
       let rejected = false;
@@ -717,3 +742,206 @@ for (const variables of [{ JUDGE_CODE: '' }, { INFERENCE_ENABLED: 'false' }, { S
     }, { variables });
   });
 }
+
+test('native narration capability and authenticated POST use one pinned dispatch and the same Clef accounting pool', async () => {
+  await fixtureCase(async fixture => {
+    await narrationError(await fixture.runtime.dispatchFetch(origin + '/api/judge/obituary/config'), 'anonymous', 401);
+    await narrationError(await submitObituary(fixture), 'anonymous', 401);
+    assert.equal(fixture.calls.length, 0);
+    const authenticated = await login(fixture);
+    const capabilityResponse = await fixture.runtime.dispatchFetch(origin + '/api/judge/obituary/config', { headers: { Cookie: authenticated.cookie } });
+    assert.equal(capabilityResponse.status, 200);
+    const capability = parseObituaryCapability(await body(capabilityResponse));
+    assert.ok(capability?.enabled && capability.model === OBITUARY_MODEL && capability.timeout_ms === 10000);
+    assert.deepEqual(await counts(fixture, authenticated.cookie), { session: 0, daily: 0 });
+    const response = await submitObituary(fixture, authenticated.cookie);
+    assert.equal(response.status, 200);
+    const reply = parseObituaryReply(await body(response));
+    assert.ok(reply?.result.source === 'model' && reply.operationKey === obituaryRequest().operationKey);
+    assert.equal(reply.quota.session_remaining, 9);
+    assert.equal(reply.quota.daily_remaining, 39);
+    assert.equal(fixture.calls.length, 1);
+    assert.ok(JSON.stringify(fixture.calls[0]) === JSON.stringify({ model: OBITUARY_MODEL, input: {
+      messages: [{ role: 'system', content: OBITUARY_SYSTEM_PROMPT }, { role: 'user', content: JSON.stringify(obituaryFacts) }],
+      max_tokens: 256, temperature: 0.3, stream: false,
+    } }), 'Pinned narration receives closed facts only, never operation/session transport fields');
+    await narrationError(await submitObituary(fixture, authenticated.cookie), 'duplicate', 409);
+    await success(await submit(fixture, authenticated.cookie));
+    assert.equal(fixture.calls.length, 2);
+    assert.deepEqual(await counts(fixture, authenticated.cookie), { session: 2, daily: 2 });
+    const claims = await (await fixture.storage()).exec('SELECT * FROM obituary_claims');
+    assert.ok(claims.length === 1 && claims[0]!.operation_key === obituaryRequest().operationKey
+      && claims[0]!.token_sha256 === hash(authenticated.cookie.slice(cookieName.length + 1)), 'Only a hash-bound operation claim is persisted');
+  });
+});
+
+test('two concurrent native narration requests for one operation atomically claim and infer once', async () => {
+  await fixtureCase(async fixture => {
+    const authenticated = await login(fixture);
+    const responses = await Promise.all([submitObituary(fixture, authenticated.cookie), submitObituary(fixture, authenticated.cookie)]);
+    assert.deepEqual(responses.map(response => response.status).sort(), [200, 409]);
+    for (const response of responses) {
+      if (response.status === 409) await narrationError(response, 'duplicate', 409);
+      else assert.ok(parseObituaryReply(await body(response))?.result.source === 'model');
+    }
+    assert.deepEqual(await counts(fixture, authenticated.cookie), { session: 1, daily: 1 });
+    assert.equal(fixture.calls.length, 1);
+    await seedCounts(fixture, authenticated.cookie, 10, 40);
+    await narrationError(await submitObituary(fixture, authenticated.cookie), 'duplicate', 409);
+    await narrationError(await submitObituary(fixture, authenticated.cookie, obituaryRequest('b'.repeat(64))), 'quota_exhausted', 429);
+    assert.equal((await (await fixture.storage()).exec('SELECT * FROM obituary_claims')).length, 1);
+    assert.equal(fixture.calls.length, 1);
+  });
+});
+
+test('a Clef decision and narration race for the final unchanged shared session allowance', async () => {
+  await fixtureCase(async fixture => {
+    const authenticated = await login(fixture);
+    await seedCounts(fixture, authenticated.cookie, 9, 39);
+    const [decision, narration] = await Promise.all([submit(fixture, authenticated.cookie), submitObituary(fixture, authenticated.cookie)]);
+    assert.deepEqual([decision.status, narration.status].sort(), [200, 429]);
+    if (decision.status === 200) await success(decision); else await decisionError(decision, 'rate_limited', 429);
+    if (narration.status === 200) assert.ok(parseObituaryReply(await body(narration)));
+    else await narrationError(narration, 'quota_exhausted', 429);
+    assert.deepEqual(await counts(fixture, authenticated.cookie), { session: 10, daily: 40 });
+    assert.equal(fixture.calls.length, 1);
+  });
+});
+
+test('claim insertion and both budget increments roll back together when SQLite rejects a counter update', async () => {
+  await fixtureCase(async fixture => {
+    const authenticated = await login(fixture);
+    const sql = await fixture.storage();
+    await sql.exec("CREATE TRIGGER reject_narration_count BEFORE UPDATE OF admitted ON sessions BEGIN SELECT RAISE(ABORT, 'fixture'); END");
+    await narrationError(await submitObituary(fixture, authenticated.cookie), 'admission_unavailable', 503);
+    assert.deepEqual(await counts(fixture, authenticated.cookie), { session: 0, daily: 0 });
+    assert.equal((await sql.exec('SELECT * FROM obituary_claims')).length, 0);
+    assert.equal(fixture.calls.length, 0);
+    await sql.exec('DROP TRIGGER reject_narration_count');
+  });
+});
+
+test('committed native narration transport failure remains spent, duplicate never retries inference', async () => {
+  await fixtureCase(async fixture => {
+    const authenticated = await login(fixture);
+    await narrationError(await submitObituary(fixture, authenticated.cookie), 'admission_unavailable', 503);
+    assert.equal(fixture.reserveAttempts, 1);
+    assert.deepEqual(await counts(fixture, authenticated.cookie), { session: 1, daily: 1 });
+    assert.equal(fixture.calls.length, 0);
+    await narrationError(await submitObituary(fixture, authenticated.cookie), 'duplicate', 409);
+    assert.equal(fixture.reserveAttempts, 2);
+    assert.equal(fixture.calls.length, 0);
+    assert.deepEqual(await counts(fixture, authenticated.cookie), { session: 1, daily: 1 });
+  }, { reserveFault: 'reject-after-commit' });
+});
+
+for (const [name, result, status, reason] of [
+  ['non-200', { response: 'unusable' }, 500, 'provider_error'],
+  ['missing response', {}, 200, 'invalid_output'],
+  ['nonempty tool calls', { response: 'unusable', tool_calls: [{ name: 'tool' }] }, 200, 'invalid_output'],
+  ['oversized raw JSON', { response: 'x'.repeat(8192) }, 200, 'provider_error'],
+] as const) test(`native narration ${name} returns one terminal exact template with committed quota`, async () => {
+  await fixtureCase(async fixture => {
+    const authenticated = await login(fixture);
+    const response = await submitObituary(fixture, authenticated.cookie);
+    assert.equal(response.status, 200);
+    const reply = parseObituaryReply(await body(response));
+    assert.ok(reply?.result.source === 'template' && reply.result.fallbackReason === reason);
+    assert.equal(reply.result.text, renderObituaryTemplate(obituaryFacts));
+    assert.equal(reply.result.model, OBITUARY_MODEL);
+    assert.equal(reply.quota.session_remaining, 9);
+    assert.deepEqual(await counts(fixture, authenticated.cookie), { session: 1, daily: 1 });
+    await narrationError(await submitObituary(fixture, authenticated.cookie), 'duplicate', 409);
+    assert.equal(fixture.calls.length, 1);
+  }, { result, status });
+});
+
+test('native narration rejects CSRF, unknown nested request keys and streamed 16385 bytes without claims or AI', async () => {
+  await fixtureCase(async fixture => {
+    const authenticated = await login(fixture);
+    for (const Origin of ['', 'null', 'https://foreign.test']) {
+      await narrationError(await submitObituary(fixture, authenticated.cookie, obituaryRequest(), { Origin }), 'request_invalid', 403);
+    }
+    await narrationError(await submitObituary(fixture, authenticated.cookie, { ...obituaryRequest(), prompt: 'no' }), 'request_invalid', 400);
+    await narrationError(await submitObituary(fixture, authenticated.cookie, {
+      ...obituaryRequest(), facts: { ...obituaryFacts, deceased: { ...obituaryFacts.deceased, instructions: 'no' } },
+    }), 'request_invalid', 400);
+    await narrationError(await streamed(fixture, '/api/obituary', new TextEncoder().encode(' '.repeat(16385)), authenticated.cookie), 'request_too_large', 413);
+    await narrationError(await streamed(fixture, '/api/obituary', new Uint8Array([0xff]), authenticated.cookie), 'request_invalid', 400);
+    assert.deepEqual(await counts(fixture, authenticated.cookie), { session: 0, daily: 0 });
+    assert.equal((await (await fixture.storage()).exec('SELECT * FROM obituary_claims')).length, 0);
+    assert.equal(fixture.calls.length, 0);
+    const encoded = JSON.stringify(obituaryRequest());
+    const exactBytes = Buffer.concat([Buffer.from(encoded), Buffer.alloc(16384 - Buffer.byteLength(encoded), 0x20)]);
+    const response = await streamed(fixture, '/api/obituary', exactBytes, authenticated.cookie);
+    assert.equal(response.status, 200);
+    assert.ok(parseObituaryReply(await body(response)));
+    assert.equal(fixture.calls.length, 1);
+  });
+});
+
+test('narration claims survive actor eviction but expire and revoke with their original session without refunds', async () => {
+  await fixtureCase(async fixture => {
+    const authenticated = await login(fixture);
+    await (await submitObituary(fixture, authenticated.cookie)).body?.cancel();
+    await fixture.evict();
+    await narrationError(await submitObituary(fixture, authenticated.cookie), 'duplicate', 409);
+    await fixture.setTime(authenticated.session.expires_at_ms);
+    await narrationError(await submitObituary(fixture, authenticated.cookie), 'anonymous', 401);
+    assert.equal((await (await fixture.storage()).exec('SELECT * FROM obituary_claims')).length, 0);
+    const next = await login(fixture);
+    await (await submitObituary(fixture, next.cookie)).body?.cancel();
+    const logout = await fixture.runtime.dispatchFetch(origin + '/api/judge/session', {
+      method: 'DELETE', headers: { Origin: origin, Cookie: next.cookie },
+    });
+    assert.equal(logout.status, 204);
+    assert.equal((await (await fixture.storage()).exec('SELECT * FROM obituary_claims')).length, 0);
+    assert.equal(fixture.calls.length, 2);
+    const rows = await (await fixture.storage()).exec<{ admitted: number }>('SELECT admitted FROM daily ORDER BY utc_day');
+    assert.equal(rows.reduce((sum, row) => sum + row.admitted, 0), 2);
+  });
+});
+
+test('authenticated disabled narration capability survives unchanged session storage while POST remains zero-AI', async () => {
+  const owned = await mkdtemp(join(tmpdir(), 'obituary-disabled-session-'));
+  const persistencePath = join(owned, 'sqlite');
+  let cookie: string;
+  const enabled = await judgeRuntimeFixture({ persistencePath, nowMs: now, variables: { JUDGE_CODE: code } });
+  try { cookie = (await login(enabled)).cookie; }
+  finally { await enabled.dispose(); }
+  const disabled = await judgeRuntimeFixture({ persistencePath, nowMs: now, variables: { JUDGE_CODE: code, INFERENCE_ENABLED: 'false' } });
+  try {
+    const response = await disabled.runtime.dispatchFetch(origin + '/api/judge/obituary/config', { headers: { Cookie: cookie! } });
+    assert.equal(response.status, 200);
+    const capability = parseObituaryCapability(await body(response));
+    assert.ok(capability && !capability.enabled && capability.disabledReason === 'disabled');
+    await narrationError(await submitObituary(disabled, cookie!), 'disabled', 503);
+    await narrationError(await disabled.runtime.dispatchFetch(origin + '/api/judge/obituary/config'), 'anonymous', 401);
+    assert.deepEqual(await counts(disabled, cookie!), { session: 0, daily: 0 });
+    assert.equal(disabled.calls.length, 0);
+  } finally { await disabled.dispose(); await rm(owned, { recursive: true, force: true }); }
+});
+
+test('distinct sessions share the final UTC-day narration slot and duplicate claims remain spent across midnight', async () => {
+  await fixtureCase(async fixture => {
+    const first = await login(fixture);
+    const second = await login(fixture);
+    await seedCounts(fixture, first.cookie, 0, 39);
+    const responses = await Promise.all([submitObituary(fixture, first.cookie), submitObituary(fixture, second.cookie)]);
+    assert.deepEqual(responses.map(response => response.status).sort(), [200, 429]);
+    const winner = responses[0]!.status === 200 ? first : second;
+    const loser = winner === first ? second : first;
+    for (const response of responses) await response.body?.cancel();
+    assert.deepEqual(await counts(fixture, winner.cookie), { session: 1, daily: 40 });
+    assert.deepEqual(await counts(fixture, loser.cookie), { session: 0, daily: 40 });
+    assert.equal(fixture.calls.length, 1);
+    await fixture.setTime(Date.parse('2026-11-24T00:00:00Z'));
+    await narrationError(await submitObituary(fixture, winner.cookie), 'duplicate', 409);
+    assert.deepEqual(await counts(fixture, winner.cookie, '2026-11-24'), { session: 1, daily: 0 });
+    const response = await submitObituary(fixture, winner.cookie, obituaryRequest('b'.repeat(64)));
+    assert.equal(response.status, 200);
+    await response.body?.cancel();
+    assert.deepEqual(await counts(fixture, winner.cookie, '2026-11-24'), { session: 2, daily: 1 });
+    assert.equal(fixture.calls.length, 2);
+  });
+});

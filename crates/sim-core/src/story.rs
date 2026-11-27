@@ -298,6 +298,135 @@ pub struct StoryCursors {
     pub events: StoryCursor,
     pub chronicle: StoryCursor,
 }
+/// Complete read-only kin identity at the instant an own Death was appended.
+#[derive(Debug, Eq, PartialEq, Serialize)]
+pub struct NativeDeathKinPerson {
+    #[serde(serialize_with = "person")]
+    pub person: PersonId,
+    pub name: String,
+    pub sex: &'static str,
+    pub relation: &'static str,
+}
+#[derive(Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OwnDeathKinSummaryV1 {
+    #[serde(serialize_with = "decimal")]
+    pub death_event: EventId,
+    #[serde(serialize_with = "person")]
+    pub body: PersonId,
+    #[serde(serialize_with = "decimal")]
+    pub tick: Tick,
+    pub spouse: Vec<NativeDeathKinPerson>,
+    pub living_children: Vec<NativeDeathKinPerson>,
+    pub living_grandchildren: Vec<NativeDeathKinPerson>,
+    pub deceased_spouses: Vec<NativeDeathKinPerson>,
+    pub deceased_parents: Vec<NativeDeathKinPerson>,
+    pub deceased_children: Vec<NativeDeathKinPerson>,
+    pub deceased_siblings: Vec<NativeDeathKinPerson>,
+}
+
+/// Only the directed outgoing edges; traversal adds observation labels, not kin tags.
+fn outgoing_kin(
+    world: &World,
+    from: PersonId,
+) -> impl Iterator<Item = (PersonId, &crate::world::Relation)> {
+    world
+        .relations()
+        .range((from, PersonId(0))..=(from, PersonId(u64::MAX)))
+        .filter(|(_, relation)| relation.tags.has_kinship())
+        .map(|(&(_, to), relation)| (to, relation))
+}
+fn insert_kin(
+    category: &mut Vec<NativeDeathKinPerson>,
+    person: &crate::world::Person,
+    relation: &'static str,
+) {
+    if let Err(index) = category.binary_search_by_key(&person.id, |entry| entry.person) {
+        category.insert(
+            index,
+            NativeDeathKinPerson {
+                person: person.id,
+                name: person.name.text(person.sex),
+                sex: person.sex.as_str(),
+                relation,
+            },
+        );
+    }
+}
+impl OwnDeathKinSummaryV1 {
+    fn capture(world: &World, body: PersonId, death_event: EventId) -> Self {
+        let mut summary = Self {
+            death_event,
+            body,
+            tick: world.tick(),
+            spouse: Vec::new(),
+            living_children: Vec::new(),
+            living_grandchildren: Vec::new(),
+            deceased_spouses: Vec::new(),
+            deceased_parents: Vec::new(),
+            deceased_children: Vec::new(),
+            deceased_siblings: Vec::new(),
+        };
+        for (to, edge) in outgoing_kin(world, body) {
+            let person = &world.persons()[&to];
+            let tags = edge.tags;
+            let alive = matches!(person.life, Life::Alive { .. });
+            if tags.contains(RelationTag::Spouse) {
+                insert_kin(
+                    if alive {
+                        &mut summary.spouse
+                    } else {
+                        &mut summary.deceased_spouses
+                    },
+                    person,
+                    "spouse",
+                );
+            } else if tags.contains(RelationTag::FormerSpouse) && !alive {
+                insert_kin(&mut summary.deceased_spouses, person, "former_spouse");
+            }
+            if tags.contains(RelationTag::Child) {
+                insert_kin(
+                    if alive {
+                        &mut summary.living_children
+                    } else {
+                        &mut summary.deceased_children
+                    },
+                    person,
+                    "child",
+                );
+                for (grandchild, _) in outgoing_kin(world, to)
+                    .filter(|(_, edge)| edge.tags.contains(RelationTag::Child))
+                {
+                    let person = &world.persons()[&grandchild];
+                    if matches!(person.life, Life::Alive { .. }) {
+                        insert_kin(&mut summary.living_grandchildren, person, "grandchild");
+                    }
+                }
+            }
+            if tags.contains(RelationTag::Grandchild) && alive {
+                insert_kin(&mut summary.living_grandchildren, person, "grandchild");
+            }
+            if tags.contains(RelationTag::Parent) {
+                if !alive {
+                    insert_kin(&mut summary.deceased_parents, person, "parent");
+                }
+                for (sibling, _) in outgoing_kin(world, to).filter(|(sibling, edge)| {
+                    *sibling != body && edge.tags.contains(RelationTag::Child)
+                }) {
+                    let person = &world.persons()[&sibling];
+                    if matches!(person.life, Life::Dead { .. }) {
+                        insert_kin(&mut summary.deceased_siblings, person, "sibling");
+                    }
+                }
+            }
+            if to != body && tags.contains(RelationTag::Sibling) && !alive {
+                insert_kin(&mut summary.deceased_siblings, person, "sibling");
+            }
+        }
+        summary
+    }
+}
+
 #[derive(Debug, Eq, PartialEq, Serialize)]
 pub struct StoryBatch {
     pub version: u8,
@@ -306,6 +435,8 @@ pub struct StoryBatch {
     pub events: Vec<StoryEvent>,
     pub chronicle: Vec<StoryChronicle>,
     pub dreams: Vec<DreamFact>,
+    #[serde(rename = "ownDeathSummaries", skip_serializing_if = "Vec::is_empty")]
+    pub own_death_summaries: Vec<OwnDeathKinSummaryV1>,
     pub cursors: StoryCursors,
 }
 
@@ -416,6 +547,7 @@ impl StoryCollector {
                 events: Vec::new(),
                 chronicle: Vec::new(),
                 dreams: Vec::new(),
+                own_death_summaries: Vec::new(),
                 cursors: StoryCursors {
                     events: StoryCursor {
                         start: event_start,
@@ -431,6 +563,16 @@ impl StoryCollector {
             actors: BTreeMap::new(),
         }
     }
+    pub(crate) fn successful_death(&mut self, world: &World, deceased: PersonId, death: EventId) {
+        // Soul identity survives arrival/rebirth within this tick; day-start Focus does not.
+        if world.persons()[&deceased].soul != world.souls().player {
+            return;
+        }
+        self.batch
+            .own_death_summaries
+            .push(OwnDeathKinSummaryV1::capture(world, deceased, death));
+    }
+
     fn actor(&mut self, world: &World, id: PersonId) {
         use std::collections::btree_map::Entry;
         let entry = match self.actors.entry(id) {
@@ -1023,6 +1165,272 @@ mod tests {
         assert!(
             !selected.kin.contains_key(&people[2]),
             "an earlier-body kin fact is not kin of the new body"
+        );
+    }
+
+    #[test]
+    fn own_death_kin_categories_union_paths_and_use_exact_settlement_instant() {
+        let mut params = quiet();
+        params.mortality_ppm_by_age = [1_000_000; 120];
+        params.mortality_floor_ppm = 1_000_000;
+        let mut world = World::new_with_params(1205, WorldConfig::default(), params).unwrap();
+        world.tick = Tick(7);
+        let body = PersonId(10);
+        assert_eq!(world.persons()[&body].soul, world.souls().player);
+        world.relations.clear();
+        for id in [3, 4, 6] {
+            world.persons.get_mut(&PersonId(id)).unwrap().life = Life::Dead { death: Tick(1) };
+        }
+        for (from, to, tag) in [
+            (10, 14, RelationTag::Spouse),
+            (10, 3, RelationTag::Spouse), // Death retains this tag, even after remarriage.
+            (10, 4, RelationTag::FormerSpouse),
+            (10, 12, RelationTag::Child),
+            (10, 2, RelationTag::Child),
+            (10, 5, RelationTag::Parent),
+            (10, 16, RelationTag::Parent),
+            (10, 18, RelationTag::Grandchild),
+            (12, 18, RelationTag::Child), // Duplicate direct/traversed grandchild.
+            (2, 19, RelationTag::Child),  // Living grandchild through a deceased child.
+            (12, 6, RelationTag::Child),  // A deceased grandchild is not a survivor.
+            (10, 7, RelationTag::Sibling),
+            (5, 7, RelationTag::Child), // Duplicate direct/traversed sibling.
+            (5, 8, RelationTag::Child), // No direct Sibling edge was ever added.
+            (16, 8, RelationTag::Child), // Duplicate through another parent.
+            (5, 10, RelationTag::Child), // Self must never become a sibling.
+            (5, 17, RelationTag::Child), // A later-settled sibling is still living.
+            (20, 10, RelationTag::Spouse), // Incoming-only kin is not outgoing spouse.
+            (10, 1, RelationTag::Cousin), // Other kin is deliberately out of scope.
+        ] {
+            world.relations.insert(
+                (PersonId(from), PersonId(to)),
+                relation(0, RelTags::from_bits(tag.bit())),
+            );
+        }
+        let mut sim = Sim::from_test_world(world);
+        let mut control = sim.clone();
+        let report = sim.run_until_stop_observed(1);
+        assert_eq!(report.checksum, Some(control.step()));
+        assert_eq!(sim.world(), control.world());
+        let [summary] = report.story.own_death_summaries.as_slice() else {
+            panic!("exactly one player death has one complete kin summary");
+        };
+        let [death] = report.player_lifecycle.as_slice() else {
+            panic!("NPC deaths must not acquire player lifecycle facts");
+        };
+        assert_eq!(
+            (summary.body, summary.death_event, summary.tick),
+            (body, death.event, Tick(7))
+        );
+        let ids = |category: &[NativeDeathKinPerson]| {
+            category
+                .iter()
+                .map(|entry| entry.person.0)
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(ids(&summary.spouse), [14]);
+        assert_eq!(ids(&summary.living_children), [12]);
+        assert_eq!(ids(&summary.living_grandchildren), [18, 19]);
+        assert_eq!(ids(&summary.deceased_spouses), [3, 4]);
+        assert_eq!(ids(&summary.deceased_parents), [5]);
+        assert_eq!(ids(&summary.deceased_children), [2]);
+        assert_eq!(ids(&summary.deceased_siblings), [7, 8]);
+        assert_eq!(summary.deceased_spouses[0].relation, "spouse");
+        assert_eq!(summary.deceased_spouses[1].relation, "former_spouse");
+        for entry in &summary.deceased_spouses {
+            let native = &sim.world().persons()[&entry.person];
+            assert_eq!(entry.name, native.name.text(native.sex));
+            assert_eq!(entry.sex, native.sex.as_str());
+        }
+        for (category, role) in [
+            (&summary.spouse, "spouse"),
+            (&summary.living_children, "child"),
+            (&summary.living_grandchildren, "grandchild"),
+            (&summary.deceased_parents, "parent"),
+            (&summary.deceased_children, "child"),
+            (&summary.deceased_siblings, "sibling"),
+        ] {
+            for entry in category {
+                let native = &sim.world().persons()[&entry.person];
+                assert_eq!(entry.name, native.name.text(native.sex));
+                assert_eq!(entry.sex, native.sex.as_str());
+                assert_eq!(entry.relation, role);
+            }
+        }
+        // Classification is frozen before higher-ID deaths, not reconstructed at day end.
+        assert!(matches!(
+            sim.world().persons()[&PersonId(14)].life,
+            Life::Dead { death: Tick(7) }
+        ));
+        assert!(matches!(
+            sim.world().persons()[&PersonId(2)].life,
+            Life::Dead { death: Tick(7) }
+        ));
+        let wire = serde_json::to_value(&report.story).unwrap();
+        let wire_summary = &wire["ownDeathSummaries"][0];
+        assert_eq!(wire_summary["body"], 10);
+        assert_eq!(wire_summary["deathEvent"], death.event.0.to_string());
+        assert_eq!(wire_summary["tick"], "7");
+        assert_eq!(wire_summary.as_object().unwrap().len(), 10);
+        for key in [
+            "spouse",
+            "livingChildren",
+            "livingGrandchildren",
+            "deceasedSpouses",
+            "deceasedParents",
+            "deceasedChildren",
+            "deceasedSiblings",
+        ] {
+            assert!(wire_summary[key].is_array());
+        }
+        assert!(
+            sim.run_until_stop_observed(0)
+                .story
+                .own_death_summaries
+                .is_empty()
+        );
+        assert!(story_opening(sim.world()).own_death_summaries.is_empty());
+    }
+
+    #[test]
+    fn own_death_seed1205_complete_observation_witness() {
+        use crate::replay::{ReplayFile, verify};
+
+        let source = ReplayFile::from_json_str(include_str!(
+            "../../../fixtures/parity/seedP-playthrough.replay.json"
+        ))
+        .unwrap();
+        assert_eq!(source.seed, 1205);
+        assert_eq!(
+            source
+                .inputs
+                .iter()
+                .take(3)
+                .map(|input| input.tick)
+                .collect::<Vec<_>>(),
+            [734, 2328, 3866]
+        );
+        let mut sim = Sim::new(1205, WorldConfig::try_new(50).unwrap()).unwrap();
+        for input in source.inputs.iter().take(3) {
+            sim.submit(Tick(input.tick), input.payload.into()).unwrap();
+        }
+        let opening = story_opening(sim.world());
+        let mut batches = Vec::new();
+        while sim.world().tick().0 < 5_373 {
+            let remaining = u32::try_from(5_373 - sim.world().tick().0).unwrap();
+            let report = sim.run_until_stop_observed(remaining);
+            assert!(report.ran > 0);
+            batches.push(report);
+        }
+        assert_eq!(sim.world().tick(), Tick(5_373));
+        assert_eq!(sim.checksums(), &source.checksums[..5_373]);
+        assert_eq!(
+            sim.checksums().last().unwrap().to_hex_string(),
+            "8a1b9da5de15bb91"
+        );
+        let summary_count: usize = batches
+            .iter()
+            .map(|batch| batch.story.own_death_summaries.len())
+            .sum();
+        assert_eq!(summary_count, 1);
+        let death_batch = batches.last().unwrap();
+        let summary = &death_batch.story.own_death_summaries[0];
+        assert_eq!(
+            (summary.death_event, summary.body, summary.tick),
+            (EventId(2368), PersonId(10), Tick(5372))
+        );
+        assert!(death_batch.player_lifecycle.iter().any(|fact| {
+            fact.event == summary.death_event
+                && fact.body == summary.body
+                && fact.tick == summary.tick
+        }));
+        let actor = death_batch
+            .story
+            .actors
+            .iter()
+            .find(|actor| actor.person == summary.body)
+            .unwrap();
+        assert_eq!(actor.name, "Nadine Bradley");
+        assert_eq!(actor.sex, "female");
+        assert_eq!(actor.origin, "native");
+        assert_eq!(actor.age_at_death, Some(60));
+        assert!(summary.deceased_spouses.iter().any(|relative| {
+            relative.name == "Clifford Bradley"
+                && relative.sex == "male"
+                && relative.relation == "spouse"
+        }));
+        assert!(summary.spouse.iter().any(|relative| {
+            relative.name == "Marvin Jenkins"
+                && relative.sex == "male"
+                && relative.relation == "spouse"
+        }));
+        let estate_events = death_batch
+            .story
+            .events
+            .iter()
+            .filter(|event| {
+                event.caused_by.contains(&summary.death_event)
+                    && matches!(event.kind.0, EventKind::Inheritance { .. })
+            })
+            .count();
+        assert_eq!(
+            estate_events, 2,
+            "the admitted batch contains the whole estate settlement"
+        );
+        let funeral_events = death_batch
+            .story
+            .events
+            .iter()
+            .filter(|event| {
+                event.tick == summary.tick
+                    && matches!(event.kind.0, EventKind::Offering { ghost, .. } if ghost == summary.body)
+            })
+            .count();
+        assert_eq!(
+            funeral_events, 2,
+            "the admitted batch contains completed funeral offerings"
+        );
+        // Contiguous cursors prove this is the whole admitted suffix, not the selected journal fixture.
+        let mut event_end = opening.cursors.events.end;
+        let mut chronicle_end = opening.cursors.chronicle.end;
+        for batch in &batches {
+            assert_eq!(batch.story.cursors.events.start, event_end);
+            assert_eq!(batch.story.cursors.chronicle.start, chronicle_end);
+            event_end = batch.story.cursors.events.end;
+            chronicle_end = batch.story.cursors.chronicle.end;
+            for event in &batch.story.events {
+                assert_eq!(
+                    event.kind.0,
+                    sim.world().log().event(event.id).unwrap().kind
+                );
+            }
+        }
+        assert_eq!(event_end, sim.world().log().len());
+        assert_eq!(
+            chronicle_end,
+            sim.world().narrator().chronicle.entries().len()
+        );
+        let replay = ReplayFile::from_sim(&sim).unwrap();
+        assert_eq!(replay.version, 5);
+        assert_eq!(replay.inputs, source.inputs[..3]);
+        verify(&replay).unwrap(); // Closure observers still reproduce every canonical checksum.
+        let replay_wire: serde_json::Value =
+            serde_json::from_str(&replay.to_json_string().unwrap()).unwrap();
+        assert!(replay_wire.get("ownDeathSummaries").is_none());
+        assert!(
+            sim.run_until_stop_observed(0)
+                .story
+                .own_death_summaries
+                .is_empty()
+        );
+        assert!(story_opening(sim.world()).own_death_summaries.is_empty());
+        println!(
+            "OBITUARY_SEED1205_COMPLETE_WITNESS {}",
+            json!({
+                "seed": "1205", "config": {"opening_residents": 50},
+                "completedTicks": "5373", "checksum": "8a1b9da5de15bb91",
+                "inputs": &replay.inputs, "openingBatch": opening, "observedBatches": batches,
+            })
         );
     }
 }
