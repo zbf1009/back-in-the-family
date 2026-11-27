@@ -1,11 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { appendStory, createNotebook, exportNotebook, journalGroupCount, journalMemberLines, journalRange, latestPrimaryIdentity, latestTownEvent, JOURNAL_EXPANSION_SIZE, JOURNAL_RANGE_SIZE, type LifeNotebook } from '../../src/main/life-journal.ts';
+import { appendStory, createNotebook, entryContext, exportNotebook, journalGroupCount, journalMemberLines, journalRange, latestPrimaryIdentity, latestTownEvent, JOURNAL_EXPANSION_SIZE, JOURNAL_RANGE_SIZE, type LifeNotebook } from '../../src/main/life-journal.ts';
 import { keyedStore, PersistentSequence } from '../../src/main/persistent-store.ts';
+import { formatMoney } from '../../src/main/calendar.ts';
 import type { DreamFact, StoryActor, StoryBatch, StoryChronicle, StoryEvent } from '../../src/shared/story.ts';
+import type { WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 
 const native: { events: StoryEvent[]; chronicle: StoryChronicle[]; actors: StoryActor[] } = JSON.parse(readFileSync(new URL('../fixtures/journal-seed1205.json', import.meta.url), 'utf8'));
+const openingWorld: WorldSnapshot = JSON.parse(readFileSync(new URL('../fixtures/journal-seed1205-opening.world.json', import.meta.url), 'utf8'));
 const context = { playerSoul: 'S-0010', currentBody: 10 };
 // These are consumer-boundary probes derived from native fact shapes, not gameplay evidence.
 const repayment = native.events.find(event => event.kind.type === 'repayment' && event.causedBy.length)!;
@@ -82,14 +85,21 @@ test('Late Chronicle claims steal from repeated/weekly groups in native Chronicl
   assert.deepEqual(new Set(journalRange(earlier, context).flatMap(group => [...group.members])), new Set(earlier.identities));
 });
 
-test('Late linked events clear every missing notice but join only the earliest claimant', () => {
-  const pending = add(createNotebook(9), batch([], [
+test('Late linked events resolve missing facts and join only the earliest claimant', () => {
+  const pending = appendStory(createNotebook(9), [{ worldId: 9, batch: { ...batch([], [
     { ...record, index: '9', tick: '20', appended: ['9007199254740994', '9007199254740993'] },
     { ...record, index: '8', tick: '20', appended: ['9007199254740993'] },
-  ]));
+  ]), actors: native.actors } }], { world: openingWorld });
+  const pendingExport = exportNotebook(pending);
+  const pendingGroups = journalRange(pending, context);
   assert.deepEqual([...pending.journal.links.get('9007199254740993')!.values()], [true, true]);
   assert.equal(pending.journal.links.size, 2);
-  assert.ok(journalRange(pending, context).every(group => /not reached/.test(group.text)));
+  assert.deepEqual(pendingGroups.map(group => [...group.members]), [['c:8'], ['c:9']]);
+  const captured = entryContext(pending, 'c:9')!;
+  assert.equal(captured.focus, context.currentBody);
+  assert.equal(captured.phase.kind, 'life');
+  assert.equal(captured.phase.person, context.currentBody);
+  assert.deepEqual(captured.actorContext, record.actorContext);
   const first = payment('9007199254740994', '18'), shared = payment('9007199254740993', '19');
   const partial = add(pending, batch([first]));
   assert.equal(partial.journal.links.size, 1);
@@ -102,6 +112,9 @@ test('Late linked events clear every missing notice but join only the earliest c
   assert.equal(complete.events.get(first.id), first);
   assert.equal(complete.events.get(shared.id), shared);
   assert.deepEqual(complete.chronicle.get('9')!.appended, ['9007199254740994', '9007199254740993']);
+  assert.equal(entryContext(complete, `e:${first.id}`)!.phase.key, captured.phase.key);
+  assert.equal(entryContext(complete, `e:${shared.id}`)!.focus, captured.focus);
+  assert.equal(entryContext(complete, 'c:9'), captured);
   assert.equal(add(complete, batch([first, shared])), complete, 'duplicate facts do not notify resolved waiters again');
   const late = add(complete, batch([], [{ ...record, index: '7', tick: '21', appended: [shared.id, shared.id] }]));
   assert.equal(late.journal.links.size, 0, 'available linked facts never register a waiter');
@@ -110,11 +123,24 @@ test('Late linked events clear every missing notice but join only the earliest c
   assert.equal(late.journal.chronicles.get('8')!.missing, 0);
   assert.deepEqual(late.chronicle.get('7')!.appended, [shared.id, shared.id]);
   const groups = journalRange(complete, context);
-  assert.ok(groups.every(group => !/not reached/.test(group.text)));
+  const completeExport = exportNotebook(complete);
   assert.deepEqual([...groups.find(group => group.id === '9:c:8')!.members], ['c:8', 'e:9007199254740993']);
   assert.deepEqual([...groups.find(group => group.id === '9:c:9')!.members], ['c:9', 'e:9007199254740994']);
   assert.equal(groups.find(group => group.id === '9:c:9')!.from, '18');
-  assert.ok(journalRange(pending, context).every(group => /not reached/.test(group.text)));
+  const lines = groups.flatMap(group => journalMemberLines(group, complete, context));
+  assert.deepEqual(lines.map(line => line.identity), ['c:9', 'e:9007199254740994', 'c:8', 'e:9007199254740993']);
+  for (const event of [first, shared]) {
+    const line = lines.find(line => line.identity === `e:${event.id}`)!;
+    assert.equal(line.tick, event.tick);
+    assert.ok(line.text.includes(formatMoney('9007199254740993')));
+    assert.deepEqual(completeExport.events[event.id], event);
+  }
+  assert.deepEqual(journalRange(complete, { ...context, currentBody: 61 }), groups, 'later body selection does not rewrite captured entries');
+  assert.deepEqual(exportNotebook(complete), completeExport, 'rendering and expansion do not alter retained facts');
+  assert.deepEqual(journalRange(pending, context), pendingGroups);
+  assert.deepEqual(exportNotebook(pending), pendingExport);
+  assert.equal(pending.journal.chronicles.get('9')!.missing, 2);
+  assert.equal(pending.journal.chronicles.get('8')!.missing, 1);
   assert.equal(pending.journal.links.size, 2, 'resolved links leave old roots intact');
 });
 
@@ -124,7 +150,7 @@ test('Cross-week repayment extension removes only its old weekly contribution an
   const before = add(createNotebook(9), batch([...payments, other]));
   assert.equal(journalGroupCount(before, 'town'), 1);
   for (const section of ['life', 'town', 'all'] as const) assert.equal(before.journal[section].aggregate, undefined);
-  const candidates = before.journal.weeks.get('false:false:0')!;
+  const candidates = before.journal.town.at(0)!.constituents!;
   assert.equal(candidates.aggregate.count, 6);
   assert.equal(candidates.aggregate.sum, 5n * 9007199254740993n);
   assert.equal(candidates.at(0)!.references.aggregate.count, 5);
@@ -234,7 +260,7 @@ test('Section and endpoint are selected before rendering; body/actor changes tou
   assert.equal(renamed.journal, original.journal);
   assert.equal(renamed.identities, original.identities);
   assert.equal(renamed.events, original.events);
-  assert.notEqual(journalRange(renamed, { ...context, currentBody: 61 }, 'life')[0]!.text, journalRange(original, { ...context, currentBody: 61 }, 'life')[0]!.text);
+  assert.equal(journalRange(renamed, { ...context, currentBody: 61 }, 'life')[0]!.text, journalRange(original, { ...context, currentBody: 61 }, 'life')[0]!.text);
 });
 
 test('Long repayment append does not read old facts and summary/expansion materialize only their requested facts', () => {

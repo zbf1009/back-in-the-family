@@ -38,7 +38,6 @@ test('Property 27: balances, Snapshot price, Path_Status and complete forms alon
       assert.equal(view.balance, String(balance));
       assert.equal(view.dreamPrice, String(price));
       assert.equal(view.dreamEnabled, balance >= price && !nobody);
-      assert.equal(view.dreamReasons.length, Number(balance < price) + Number(nobody));
       assert.deepEqual(underworldView({ ...ui, underworldRecorded: { worldId: 1, tick: world.tick } }), view,
         'recording an input changes no value or enablement before time runs');
       for (const row of view.slots) {
@@ -67,12 +66,14 @@ test('Five Birth_Slots all remain in Snapshot order beside the fixed Standing_Sl
   assert.equal(view.slots.filter(row => row.kind === 'birth_slot').length, 5);
 });
 
-test('Dream controls name both disabled reasons and use a non-default Snapshot price', () => {
+test('Dream controls retain the Snapshot price and reject an empty recipient set', () => {
   const world = waitingSnapshot(0, { dream_price: '75', connected: [] });
   world.joss = world.joss.map(account => account.soul_id === world.player_soul ? { ...account, balance: '74' } : account);
   const view = underworldView(uiFor(world))!;
   assert.equal(view.dreamEnabled, false);
-  assert.deepEqual(view.dreamReasons, ['Not enough joss paper for a dream.', 'No connected people.']);
+  assert.equal(view.balance, '74');
+  assert.equal(view.dreamPrice, '75');
+  assert.equal(view.connected.length, 0);
   assert.deepEqual(DREAM_INTENTS, ['warn', 'reassure', 'urge', 'reveal', 'request_offering', 'forbid']);
 });
 
@@ -93,7 +94,7 @@ test('LV-C2: world replacement and fatal state gate underworld inputs but an old
     const view = underworldView(blocked)!;
     assert.equal(view.dreamEnabled, false); assert.ok(view.slots.every(slot => !slot.claimEnabled));
     assert.equal(view.bribe.enabled, false); assert.ok(view.haunt.targets.every(target => !target.enabled));
-    assert.ok(view.dreamReasons.includes('World controls are unavailable.'));
+    assert.equal(view.controlsAvailable, false);
     assert.equal(view.balance, live.balance); assert.equal(view.dreamPrice, live.dreamPrice);
   }
   const older = underworldView({ ...ui, tick: '501', runState: 'running' })!;

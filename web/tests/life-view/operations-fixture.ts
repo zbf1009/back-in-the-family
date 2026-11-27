@@ -10,7 +10,7 @@ import type { PlayerFamily, PlayerOption, WorldSnapshot } from '../../src/shared
 import { DECISION_CONFIG_VERSION } from '../../src/shared/decision.ts';
 
 const DIRECTORY = new URL('../../../target/life-in-view-evidence/c4-scenarios/', import.meta.url);
-const EVIDENCE = new URL('../../../target/life-in-view-evidence/', import.meta.url);
+const EVIDENCE = new URL('../../../target/life-unfolds/lu-p1-operations/', import.meta.url);
 export interface Scenario {
   key: string; kind: string; replay: string; world: string; tick: string; seed: string; config: unknown; sha256: string;
   family?: PlayerFamily; optionLabels?: PlayerOption[]; slot?: string; path?: string; target?: number;
@@ -111,11 +111,22 @@ export async function restoreScenario(page: Page, scenario: Scenario): Promise<W
   const bytes = readFileSync(new URL(scenario.replay, DIRECTORY), 'utf8');
   expect(createHash('sha256').update(bytes).digest('hex')).toBe(scenario.sha256);
   const replay = JSON.parse(bytes) as Replay;
+  // Seed and town size are the complete supported creation controls. Reject a
+  // richer replay config rather than silently recreating a different World.
+  const config = replay.config as { opening_residents?: unknown } | null;
+  if (config === null || typeof config !== 'object' || Array.isArray(config)
+      || Object.keys(config).length !== 1 || typeof config.opening_residents !== 'number'
+      || !Number.isInteger(config.opening_residents)) {
+    throw Error(`Scenario ${scenario.key} has a config unsupported by the real creation controls: ${JSON.stringify(replay.config)}`);
+  }
   await disclosure(page, 'world-setup', true);
   await page.getByTestId('seed').fill(replay.seed);
-  await page.getByTestId('config').fill(JSON.stringify(replay.config));
+  await page.getByTestId('town-size').fill(String(config.opening_residents));
   await page.getByTestId('create').click();
+  await disclosure(page, 'technical-details', true);
   await expect(page.getByTestId('tick')).toHaveText('0');
+  expect(JSON.parse(await page.getByTestId('config').textContent() ?? '')).toEqual(replay.config);
+  await disclosure(page, 'world-setup', false);
   // Setup only: submit the source's assigned-seq order and reproduce each prefix.
   // Only this test's passive recorder is disabled during the large setup prefix.
   // Create and all claimed UI actions retain real protocol messages; setup bytes
@@ -146,19 +157,19 @@ export async function restoreScenario(page: Page, scenario: Scenario): Promise<W
   await expect(page.getByTestId('checksum')).toHaveText(replay.checksums.at(-1)!);
   const world = await worldRead(page);
   expect(world).toEqual(JSON.parse(readFileSync(new URL(scenario.world, DIRECTORY), 'utf8')));
-  await expect(page.getByTestId('run-state')).toHaveText('paused');
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
   return world;
 }
 export async function explicitStep(page: Page): Promise<WorldSnapshot> {
   const before = await worldRead(page);
   await page.getByTestId('step').click();
   await expect(page.getByTestId('tick')).toHaveText(String(BigInt(before.tick) + 1n));
-  await expect(page.getByTestId('run-state')).toHaveText('paused');
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
   return worldRead(page);
 }
 export async function saveOperation(page: Page, info: TestInfo, name: string, facts: Record<string, unknown>): Promise<void> {
   const exported = await replayRead(page);
-  const stem = `c4-operation-${name}`;
+  const stem = `lu-p1-operation-${name}`;
   await mkdir(EVIDENCE, { recursive: true });
   const replay = new URL(`${stem}.replay.json`, EVIDENCE);
   const png = new URL(`${stem}.png`, EVIDENCE);

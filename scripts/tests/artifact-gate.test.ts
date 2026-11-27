@@ -161,7 +161,8 @@ test('Artifact_Check actual CLI: independent actual inputs pass, each isolated m
         const target = join(project, path);
         const original = await readFile(target);
         assert.ok(original.equals(file.bytes), `Consumer must copy the actual owned ${path} bytes`);
-        await boundary(`${path} edit rejects committed art provenance`, /Checked source bytes differ from source commit/,
+        const reason = path === 'web/public/credits.html' ? /Credits page must match the checked public source/ : /Checked source bytes differ from source commit/;
+        await boundary(`${path} edit rejects checked art provenance`, reason,
           () => writeFile(target, Buffer.concat([original, Buffer.from('\n')])), () => writeFile(target, original));
       }
       const addedSource = join(project, directory, 'uncommitted-art-input.txt');
@@ -183,14 +184,28 @@ test('Artifact_Check actual CLI: independent actual inputs pass, each isolated m
     });
     // Malformed fixtures get an external digest before invocation. This is
     // distinct from tampering a successful producer's unchanged trust anchor.
-    const catalogIDs = ['arrayvec', 'blake3', 'cfg-if', 'constant_time_eq', 'memchr', 'project', 'rust-llvm-exception',
-      'rust-unicode', 'serde', 'svelte', 'unicode-ident', 'wasm-bindgen', 'wasm-bindgen-shared'];
+    const catalogIDs = ['arrayvec', 'blake3', 'cc-by-4.0', 'cfg-if', 'character-portrait-kit', 'constant_time_eq', 'memchr', 'project',
+      'rust-llvm-exception', 'rust-unicode', 'serde', 'svelte', 'unicode-ident', 'wasm-bindgen', 'wasm-bindgen-shared'];
     assert.deepEqual(expectedInputs.licenseClosure.entries.map(entry => entry.id), catalogIDs);
-    assert.deepEqual(Object.keys(expectedInputs.licenseClosure.sourcePins).sort(), ['Cargo.lock', 'LICENSE', 'rust-toolchain.toml', 'web/package.json', 'web/pnpm-lock.yaml']);
+    assert.deepEqual(Object.keys(expectedInputs.licenseClosure.sourcePins).sort(), ['Cargo.lock', 'LICENSE', 'rust-toolchain.toml',
+      'web/assets/licenses/CC-BY-4.0.txt', 'web/assets/licenses/character-portrait-kit-NOTICE.txt', 'web/package.json', 'web/pnpm-lock.yaml']);
     for (const [path, sha] of Object.entries(expectedInputs.licenseClosure.sourcePins)) assert.equal(sha, expectedInputs.sourceDigests[path]);
     const svelte = expectedInputs.licenseClosure.entries.find(entry => entry.id === 'svelte')!;
     assert.equal(svelte.version, '5.57.3');
     assert.equal(svelte.sourcePin, 'npm:svelte@5.57.3/LICENSE.md');
+    for (const [id, path, version, sourcePin] of [
+      ['cc-by-4.0', 'web/assets/licenses/CC-BY-4.0.txt', '4.0', 'license:CC-BY-4.0/web/assets/licenses/CC-BY-4.0.txt'],
+      ['character-portrait-kit', 'web/assets/licenses/character-portrait-kit-NOTICE.txt', 'CC-BY-4.0',
+        'asset:character-portrait-kit@CC-BY-4.0/web/assets/licenses/character-portrait-kit-NOTICE.txt'],
+    ] as const) {
+      const entry = expectedInputs.licenseClosure.entries.find(entry => entry.id === id)!;
+      const source = await readFile(join(project, path));
+      assert.equal(entry.version, version);
+      assert.equal(entry.sourcePin, sourcePin);
+      assert.deepEqual(Buffer.from(entry.text, 'utf8'), source);
+      assert.equal(entry.sha256, digest(source));
+      assert.equal(entry.sha256, expectedInputs.licenseClosure.sourcePins[path]);
+    }
     await replace('full root Apache LICENSE bytes remain mandatory in the independent consumer', 'LICENSE', Buffer.from('Apache License Version 2.0\n'), /Project LICENSE must be copied intact/);
     for (const entry of expectedInputs.licenseClosure.entries) {
       if (entry.id === 'project') continue;
@@ -250,7 +265,7 @@ test('Artifact_Check actual CLI: independent actual inputs pass, each isolated m
     await malformed('wrong runtime logical source pin rejects', value => { value.licenseClosure.entries.find(entry => entry.id === 'svelte')!.sourcePin = 'npm:svelte@5.57.3/README.md'; }, /License catalog version or source pin differs/);
     await malformed('wrong project source pin rejects', value => { value.licenseClosure.entries.find(entry => entry.id === 'project')!.sourcePin = `git:${'0'.repeat(40)}:LICENSE`; }, /Project license source identity differs/);
     await malformed('wrong project version rejects', value => { value.licenseClosure.entries.find(entry => entry.id === 'project')!.version = '1'; }, /Project license source identity differs/);
-    await malformed('missing one of exact five source pins rejects', value => { delete value.licenseClosure.sourcePins['Cargo.lock']; }, /License source pin fields are closed/);
+    await malformed('missing one of exact seven source pins rejects', value => { delete value.licenseClosure.sourcePins['Cargo.lock']; }, /License source pin fields are closed/);
     await malformed('extra source pin rejects', value => { value.licenseClosure.sourcePins['mise.toml'] = value.sourceDigests['mise.toml']!; }, /License source pin fields are closed/);
     await malformed('source pin not equal to checked digest rejects', value => { value.licenseClosure.sourcePins['Cargo.lock'] = '0'.repeat(64); }, /License source pins differ from checked source digests/);
     await malformed('license raw text SHA mismatch rejects', value => { value.licenseClosure.entries[0]!.sha256 = '0'.repeat(64); }, /License text differs from its raw SHA256/);
@@ -270,6 +285,27 @@ test('Artifact_Check actual CLI: independent actual inputs pass, each isolated m
       const entry = value.licenseClosure.entries.find(entry => entry.id === 'svelte')!;
       entry.text = entry.text.slice(0, -16); entry.sha256 = digest(Buffer.from(entry.text, 'utf8'));
     }, /License text differs from the complete pinned runtime source/);
+    for (const id of ['cc-by-4.0', 'character-portrait-kit']) {
+      await malformed(`missing ${id} artwork license entry rejects`, value => {
+        value.licenseClosure.entries = value.licenseClosure.entries.filter(entry => entry.id !== id);
+      }, /License catalog IDs must be exact, sorted and unique/);
+      await malformed(`truncated ${id} text rejects despite recomputed inner SHA`, value => {
+        const entry = value.licenseClosure.entries.find(entry => entry.id === id)!;
+        entry.text = entry.text.slice(0, -16);
+        entry.sha256 = digest(Buffer.from(entry.text, 'utf8'));
+      }, /Asset license text differs from the complete pinned checked source/);
+    }
+    await malformed('portrait cannot substitute a different selected license', value => {
+      value.licenseClosure.entries.find(entry => entry.id === 'character-portrait-kit')!.version = 'CC-BY-3.0';
+    }, /License catalog version or source pin differs/);
+    await malformed('portrait cannot substitute an unlisted attribution source', value => {
+      value.licenseClosure.entries.find(entry => entry.id === 'character-portrait-kit')!.sourcePin = 'asset:character-portrait-kit@CC-BY-4.0/README.md';
+    }, /License catalog version or source pin differs/);
+    await malformed('artwork closure cannot bind a different checked source digest', value => {
+      const path = 'web/assets/licenses/CC-BY-4.0.txt';
+      value.sourceDigests[path] = '0'.repeat(64);
+      value.licenseClosure.sourcePins[path] = '0'.repeat(64);
+    }, /Asset license text differs from the complete pinned checked source/);
     await t.test('invalid raw UTF-8 in externally pinned envelope rejects lossless decoding', async () => {
       const marker = Buffer.from('Apache');
       const position = expectedBytes.indexOf(marker);

@@ -5,6 +5,8 @@ import baselineBytes from '../../../fixtures/parity/seed1-pairwise.snapshot-500.
 import nativeLifecycleBytes from '../../../fixtures/life-view/c4-native-lifecycle-props.json?raw';
 import { initialUiState, reduce, type UiState } from '../../src/main/ui-state.ts';
 import { TRAITS } from '../../src/main/customization.ts';
+import { appendStory, createNotebook } from '../../src/main/life-journal.ts';
+import type { StoryActor, StoryBatch } from '../../src/shared/story.ts';
 import type { ChronicleEntry, Needed, PlayerFamily, PlayerLifecycleFact, PlayerNode, PlayerOption, Preview, UnderworldView, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import type { PauseReason, Snapshot } from '../../src/shared/protocol.ts';
 import LifeViewFixture from './LifeViewFixture.svelte';
@@ -32,6 +34,10 @@ world.magistrate.soul_id = soulId(world.magistrate.soul_id);
 for (const soul of world.souls) soul.soul_id = soulId(soul.soul_id);
 for (const account of world.joss) account.soul_id = soulId(account.soul_id);
 const body = world.residents.find(person => person.id === world.player.body)!;
+// The removed body's recorded baseline facts remain available to the notebook.
+// Constructed earlier-body IDs and retained-name-only people do not acquire sex
+// or age by borrowing an unrelated living resident's illustration.
+const retainedBody = structuredClone(body);
 const large = scenario.endsWith('-large');
 const waiting = scenario.startsWith('waiting') || ['motion-death', 'motion-possession', 'motion-rebuild', 'motion-joined'].includes(scenario);
 const modifiedFields = ['Soul ID representation: legacy S-000n to canonical decimal strings'];
@@ -114,7 +120,7 @@ if (scenario === 'choice-large') {
     })), rules_default: 'help_at_home',
   };
   world.player_node = node;
-  modifiedFields.push('Constructed current choice with every existing Preview unit/trait, all offered options, complete timing/stakes/default and signed64 strings');
+  modifiedFields.push('Constructed current choice with every existing Preview unit/trait, all offered options and exact raw signed64 strings');
 }
 
 if (scenario.startsWith('event-')) {
@@ -188,7 +194,7 @@ if (scenario.startsWith('motion-') && scenario !== 'motion-native') {
     reasons.push('player_reborn');
   }
   if (scenario === 'motion-joined' || scenario === 'motion-dream') {
-    world.last_dream = { tick: world.tick, dreamer: 1, applied: 'take_comfort' };
+    world.last_dream = { tick: String(BigInt(world.tick) - 1n), dreamer: 1, applied: 'take_comfort' };
     reasons.push('dream_resolved');
   }
   modifiedFields.push('COMPONENT-ONLY seven-category presentation props, exact lifecycle event/body tuples, complete legal options and signed previews; not native lifecycle receipt evidence');
@@ -215,6 +221,25 @@ let ui: UiState = { ...initial, worldId: 1, runState: 'paused', tick: world.tick
   playerNode: world.player_node === null ? { pending: false } : { pending: true, node: world.player_node.id, answered: false },
   underworldForm: { ...initial.underworldForm, dreamer: world.underworld_view?.connected[0] ?? null },
 };
+const focus = world.player.body ?? world.player_wait?.ghost;
+const actors: StoryActor[] = world.residents.map(person => ({
+  person: person.id, soulId: person.soul_id, name: person.name, sex: person.sex, origin: person.origin,
+}));
+if (scenario !== 'motion-native' && world.player.place === 'waiting' && focus === retainedBody.id) actors.push({
+  person: retainedBody.id, soulId: world.player_soul, name: world.player.earlier_bodies.find(person => person.id === retainedBody.id)!.name,
+  sex: retainedBody.sex, origin: retainedBody.origin, ageAtDeath: String(retainedBody.age),
+});
+const batch: StoryBatch = {
+  version: 1, opening: true, actors, events: [], dreams: [],
+  chronicle: world.chronicle.map((record, index) => ({
+    index: String(index), tick: record.tick, family: record.family, stakes: record.stakes,
+    applied: record.applied, source: record.source, chooserAbsent: record.chooser_absent,
+    skipped: record.skipped, appended: [], actorContext: scenario === 'motion-native' || focus === undefined ? [] : [{ relativeTo: focus, basis: 'opening-current', actors: [] }],
+  })),
+  cursors: { events: { start: '0', end: '0' }, chronicle: { start: '0', end: String(world.chronicle.length) } },
+};
+ui = { ...ui, notebook: appendStory(createNotebook(ui.worldId), [{ worldId: ui.worldId, batch }], { world, lifecycle }) };
+modifiedFields.push('Notebook component carrier indexes the full raw Chronicle snapshot with explicit World/lifecycle binding; it is not an original native StoryDelivery');
 if (scenario.endsWith('-history') || scenario.startsWith('motion-')) {
   const snapshot: Snapshot = { worldId: ui.worldId, runState: ui.runState, tick: ui.tick, checksum: ui.checksum, tps: ui.tps, speed: ui.speed,
     actions: [], playerLifecycle: lifecycle, playerNode: ui.playerNode,

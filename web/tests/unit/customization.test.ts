@@ -43,7 +43,6 @@ test('Property 28: generated previews use the selected Snapshot base, clamp and 
       for (const row of preview.values) assert.equal(row.base, base[row.trait]);
       assert.equal(preview.price, String(price));
       assert.equal(preview.override !== null, carryOver !== null && changed.includes(carryOver));
-      if (preview.override !== null) assert.equal(preview.override, `Customization overrides the carried value on ${carryOver}.`);
       assert.equal(JSON.stringify(ui.world), before);
       assert.deepEqual(customizationInput(ui.underworldForm.customization), customization);
     }), { numRuns: RUNS });

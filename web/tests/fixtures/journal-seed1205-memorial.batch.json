@@ -1,0 +1,6088 @@
+{
+  "version": 1,
+  "opening": false,
+  "actors": [
+    {
+      "person": 1,
+      "soulId": "S-0001",
+      "name": "Gordon Abbott",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-18543"
+    },
+    {
+      "person": 2,
+      "soulId": "S-0002",
+      "name": "Clara Abbott",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-18340"
+    },
+    {
+      "person": 3,
+      "soulId": "S-0003",
+      "name": "Bernard Abbott",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-8394"
+    },
+    {
+      "person": 4,
+      "soulId": "S-0004",
+      "name": "Alfred Norris",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-7615"
+    },
+    {
+      "person": 5,
+      "soulId": "S-0005",
+      "name": "Helen Coleman",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-12037"
+    },
+    {
+      "person": 6,
+      "soulId": "S-0006",
+      "name": "Margaret Doyle",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-14241"
+    },
+    {
+      "person": 7,
+      "soulId": "S-0007",
+      "name": "Francis Doyle",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-16126"
+    },
+    {
+      "person": 8,
+      "soulId": "S-0008",
+      "name": "Ivy Doyle",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-1572"
+    },
+    {
+      "person": 9,
+      "soulId": "S-0009",
+      "name": "Bernice Doyle",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-6463"
+    },
+    {
+      "person": 10,
+      "soulId": "S-0010",
+      "name": "Nadine Bradley",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-16748"
+    },
+    {
+      "person": 11,
+      "soulId": "S-0011",
+      "name": "Clifford Bradley",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-17359",
+      "ageAtDeath": "60"
+    },
+    {
+      "person": 12,
+      "soulId": "S-0012",
+      "name": "Marcus Bradley",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-5382"
+    },
+    {
+      "person": 13,
+      "soulId": "S-0013",
+      "name": "Elise Boone",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-18827"
+    },
+    {
+      "person": 14,
+      "soulId": "S-0014",
+      "name": "Felix Boone",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-19086"
+    },
+    {
+      "person": 15,
+      "soulId": "S-0015",
+      "name": "Marion Boone",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-14925"
+    },
+    {
+      "person": 16,
+      "soulId": "S-0016",
+      "name": "Martha Cooper",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-15841"
+    },
+    {
+      "person": 17,
+      "soulId": "S-0017",
+      "name": "Frank Cooper",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-15325"
+    },
+    {
+      "person": 18,
+      "soulId": "S-0018",
+      "name": "Opal Cooper",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-4561"
+    },
+    {
+      "person": 19,
+      "soulId": "S-0019",
+      "name": "Jasper Ellis",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-24177"
+    },
+    {
+      "person": 20,
+      "soulId": "S-0020",
+      "name": "Mabel Pierce",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-8338"
+    },
+    {
+      "person": 21,
+      "soulId": "S-0021",
+      "name": "Olive Cooper",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-22168"
+    },
+    {
+      "person": 22,
+      "soulId": "S-0022",
+      "name": "Charles Cooper",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-23374"
+    },
+    {
+      "person": 23,
+      "soulId": "S-0023",
+      "name": "Cora Cooper",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-6156"
+    },
+    {
+      "person": 24,
+      "soulId": "S-0024",
+      "name": "Lucy Cooper",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-5205"
+    },
+    {
+      "person": 25,
+      "soulId": "S-0025",
+      "name": "Lois Barrett",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-12954"
+    },
+    {
+      "person": 26,
+      "soulId": "S-0026",
+      "name": "Lloyd Barrett",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-12394"
+    },
+    {
+      "person": 28,
+      "soulId": "S-0028",
+      "name": "Faye Adler",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-20210"
+    },
+    {
+      "person": 29,
+      "soulId": "S-0029",
+      "name": "Chester Cooper",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-9145"
+    },
+    {
+      "person": 30,
+      "soulId": "S-0030",
+      "name": "Nancy Cooper",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-11086"
+    },
+    {
+      "person": 31,
+      "soulId": "S-0031",
+      "name": "Maude Cooper",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-366"
+    },
+    {
+      "person": 32,
+      "soulId": "S-0032",
+      "name": "Ella Cooper",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-2425"
+    },
+    {
+      "person": 33,
+      "soulId": "S-0033",
+      "name": "Lois Cooper",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-1561"
+    },
+    {
+      "person": 35,
+      "soulId": "S-0035",
+      "name": "Bella Stanton",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-16735"
+    },
+    {
+      "person": 36,
+      "soulId": "S-0036",
+      "name": "Lucas Stanton",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-1093"
+    },
+    {
+      "person": 37,
+      "soulId": "S-0037",
+      "name": "Flora Jenkins",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-10196"
+    },
+    {
+      "person": 38,
+      "soulId": "S-0038",
+      "name": "Conrad Jenkins",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-9707"
+    },
+    {
+      "person": 39,
+      "soulId": "S-0039",
+      "name": "Marvin Jenkins",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-2726"
+    },
+    {
+      "person": 40,
+      "soulId": "S-0040",
+      "name": "Lucas Harper",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-10605"
+    },
+    {
+      "person": 41,
+      "soulId": "S-0041",
+      "name": "Mabel Harper",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-12369"
+    },
+    {
+      "person": 42,
+      "soulId": "S-0042",
+      "name": "Amelia Keller",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-16833"
+    },
+    {
+      "person": 45,
+      "soulId": "S-0045",
+      "name": "Bernice Rhodes",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-4323"
+    },
+    {
+      "person": 46,
+      "soulId": "S-0046",
+      "name": "Kate Rhodes",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-4293"
+    },
+    {
+      "person": 47,
+      "soulId": "S-0047",
+      "name": "Edith Fairbanks",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-10053"
+    },
+    {
+      "person": 48,
+      "soulId": "S-0048",
+      "name": "Howard Fairbanks",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "-11782"
+    },
+    {
+      "person": 49,
+      "soulId": "S-0049",
+      "name": "Holly Fairbanks",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "-3482"
+    },
+    {
+      "person": 53,
+      "soulId": "S-0052",
+      "name": "Opal Coleman",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "518"
+    },
+    {
+      "person": 54,
+      "soulId": "S-0027",
+      "name": "Dana Fairbanks",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "1529"
+    },
+    {
+      "person": 57,
+      "soulId": "S-0034",
+      "name": "Frances Jenkins",
+      "sex": "female",
+      "origin": "native",
+      "birthDay": "3399"
+    },
+    {
+      "person": 58,
+      "soulId": "S-0043",
+      "name": "Ben Rhodes",
+      "sex": "male",
+      "origin": "native",
+      "birthDay": "3967"
+    }
+  ],
+  "events": [
+    {
+      "id": "1897",
+      "tick": "4378",
+      "kind": {
+        "type": "loan",
+        "lender": 16,
+        "borrower": 25,
+        "amount": "1541",
+        "due": "5069"
+      },
+      "causedBy": [],
+      "tags": 80,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 16
+            },
+            {
+              "person": 25
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 16
+            },
+            {
+              "person": 25
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1898",
+      "tick": "4381",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 7,
+        "target": 39,
+        "intensity": 56
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 7
+            },
+            {
+              "person": 39
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 7
+            },
+            {
+              "person": 39
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1899",
+      "tick": "4383",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 15,
+        "target": 12,
+        "intensity": 16
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 15
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 15
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1900",
+      "tick": "4384",
+      "kind": {
+        "type": "repayment",
+        "payer": 22,
+        "payee": 18,
+        "amount": "554"
+      },
+      "causedBy": [
+        "1798"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 22
+            },
+            {
+              "person": 18
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 22
+            },
+            {
+              "person": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1901",
+      "tick": "4391",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 13,
+        "target": 28,
+        "intensity": 41
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 13
+            },
+            {
+              "person": 28
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 13
+            },
+            {
+              "person": 28
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1902",
+      "tick": "4392",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 3,
+        "target": 18,
+        "intensity": 45
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 3
+            },
+            {
+              "person": 18
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 3
+            },
+            {
+              "person": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1903",
+      "tick": "4394",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 40,
+        "target": 48,
+        "intensity": 40
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 48
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 48
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1904",
+      "tick": "4396",
+      "kind": {
+        "type": "repayment",
+        "payer": 25,
+        "payee": 45,
+        "amount": "240"
+      },
+      "causedBy": [
+        "1441"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 45
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 45
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1905",
+      "tick": "4397",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 17,
+        "target": 26,
+        "intensity": 40
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 17
+            },
+            {
+              "person": 26
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 17
+            },
+            {
+              "person": 26
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1906",
+      "tick": "4399",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 20,
+        "target": 46,
+        "intensity": 53
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 20
+            },
+            {
+              "person": 46
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 20
+            },
+            {
+              "person": 46
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1907",
+      "tick": "4401",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 10,
+        "target": 36,
+        "intensity": 48
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "self",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 10
+            },
+            {
+              "person": 36
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 10
+            },
+            {
+              "person": 36
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1908",
+      "tick": "4404",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 46,
+        "amount": "704"
+      },
+      "causedBy": [
+        "1794"
+      ],
+      "tags": 64,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 46
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 46
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1909",
+      "tick": "4406",
+      "kind": {
+        "type": "social",
+        "kind": "insult",
+        "doer": 22,
+        "target": 41,
+        "intensity": 47
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 22
+            },
+            {
+              "person": 41
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 22
+            },
+            {
+              "person": 41
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1910",
+      "tick": "4408",
+      "kind": {
+        "type": "repayment",
+        "payer": 25,
+        "payee": 17,
+        "amount": "1091"
+      },
+      "causedBy": [
+        "1253"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 17
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 17
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1911",
+      "tick": "4408",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 23,
+        "target": 7,
+        "intensity": 56
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 23
+            },
+            {
+              "person": 7
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 23
+            },
+            {
+              "person": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1912",
+      "tick": "4413",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 14,
+        "target": 16,
+        "intensity": 60
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 14
+            },
+            {
+              "person": 16
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 14
+            },
+            {
+              "person": 16
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1913",
+      "tick": "4415",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 42,
+        "amount": "1334"
+      },
+      "causedBy": [
+        "1800"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 42
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 42
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1914",
+      "tick": "4415",
+      "kind": {
+        "type": "social",
+        "kind": "theft",
+        "doer": 41,
+        "target": 37,
+        "intensity": 19
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 41
+            },
+            {
+              "person": 37
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 41
+            },
+            {
+              "person": 37
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1915",
+      "tick": "4417",
+      "kind": {
+        "type": "social",
+        "kind": "insult",
+        "doer": 30,
+        "target": 21,
+        "intensity": 45
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 30
+            },
+            {
+              "person": 21
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 30
+            },
+            {
+              "person": 21
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1916",
+      "tick": "4418",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 25,
+        "target": 14,
+        "intensity": 36
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 14
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 14
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1917",
+      "tick": "4419",
+      "kind": {
+        "type": "loan",
+        "lender": 20,
+        "borrower": 25,
+        "amount": "744",
+        "due": "5104"
+      },
+      "causedBy": [],
+      "tags": 72,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 20
+            },
+            {
+              "person": 25
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 20
+            },
+            {
+              "person": 25
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1918",
+      "tick": "4424",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 49,
+        "target": 48,
+        "intensity": 12
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 49
+            },
+            {
+              "person": 48
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 49
+            },
+            {
+              "person": 48
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1919",
+      "tick": "4426",
+      "kind": {
+        "type": "repayment",
+        "payer": 25,
+        "payee": 45,
+        "amount": "240"
+      },
+      "causedBy": [
+        "1441"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 45
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 45
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1920",
+      "tick": "4426",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 32,
+        "target": 11,
+        "intensity": 54
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 32
+            },
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 32
+            },
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1921",
+      "tick": "4427",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 25,
+        "target": 28,
+        "intensity": 47
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 28
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 28
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1922",
+      "tick": "4429",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 11,
+        "target": 12,
+        "intensity": 60
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1923",
+      "tick": "4430",
+      "kind": {
+        "type": "social",
+        "kind": "theft",
+        "doer": 14,
+        "target": 28,
+        "intensity": 49
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 14
+            },
+            {
+              "person": 28
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 14
+            },
+            {
+              "person": 28
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1924",
+      "tick": "4431",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 11,
+        "target": 40,
+        "intensity": 48
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 40
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 40
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1925",
+      "tick": "4433",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 18,
+        "amount": "775"
+      },
+      "causedBy": [
+        "1895"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 18
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1926",
+      "tick": "4435",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 5,
+        "target": 30,
+        "intensity": 44
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 5
+            },
+            {
+              "person": 30
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 5
+            },
+            {
+              "person": 30
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1927",
+      "tick": "4436",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 36,
+        "target": 6,
+        "intensity": 30
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 36
+            },
+            {
+              "person": 6
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 36
+            },
+            {
+              "person": 6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1928",
+      "tick": "4438",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 23,
+        "target": 28,
+        "intensity": 58
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 23
+            },
+            {
+              "person": 28
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 23
+            },
+            {
+              "person": 28
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1929",
+      "tick": "4440",
+      "kind": {
+        "type": "social",
+        "kind": "insult",
+        "doer": 37,
+        "target": 11,
+        "intensity": 35
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 37
+            },
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 37
+            },
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1930",
+      "tick": "4441",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 6,
+        "target": 11,
+        "intensity": 56
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 6
+            },
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 6
+            },
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1931",
+      "tick": "4443",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 4,
+        "target": 21,
+        "intensity": 58
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 4
+            },
+            {
+              "person": 21
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 4
+            },
+            {
+              "person": 21
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1932",
+      "tick": "4450",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 29,
+        "target": 7,
+        "intensity": 40
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 29
+            },
+            {
+              "person": 7
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 29
+            },
+            {
+              "person": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1933",
+      "tick": "4451",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 32,
+        "target": 39,
+        "intensity": 15
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 32
+            },
+            {
+              "person": 39
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 32
+            },
+            {
+              "person": 39
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1934",
+      "tick": "4456",
+      "kind": {
+        "type": "repayment",
+        "payer": 25,
+        "payee": 45,
+        "amount": "239"
+      },
+      "causedBy": [
+        "1441"
+      ],
+      "tags": 64,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 45
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 45
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1935",
+      "tick": "4456",
+      "kind": {
+        "type": "social",
+        "kind": "insult",
+        "doer": 9,
+        "target": 10,
+        "intensity": 41
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "self",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 9
+            },
+            {
+              "person": 10
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 9
+            },
+            {
+              "person": 10
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1936",
+      "tick": "4458",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 41,
+        "target": 17,
+        "intensity": 50
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 41
+            },
+            {
+              "person": 17
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 41
+            },
+            {
+              "person": 17
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1937",
+      "tick": "4459",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 11,
+        "target": 54,
+        "intensity": 36
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 54
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 54
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1938",
+      "tick": "4463",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 18,
+        "amount": "339"
+      },
+      "causedBy": [
+        "1895"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 18
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1939",
+      "tick": "4465",
+      "kind": {
+        "type": "social",
+        "kind": "theft",
+        "doer": 24,
+        "target": 14,
+        "intensity": 12
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 24
+            },
+            {
+              "person": 14
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 24
+            },
+            {
+              "person": 14
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1940",
+      "tick": "4466",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 2,
+        "target": 42,
+        "intensity": 49
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 2
+            },
+            {
+              "person": 42
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 2
+            },
+            {
+              "person": 42
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1941",
+      "tick": "4468",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 37,
+        "target": 1,
+        "intensity": 24
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 37
+            },
+            {
+              "person": 1
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 37
+            },
+            {
+              "person": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1942",
+      "tick": "4471",
+      "kind": {
+        "type": "loan",
+        "lender": 40,
+        "borrower": 19,
+        "amount": "815",
+        "due": "5079"
+      },
+      "causedBy": [],
+      "tags": 72,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 19
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 19
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1943",
+      "tick": "4472",
+      "kind": {
+        "type": "loan",
+        "lender": 3,
+        "borrower": 26,
+        "amount": "745",
+        "due": "4890"
+      },
+      "causedBy": [],
+      "tags": 80,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 3
+            },
+            {
+              "person": 26
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 3
+            },
+            {
+              "person": 26
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1944",
+      "tick": "4472",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 21,
+        "target": 28,
+        "intensity": 11
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 21
+            },
+            {
+              "person": 28
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 21
+            },
+            {
+              "person": 28
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1945",
+      "tick": "4474",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 1,
+        "amount": "11"
+      },
+      "causedBy": [
+        "1860"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 1
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1946",
+      "tick": "4475",
+      "kind": {
+        "type": "repayment",
+        "payer": 19,
+        "payee": 41,
+        "amount": "695"
+      },
+      "causedBy": [
+        "1571"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 19
+            },
+            {
+              "person": 41
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 19
+            },
+            {
+              "person": 41
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1947",
+      "tick": "4475",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 42,
+        "amount": "1"
+      },
+      "causedBy": [
+        "1800"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 42
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 42
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1948",
+      "tick": "4477",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 40,
+        "target": 17,
+        "intensity": 34
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 17
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 17
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1949",
+      "tick": "4479",
+      "kind": {
+        "type": "social",
+        "kind": "apology",
+        "doer": 40,
+        "target": 12,
+        "intensity": 46
+      },
+      "causedBy": [
+        "1258"
+      ],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1950",
+      "tick": "4483",
+      "kind": {
+        "type": "social",
+        "kind": "insult",
+        "doer": 9,
+        "target": 25,
+        "intensity": 42
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 9
+            },
+            {
+              "person": 25
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 9
+            },
+            {
+              "person": 25
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1951",
+      "tick": "4488",
+      "kind": {
+        "type": "social",
+        "kind": "insult",
+        "doer": 9,
+        "target": 37,
+        "intensity": 26
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 9
+            },
+            {
+              "person": 37
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 9
+            },
+            {
+              "person": 37
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1952",
+      "tick": "4492",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 41,
+        "target": 6,
+        "intensity": 18
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 41
+            },
+            {
+              "person": 6
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 41
+            },
+            {
+              "person": 6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1953",
+      "tick": "4496",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 9,
+        "target": 22,
+        "intensity": 58
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 9
+            },
+            {
+              "person": 22
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 9
+            },
+            {
+              "person": 22
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1954",
+      "tick": "4497",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 7,
+        "target": 11,
+        "intensity": 30
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 7
+            },
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 7
+            },
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1955",
+      "tick": "4498",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 16,
+        "target": 30,
+        "intensity": 21
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 16
+            },
+            {
+              "person": 30
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 16
+            },
+            {
+              "person": 30
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1956",
+      "tick": "4501",
+      "kind": {
+        "type": "social",
+        "kind": "theft",
+        "doer": 2,
+        "target": 14,
+        "intensity": 36
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 2
+            },
+            {
+              "person": 14
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 2
+            },
+            {
+              "person": 14
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1957",
+      "tick": "4502",
+      "kind": {
+        "type": "repayment",
+        "payer": 26,
+        "payee": 3,
+        "amount": "249"
+      },
+      "causedBy": [
+        "1943"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 26
+            },
+            {
+              "person": 3
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 26
+            },
+            {
+              "person": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1958",
+      "tick": "4502",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 28,
+        "target": 18,
+        "intensity": 50
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 28
+            },
+            {
+              "person": 18
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 28
+            },
+            {
+              "person": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1959",
+      "tick": "4503",
+      "kind": {
+        "type": "repayment",
+        "payer": 26,
+        "payee": 28,
+        "amount": "217"
+      },
+      "causedBy": [
+        "1737"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 26
+            },
+            {
+              "person": 28
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 26
+            },
+            {
+              "person": 28
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1960",
+      "tick": "4505",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 42,
+        "amount": "30"
+      },
+      "causedBy": [
+        "1800"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 42
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 42
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1961",
+      "tick": "4505",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 48,
+        "target": 3,
+        "intensity": 57
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 48
+            },
+            {
+              "person": 3
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 48
+            },
+            {
+              "person": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1962",
+      "tick": "4509",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 19,
+        "target": 11,
+        "intensity": 22
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 19
+            },
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 19
+            },
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1963",
+      "tick": "4510",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 32,
+        "target": 24,
+        "intensity": 21
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 32
+            },
+            {
+              "person": 24
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 32
+            },
+            {
+              "person": 24
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1964",
+      "tick": "4511",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 29,
+        "target": 41,
+        "intensity": 38
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 29
+            },
+            {
+              "person": 41
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 29
+            },
+            {
+              "person": 41
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1965",
+      "tick": "4514",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 12,
+        "target": 6,
+        "intensity": 30
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 12,
+              "kinRole": "child"
+            },
+            {
+              "person": 6
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 12,
+              "kinRole": "child"
+            },
+            {
+              "person": 6
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1966",
+      "tick": "4519",
+      "kind": {
+        "type": "social",
+        "kind": "theft",
+        "doer": 42,
+        "target": 22,
+        "intensity": 47
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 42
+            },
+            {
+              "person": 22
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 42
+            },
+            {
+              "person": 22
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1967",
+      "tick": "4522",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 13,
+        "target": 36,
+        "intensity": 53
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 13
+            },
+            {
+              "person": 36
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 13
+            },
+            {
+              "person": 36
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1968",
+      "tick": "4523",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 18,
+        "amount": "18"
+      },
+      "causedBy": [
+        "1895"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 18
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1969",
+      "tick": "4524",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 24,
+        "target": 35,
+        "intensity": 55
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 24
+            },
+            {
+              "person": 35
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 24
+            },
+            {
+              "person": 35
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1970",
+      "tick": "4525",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 4,
+        "target": 12,
+        "intensity": 56
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 4
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 4
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1971",
+      "tick": "4527",
+      "kind": {
+        "type": "loan",
+        "lender": 30,
+        "borrower": 45,
+        "amount": "3599",
+        "due": "4780"
+      },
+      "causedBy": [],
+      "tags": 80,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 30
+            },
+            {
+              "person": 45
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 30
+            },
+            {
+              "person": 45
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1972",
+      "tick": "4527",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 7,
+        "target": 32,
+        "intensity": 39
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 7
+            },
+            {
+              "person": 32
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 7
+            },
+            {
+              "person": 32
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1973",
+      "tick": "4530",
+      "kind": {
+        "type": "loan",
+        "lender": 13,
+        "borrower": 19,
+        "amount": "522",
+        "due": "4938"
+      },
+      "causedBy": [],
+      "tags": 72,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 13
+            },
+            {
+              "person": 19
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 13
+            },
+            {
+              "person": 19
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1974",
+      "tick": "4531",
+      "kind": {
+        "type": "repayment",
+        "payer": 19,
+        "payee": 40,
+        "amount": "272"
+      },
+      "causedBy": [
+        "1942"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 19
+            },
+            {
+              "person": 40
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 19
+            },
+            {
+              "person": 40
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1975",
+      "tick": "4533",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 38,
+        "target": 3,
+        "intensity": 24
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 38
+            },
+            {
+              "person": 3
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 38
+            },
+            {
+              "person": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1976",
+      "tick": "4534",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 1,
+        "amount": "1416"
+      },
+      "causedBy": [
+        "1860"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 1
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1977",
+      "tick": "4535",
+      "kind": {
+        "type": "repayment",
+        "payer": 19,
+        "payee": 41,
+        "amount": "100"
+      },
+      "causedBy": [
+        "1571"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 19
+            },
+            {
+              "person": 41
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 19
+            },
+            {
+              "person": 41
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1978",
+      "tick": "4541",
+      "kind": {
+        "type": "social",
+        "kind": "insult",
+        "doer": 22,
+        "target": 28,
+        "intensity": 54
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 22
+            },
+            {
+              "person": 28
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 22
+            },
+            {
+              "person": 28
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1979",
+      "tick": "4543",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 40,
+        "target": 8,
+        "intensity": 34
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 8
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1980",
+      "tick": "4544",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 8,
+        "target": 13,
+        "intensity": 47
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 8
+            },
+            {
+              "person": 13
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 8
+            },
+            {
+              "person": 13
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1981",
+      "tick": "4544",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 10,
+        "target": 7,
+        "intensity": 40
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "self",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 10
+            },
+            {
+              "person": 7
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 10
+            },
+            {
+              "person": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1982",
+      "tick": "4549",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 39,
+        "target": 57,
+        "intensity": 39
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 39
+            },
+            {
+              "person": 57
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 39
+            },
+            {
+              "person": 57
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1983",
+      "tick": "4551",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 21,
+        "target": 35,
+        "intensity": 33
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 21
+            },
+            {
+              "person": 35
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 21
+            },
+            {
+              "person": 35
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1984",
+      "tick": "4553",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 18,
+        "amount": "775"
+      },
+      "causedBy": [
+        "1895"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 18
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1985",
+      "tick": "4559",
+      "kind": {
+        "type": "social",
+        "kind": "insult",
+        "doer": 1,
+        "target": 36,
+        "intensity": 29
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 1
+            },
+            {
+              "person": 36
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 1
+            },
+            {
+              "person": 36
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1986",
+      "tick": "4562",
+      "kind": {
+        "type": "loan",
+        "lender": 12,
+        "borrower": 45,
+        "amount": "3917",
+        "due": "5065"
+      },
+      "causedBy": [],
+      "tags": 72,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 12,
+              "kinRole": "child"
+            },
+            {
+              "person": 45
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 12,
+              "kinRole": "child"
+            },
+            {
+              "person": 45
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1987",
+      "tick": "4564",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 1,
+        "amount": "1404"
+      },
+      "causedBy": [
+        "1860"
+      ],
+      "tags": 64,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 1
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1988",
+      "tick": "4564",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 19,
+        "target": 42,
+        "intensity": 10
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 19
+            },
+            {
+              "person": 42
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 19
+            },
+            {
+              "person": 42
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1989",
+      "tick": "4565",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 42,
+        "amount": "236"
+      },
+      "causedBy": [
+        "1800"
+      ],
+      "tags": 64,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 42
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 42
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1990",
+      "tick": "4566",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 45,
+        "target": 42,
+        "intensity": 50
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 42
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 42
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1991",
+      "tick": "4568",
+      "kind": {
+        "type": "social",
+        "kind": "apology",
+        "doer": 47,
+        "target": 36,
+        "intensity": 21
+      },
+      "causedBy": [
+        "1630"
+      ],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 47
+            },
+            {
+              "person": 36
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 47
+            },
+            {
+              "person": 36
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1992",
+      "tick": "4570",
+      "kind": {
+        "type": "loan",
+        "lender": 46,
+        "borrower": 25,
+        "amount": "3465",
+        "due": "5015"
+      },
+      "causedBy": [],
+      "tags": 80,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 46
+            },
+            {
+              "person": 25
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 46
+            },
+            {
+              "person": 25
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1993",
+      "tick": "4578",
+      "kind": {
+        "type": "social",
+        "kind": "insult",
+        "doer": 37,
+        "target": 49,
+        "intensity": 43
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 37
+            },
+            {
+              "person": 49
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 37
+            },
+            {
+              "person": 49
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1994",
+      "tick": "4579",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 12,
+        "target": 46,
+        "intensity": 54
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 12,
+              "kinRole": "child"
+            },
+            {
+              "person": 46
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 12,
+              "kinRole": "child"
+            },
+            {
+              "person": 46
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1995",
+      "tick": "4580",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 40,
+        "target": 12,
+        "intensity": 37
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1996",
+      "tick": "4581",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 10,
+        "target": 42,
+        "intensity": 29
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "self",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 10
+            },
+            {
+              "person": 42
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 10
+            },
+            {
+              "person": 42
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1997",
+      "tick": "4583",
+      "kind": {
+        "type": "repayment",
+        "payer": 25,
+        "payee": 35,
+        "amount": "1185"
+      },
+      "causedBy": [
+        "1881"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 35
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 35
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1998",
+      "tick": "4584",
+      "kind": {
+        "type": "death",
+        "person": 11
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "1999",
+      "tick": "4584",
+      "kind": {
+        "type": "inheritance",
+        "deceased": 11,
+        "heir": 10,
+        "amount": "33697"
+      },
+      "causedBy": [
+        "1998"
+      ],
+      "tags": 64,
+      "relevance": "self",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 10
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 10
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2000",
+      "tick": "4584",
+      "kind": {
+        "type": "inheritance",
+        "deceased": 11,
+        "heir": 12,
+        "amount": "33696"
+      },
+      "causedBy": [
+        "1998"
+      ],
+      "tags": 64,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2001",
+      "tick": "4584",
+      "kind": {
+        "type": "offering",
+        "offerer": 40,
+        "ghost": 11,
+        "amount": "3",
+        "credited": "3"
+      },
+      "causedBy": [],
+      "tags": 128,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 40
+            },
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2002",
+      "tick": "4584",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 39,
+        "target": 47,
+        "intensity": 14
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 39
+            },
+            {
+              "person": 47
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 39
+            },
+            {
+              "person": 47
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2003",
+      "tick": "4584",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 10,
+        "target": 58,
+        "intensity": 60
+      },
+      "causedBy": [
+        "1998"
+      ],
+      "tags": 0,
+      "relevance": "self",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 10
+            },
+            {
+              "person": 58,
+              "kinRole": "grandchild"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 10
+            },
+            {
+              "person": 58,
+              "kinRole": "grandchild"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2004",
+      "tick": "4585",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 15,
+        "target": 25,
+        "intensity": 47
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 15
+            },
+            {
+              "person": 25
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 15
+            },
+            {
+              "person": 25
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2005",
+      "tick": "4588",
+      "kind": {
+        "type": "repayment",
+        "payer": 25,
+        "payee": 17,
+        "amount": "646"
+      },
+      "causedBy": [
+        "1253"
+      ],
+      "tags": 64,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 17
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 17
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2006",
+      "tick": "4590",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 13,
+        "target": 28,
+        "intensity": 27
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 13
+            },
+            {
+              "person": 28
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 13
+            },
+            {
+              "person": 28
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2007",
+      "tick": "4592",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 12,
+        "amount": "1306"
+      },
+      "causedBy": [
+        "1986"
+      ],
+      "tags": 96,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2008",
+      "tick": "4595",
+      "kind": {
+        "type": "social",
+        "kind": "apology",
+        "doer": 47,
+        "target": 17,
+        "intensity": 31
+      },
+      "causedBy": [
+        "1615"
+      ],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 47
+            },
+            {
+              "person": 17
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 47
+            },
+            {
+              "person": 17
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2009",
+      "tick": "4596",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 30,
+        "target": 45,
+        "intensity": 59
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 30
+            },
+            {
+              "person": 45
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 30
+            },
+            {
+              "person": 45
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2010",
+      "tick": "4597",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 19,
+        "target": 28,
+        "intensity": 33
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 19
+            },
+            {
+              "person": 28
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 19
+            },
+            {
+              "person": 28
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2011",
+      "tick": "4599",
+      "kind": {
+        "type": "repayment",
+        "payer": 25,
+        "payee": 20,
+        "amount": "248"
+      },
+      "causedBy": [
+        "1917"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 20
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 20
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2012",
+      "tick": "4599",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 14,
+        "target": 2,
+        "intensity": 10
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 14
+            },
+            {
+              "person": 2
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 14
+            },
+            {
+              "person": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2013",
+      "tick": "4600",
+      "kind": {
+        "type": "repayment",
+        "payer": 25,
+        "payee": 46,
+        "amount": "1155"
+      },
+      "causedBy": [
+        "1992"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 46
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 46
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2014",
+      "tick": "4600",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 7,
+        "target": 24,
+        "intensity": 20
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 7
+            },
+            {
+              "person": 24
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 7
+            },
+            {
+              "person": 24
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2015",
+      "tick": "4602",
+      "kind": {
+        "type": "social",
+        "kind": "apology",
+        "doer": 26,
+        "target": 4,
+        "intensity": 45
+      },
+      "causedBy": [
+        "809"
+      ],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 26
+            },
+            {
+              "person": 4
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 26
+            },
+            {
+              "person": 4
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2016",
+      "tick": "4603",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 25,
+        "target": 48,
+        "intensity": 52
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 48
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 25
+            },
+            {
+              "person": 48
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2017",
+      "tick": "4607",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 48,
+        "target": 37,
+        "intensity": 51
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 48
+            },
+            {
+              "person": 37
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 48
+            },
+            {
+              "person": 37
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2018",
+      "tick": "4611",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 38,
+        "target": 19,
+        "intensity": 49
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 38
+            },
+            {
+              "person": 19
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 38
+            },
+            {
+              "person": 19
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2019",
+      "tick": "4612",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 21,
+        "target": 42,
+        "intensity": 26
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 21
+            },
+            {
+              "person": 42
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 21
+            },
+            {
+              "person": 42
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2020",
+      "tick": "4613",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 18,
+        "amount": "418"
+      },
+      "causedBy": [
+        "1895"
+      ],
+      "tags": 64,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 18
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 18
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2021",
+      "tick": "4615",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 1,
+        "target": 19,
+        "intensity": 59
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 1
+            },
+            {
+              "person": 19
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 1
+            },
+            {
+              "person": 19
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2022",
+      "tick": "4616",
+      "kind": {
+        "type": "social",
+        "kind": "theft",
+        "doer": 49,
+        "target": 26,
+        "intensity": 11
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 49
+            },
+            {
+              "person": 26
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 49
+            },
+            {
+              "person": 26
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2023",
+      "tick": "4617",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 30,
+        "amount": "1200"
+      },
+      "causedBy": [
+        "1971"
+      ],
+      "tags": 96,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 30
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 30
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2024",
+      "tick": "4620",
+      "kind": {
+        "type": "social",
+        "kind": "help",
+        "doer": 35,
+        "target": 53,
+        "intensity": 45
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 35
+            },
+            {
+              "person": 53
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 35
+            },
+            {
+              "person": 53
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2025",
+      "tick": "4622",
+      "kind": {
+        "type": "repayment",
+        "payer": 45,
+        "payee": 12,
+        "amount": "860"
+      },
+      "causedBy": [
+        "1986"
+      ],
+      "tags": 96,
+      "relevance": "circle",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 45
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026",
+      "tick": "4624",
+      "kind": {
+        "type": "social",
+        "kind": "quarrel",
+        "doer": 4,
+        "target": 30,
+        "intensity": 27
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 4
+            },
+            {
+              "person": 30
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 4
+            },
+            {
+              "person": 30
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2027",
+      "tick": "4627",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 33,
+        "target": 31,
+        "intensity": 54
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 33
+            },
+            {
+              "person": 31
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 33
+            },
+            {
+              "person": 31
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2028",
+      "tick": "4630",
+      "kind": {
+        "type": "social",
+        "kind": "gift",
+        "doer": 30,
+        "target": 2,
+        "intensity": 59
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 30
+            },
+            {
+              "person": 2
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 30
+            },
+            {
+              "person": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2029",
+      "tick": "4632",
+      "kind": {
+        "type": "social",
+        "kind": "insult",
+        "doer": 6,
+        "target": 9,
+        "intensity": 12
+      },
+      "causedBy": [],
+      "tags": 0,
+      "relevance": "background",
+      "relevanceBasis": "observed-day-start-end",
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 6
+            },
+            {
+              "person": 9
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 6
+            },
+            {
+              "person": 9
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "chronicle": [
+    {
+      "index": "4",
+      "tick": "4544",
+      "family": "debt_due",
+      "stakes": {
+        "who": [
+          7
+        ],
+        "amount": "793",
+        "unit": "money",
+        "by": "4574"
+      },
+      "applied": "demand_payment",
+      "source": "auto_resolved",
+      "chooserAbsent": false,
+      "skipped": [],
+      "appended": [
+        "1981"
+      ],
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 7
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 7
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": "5",
+      "tick": "4584",
+      "family": "family_death",
+      "stakes": {
+        "who": [
+          11,
+          58
+        ],
+        "amount": "12",
+        "unit": "affinity",
+        "by": "4585"
+      },
+      "applied": "comfort_mourner",
+      "source": "auto_resolved",
+      "chooserAbsent": false,
+      "skipped": [],
+      "appended": [
+        "2003"
+      ],
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 58,
+              "kinRole": "grandchild"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 58,
+              "kinRole": "grandchild"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "index": "6",
+      "tick": "4584",
+      "family": "inheritance",
+      "stakes": {
+        "who": [
+          11,
+          12
+        ],
+        "amount": "33697",
+        "unit": "money",
+        "by": "4585"
+      },
+      "applied": "keep_it",
+      "source": "auto_resolved",
+      "chooserAbsent": false,
+      "skipped": [],
+      "appended": [],
+      "actorContext": [
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-start",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        },
+        {
+          "relativeTo": 10,
+          "basis": "observed-day-end",
+          "actors": [
+            {
+              "person": 11,
+              "kinRole": "spouse"
+            },
+            {
+              "person": 12,
+              "kinRole": "child"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "dreams": [],
+  "cursors": {
+    "events": {
+      "start": "1896",
+      "end": "2029"
+    },
+    "chronicle": {
+      "start": "4",
+      "end": "7"
+    }
+  }
+}

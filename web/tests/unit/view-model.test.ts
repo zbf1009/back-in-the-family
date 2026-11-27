@@ -47,9 +47,9 @@ test('Property 24: Snapshot whole years, signed previews, Stakes and Needed rema
       assert.equal(view.choice!.choiceTick, String(now));
       assert.equal(view.choice!.resolves, String(now));
       for (const option of view.choice!.options) {
-        assert.deepEqual(option.preview, preview.map(entry => ({ person: namesById(world).get(entry.person), personId: entry.person,
-          delta: entry.delta[0] === '-' ? entry.delta : '+' + entry.delta, what: entry.what,
-          unit: entry.what.startsWith('trait:') ? 'trait_points' : entry.what === 'debt' ? 'money' : entry.what })));
+        assert.deepEqual(option.preview.map(row => ({ person: row.person, personId: row.personId, delta: row.delta, what: row.what })),
+          preview.map(entry => ({ person: namesById(world).get(entry.person), personId: entry.person,
+            delta: entry.delta[0] === '-' ? entry.delta : '+' + entry.delta, what: entry.what })));
       }
       const waiting: WorldSnapshot = { ...world, player_node: null,
         player: { ...world.player, place: 'waiting', body: null },

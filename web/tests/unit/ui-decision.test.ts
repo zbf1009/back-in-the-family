@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { controls, currentDecision, decisionBusy, decisionNotice, initialUiState, reduce, worldSnapshotNeeded } from '../../src/main/ui-state.ts';
+import { controls, currentDecision, decisionBusy, initialUiState, reduce, worldSnapshotNeeded } from '../../src/main/ui-state.ts';
 import type { UiState } from '../../src/main/ui-state.ts';
 import { sceneQueue } from '../../src/main/scene-queue.ts';
 import type { DecisionStatus, Reply, Request, Snapshot } from '../../src/shared/protocol.ts';
@@ -27,7 +27,7 @@ function reply(ui: UiState, request: Request, decision: DecisionStatus, extra: P
 
 test('decision diagnostics start absent without pretending config is ready', () => {
   const ui = initialUiState();
-  assert.equal(ui.decision, null); assert.equal(decisionBusy(ui), false); assert.equal(decisionNotice(ui), null);
+  assert.equal(ui.decision, null); assert.equal(decisionBusy(ui), false);
   const next = reply(ui, { type: 'decision-status', id: 1 }, session({ config: 'pending', enabled: false, sessionCap: null, spent: 0 }));
   assert.equal(next.decision?.config, 'pending'); assert.equal(next.decision?.waitSeconds, 10);
   assert.equal(next.runState, 'no-world'); assert.equal(next.world, null);
@@ -70,16 +70,15 @@ test('accepted decision records at the held tick but does not open Dream scene o
   }), { world: ui.world! });
   assert.equal(decisionBusy(next), false); assert.equal(next.tick, ui.tick); assert.equal(next.scene, null);
   assert.equal(next.underworldRecorded?.tick, ui.tick); assert.equal(controls(next).step, true);
-  assert.ok(decisionNotice(next)); assert.doesNotMatch(decisionNotice(next)!, /heed_warning|tokens|quality|personality/i);
 });
 
-test('manual rules completion leaves paused playback paused and uses only a fixed outcome notice', () => {
+test('manual rules completion leaves paused playback paused and releases competing controls', () => {
   const ui = held();
   const next = reply(ui, { type: 'dream', id: 12, dreamer: 1, intent: 'warn' }, session({
     outcome: { requestId: 12, worldId: 1, kind: 'fallback', reason: 'manual' },
   }));
   assert.equal(next.runState, 'paused'); assert.equal(next.tick, ui.tick); assert.equal(decisionBusy(next), false);
-  assert.ok(decisionNotice(next)); assert.equal(controls(next).run, true);
+  assert.equal(controls(next).run, true);
 });
 
 test('completed request cannot be resurrected by a stale pending status', () => {
@@ -113,7 +112,7 @@ test('World replacement clears outcome and hold but retains worker-owned wait ca
   const next = reduce(ui, { type: 'reply', request: { type: 'create-world', id: 13, seed: '2', config: '{}' },
     message: { type: 'reply', id: 13, ok: true, snapshot: fresh } });
   assert.equal(next.worldId, 2); assert.equal(next.decision?.waitSeconds, 2); assert.equal(next.decision?.spent, 1);
-  assert.equal(next.decision?.sessionCap, 1); assert.equal(decisionBusy(next), false); assert.equal(decisionNotice(next), null);
+  assert.equal(next.decision?.sessionCap, 1); assert.equal(decisionBusy(next), false);
   assert.strictEqual(reduce(next, { type: 'status', snapshot: snapshot(ui, ui.decision!) }), next);
   assert.strictEqual(reply(next, { type: 'dream', id: 12, dreamer: 1, intent: 'warn' }, ui.decision!, { snapshot: snapshot(ui, ui.decision!) }), next);
 });
@@ -140,11 +139,11 @@ test('worker failure releases only UI decision hold without inventing another pa
   assert.equal(next.runState, 'failed'); assert.equal(decisionBusy(next), false); assert.equal(controls(next).create, false);
 });
 
-test('terminal Dream failure without an outcome releases the current hold and hides the older notice', () => {
+test('terminal Dream failure without an outcome releases the current hold', () => {
   const ui = held();
   const next = reduce(ui, { type: 'reply', request: { type: 'dream', id: 12, dreamer: 1, intent: 'warn' },
     message: { type: 'reply', id: 12, ok: false, kind: 'invalid-state', error: 'private detail', snapshot: snapshot(ui, session()) } });
-  assert.equal(decisionBusy(next), false); assert.equal(decisionNotice(next), null); assert.ok(next.error);
+  assert.equal(decisionBusy(next), false); assert.ok(next.error);
   assert.equal(next.tick, ui.tick); assert.equal(next.decisionRequestId, 12);
 });
 
@@ -181,7 +180,7 @@ for (const priorOutcome of [false, true]) {
     assert.deepEqual(ui.world, before.world);
     assert.equal(ui.tick, before.tick); assert.equal(ui.checksum, before.checksum);
     assert.deepEqual(ui.decision, retained); assert.equal(ui.decisionRequestId, 20);
-    assert.equal(decisionBusy(ui), false); assert.equal(decisionNotice(ui), null);
+    assert.equal(decisionBusy(ui), false);
     assert.equal(ui.underworldRecorded, null); assert.equal(ui.scene, null);
     assert.equal(controls(ui).run, true); assert.equal(controls(ui).step, true);
 
@@ -235,7 +234,7 @@ for (const priorOutcome of [false, true]) {
     assert.deepEqual(ui.world, completedWorld); assert.equal(ui.worldRead, null);
     ui = reduce(ui, { type: 'status', snapshot: stepSnapshot });
     assert.equal(ui.tick, stepSnapshot.tick); assert.equal(ui.checksum, stepSnapshot.checksum);
-    assert.deepEqual(ui.decision, retained); assert.equal(decisionNotice(ui), null);
+    assert.deepEqual(ui.decision, retained);
     assert.equal(ui.underworldRecorded, null); assert.equal(ui.scene, null);
 
     const newer = reduce(ui, { type: 'status', snapshot: { ...stepSnapshot, decision: {
@@ -250,7 +249,7 @@ for (const priorOutcome of [false, true]) {
     const fresh = { ...stepSnapshot, worldId: 2, tick: '0', checksum: null, decision: { ...retained, pending: null, outcome: null } };
     const replaced = reply(newer, { type: 'create-world', id: 30, seed: '2', config: '{}' }, fresh.decision, { snapshot: fresh });
     assert.equal(replaced.worldId, 2); assert.equal(replaced.tick, '0'); assert.equal(replaced.checksum, null);
-    assert.equal(decisionBusy(replaced), false); assert.equal(decisionNotice(replaced), null);
+    assert.equal(decisionBusy(replaced), false);
     assert.strictEqual(reduce(replaced, { type: 'reply', request: dream, message: failed }), replaced);
     assert.strictEqual(reduce(replaced, { type: 'status', snapshot: stepSnapshot }), replaced);
   });

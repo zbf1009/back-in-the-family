@@ -26,10 +26,12 @@ test('full actual checked inputs survive transport and stage; every uncertain bo
     assert.equal(envelopeSHA, digest(await readFile(join(transport, 'inputs.json'))));
     assert.equal(inputs.assets.length, (await readClosedTree(join(root, 'web/dist'))).length);
     assert.deepEqual(inputs, JSON.parse(await readFile(join(transport, 'inputs.json'), 'utf8')));
-    await t.test('producer captures all 13 original license sources as full raw UTF-8 bytes', async () => {
+    await t.test('producer captures all 15 original runtime and artwork license sources as full raw UTF-8 bytes', async () => {
       const cargo = 'target/gate-cache/cargo/registry/src/index.crates.io-1949cf8c6b5b557f';
       const paths: Record<string, string> = {
         project: 'LICENSE', svelte: 'web/node_modules/svelte/LICENSE.md',
+        'cc-by-4.0': 'web/assets/licenses/CC-BY-4.0.txt',
+        'character-portrait-kit': 'web/assets/licenses/character-portrait-kit-NOTICE.txt',
         arrayvec: `${cargo}/arrayvec-0.7.8/LICENSE-MIT`, blake3: `${cargo}/blake3-1.8.7/LICENSE_A2`,
         'cfg-if': `${cargo}/cfg-if-1.0.5/LICENSE-MIT`, constant_time_eq: `${cargo}/constant_time_eq-0.4.2/LICENSE-MIT0`,
         memchr: `${cargo}/memchr-2.8.3/LICENSE-MIT`, serde: `${cargo}/serde-1.0.229/LICENSE-MIT`,
@@ -65,6 +67,27 @@ test('full actual checked inputs survive transport and stage; every uncertain bo
       } finally { await writeFile(target, original); }
       await verifyArtifactInputs(project, transport, expected);
     }
+    await t.test('Credits root page keeps checked source bytes; unauthorized HTML rejects even with a matching manifest', async () => {
+      const source = await readFile(join(project, 'web/public/credits.html'));
+      const credits = inputs.assets.find(file => file.path === 'credits.html');
+      assert.ok(credits, 'The actual build must include the Credits page');
+      assert.equal(inputs.sourceDigests['web/public/credits.html'], digest(source));
+      assert.deepEqual(credits, { path: 'credits.html', size: source.byteLength, sha256: digest(source) });
+      assert.deepEqual(await readFile(join(stage, 'dist/credits.html')), source);
+      await mutate('dist/credits.html', Buffer.concat([source, Buffer.from('\n<!-- altered Credits page -->\n')]),
+        /Credits page must match the checked public source/);
+      for (const path of ['unapproved.html', 'Credits.html', 'assets/credits.html']) {
+        const supplied = structuredClone(inputs);
+        supplied.assets.push({ path, size: source.byteLength, sha256: digest(source) });
+        supplied.assets.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+        const target = join(stage, 'dist', path);
+        await writeFile(target, source);
+        try {
+          await assert.rejects(checkArtifact(project, stage, supplied, identity), /Unexpected public asset type or source path/);
+        } finally { await rm(target); }
+        await checkArtifact(project, stage, inputs, identity);
+      }
+    });
     await t.test('closed config semantics, independent of byte mismatch', async () => {
       const config = JSON.parse(await readFile(join(transport, 'tree/wrangler.jsonc'), 'utf8')) as Record<string, unknown>;
       for (const mutateConfig of [

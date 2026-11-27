@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 import type { Reply, RequestTicket, WorkerMessage, PauseReason } from '../../src/shared/protocol.ts';
 import type { PlayerLifecycleFact, TraitName, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import { DECISION_CONFIG_VERSION } from '../../src/shared/decision.ts';
@@ -11,7 +11,7 @@ import type { LifeNotebookExport } from '../../src/main/life-journal.ts';
 import type { DreamFact, StoryBatch } from '../../src/shared/story.ts';
 
 const FIXTURE = 'seedP-playthrough.replay.json';
-const SMOKE_EVIDENCE = new URL('../../../target/smoke-evidence/', import.meta.url);
+const SMOKE_EVIDENCE = new URL('../../../target/life-unfolds/lu-p1-smoke/', import.meta.url);
 interface Input {
   tick: string;
   payload: {
@@ -69,6 +69,18 @@ async function request(page: Page, type: 'world-snapshot' | 'run' | 'checksums' 
   }, { type, ...extra });
 }
 
+async function revealControl(control: Locator): Promise<void> {
+  await expect(control).toBeAttached();
+  // XPath returns ancestors in document order: open outer disclosures first.
+  const sections = control.locator('xpath=ancestor::details');
+  for (let index = 0, count = await sections.count(); index < count; index++) {
+    const section = sections.nth(index);
+    if (await section.getAttribute('open') === null) await section.locator(':scope > summary').press('Enter');
+    await expect(section).toHaveJSProperty('open', true);
+  }
+  await expect(control).toBeVisible();
+}
+
 async function downloadRetainedFacts(page: Page, world: WorldSnapshot, worldId: number): Promise<void> {
   const before = await request(page, 'world-snapshot');
   expect(before.ok).toBe(true);
@@ -85,13 +97,8 @@ async function downloadRetainedFacts(page: Page, world: WorldSnapshot, worldId: 
     .find(fact => fact.kind === 'death' && fact.body === ghost), { worldId, ghost: world.player_wait!.ghost, tick: world.tick });
   expect(ownDeath, 'the actual own-Death carrier must be available at this stop').toBeDefined();
 
-  const technical = page.getByTestId('technical-details');
-  if (await technical.getAttribute('open') === null) await technical.locator(':scope > summary').click();
-  const unmerged = technical.locator('details').filter({
-    has: page.getByRole('button', { name: 'Download life facts', exact: true, includeHidden: true }),
-  });
-  if (await unmerged.getAttribute('open') === null) await unmerged.locator(':scope > summary').click();
-  const downloadButton = unmerged.getByRole('button', { name: 'Download life facts', exact: true });
+  const downloadButton = page.getByRole('button', { name: 'Download life facts', exact: true, includeHidden: true });
+  await revealControl(downloadButton);
   const [download] = await Promise.all([page.waitForEvent('download'), downloadButton.click()]);
   const downloadedPath = await download.path();
   expect(downloadedPath).not.toBeNull();
@@ -195,6 +202,7 @@ async function scene(page: Page, world: WorldSnapshot, _reasons: PauseReason[], 
 
 async function customization(page: Page, world: WorldSnapshot): Promise<void> {
   const before = { tick: await page.getByTestId('tick').innerText(), checksum: await page.getByTestId('checksum').innerText() };
+  await revealControl(page.getByTestId('carry-over'));
   const selected = await page.getByTestId('carry-over').inputValue();
   const base = world.underworld_view?.base_traits.find(entry => entry.carry_over === (selected || null))?.traits;
   expect(base, `Snapshot base_traits must include the selected Carry_Over ${selected || 'None'}`).toBeDefined();
@@ -207,6 +215,7 @@ async function customization(page: Page, world: WorldSnapshot): Promise<void> {
   expect(base![second!] - 1).toBeGreaterThanOrEqual(-3);
   const price = world.underworld_view!.slots.find(slot => slot.slot === 'rebuilt_body')?.price;
   expect(price, 'Snapshot must give the Rebuilt_Body price').toBeDefined();
+  await revealControl(page.getByTestId('customize'));
   await page.getByTestId('customize').click();
   await page.getByTestId('customization-kind').selectOption('Adjust');
   await page.getByTestId('customization-first').selectOption(first!);
@@ -332,7 +341,7 @@ test(`${FIXTURE}: explicit Fast recorded-prefix controls play choices, death, Dr
       await scene(page, world, stage.reasons, reply.snapshot.worldId);
       // Close any non-node overlays in front of the options through real Close.
       if (index === 0) {
-        while (await page.getByTestId('scene-close').isVisible()) await page.getByTestId('scene-close').click();
+        while (await page.getByTestId('scene-close').isVisible()) await page.getByTestId('scene-close').press('Enter');
       }
       await identityAndPreviews(page, world);
       if (index === 0) {
@@ -361,23 +370,24 @@ test(`${FIXTURE}: explicit Fast recorded-prefix controls play choices, death, Dr
         const option = page.getByTestId(`option-${input.payload.ChoosePlayer!.option}`);
         await expect(option).toBeEnabled();
         await option.click();
-        await expect(page.locator('[data-testid="operation-receipt"][data-kind="choose"][data-phase="received"]').first()).toBeVisible();
+        await revealControl(page.locator('[data-testid="operation-receipt"][data-kind="choose"][data-phase="received"]').first());
       }
       if (stage.reasons.includes('player_died')) {
         await downloadRetainedFacts(page, world, reply.snapshot.worldId);
         await expect(page.getByTestId('scene-close')).toBeVisible();
-        await page.getByTestId('scene-close').click();
+        await page.getByTestId('scene-close').press('Enter');
         await customization(page, world);
         const input = fixture.inputs[consumed++]!;
         expect(input.tick).toBe(stage.tick);
         expect(input.payload.Dream).toBeDefined();
-        await page.getByTestId('dreamer').selectOption(input.payload.Dream!.dreamer);
+        await revealControl(page.getByTestId(`dream-target-${input.payload.Dream!.dreamer}`));
+        await page.getByTestId(`dream-target-${input.payload.Dream!.dreamer}`).check();
         await page.getByTestId(`dream-intent-${input.payload.Dream!.intent}`).click();
-        await expect(page.getByTestId('dreamer')).toHaveValue(input.payload.Dream!.dreamer);
+        await expect(page.getByTestId(`dream-target-${input.payload.Dream!.dreamer}`)).toBeChecked();
         await expect(page.getByTestId(`dream-intent-${input.payload.Dream!.intent}`)).toHaveAttribute('aria-pressed', 'true');
         await expect(page.getByTestId('dream-send')).toBeEnabled();
         await page.getByTestId('dream-send').click();
-        await expect(page.locator('[data-testid="operation-receipt"][data-kind="dream"][data-phase="received"]').first()).toBeVisible();
+        await revealControl(page.locator('[data-testid="operation-receipt"][data-kind="dream"][data-phase="received"]').first());
       }
       if (stage.reasons.includes('dream_resolved')) {
         let claimWorld = world;
@@ -400,11 +410,13 @@ test(`${FIXTURE}: explicit Fast recorded-prefix controls play choices, death, Dr
         const slot = claimWorld.underworld_view?.slots.find(slot => slot.slot === 'imported_vessel');
         expect(slot?.status.claimable).toBe(true);
         expect(slot?.status.affordable).toBe(true);
+        await revealControl(page.getByTestId('carry-over'));
         await page.getByTestId('carry-over').selectOption(carry.payload.CarryOver!.trait_name);
         await expect(page.getByTestId('carry-over')).toHaveValue(carry.payload.CarryOver!.trait_name);
+        await revealControl(page.getByTestId('claim-imported_vessel'));
         await expect(page.getByTestId('claim-imported_vessel')).toBeEnabled();
         await page.getByTestId('claim-imported_vessel').click();
-        await expect(page.locator('[data-testid="operation-receipt"][data-kind="claim"][data-phase="received"]').first()).toBeVisible();
+        await revealControl(page.locator('[data-testid="operation-receipt"][data-kind="claim"][data-phase="received"]').first());
       }
       await expect(page.getByTestId('run')).toBeEnabled();
       await page.getByTestId('run').click();

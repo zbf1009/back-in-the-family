@@ -5,9 +5,12 @@ import { readFileSync } from 'node:fs';
 import { expect, test, type Page } from '@playwright/test';
 import type { UiState } from '../../src/main/ui-state.ts';
 import type { PlayerFamily, PlayerLifecycleFact, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import { portraitId } from '../../src/art/portraits.ts';
+import { STAGE_HEIGHT, STAGE_WIDTH } from '../../src/art/stage-geometry.ts';
 
 const ORIGIN = 'http://localhost:5174';
 test.use({ viewport: { width: 1280, height: 720 } });
+test.use({ headless: false, launchOptions: { args: ['--window-position=-10000,-10000'] } });
 const failures = new WeakMap<Page, { errors: string[]; forbidden: string[] }>();
 test.beforeEach(async ({ page }) => {
   const result = { errors: [] as string[], forbidden: [] as string[] };
@@ -30,6 +33,7 @@ interface FixtureEvidence {
   ui: UiState;
   callbacks: Record<string, unknown>[];
   draws: { method: 'resident' | 'grave'; canvas: string | undefined; visual: string | null }[];
+  portraitDraws: { canvas: string | undefined; id: number; x: number; y: number; scale: number }[];
 }
 declare const window: Window & { __lifeViewFixture?: { read(): unknown } };
 async function readFixture(page: Page): Promise<FixtureEvidence> {
@@ -154,7 +158,6 @@ test('Unknown referenced person never borrows another standing actor or grave', 
 });
 
 test.describe('Actual tab visibility', () => {
-  test.use({ headless: false, launchOptions: { args: ['--window-position=-10000,-10000'] } });
   test('Hidden return keeps latest facts and submits no simulation action', async ({ page, context }) => {
     const initial = await open(page, 'motion-feud');
     const cdp = await context.newCDPSession(page);
@@ -175,13 +178,14 @@ test.describe('Actual tab visibility', () => {
     await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('hidden');
     await page.getByTestId('fixture-motion-controls').locator(':scope > summary').press('Enter');
     await page.getByTestId('fixture-next-node').press('Enter');
+    const delivered = await readFixture(page);
     await page.bringToFront();
     await expect.poll(() => page.evaluate(() => document.visibilityState)).toBe('visible');
     const latest = await readFixture(page);
     expect(latest.ui.world!.player_node!.id).not.toBe(initial.ui.world!.player_node!.id);
     expect(latest.ui.tick).toBe(initial.ui.tick);
     expect(latest.ui.actions).toEqual([]);
-    expect(latest.callbacks).toEqual(initial.callbacks);
+    expect(latest.callbacks).toEqual(delivered.callbacks);
     await legalOptions(page, latest.ui.world!);
     await otherCdp.detach();
     await other.close();
@@ -219,4 +223,77 @@ test('Dream Close is presentation-only', async ({ page }) => {
   expect(after.ui.world).toEqual(initial.ui.world);
   expect(after.ui.tick).toBe(initial.ui.tick);
   expect(after.callbacks.at(-1)).toMatchObject({ kind: 'close', identity: initial.ui.scene!.entries[0]!.identity });
+});
+
+test('Show all reveals a non-memorial scene without settling or changing inputs', async ({ page }) => {
+  const initial = await open(page, 'motion-feud');
+  const scene = page.getByTestId('key-scene');
+  await expect(scene).toHaveAttribute('data-beat', 'establish');
+  await scene.getByRole('button', { name: 'Show all', exact: true }).press('Enter');
+  await expect(scene).not.toHaveAttribute('data-beat', 'settled');
+  const after = await readFixture(page);
+  expect(after.ui).toEqual(initial.ui);
+  expect(after.callbacks).toEqual(initial.callbacks);
+  await legalOptions(page, initial.ui.world!);
+});
+
+for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 640 }, { width: 375, height: 667 }]) {
+  test(`Stage and portrait source pixels share an integer fit at ${viewport.width}`, async ({ page }) => {
+    await page.setViewportSize(viewport);
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    const initial = await open(page, 'motion-joined');
+    const scene = page.getByTestId('key-scene');
+    const picture = scene.getByTestId('scene-picture');
+    await expect(picture).toHaveAttribute('data-pixel-scale', /^[12]$/);
+    const scale = Number(await picture.getAttribute('data-pixel-scale'));
+    const canvas = scene.getByTestId('scene-picture-canvas');
+    const box = await canvas.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box!.width).toBeCloseTo(STAGE_WIDTH * scale, 3);
+    expect(box!.height).toBeCloseTo(STAGE_HEIGHT * scale, 3);
+    const first = initial.ui.scene!.entries[0]!.keyScene!.people[0]!;
+    const people = scene.getByTestId('scene-picture-people');
+    await expect(people).toHaveAttribute('data-person', String(first.id));
+    await expect(people).toHaveAttribute('data-sex', first.sex ?? 'neutral');
+    await expect(people).toHaveAttribute('data-age', first.age === null ? 'unknown' : String(first.age));
+    const draws = (await readFixture(page)).portraitDraws.filter(draw => draw.canvas === 'scene-picture-people');
+    expect(draws).toContainEqual(expect.objectContaining({ id: portraitId({ person: first.id, sex: first.sex, age: first.age }), scale: 1 }));
+    expect(draws.every(draw => Number.isInteger(draw.x) && Number.isInteger(draw.y))).toBe(true);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    if (viewport.width < STAGE_WIDTH) {
+      const scroll = picture.getByRole('group', { name: initial.ui.scene!.entries[0]!.keyScene!.title, exact: true });
+      await scroll.focus();
+      await scroll.press('ArrowRight');
+      await expect.poll(() => scroll.evaluate(element => element.scrollLeft)).toBeGreaterThan(0);
+    }
+    const after = await readFixture(page);
+    expect(after.ui).toEqual(initial.ui);
+    expect(after.callbacks).toEqual(initial.callbacks);
+    await legalOptions(page, initial.ui.world!);
+  });
+}
+
+test('Production ArtSample fits the 848px content column at 2× and keeps Show all legible', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.goto(`${ORIGIN}/art-sample.html`);
+  await expect(page.getByTestId('art-sample')).toHaveAttribute('data-assets', 'ready');
+  const certificate = page.getByTestId('portrait-certificate');
+  await expect(certificate.locator('.stage')).toHaveAttribute('data-pixel-scale', '2');
+  const stage = await certificate.locator('.stage').boundingBox();
+  expect(stage!.width).toBeCloseTo(832, 3);
+  expect(stage!.height).toBeCloseTo(384, 3);
+  const portrait = await certificate.locator('.portrait-file canvas').boundingBox();
+  expect(portrait!.width).toBeCloseTo(128, 3);
+  expect(portrait!.height).toBeCloseTo(128, 3);
+  await expect(certificate.locator('.certificate dl')).toHaveCSS('font-size', '18px');
+  const showAll = certificate.getByRole('button', { name: 'Show all', exact: true });
+  await showAll.hover();
+  await expect(showAll).toHaveCSS('background-color', 'rgb(229, 222, 195)');
+  await expect(showAll).toHaveCSS('color', 'rgb(38, 59, 60)');
+  await page.mouse.move(1270, 10);
+  await showAll.focus();
+  await showAll.press('Space');
+  await expect(showAll).toHaveCSS('color', 'rgb(38, 59, 60)');
+  await expect(certificate).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

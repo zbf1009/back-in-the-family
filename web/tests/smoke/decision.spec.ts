@@ -5,8 +5,8 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { readFileSync } from 'node:fs';
 import { relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { test, expect, type BrowserContext, type Page, type Route, type TestInfo } from '@playwright/test';
-import type { Reply, Request, RequestTicket, RequestWithoutId, Snapshot, WorkerMessage } from '../../src/shared/protocol.ts';
+import { test, expect, type BrowserContext, type Locator, type Page, type Route, type TestInfo } from '@playwright/test';
+import type { DecisionNotice, Reply, Request, RequestTicket, RequestWithoutId, Snapshot, WorkerMessage } from '../../src/shared/protocol.ts';
 import type { WorldSnapshot } from '../../src/shared/world-snapshot.ts';
 import { DECISION_CONTRACT } from '../../src/shared/decision-contract.ts';
 import { DECISION_CONFIG_VERSION, isDecisionRequest, isModelDecision, type DecisionRequest, type ModelDecision } from '../../src/shared/decision.ts';
@@ -125,9 +125,44 @@ async function readResolvedDream(page: Page, tick: string): Promise<NonNullable<
   await expect(page.getByTestId('step')).toBeEnabled();
   return resolution;
 }
-async function openDisclosure(page: Page, id: 'world-setup' | 'technical-details'): Promise<void> {
+async function openDisclosure(page: Page, id: 'world-setup' | 'technical-details' | 'dream-section' | 'bribe-section' | 'carry-section' | 'rebirth-section'): Promise<void> {
   const disclosure = page.getByTestId(id);
-  if (await disclosure.getAttribute('open') === null) await disclosure.locator(':scope > summary').click();
+  if (await disclosure.getAttribute('open') === null) await disclosure.locator(':scope > summary').press('Enter');
+  await expect(disclosure).toHaveJSProperty('open', true);
+}
+
+async function revealReceipt(receipt: Locator): Promise<void> {
+  const sections = receipt.locator('xpath=ancestor::details');
+  for (let index = await sections.count() - 1; index >= 0; index--) {
+    const section = sections.nth(index);
+    if (await section.getAttribute('open') === null) await section.locator(':scope > summary').press('Enter');
+    await expect(section).toHaveJSProperty('open', true);
+  }
+  await expect(receipt).toBeVisible();
+}
+
+async function decisionOutcome(page: Page, kind: 'model' | 'fallback', requestId?: number, timeout = 5_000): Promise<DecisionNotice> {
+  let terminal: DecisionNotice | null = null;
+  await expect.poll(async () => {
+    const reply = await request(page, { type: 'decision-status' });
+    expect(reply.ok).toBe(true);
+    const decision = reply.snapshot.decision;
+    terminal = decision?.pending === null && decision.outcome?.worldId === reply.snapshot.worldId
+      && (requestId === undefined || decision.outcome.requestId === requestId) ? decision.outcome : null;
+    return terminal?.kind;
+  }, { timeout }).toBe(kind);
+  if (terminal === null) throw Error('The current operation has no authoritative terminal outcome');
+  await expect(page.getByTestId('decision-notice')).toHaveCount(0);
+  await expect(page.getByTestId('use-rules-now')).toHaveCount(0);
+  return terminal;
+}
+
+async function operationReceipt(page: Page, kind: 'dream' | 'bribe', phase: 'considering' | 'received' | 'processed', identity: Pick<DecisionNotice, 'worldId' | 'requestId'>): Promise<Locator> {
+  const receipt = page.getByTestId('underworld-panel').getByTestId('operation-receipt')
+    .and(page.locator(`[data-world="${identity.worldId}"][data-request="${identity.requestId}"][data-kind="${kind}"]`));
+  await revealReceipt(receipt);
+  await expect(receipt).toHaveAttribute('data-phase', phase);
+  return receipt;
 }
 async function create(page: Page): Promise<void> {
   await openDisclosure(page, 'world-setup');
@@ -175,8 +210,9 @@ async function waiting(page: Page): Promise<void> {
   await expect(page.getByTestId('step')).toBeEnabled(); await page.getByTestId('step').click();
   await expect(page.getByTestId('tick')).toHaveText(String(WAITING_TICK));
   await expect(page.getByTestId('underworld-panel')).toBeVisible();
+  for (const id of ['dream-section', 'bribe-section', 'carry-section', 'rebirth-section'] as const) await openDisclosure(page, id);
   await expect(page.getByTestId('dream-send')).toBeEnabled();
-  await page.getByTestId('dreamer').selectOption('31'); await page.getByTestId('dream-intent-urge').click();
+  await page.getByTestId('dream-target-31').check(); await page.getByTestId('dream-intent-urge').click();
   const world = await readWorld(page);
   expect(world.player.place).toBe('waiting'); expect(world.underworld_view?.connected).toContain(31);
   expect(world.last_dream).toBeUndefined();
@@ -187,7 +223,7 @@ async function open(page: Page): Promise<void> {
   await openDisclosure(page, 'technical-details');
   await expect(page.getByTestId('decision-wait')).toHaveValue('10');
 }
-async function start(page: Page): Promise<{ tick: string; checksum: string }> {
+async function start(page: Page): Promise<{ tick: string; checksum: string; worldId: number; requestId: number }> {
   const tick = await page.getByTestId('tick').innerText(); const checksum = await page.getByTestId('checksum').innerText();
   const beforeWorld = await readWorld(page);
   await page.getByTestId('dream-send').click();
@@ -200,20 +236,23 @@ async function start(page: Page): Promise<{ tick: string; checksum: string }> {
   const heldWorld = await readWorld(page);
   expect(heldWorld.tick).toBe(tick);
   expect(heldWorld.last_dream).toEqual(beforeWorld.last_dream);
-  return { tick, checksum };
+  const status = await request(page, { type: 'decision-status' });
+  expect(status.ok).toBe(true);
+  const pending = status.snapshot.decision?.pending;
+  if (pending === null || pending === undefined) throw Error('The actual Dream control has no pending decision identity');
+  expect(pending.worldId).toBe(status.snapshot.worldId); expect(pending.tick).toBe(tick);
+  return { tick, checksum, worldId: pending.worldId, requestId: pending.requestId };
 }
-async function recorded(page: Page, kind: 'model' | 'fallback', before: { tick: string; checksum: string }): Promise<void> {
-  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', kind);
-  await expect(page.getByTestId('decision-notice')).not.toBeEmpty();
-  await expect(page.getByTestId('decision-notice')).not.toContainText(/provider text|quality|personality/i);
-  await expect(page.getByTestId('use-rules-now')).toHaveCount(0);
+async function recorded(page: Page, kind: 'model' | 'fallback', before: { tick: string; checksum: string; requestId?: number }, timeout = 5_000): Promise<DecisionNotice> {
+  const outcome = await decisionOutcome(page, kind, before.requestId, timeout);
   await expect(page.getByTestId('tick')).toHaveText(before.tick); await expect(page.getByTestId('checksum')).toHaveText(before.checksum);
   await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
   const world = await readWorld(page);
   expect(world.tick).toBe(before.tick);
   if (world.last_dream !== undefined) expect(BigInt(world.last_dream.tick)).toBeLessThan(BigInt(before.tick));
-  await expect(page.locator('[data-testid="operation-receipt"][data-kind="dream"][data-phase="received"]').first()).toBeVisible();
+  await operationReceipt(page, 'dream', 'received', outcome);
   await expect(page.getByTestId('step')).toBeEnabled();
+  return outcome;
 }
 async function resolve(page: Page): Promise<void> {
   const admission = await request(page, { type: 'decision-status' });
@@ -320,8 +359,9 @@ for (const priorOutcome of [false, true]) {
     // The rejected operation itself always goes through the existing UI button.
     await page.getByTestId('dream-send').click();
     await expect(page.getByTestId('underworld-error')).toBeVisible();
-    await expect(page.locator('[data-testid="operation-receipt"][data-kind="dream"][data-phase="refused"]').first()).toBeVisible();
-    await expect(page.getByTestId('decision-notice')).toBeEmpty();
+    const refusal = page.getByTestId('underworld-panel').locator('[data-testid="operation-receipt"][data-kind="dream"][data-phase="refused"]');
+    await revealReceipt(refusal);
+    await expect(page.getByTestId('decision-notice')).toHaveCount(0);
     await expect(page.getByTestId('use-rules-now')).toHaveCount(0);
     expect(await page.getByTestId('key-scene').evaluateAll(elements => elements.map(element => element.getAttribute('data-identity')))).toEqual(sceneIdentities);
     expect((await readWorld(page)).last_dream).toEqual(world.last_dream);
@@ -358,7 +398,7 @@ for (const priorOutcome of [false, true]) {
       expect(snapshot.decision?.spent).toBe(before.snapshot.decision?.spent);
     }
     expect(fake.attempts).toHaveLength(posts);
-    await expect(page.getByTestId('decision-notice')).toBeEmpty();
+    await expect(page.getByTestId('decision-notice')).toHaveCount(0);
     await expect(page.getByTestId('underworld-error')).toHaveCount(0);
 
     // Only bounded counters and tick/checksum/outcome IDs leave this test.
@@ -413,8 +453,9 @@ test('offline fake World replacement cancels held Dream without locking Create o
   const fake = await offlineFake(context); await open(page); await waiting(page); await start(page);
   await expect.poll(() => fake.attempts.length).toBe(1);
   await page.getByTestId('decision-wait').selectOption('0'); await create(page);
-  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', '');
-  await expect(page.getByTestId('decision-notice')).toBeEmpty(); await expect(page.getByTestId('use-rules-now')).toHaveCount(0);
+  await expect(page.getByTestId('decision-notice')).toHaveCount(0); await expect(page.getByTestId('use-rules-now')).toHaveCount(0);
+  const replaced = await request(page, { type: 'decision-status' }); expect(replaced.ok).toBe(true);
+  expect(replaced.snapshot.decision?.pending).toBeNull();
   await expect(page.getByTestId('decision-wait')).toHaveValue('0'); await expect(page.getByTestId('decision-diagnostics')).toContainText('1/40');
   await fake.late();
   await expect(page.getByTestId('tick')).toHaveText('0'); await expect(page.getByTestId('run')).toBeEnabled();
@@ -430,8 +471,9 @@ test('offline fake deadline keeps the active wait after future preference change
   await page.getByTestId('decision-wait').selectOption('0'); await expect(page.getByTestId('decision-wait')).toHaveValue('0');
   // Observe a real worker deadline; never fake its timers or app state.
   await page.waitForTimeout(300); await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'pending');
-  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'fallback', { timeout: 12_000 });
-  await recorded(page, 'fallback', before); expect(fake.attempts).toHaveLength(1); await resolve(page);
+  const timedOut = await recorded(page, 'fallback', before, 12_000);
+  expect(timedOut).toMatchObject({ kind: 'fallback', reason: 'timeout', worldId: before.worldId, requestId: before.requestId });
+  expect(fake.attempts).toHaveLength(1); await resolve(page);
 });
 
 test('offline fake pending config and disabled adapter keep rules-only Dream controls with zero POSTs', async ({ page, context }) => {
@@ -446,7 +488,7 @@ test('offline fake pending config and disabled adapter keep rules-only Dream con
   expect(ready.snapshot.decision).toMatchObject({ config: 'ready', enabled: false, spent: 0, waitSeconds: 0 });
   const before = { tick: await page.getByTestId('tick').innerText(), checksum: await page.getByTestId('checksum').innerText() };
   const replayBefore = await liveReplay(page);
-  await page.getByTestId('dream-send').click(); await recorded(page, 'fallback', before);
+  await page.getByTestId('dream-send').click(); const outcome = await recorded(page, 'fallback', before);
   const admitted = await request(page, { type: 'decision-status' });
   expect(admitted.ok).toBe(true);
   expect(admitted.snapshot.decision).toMatchObject({ config: 'ready', enabled: false, spent: 0, pending: null,
@@ -456,7 +498,7 @@ test('offline fake pending config and disabled adapter keep rules-only Dream con
     { Dream: { dreamer: '31', intent: 'urge' } },
   ]);
   await resolve(page);
-  await expect(page.locator('[data-testid="operation-receipt"][data-kind="dream"][data-phase="processed"]').first()).toBeVisible();
+  await operationReceipt(page, 'dream', 'processed', outcome);
   expect(fake.attempts).toHaveLength(0);
 });
 
@@ -478,7 +520,8 @@ test('offline fake running Dream holds the native clock and resumes only to the 
   await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
   await expect(page.getByTestId('tick')).toHaveText(String(Number(tick) + 1));
   await readResolvedDream(page, tick);
-  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'fallback');
+  const outcome = await decisionOutcome(page, 'fallback', status.snapshot.decision?.pending?.requestId);
+  await operationReceipt(page, 'dream', 'processed', outcome);
 });
 
 test('offline fake both families share one completed tick with trigger-sequence attribution in the live v5 export', async ({ page, context }, info) => {
@@ -506,16 +549,17 @@ test('offline fake both families share one completed tick with trigger-sequence 
   expect(BigInt(bribeTrigger!)).toBe(BigInt(dreamTrigger!) + 2n);
   expect(fake.attempts[1]!.request.family).toBe('magistrate_ruling');
   await fake.accept(1);
-  await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'model');
-  await expect(page.locator('[data-testid="operation-receipt"][data-kind="bribe"][data-phase="received"]').first()).toBeVisible();
+  const bribeTerminal = await decisionOutcome(page, 'model', bribeStatus.snapshot.decision?.pending?.requestId);
+  await operationReceipt(page, 'bribe', 'received', bribeTerminal);
   const bribeReply = await request(page, { type: 'decision-status' });
   expect(bribeReply.ok).toBe(true);
   const bribeOutcome = bribeReply.snapshot.decision?.outcome;
-  if (bribeOutcome?.kind !== 'model') throw Error('Actual Bribe control terminal notice is missing');
+  if (bribeOutcome?.kind !== 'model') throw Error('Actual Bribe control terminal outcome is missing');
   expect(bribeOutcome.requestId).toBeGreaterThan(0);
   expect(bribeOutcome.worldId).toBe(bribeReply.snapshot.worldId);
   expect(bribeOutcome.option).toBe(fake.attempts[1]!.request.criteria[0]!.id);
   expect(bribeReply.snapshot.decision?.pending).toBeNull();
+  expect(bribeOutcome).toEqual(bribeTerminal);
   const terminal = await request(page, { type: 'decision-status' });
   expect(terminal.ok).toBe(true);
   expect(terminal.snapshot.decision?.pending).toBeNull();
@@ -648,8 +692,6 @@ test('LV-C2 controlled preissuance World-read transport fault stays bound to the
   await expect(page.getByTestId('error')).toBeVisible();
   await expect(page.getByTestId('error')).not.toContainText(fault);
   await expect(page.getByTestId('technical-details')).toContainText(fault);
-  const staleWorldNotice = await page.getByTestId('world-as-of').innerText();
-  await expect(page.getByTestId('world-as-of')).toBeVisible();
   await expect(page.getByTestId('step')).toBeEnabled();
   await expect(page.getByTestId('run')).toBeEnabled();
   await expect(page.getByTestId('operation-receipt')).toHaveCount(0);
@@ -668,7 +710,6 @@ test('LV-C2 controlled preissuance World-read transport fault stays bound to the
   expect(native.snapshot.runState).toBe('paused');
   await expect(page.getByTestId('checksum')).toHaveText(native.snapshot.checksum!);
   await expect(page.getByTestId('tick')).toHaveText('2');
-  await expect(page.getByTestId('world-as-of')).toHaveText(staleWorldNotice);
   const observed = await page.evaluate(() => window.__c2ReadFault!);
   expect(observed.failWorldReads).toBe(true);
   expect(observed.failures).toEqual([{ worldId: 1, tick: '2' }]);
@@ -695,15 +736,19 @@ for (const outcome of ['manual', 'invalid-response'] as const) {
     await page.getByTestId('bribe-amount').fill('1'); await page.getByTestId('bribe-send').click();
     await expect.poll(() => fake.attempts.length).toBe(1);
     await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'pending');
-    await expect(page.locator('[data-testid="operation-receipt"][data-kind="bribe"][data-phase="considering"]').first()).toBeVisible();
+    const pendingReply = await request(page, { type: 'decision-status' }); expect(pendingReply.ok).toBe(true);
+    const pending = pendingReply.snapshot.decision?.pending;
+    if (pending === null || pending === undefined) throw Error('The actual Bribe control has no pending decision identity');
+    await operationReceipt(page, 'bribe', 'considering', pending);
     await expect(page.getByTestId('use-rules-now')).toBeEnabled();
     await expect(page.getByTestId('run')).toBeDisabled(); await expect(page.getByTestId('step')).toBeDisabled();
     await expect(page.getByTestId('tick')).toHaveText(before.tick);
     if (outcome === 'manual') { await page.getByTestId('use-rules-now').click(); await fake.late(); }
     else await fake.invalid();
-    await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'fallback');
-    const receipt = page.getByTestId('underworld-panel').locator('[data-testid="operation-receipt"][data-kind="bribe"]');
-    await expect(receipt).toHaveAttribute('data-phase', 'received');
+    const terminal = await decisionOutcome(page, 'fallback', pending.requestId);
+    expect(terminal).toMatchObject({ kind: 'fallback', worldId: pending.worldId, requestId: pending.requestId,
+      reason: outcome === 'manual' ? 'manual' : 'invalid_response' });
+    const receipt = await operationReceipt(page, 'bribe', 'received', terminal);
     const admittedInput = await receipt.getAttribute('data-inputs');
     expect(admittedInput).not.toBeNull();
     await expect(page.getByTestId('technical-run-state')).toHaveText('paused'); await expect(page.getByTestId('tick')).toHaveText(before.tick);

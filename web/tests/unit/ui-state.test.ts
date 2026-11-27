@@ -38,6 +38,7 @@ import type { Request, RunState, Snapshot, WorkerMessage } from '../../src/share
 import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
 
 import type { StoryBatch } from '../../src/shared/story.ts';
+import { exportNotebook } from '../../src/main/life-journal.ts';
 
 // The reply message type, derived from the shared Worker_Protocol union rather
 // than imported from `src/main/sim-client.ts`. `sim-client.ts` is DOM-only
@@ -1044,14 +1045,17 @@ test('LU-R2: ordinary Story deliveries retain old facts and actors through rebir
   for (const event of native.events) assert.deepEqual(retained.events.get(event.id), event);
   for (const record of native.chronicle) assert.deepEqual(retained.chronicle.get(record.index), record);
   for (const actor of native.actors) assert.deepEqual(retained.actors.get(actor.person), actor);
+  const retainedFacts = exportNotebook(retained);
   const nextTick = String(BigInt(native.sampleTicks) + 1n);
   ui = reduce(ui, { type: 'status', snapshot: { ...deliverySnapshot(ui), tick: nextTick,
     stop: { reasons: ['player_reborn'], world: { ...deliveryWorld, tick: nextTick } } } });
-  assert.equal(ui.notebook, retained, 'rebirth is not a new World');
+  assert.deepEqual(exportNotebook(ui.notebook), retainedFacts, 'rebirth preserves all current-World facts');
+  assert.deepEqual(exportNotebook(retained), retainedFacts, 'the retained root remains unchanged');
+  const afterRebirth = ui.notebook;
   const create: Request = { type: 'create-world', id: 2, seed: 'bad', config: '{}' };
   ui = reduce(ui, { type: 'reply', request: create, message: { type: 'reply', id: 2, ok: false,
     kind: 'invalid-seed', error: 'invalid', snapshot: deliverySnapshot(ui) } });
-  assert.equal(ui.notebook, retained, 'failed Create cannot evict history');
+  assert.equal(ui.notebook, afterRebirth, 'failed Create cannot evict history');
   ui = deliveryReply(ui, { ...create, seed: '2' }, { ...deliverySnapshot(ui), worldId: 2, tick: '0' });
   assert.equal(ui.notebook.worldId, 2);
   assert.equal(ui.notebook.identities.length, 0);

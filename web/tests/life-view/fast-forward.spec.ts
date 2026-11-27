@@ -148,6 +148,15 @@ async function beginFastForward(page: Page, speed = 7): Promise<Request> {
   await expect(page.getByTestId('run-state')).toHaveText('Playing');
   return run;
 }
+async function startPlaying(page: Page, speed = 7): Promise<void> {
+  await page.getByTestId('speed').selectOption(String(speed));
+  await reply(page, await lastRequest(page, 'set-speed'), { speed });
+  await page.getByTestId('run').click();
+  await reply(page, await lastRequest(page, 'run'), { runState: 'running' });
+  await expect(page.getByTestId('run')).toBeDisabled();
+  await expect(page.getByTestId('fast-forward')).toBeEnabled();
+  await page.evaluate(() => window.__paceHarness.reset());
+}
 async function exportFailure(page: Page): Promise<void> {
   await page.getByTestId('technical-details').locator(':scope > summary').click();
   await page.getByRole('button', { name: 'Export replay', exact: true }).click();
@@ -318,7 +327,7 @@ for (const rejectedCommand of ['pause', 'set-speed'] as const) {
     else await status(page, { runState: 'paused' }, true);
     const rejected = await lastRequest(page, rejectedCommand);
     await reply(page, rejected, { decision: decision(true) }, { kind: 'decision_pending', error: 'Controlled decision hold' });
-    await expect(page.getByTestId('decision-notice')).toHaveAttribute('data-outcome', 'pending');
+    await expect(page.getByTestId('use-rules-now')).toBeEnabled();
     const heldRequests = await requests(page);
     await page.getByTestId('fast-forward').dispatchEvent('click');
     expect(await requests(page)).toEqual(heldRequests);
@@ -342,7 +351,7 @@ for (const fatal of ['fatal', 'worker-error'] as const) {
     await openApp(page); await createWorld(page); await beginFastForward(page);
     const before = await requests(page);
     await page.evaluate(type => window.__paceHarness.fatal(type), fatal);
-    await expect(page.getByTestId('run-state')).toHaveText('Unable to continue');
+    await expect(page.getByTestId('technical-run-state')).toHaveText('failed');
     await expect(page.getByTestId('fast-forward')).toBeDisabled();
     await expect(page.getByTestId('speed')).toHaveValue(String(FAST_FORWARD_SPEED));
     await expect(page.getByTestId('restore-pace')).toHaveCount(0);
@@ -677,3 +686,142 @@ for (const pauseFirst of [false, true]) {
     expect((await requests(page)).map(request => request.type)).toEqual(['set-speed', 'run', 'set-speed', 'pause']);
   });
 }
+
+test('Playing Skip ahead changes only the existing loop speed and restores at the first natural stop', async ({ page }) => {
+  await openApp(page); await createWorld(page); await startPlaying(page);
+  await page.getByTestId('fast-forward').click();
+  const accelerate = await lastRequest(page, 'set-speed');
+  expect(accelerate).toMatchObject({ speed: FAST_FORWARD_SPEED });
+  await page.getByTestId('fast-forward').dispatchEvent('click');
+  expect(await requests(page)).toEqual([accelerate]);
+  await reply(page, accelerate, { runState: 'running', speed: FAST_FORWARD_SPEED });
+  await expect(page.getByTestId('technical-run-state')).toHaveText('running');
+  await expect(page.getByTestId('pause')).toBeEnabled();
+  expect(await requests(page)).toEqual([accelerate]);
+  await status(page, { runState: 'paused', tick: '501' }, 'player_died');
+  const restore = await lastRequest(page, 'set-speed');
+  expect(restore).toMatchObject({ speed: 7 });
+  await expect(page.getByTestId('fast-forward')).toBeDisabled();
+  await reply(page, restore, { runState: 'paused', speed: 7 });
+  await expect(page.getByTestId('speed')).toHaveValue('7');
+  await expect(page.getByTestId('step')).toBeEnabled();
+  expect(await requests(page)).toEqual([accelerate, restore]);
+});
+
+test('a paused acceleration ACK never resumes a Skip ahead initiated while Playing', async ({ page }) => {
+  await openApp(page); await createWorld(page); await startPlaying(page);
+  await page.getByTestId('fast-forward').click();
+  const accelerate = await lastRequest(page, 'set-speed');
+  await reply(page, accelerate, { runState: 'paused', speed: FAST_FORWARD_SPEED });
+  const restore = await lastRequest(page, 'set-speed');
+  expect(restore).toMatchObject({ speed: 7 });
+  await reply(page, restore, { runState: 'paused', speed: 7 });
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
+  expect(await requests(page)).toEqual([accelerate, restore]);
+});
+
+test('Playing Skip ahead waits for an explicit speed ACK and cannot overtake a pending Pause', async ({ page }) => {
+  await openApp(page); await createWorld(page); await startPlaying(page);
+  await page.getByTestId('speed').selectOption('1');
+  const selected = await lastRequest(page, 'set-speed');
+  await expect(page.getByTestId('fast-forward')).toBeDisabled();
+  await page.getByTestId('fast-forward').dispatchEvent('click');
+  expect(await requests(page)).toEqual([selected]);
+  await reply(page, selected, { runState: 'running', speed: 1 });
+  await expect(page.getByTestId('fast-forward')).toBeEnabled();
+  await page.getByTestId('pause').click();
+  const pause = await lastRequest(page, 'pause');
+  await expect(page.getByTestId('fast-forward')).toBeDisabled();
+  await page.getByTestId('fast-forward').dispatchEvent('click');
+  expect(await requests(page)).toEqual([selected, pause]);
+  await reply(page, pause, { runState: 'paused' }, undefined, true);
+  await expect(page.getByTestId('fast-forward')).toBeEnabled();
+});
+
+for (const pauseFirst of [false, true]) {
+  test(`Playing manual Pause ${pauseFirst ? 'before' : 'after'} acceleration ACK restores the saved pace without another Run`, async ({ page }) => {
+    await openApp(page); await createWorld(page); await startPlaying(page);
+    await page.getByTestId('fast-forward').click();
+    const accelerate = await lastRequest(page, 'set-speed');
+    await page.getByTestId('pause').click();
+    const pause = await lastRequest(page, 'pause');
+    if (pauseFirst) await reply(page, pause, { runState: 'paused', speed: FAST_FORWARD_SPEED }, undefined, true);
+    await reply(page, accelerate, { runState: 'running', speed: FAST_FORWARD_SPEED, story: factualDelivery('9201') });
+    if (!pauseFirst) await reply(page, pause, { runState: 'paused' }, undefined, true);
+    const restore = await lastRequest(page, 'set-speed');
+    expect(restore).toMatchObject({ speed: 7 });
+    await reply(page, restore, { runState: 'paused', speed: 7 });
+    await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
+    await expect(page.getByTestId('speed')).toHaveValue('7');
+    await expect(page.getByTestId('fast-forward')).toBeEnabled();
+    expect(await requests(page)).toEqual([accelerate, pause, restore]);
+  });
+}
+
+test('Playing explicit target survives a natural stop and its late ACK retains facts without restart', async ({ page }) => {
+  await openApp(page); await createWorld(page); await startPlaying(page);
+  await page.getByTestId('fast-forward').click();
+  const accelerate = await lastRequest(page, 'set-speed');
+  await reply(page, accelerate, { runState: 'running', speed: FAST_FORWARD_SPEED });
+  await page.getByTestId('speed').selectOption('1');
+  const selected = await lastRequest(page, 'set-speed');
+  await status(page, { runState: 'paused', tick: '501' }, 'player_died');
+  await reply(page, selected, { runState: 'running', speed: 1, story: factualDelivery('9202') });
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
+  await expect(page.getByTestId('speed')).toHaveValue('1');
+  await expect(page.getByTestId('fast-forward')).toBeEnabled();
+  await page.getByTestId('technical-details').locator(':scope > summary').click();
+  await expect(page.getByTestId('technical-details')).toContainText('1 records;');
+  expect(await requests(page)).toEqual([accelerate, selected]);
+});
+
+test('a new World cancels Playing acceleration and its old ACK cannot run or restore the replacement', async ({ page }) => {
+  await openApp(page); await createWorld(page); await startPlaying(page);
+  await page.getByTestId('fast-forward').click();
+  const accelerate = await lastRequest(page, 'set-speed');
+  await page.getByTestId('world-setup').locator(':scope > summary').click();
+  await page.getByTestId('create').click();
+  const create = await lastRequest(page, 'create-world');
+  await reply(page, create, { worldId: 2, runState: 'paused', speed: DEFAULT_SPEED });
+  await reply(page, accelerate, { worldId: 1, runState: 'running', speed: FAST_FORWARD_SPEED });
+  await expect(page.getByTestId('life-app')).toHaveAttribute('data-world-id', '2');
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
+  await expect(page.getByTestId('speed')).toHaveValue(String(DEFAULT_SPEED));
+  await expect(page.getByTestId('fast-forward')).toBeEnabled();
+  expect(await requests(page)).toEqual([accelerate, create]);
+});
+
+test('Playing stop before acceleration ACK restores once and retains late facts without restarting', async ({ page }) => {
+  await openApp(page); await createWorld(page); await startPlaying(page);
+  await page.getByTestId('fast-forward').click();
+  const accelerate = await lastRequest(page, 'set-speed');
+  await status(page, { runState: 'paused', speed: FAST_FORWARD_SPEED, tick: '501' }, 'player_died');
+  const restore = await lastRequest(page, 'set-speed');
+  await reply(page, restore, { runState: 'paused', speed: 7 });
+  await reply(page, accelerate, { runState: 'running', speed: FAST_FORWARD_SPEED, story: factualDelivery('9203') });
+  await expect(page.getByTestId('technical-run-state')).toHaveText('paused');
+  await expect(page.getByTestId('speed')).toHaveValue('7');
+  await expect(page.getByTestId('fast-forward')).toBeEnabled();
+  await page.getByTestId('technical-details').locator(':scope > summary').click();
+  await expect(page.getByTestId('technical-details')).toContainText('1 records;');
+  expect(await requests(page)).toEqual([accelerate, restore]);
+});
+
+test('Playing failed acceleration leaves manual Pause-and-pace recovery without retrying Run', async ({ page }) => {
+  await openApp(page); await createWorld(page); await startPlaying(page);
+  await page.getByTestId('fast-forward').click();
+  const accelerate = await lastRequest(page, 'set-speed');
+  await reply(page, accelerate, { runState: 'running' }, { kind: 'sim-error', error: 'Controlled acceleration failure' });
+  await expect(page.getByTestId('restore-pace')).toBeEnabled();
+  expect(await requests(page)).toEqual([accelerate]);
+  await page.getByTestId('restore-pace').click();
+  const pause = await lastRequest(page, 'pause');
+  await expect(page.getByTestId('restore-pace')).toBeDisabled();
+  await reply(page, pause, { runState: 'paused' }, undefined, true);
+  const restore = await lastRequest(page, 'set-speed');
+  expect(restore).toMatchObject({ speed: 7 });
+  await reply(page, restore, { runState: 'paused', speed: 7 });
+  await expect(page.getByTestId('restore-pace')).toHaveCount(0);
+  await expect(page.getByTestId('fast-forward')).toBeEnabled();
+  expect(await requests(page)).toEqual([accelerate, pause, restore]);
+});

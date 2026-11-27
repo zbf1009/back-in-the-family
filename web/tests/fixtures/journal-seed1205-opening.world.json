@@ -1,0 +1,1747 @@
+{
+  "tick": "0",
+  "player_soul": "S-0010",
+  "residents": [
+    {
+      "id": 1,
+      "name": "Gordon Abbott",
+      "age": 50,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -3,
+        "loyalty": 3,
+        "pride": -1,
+        "warmth": -3,
+        "temper": 0,
+        "vindictiveness": -3,
+        "piety": 1
+      },
+      "wealth": 86812,
+      "soul_id": "S-0001",
+      "household": "1"
+    },
+    {
+      "id": 2,
+      "name": "Clara Abbott",
+      "age": 50,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 2,
+        "loyalty": 0,
+        "pride": 0,
+        "warmth": -2,
+        "temper": -1,
+        "vindictiveness": 2,
+        "piety": 3
+      },
+      "wealth": 7281,
+      "soul_id": "S-0002",
+      "household": "1"
+    },
+    {
+      "id": 3,
+      "name": "Bernard Abbott",
+      "age": 22,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -3,
+        "loyalty": -3,
+        "pride": 3,
+        "warmth": 1,
+        "temper": 0,
+        "vindictiveness": -3,
+        "piety": -1
+      },
+      "wealth": 0,
+      "soul_id": "S-0003",
+      "household": "1"
+    },
+    {
+      "id": 4,
+      "name": "Alfred Norris",
+      "age": 20,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 2,
+        "loyalty": 1,
+        "pride": -2,
+        "warmth": -3,
+        "temper": -1,
+        "vindictiveness": -1,
+        "piety": 2
+      },
+      "wealth": 103961,
+      "soul_id": "S-0004",
+      "household": "2"
+    },
+    {
+      "id": 5,
+      "name": "Helen Coleman",
+      "age": 32,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 1,
+        "loyalty": -3,
+        "pride": 2,
+        "warmth": -1,
+        "temper": -3,
+        "vindictiveness": -2,
+        "piety": -3
+      },
+      "wealth": 66848,
+      "soul_id": "S-0005",
+      "household": "3"
+    },
+    {
+      "id": 6,
+      "name": "Margaret Doyle",
+      "age": 39,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -2,
+        "loyalty": 3,
+        "pride": -3,
+        "warmth": -3,
+        "temper": -3,
+        "vindictiveness": -2,
+        "piety": 2
+      },
+      "wealth": 84142,
+      "soul_id": "S-0006",
+      "household": "4"
+    },
+    {
+      "id": 7,
+      "name": "Francis Doyle",
+      "age": 44,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 1,
+        "loyalty": 2,
+        "pride": -2,
+        "warmth": 2,
+        "temper": -3,
+        "vindictiveness": -2,
+        "piety": 3
+      },
+      "wealth": 11250,
+      "soul_id": "S-0007",
+      "household": "4"
+    },
+    {
+      "id": 8,
+      "name": "Ivy Doyle",
+      "age": 4,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 0,
+        "loyalty": 2,
+        "pride": 3,
+        "warmth": 0,
+        "temper": 1,
+        "vindictiveness": -1,
+        "piety": 2
+      },
+      "wealth": 0,
+      "soul_id": "S-0008",
+      "household": "4"
+    },
+    {
+      "id": 9,
+      "name": "Bernice Doyle",
+      "age": 17,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -1,
+        "loyalty": -1,
+        "pride": -1,
+        "warmth": -1,
+        "temper": 3,
+        "vindictiveness": 0,
+        "piety": 0
+      },
+      "wealth": 0,
+      "soul_id": "S-0009",
+      "household": "4"
+    },
+    {
+      "id": 10,
+      "name": "Nadine Bradley",
+      "age": 45,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 3,
+        "loyalty": 3,
+        "pride": -3,
+        "warmth": 1,
+        "temper": 3,
+        "vindictiveness": -3,
+        "piety": 0
+      },
+      "wealth": 108192,
+      "soul_id": "S-0010",
+      "household": "5"
+    },
+    {
+      "id": 11,
+      "name": "Clifford Bradley",
+      "age": 47,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 2,
+        "loyalty": 0,
+        "pride": -2,
+        "warmth": 1,
+        "temper": -2,
+        "vindictiveness": 3,
+        "piety": -1
+      },
+      "wealth": 26137,
+      "soul_id": "S-0011",
+      "household": "5"
+    },
+    {
+      "id": 12,
+      "name": "Marcus Bradley",
+      "age": 14,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 1,
+        "loyalty": -3,
+        "pride": -3,
+        "warmth": -2,
+        "temper": 1,
+        "vindictiveness": 0,
+        "piety": -3
+      },
+      "wealth": 0,
+      "soul_id": "S-0012",
+      "household": "5"
+    },
+    {
+      "id": 13,
+      "name": "Elise Boone",
+      "age": 51,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 2,
+        "loyalty": -2,
+        "pride": -2,
+        "warmth": 3,
+        "temper": 0,
+        "vindictiveness": -1,
+        "piety": 3
+      },
+      "wealth": 90904,
+      "soul_id": "S-0013",
+      "household": "6"
+    },
+    {
+      "id": 14,
+      "name": "Felix Boone",
+      "age": 52,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 3,
+        "loyalty": -2,
+        "pride": -3,
+        "warmth": 2,
+        "temper": 1,
+        "vindictiveness": 2,
+        "piety": 0
+      },
+      "wealth": 3924,
+      "soul_id": "S-0014",
+      "household": "6"
+    },
+    {
+      "id": 15,
+      "name": "Marion Boone",
+      "age": 40,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 3,
+        "loyalty": -2,
+        "pride": 3,
+        "warmth": -2,
+        "temper": -2,
+        "vindictiveness": -1,
+        "piety": 2
+      },
+      "wealth": 129703,
+      "soul_id": "S-0015",
+      "household": "7"
+    },
+    {
+      "id": 16,
+      "name": "Martha Cooper",
+      "age": 43,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 1,
+        "loyalty": 3,
+        "pride": 1,
+        "warmth": -3,
+        "temper": 2,
+        "vindictiveness": 3,
+        "piety": 0
+      },
+      "wealth": 87225,
+      "soul_id": "S-0016",
+      "household": "8"
+    },
+    {
+      "id": 17,
+      "name": "Frank Cooper",
+      "age": 41,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 0,
+        "loyalty": 0,
+        "pride": 3,
+        "warmth": -2,
+        "temper": 1,
+        "vindictiveness": -2,
+        "piety": -1
+      },
+      "wealth": 21445,
+      "soul_id": "S-0017",
+      "household": "8"
+    },
+    {
+      "id": 18,
+      "name": "Opal Cooper",
+      "age": 12,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -3,
+        "loyalty": 3,
+        "pride": -1,
+        "warmth": -1,
+        "temper": 1,
+        "vindictiveness": -3,
+        "piety": -1
+      },
+      "wealth": 0,
+      "soul_id": "S-0018",
+      "household": "8"
+    },
+    {
+      "id": 19,
+      "name": "Jasper Ellis",
+      "age": 66,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -3,
+        "loyalty": -1,
+        "pride": 0,
+        "warmth": 1,
+        "temper": 1,
+        "vindictiveness": -2,
+        "piety": 0
+      },
+      "wealth": 95963,
+      "soul_id": "S-0019",
+      "household": "9"
+    },
+    {
+      "id": 20,
+      "name": "Mabel Pierce",
+      "age": 22,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -2,
+        "loyalty": 3,
+        "pride": -2,
+        "warmth": 2,
+        "temper": -1,
+        "vindictiveness": -2,
+        "piety": -3
+      },
+      "wealth": 81580,
+      "soul_id": "S-0020",
+      "household": "10"
+    },
+    {
+      "id": 21,
+      "name": "Olive Cooper",
+      "age": 60,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -2,
+        "loyalty": -2,
+        "pride": 2,
+        "warmth": 0,
+        "temper": -1,
+        "vindictiveness": -1,
+        "piety": -2
+      },
+      "wealth": 86587,
+      "soul_id": "S-0021",
+      "household": "11"
+    },
+    {
+      "id": 22,
+      "name": "Charles Cooper",
+      "age": 64,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -3,
+        "loyalty": 2,
+        "pride": 1,
+        "warmth": -2,
+        "temper": 0,
+        "vindictiveness": -2,
+        "piety": 0
+      },
+      "wealth": 29278,
+      "soul_id": "S-0022",
+      "household": "11"
+    },
+    {
+      "id": 23,
+      "name": "Cora Cooper",
+      "age": 16,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 0,
+        "loyalty": 0,
+        "pride": -3,
+        "warmth": 2,
+        "temper": -3,
+        "vindictiveness": -1,
+        "piety": -3
+      },
+      "wealth": 0,
+      "soul_id": "S-0023",
+      "household": "11"
+    },
+    {
+      "id": 24,
+      "name": "Lucy Cooper",
+      "age": 14,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 2,
+        "loyalty": -2,
+        "pride": 0,
+        "warmth": -1,
+        "temper": 3,
+        "vindictiveness": -2,
+        "piety": -3
+      },
+      "wealth": 0,
+      "soul_id": "S-0024",
+      "household": "11"
+    },
+    {
+      "id": 25,
+      "name": "Lois Barrett",
+      "age": 35,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -3,
+        "loyalty": 0,
+        "pride": -3,
+        "warmth": 1,
+        "temper": -2,
+        "vindictiveness": 2,
+        "piety": -1
+      },
+      "wealth": 97150,
+      "soul_id": "S-0025",
+      "household": "12"
+    },
+    {
+      "id": 26,
+      "name": "Lloyd Barrett",
+      "age": 33,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -3,
+        "loyalty": 0,
+        "pride": -3,
+        "warmth": -1,
+        "temper": 2,
+        "vindictiveness": 3,
+        "piety": -1
+      },
+      "wealth": 27891,
+      "soul_id": "S-0026",
+      "household": "12"
+    },
+    {
+      "id": 27,
+      "name": "Nathan Rowe",
+      "age": 82,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 0,
+        "loyalty": 0,
+        "pride": -3,
+        "warmth": -3,
+        "temper": 0,
+        "vindictiveness": 2,
+        "piety": -1
+      },
+      "wealth": 61787,
+      "soul_id": "S-0027",
+      "household": "13"
+    },
+    {
+      "id": 28,
+      "name": "Faye Adler",
+      "age": 55,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 2,
+        "loyalty": 2,
+        "pride": 1,
+        "warmth": -3,
+        "temper": -1,
+        "vindictiveness": 0,
+        "piety": -1
+      },
+      "wealth": 99940,
+      "soul_id": "S-0028",
+      "household": "14"
+    },
+    {
+      "id": 29,
+      "name": "Chester Cooper",
+      "age": 25,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -1,
+        "loyalty": -1,
+        "pride": 2,
+        "warmth": 0,
+        "temper": -3,
+        "vindictiveness": 0,
+        "piety": 0
+      },
+      "wealth": 67762,
+      "soul_id": "S-0029",
+      "household": "15"
+    },
+    {
+      "id": 30,
+      "name": "Nancy Cooper",
+      "age": 30,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 0,
+        "loyalty": 2,
+        "pride": 3,
+        "warmth": 2,
+        "temper": 3,
+        "vindictiveness": -1,
+        "piety": 1
+      },
+      "wealth": 13618,
+      "soul_id": "S-0030",
+      "household": "15"
+    },
+    {
+      "id": 31,
+      "name": "Maude Cooper",
+      "age": 1,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 1,
+        "loyalty": 2,
+        "pride": -1,
+        "warmth": 3,
+        "temper": -2,
+        "vindictiveness": 2,
+        "piety": -1
+      },
+      "wealth": 0,
+      "soul_id": "S-0031",
+      "household": "15"
+    },
+    {
+      "id": 32,
+      "name": "Ella Cooper",
+      "age": 6,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -3,
+        "loyalty": 2,
+        "pride": -3,
+        "warmth": 3,
+        "temper": -3,
+        "vindictiveness": 0,
+        "piety": 2
+      },
+      "wealth": 0,
+      "soul_id": "S-0032",
+      "household": "15"
+    },
+    {
+      "id": 33,
+      "name": "Lois Cooper",
+      "age": 4,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 3,
+        "loyalty": 0,
+        "pride": -1,
+        "warmth": 1,
+        "temper": -2,
+        "vindictiveness": 1,
+        "piety": 2
+      },
+      "wealth": 0,
+      "soul_id": "S-0033",
+      "household": "15"
+    },
+    {
+      "id": 34,
+      "name": "Gabriel Stanton",
+      "age": 50,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 3,
+        "loyalty": -2,
+        "pride": -1,
+        "warmth": -2,
+        "temper": 3,
+        "vindictiveness": 2,
+        "piety": -1
+      },
+      "wealth": 79335,
+      "soul_id": "S-0034",
+      "household": "16"
+    },
+    {
+      "id": 35,
+      "name": "Bella Stanton",
+      "age": 45,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -1,
+        "loyalty": 3,
+        "pride": -2,
+        "warmth": 0,
+        "temper": -3,
+        "vindictiveness": -2,
+        "piety": -1
+      },
+      "wealth": 15247,
+      "soul_id": "S-0035",
+      "household": "16"
+    },
+    {
+      "id": 36,
+      "name": "Lucas Stanton",
+      "age": 2,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 3,
+        "loyalty": -3,
+        "pride": 1,
+        "warmth": 0,
+        "temper": -3,
+        "vindictiveness": 0,
+        "piety": 2
+      },
+      "wealth": 0,
+      "soul_id": "S-0036",
+      "household": "16"
+    },
+    {
+      "id": 37,
+      "name": "Flora Jenkins",
+      "age": 27,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -2,
+        "loyalty": 3,
+        "pride": 1,
+        "warmth": -2,
+        "temper": -1,
+        "vindictiveness": -3,
+        "piety": 2
+      },
+      "wealth": 86468,
+      "soul_id": "S-0037",
+      "household": "17"
+    },
+    {
+      "id": 38,
+      "name": "Conrad Jenkins",
+      "age": 26,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 0,
+        "loyalty": -1,
+        "pride": 3,
+        "warmth": 2,
+        "temper": 0,
+        "vindictiveness": 2,
+        "piety": 1
+      },
+      "wealth": 12419,
+      "soul_id": "S-0038",
+      "household": "17"
+    },
+    {
+      "id": 39,
+      "name": "Marvin Jenkins",
+      "age": 7,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 1,
+        "loyalty": 0,
+        "pride": -2,
+        "warmth": 3,
+        "temper": -2,
+        "vindictiveness": 0,
+        "piety": 0
+      },
+      "wealth": 0,
+      "soul_id": "S-0039",
+      "household": "17"
+    },
+    {
+      "id": 40,
+      "name": "Lucas Harper",
+      "age": 29,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 0,
+        "loyalty": -1,
+        "pride": -3,
+        "warmth": 2,
+        "temper": 0,
+        "vindictiveness": 3,
+        "piety": -2
+      },
+      "wealth": 73725,
+      "soul_id": "S-0040",
+      "household": "18"
+    },
+    {
+      "id": 41,
+      "name": "Mabel Harper",
+      "age": 33,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 1,
+        "loyalty": -1,
+        "pride": 3,
+        "warmth": 3,
+        "temper": 0,
+        "vindictiveness": 2,
+        "piety": -1
+      },
+      "wealth": 24971,
+      "soul_id": "S-0041",
+      "household": "18"
+    },
+    {
+      "id": 42,
+      "name": "Amelia Keller",
+      "age": 46,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 1,
+        "loyalty": -2,
+        "pride": -1,
+        "warmth": -1,
+        "temper": 3,
+        "vindictiveness": -3,
+        "piety": -2
+      },
+      "wealth": 129651,
+      "soul_id": "S-0042",
+      "household": "19"
+    },
+    {
+      "id": 43,
+      "name": "Flora Rhodes",
+      "age": 60,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 3,
+        "loyalty": -3,
+        "pride": -3,
+        "warmth": -3,
+        "temper": -1,
+        "vindictiveness": 1,
+        "piety": -3
+      },
+      "wealth": 68934,
+      "soul_id": "S-0043",
+      "household": "20"
+    },
+    {
+      "id": 44,
+      "name": "Felix Rhodes",
+      "age": 61,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -1,
+        "loyalty": -1,
+        "pride": -3,
+        "warmth": -1,
+        "temper": -1,
+        "vindictiveness": 3,
+        "piety": -2
+      },
+      "wealth": 6203,
+      "soul_id": "S-0044",
+      "household": "20"
+    },
+    {
+      "id": 45,
+      "name": "Bernice Rhodes",
+      "age": 11,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 0,
+        "loyalty": 0,
+        "pride": 3,
+        "warmth": 0,
+        "temper": -1,
+        "vindictiveness": -2,
+        "piety": 3
+      },
+      "wealth": 0,
+      "soul_id": "S-0045",
+      "household": "20"
+    },
+    {
+      "id": 46,
+      "name": "Kate Rhodes",
+      "age": 11,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -2,
+        "loyalty": -1,
+        "pride": -3,
+        "warmth": 1,
+        "temper": -1,
+        "vindictiveness": 2,
+        "piety": 2
+      },
+      "wealth": 0,
+      "soul_id": "S-0046",
+      "household": "20"
+    },
+    {
+      "id": 47,
+      "name": "Edith Fairbanks",
+      "age": 27,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": -3,
+        "loyalty": 2,
+        "pride": -2,
+        "warmth": -3,
+        "temper": -2,
+        "vindictiveness": 2,
+        "piety": -1
+      },
+      "wealth": 77771,
+      "soul_id": "S-0047",
+      "household": "21"
+    },
+    {
+      "id": 48,
+      "name": "Howard Fairbanks",
+      "age": 32,
+      "sex": "male",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 0,
+        "loyalty": 2,
+        "pride": 2,
+        "warmth": -1,
+        "temper": -3,
+        "vindictiveness": -3,
+        "piety": -1
+      },
+      "wealth": 4551,
+      "soul_id": "S-0048",
+      "household": "21"
+    },
+    {
+      "id": 49,
+      "name": "Holly Fairbanks",
+      "age": 9,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 3,
+        "loyalty": 1,
+        "pride": 3,
+        "warmth": -2,
+        "temper": 2,
+        "vindictiveness": -3,
+        "piety": 3
+      },
+      "wealth": 0,
+      "soul_id": "S-0049",
+      "household": "21"
+    },
+    {
+      "id": 50,
+      "name": "Nell Fairbanks",
+      "age": 69,
+      "sex": "female",
+      "alive": true,
+      "origin": "native",
+      "traits": {
+        "greed": 3,
+        "loyalty": 1,
+        "pride": -1,
+        "warmth": 0,
+        "temper": 0,
+        "vindictiveness": -1,
+        "piety": 3
+      },
+      "wealth": 19078,
+      "soul_id": "S-0050",
+      "household": "21"
+    }
+  ],
+  "households": [
+    {
+      "id": "1",
+      "members": [
+        1,
+        2,
+        3
+      ]
+    },
+    {
+      "id": "2",
+      "members": [
+        4
+      ]
+    },
+    {
+      "id": "3",
+      "members": [
+        5
+      ]
+    },
+    {
+      "id": "4",
+      "members": [
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "id": "5",
+      "members": [
+        10,
+        11,
+        12
+      ]
+    },
+    {
+      "id": "6",
+      "members": [
+        13,
+        14
+      ]
+    },
+    {
+      "id": "7",
+      "members": [
+        15
+      ]
+    },
+    {
+      "id": "8",
+      "members": [
+        16,
+        17,
+        18
+      ]
+    },
+    {
+      "id": "9",
+      "members": [
+        19
+      ]
+    },
+    {
+      "id": "10",
+      "members": [
+        20
+      ]
+    },
+    {
+      "id": "11",
+      "members": [
+        21,
+        22,
+        23,
+        24
+      ]
+    },
+    {
+      "id": "12",
+      "members": [
+        25,
+        26
+      ]
+    },
+    {
+      "id": "13",
+      "members": [
+        27
+      ]
+    },
+    {
+      "id": "14",
+      "members": [
+        28
+      ]
+    },
+    {
+      "id": "15",
+      "members": [
+        29,
+        30,
+        31,
+        32,
+        33
+      ]
+    },
+    {
+      "id": "16",
+      "members": [
+        34,
+        35,
+        36
+      ]
+    },
+    {
+      "id": "17",
+      "members": [
+        37,
+        38,
+        39
+      ]
+    },
+    {
+      "id": "18",
+      "members": [
+        40,
+        41
+      ]
+    },
+    {
+      "id": "19",
+      "members": [
+        42
+      ]
+    },
+    {
+      "id": "20",
+      "members": [
+        43,
+        44,
+        45,
+        46
+      ]
+    },
+    {
+      "id": "21",
+      "members": [
+        47,
+        48,
+        49,
+        50
+      ]
+    }
+  ],
+  "souls": [
+    {
+      "soul_id": "S-0001",
+      "place": {
+        "body": 1
+      }
+    },
+    {
+      "soul_id": "S-0002",
+      "place": {
+        "body": 2
+      }
+    },
+    {
+      "soul_id": "S-0003",
+      "place": {
+        "body": 3
+      }
+    },
+    {
+      "soul_id": "S-0004",
+      "place": {
+        "body": 4
+      }
+    },
+    {
+      "soul_id": "S-0005",
+      "place": {
+        "body": 5
+      }
+    },
+    {
+      "soul_id": "S-0006",
+      "place": {
+        "body": 6
+      }
+    },
+    {
+      "soul_id": "S-0007",
+      "place": {
+        "body": 7
+      }
+    },
+    {
+      "soul_id": "S-0008",
+      "place": {
+        "body": 8
+      }
+    },
+    {
+      "soul_id": "S-0009",
+      "place": {
+        "body": 9
+      }
+    },
+    {
+      "soul_id": "S-0010",
+      "place": {
+        "body": 10
+      }
+    },
+    {
+      "soul_id": "S-0011",
+      "place": {
+        "body": 11
+      }
+    },
+    {
+      "soul_id": "S-0012",
+      "place": {
+        "body": 12
+      }
+    },
+    {
+      "soul_id": "S-0013",
+      "place": {
+        "body": 13
+      }
+    },
+    {
+      "soul_id": "S-0014",
+      "place": {
+        "body": 14
+      }
+    },
+    {
+      "soul_id": "S-0015",
+      "place": {
+        "body": 15
+      }
+    },
+    {
+      "soul_id": "S-0016",
+      "place": {
+        "body": 16
+      }
+    },
+    {
+      "soul_id": "S-0017",
+      "place": {
+        "body": 17
+      }
+    },
+    {
+      "soul_id": "S-0018",
+      "place": {
+        "body": 18
+      }
+    },
+    {
+      "soul_id": "S-0019",
+      "place": {
+        "body": 19
+      }
+    },
+    {
+      "soul_id": "S-0020",
+      "place": {
+        "body": 20
+      }
+    },
+    {
+      "soul_id": "S-0021",
+      "place": {
+        "body": 21
+      }
+    },
+    {
+      "soul_id": "S-0022",
+      "place": {
+        "body": 22
+      }
+    },
+    {
+      "soul_id": "S-0023",
+      "place": {
+        "body": 23
+      }
+    },
+    {
+      "soul_id": "S-0024",
+      "place": {
+        "body": 24
+      }
+    },
+    {
+      "soul_id": "S-0025",
+      "place": {
+        "body": 25
+      }
+    },
+    {
+      "soul_id": "S-0026",
+      "place": {
+        "body": 26
+      }
+    },
+    {
+      "soul_id": "S-0027",
+      "place": {
+        "body": 27
+      }
+    },
+    {
+      "soul_id": "S-0028",
+      "place": {
+        "body": 28
+      }
+    },
+    {
+      "soul_id": "S-0029",
+      "place": {
+        "body": 29
+      }
+    },
+    {
+      "soul_id": "S-0030",
+      "place": {
+        "body": 30
+      }
+    },
+    {
+      "soul_id": "S-0031",
+      "place": {
+        "body": 31
+      }
+    },
+    {
+      "soul_id": "S-0032",
+      "place": {
+        "body": 32
+      }
+    },
+    {
+      "soul_id": "S-0033",
+      "place": {
+        "body": 33
+      }
+    },
+    {
+      "soul_id": "S-0034",
+      "place": {
+        "body": 34
+      }
+    },
+    {
+      "soul_id": "S-0035",
+      "place": {
+        "body": 35
+      }
+    },
+    {
+      "soul_id": "S-0036",
+      "place": {
+        "body": 36
+      }
+    },
+    {
+      "soul_id": "S-0037",
+      "place": {
+        "body": 37
+      }
+    },
+    {
+      "soul_id": "S-0038",
+      "place": {
+        "body": 38
+      }
+    },
+    {
+      "soul_id": "S-0039",
+      "place": {
+        "body": 39
+      }
+    },
+    {
+      "soul_id": "S-0040",
+      "place": {
+        "body": 40
+      }
+    },
+    {
+      "soul_id": "S-0041",
+      "place": {
+        "body": 41
+      }
+    },
+    {
+      "soul_id": "S-0042",
+      "place": {
+        "body": 42
+      }
+    },
+    {
+      "soul_id": "S-0043",
+      "place": {
+        "body": 43
+      }
+    },
+    {
+      "soul_id": "S-0044",
+      "place": {
+        "body": 44
+      }
+    },
+    {
+      "soul_id": "S-0045",
+      "place": {
+        "body": 45
+      }
+    },
+    {
+      "soul_id": "S-0046",
+      "place": {
+        "body": 46
+      }
+    },
+    {
+      "soul_id": "S-0047",
+      "place": {
+        "body": 47
+      }
+    },
+    {
+      "soul_id": "S-0048",
+      "place": {
+        "body": 48
+      }
+    },
+    {
+      "soul_id": "S-0049",
+      "place": {
+        "body": 49
+      }
+    },
+    {
+      "soul_id": "S-0050",
+      "place": {
+        "body": 50
+      }
+    },
+    {
+      "soul_id": "S-0051",
+      "place": {
+        "waiting": {
+          "since": "0"
+        }
+      }
+    },
+    {
+      "soul_id": "S-0052",
+      "place": {
+        "waiting": {
+          "since": "0"
+        }
+      }
+    }
+  ],
+  "magistrate": {
+    "id": 51,
+    "name": "Orrin Vell",
+    "age": 600,
+    "sex": "male",
+    "alive": true,
+    "origin": "official",
+    "traits": {
+      "greed": 1,
+      "loyalty": 3,
+      "pride": 0,
+      "warmth": -3,
+      "temper": 1,
+      "vindictiveness": 3,
+      "piety": 2
+    },
+    "wealth": 0,
+    "soul_id": "S-0000"
+  },
+  "joss": [
+    {
+      "soul_id": "S-0001",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0002",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0003",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0004",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0005",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0006",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0007",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0008",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0009",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0010",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0011",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0012",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0013",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0014",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0015",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0016",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0017",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0018",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0019",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0020",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0021",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0022",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0023",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0024",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0025",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0026",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0027",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0028",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0029",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0030",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0031",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0032",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0033",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0034",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0035",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0036",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0037",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0038",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0039",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0040",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0041",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0042",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0043",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0044",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0045",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0046",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0047",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0048",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0049",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0050",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0051",
+      "balance": "0"
+    },
+    {
+      "soul_id": "S-0052",
+      "balance": "0"
+    }
+  ],
+  "birth_slots": [],
+  "standing_slots": [],
+  "player_wait": null,
+  "pending_nodes": [],
+  "player": {
+    "place": "body",
+    "body": 10,
+    "earlier_bodies": [],
+    "blood_ties": [
+      {
+        "person": 11,
+        "affinity": 60,
+        "kinship": [
+          "spouse"
+        ]
+      },
+      {
+        "person": 12,
+        "affinity": 50,
+        "kinship": [
+          "child"
+        ]
+      }
+    ],
+    "relations": [
+      {
+        "person": 21,
+        "affinity": -20,
+        "kinship": []
+      }
+    ],
+    "past_life_ties": []
+  },
+  "player_node": null,
+  "chronicle": [],
+  "underworld_view": null,
+  "person_names": []
+}

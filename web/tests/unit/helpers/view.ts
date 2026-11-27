@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import type { PlayerFamily, PlayerOption, TraitName, UnderworldView, WorldSnapshot } from '../../../src/shared/world-snapshot.ts';
 import { initialUiState, type UiState } from '../../../src/main/ui-state.ts';
 import { TRAITS } from '../../../src/main/customization.ts';
+import { appendStory, createNotebook } from '../../../src/main/life-journal.ts';
 
 export const snapshot: WorldSnapshot = JSON.parse(readFileSync(new URL('../../../../fixtures/parity/seed1-pairwise.snapshot-500.json', import.meta.url), 'utf8'));
 
@@ -46,6 +47,7 @@ export function waitingSnapshot(births = 0, patch: Partial<UnderworldView> = {})
 export function uiFor(world: WorldSnapshot): UiState {
   const ui = initialUiState();
   return { ...ui, worldId: 1, runState: 'paused', tick: world.tick, world,
+    notebook: appendStory(createNotebook(1), [], { world }),
     playerNode: world.player_node === null ? { pending: false } : { pending: true, node: world.player_node.id, answered: false },
     underworldForm: { ...ui.underworldForm, dreamer: world.underworld_view?.connected[0] ?? null, carryOver: world.player_wait?.carry_over ?? null },
   };

@@ -4,13 +4,17 @@ import { readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import type { Locator, Page, TestInfo } from '@playwright/test';
 import type { UiState } from '../../src/main/ui-state.ts';
+import type { Needed, Preview, Traits, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
+import type { LifeNotebookExport } from '../../src/main/life-journal.ts';
+import { TRAITS } from '../../src/main/customization.ts';
+import { REJECTION_LABELS, TRAIT_LABELS, UNIT_LABELS } from '../../src/main/player-copy.ts';
 import { test, expect, nativeZoomMetrics, nativeZoomScreenshot } from './native-zoom.ts';
 import {
   scenarios, openOperations, restoreScenario, worldRead, replayRead, probeRead, saveOperation,
 } from './operations-fixture.ts';
 
 const ROOT = new URL('../../../', import.meta.url);
-const EVIDENCE = new URL('target/life-in-view-evidence/', ROOT);
+const EVIDENCE = new URL('target/life-unfolds/lu-p1-zoom/', ROOT);
 interface ComponentEvidence { mode: string; scenario: string; ui: UiState; callbacks: Record<string, unknown>[]; assetState: string }
 declare const window: Window & { __lifeViewFixture?: { read(): ComponentEvidence } };
 async function componentRead(page: Page): Promise<ComponentEvidence> {
@@ -58,6 +62,71 @@ async function selectWithKeys(page: Page, id: string, value: string): Promise<vo
   for (let step = 0; step < index; step++) await page.keyboard.press('ArrowDown');
   await expect(control).toHaveValue(value);
 }
+async function disclosureWithKeys(page: Page, id: string, open: boolean): Promise<void> {
+  const disclosure = page.getByTestId(id);
+  if ((await disclosure.getAttribute('open') !== null) !== open) {
+    await tabTo(page, disclosure.locator(':scope > summary'));
+    await page.keyboard.press('Enter');
+  }
+  await expect(disclosure).toHaveJSProperty('open', open);
+}
+function decimal(text: string): bigint {
+  expect(text).toMatch(/^[+−-]?(?:\d{1,3}(?:,\d{3})+|\d+)$/);
+  return BigInt(text.replace(/,/g, '').replace('−', '-'));
+}
+function decodeNeeded(text: string): Needed {
+  const date = /^Opens Year (-?\d+), Day (\d+)(?: — Halloween)?\.$/.exec(text);
+  if (date !== null) {
+    const day = BigInt(date[2]!);
+    expect(day >= 1n && day <= 365n).toBe(true);
+    return { kind: 'wait_until', tick: ((BigInt(date[1]!) - 1n) * 365n + day - 1n).toString() };
+  }
+  const joss = /^You are ([\d,]+) joss paper short\.$/.exec(text);
+  if (joss !== null) return { kind: 'joss_short', amount: decimal(joss[1]!).toString() };
+  const cap = /^Your yearly allowance is ([\d,]+) short\.$/.exec(text);
+  if (cap !== null) return { kind: 'cap_room_short', amount: decimal(cap[1]!).toString() };
+  const named = Object.entries(REJECTION_LABELS).find(([, label]) => label === text);
+  if (named === undefined) throw Error(`An application requirement lost its factual identity: ${text}`);
+  return { kind: 'named', name: named[0] };
+}
+function personName(world: WorldSnapshot, person: number): string {
+  const name = world.residents.find(record => record.id === person)?.name
+    ?? world.player.earlier_bodies.find(record => record.id === person)?.name
+    ?? world.person_names.find(record => record.id === person)?.name;
+  if (name === undefined) throw Error(`The source World has no name for person ${person}`);
+  return name;
+}
+async function verifyPreview(container: Locator, preview: readonly Preview[], world: WorldSnapshot): Promise<void> {
+  const rows = container.locator('[data-person][data-unit][data-delta]');
+  const rendered = await rows.evaluateAll(elements => elements.map(element => ({
+    person: Number(element.getAttribute('data-person')), what: element.getAttribute('data-unit'), delta: element.getAttribute('data-delta'),
+    text: (element as HTMLElement).innerText, visible: element.getClientRects().length > 0 && getComputedStyle(element).visibility === 'visible',
+  })));
+  expect(rendered.map(({ person, what, delta }) => ({ person, what, delta }))).toEqual(preview);
+  for (const [index, effect] of preview.entries()) {
+    const row = rendered[index]!;
+    expect(row.visible).toBe(true);
+    const unit = effect.what.startsWith('trait:') ? TRAIT_LABELS[effect.what.slice(6) as keyof Traits] : UNIT_LABELS[effect.what as keyof typeof UNIT_LABELS];
+    expect(row.text).toContain(unit);
+    expect(row.text).toContain(effect.person === world.player.body ? 'You:' : personName(world, effect.person));
+    const signed = /([+−-](?:\d{1,3}(?:,\d{3})+|\d+))\s*$/.exec(row.text);
+    expect(signed).not.toBeNull();
+    expect(decimal(signed![1]!)).toBe(BigInt(effect.delta));
+    expect(signed![1]!.startsWith('+')).toBe(BigInt(effect.delta) >= 0n);
+  }
+}
+async function verifyTraitPreview(page: Page, base: Traits, changed: Partial<Traits>, price: string): Promise<void> {
+  const table = page.getByTestId('customization-preview');
+  expect(await table.locator('[data-trait]').evaluateAll(elements => elements.map(element => element.getAttribute('data-trait')))).toEqual(TRAITS);
+  for (const trait of TRAITS) {
+    const row = table.locator(`[data-trait="${trait}"]`);
+    await expect(row).toContainText(TRAIT_LABELS[trait]);
+    expect(await row.locator('td').allTextContents()).toEqual([String(base[trait]), String(changed[trait] ?? base[trait])]);
+  }
+  const amount = page.getByTestId('customization-price');
+  await expect(amount).toHaveAttribute('data-amount', price);
+  expect(decimal(await amount.locator('strong').innerText())).toBe(BigInt(price));
+}
 async function capture(page: Page, info: TestInfo, name: string, facts: Record<string, unknown>): Promise<void> {
   await mkdir(EVIDENCE, { recursive: true });
   const paths = [
@@ -99,21 +168,78 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 640
     test('COMPONENT-ONLY full Needed, all slots and keyboard Set/Adjust remain reachable', async ({ page }, info) => {
       const before = await openComponent(page, 'waiting-large');
       const world = before.ui.world!; const view = world.underworld_view!;
+      await disclosureWithKeys(page, 'rebirth-section', true);
+      expect(await page.locator('[data-testid^="slot-"]').evaluateAll(elements => elements.map(element => element.getAttribute('data-testid'))))
+        .toEqual(view.slots.map(slot => `slot-${slot.slot}`));
       for (const slot of view.slots) {
-        await expect(page.getByTestId(`claim-${slot.slot}`)).toHaveCount(1);
-        const needed = page.getByTestId(`path-${slot.slot}`);
-        await expect(needed.locator('li')).toHaveCount(slot.status.needed.length);
-        for (const part of slot.status.needed) await expect(needed).toContainText(part.kind === 'named' ? part.name : part.kind === 'wait_until' ? part.tick : part.amount);
+        const row = page.getByTestId(`slot-${slot.slot}`);
+        const amount = row.locator('[data-price]');
+        await expect(amount).toHaveAttribute('data-price', slot.price);
+        expect(decimal((await amount.innerText()).split(' joss paper')[0]!)).toBe(BigInt(slot.price));
+        const needed = row.getByRole('list', { name: 'Application requirements', exact: true }).getByRole('listitem');
+        expect((await needed.allTextContents()).map(text => decodeNeeded(text.trim()))).toEqual(slot.status.needed);
+        const apply = page.getByTestId(`claim-${slot.slot}`);
+        await expect(apply).toHaveCount(1);
+        if (!slot.status.claimable || !slot.status.affordable || slot.slot === 'rebuilt_body') await expect(apply).toBeDisabled();
+        else await expect(apply).toBeEnabled();
       }
+      await disclosureWithKeys(page, 'people-files', true);
       for (const [id, entries] of [
-        ['blood-ties', world.player.blood_ties], ['past-life-ties', world.player.past_life_ties], ['earlier-lives', world.player.earlier_bodies],
-      ] as const) await expect(page.getByTestId(id).locator('li')).toHaveCount(entries.length);
-      await expect(page.getByTestId('chronicle-entry')).toHaveCount(world.chronicle.length);
+        ['blood-ties', world.player.blood_ties.map(tie => ({ person: tie.person, affinity: tie.affinity }))],
+        ['past-life-ties', world.player.past_life_ties.map(tie => ({ person: tie.rememberer, affinity: tie.affinity, earlier: tie.earlier_body }))],
+        ['earlier-lives', world.player.earlier_bodies.map(body => ({ person: body.id }))],
+      ] as const) {
+        await disclosureWithKeys(page, id, true);
+        const cards = page.getByTestId(id).getByTestId('people-card');
+        expect(await cards.evaluateAll(elements => elements.map(element => Number(element.getAttribute('data-person'))))).toEqual(entries.map(entry => entry.person));
+        for (const [index, entry] of entries.entries()) {
+          const card = cards.nth(index);
+          await expect(card).toContainText(personName(world, entry.person));
+          if ('affinity' in entry) await expect(card).toHaveAttribute('data-relationship', String(entry.affinity));
+          if ('earlier' in entry) {
+            expect(typeof entry.earlier).toBe('number');
+            await expect(card).toContainText(personName(world, entry.earlier as number));
+          }
+        }
+      }
+      await disclosureWithKeys(page, 'fixture-records', true);
+      await tabTo(page, page.getByTestId('fixture-export-facts'));
+      const pendingDownload = page.waitForEvent('download');
+      await page.keyboard.press('Enter');
+      const download = await pendingDownload;
+      const archivePath = await download.path();
+      if (archivePath === null) throw Error('The factual archive download is missing');
+      const archive = JSON.parse(readFileSync(archivePath, 'utf8')) as LifeNotebookExport;
+      expect(archive.worldId).toBe(before.ui.worldId);
+      expect(Object.values(archive.chronicle).map(record => ({
+        tick: record.tick, family: record.family, stakes: record.stakes, applied: record.applied,
+        source: record.source, chooser_absent: record.chooserAbsent, skipped: record.skipped,
+      }))).toEqual(world.chronicle);
+      await disclosureWithKeys(page, 'fixture-records', false);
+      for (const [id, targets] of [
+        ['dream', view.connected], ['haunt', view.actions.haunt.targets.map(target => target.target)],
+      ] as const) {
+        await disclosureWithKeys(page, `${id}-section`, true);
+        const radios = page.getByTestId(`${id}-targets`).getByRole('radio');
+        expect(await radios.evaluateAll(elements => elements.map(element => Number((element as HTMLInputElement).value)))).toEqual(targets);
+        for (const target of targets) await expect(page.getByTestId(`${id}-target-${target}`)).toHaveAccessibleName(new RegExp(personName(world, target).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+        await disclosureWithKeys(page, `${id}-section`, false);
+      }
+      await disclosureWithKeys(page, 'carry-section', true);
+      expect(await page.getByTestId('carry-over').locator('option').evaluateAll(elements => elements.map(element => (element as HTMLOptionElement).value))).toEqual(['', ...TRAITS]);
+      for (const trait of TRAITS) {
+        const option = page.getByTestId('carry-over').locator(`option[value="${trait}"]`);
+        await expect(option).toContainText(TRAIT_LABELS[trait]);
+        expect(decimal((await option.textContent())!.split(': ')[1]!)).toBe(BigInt(view.ghost_traits[trait]));
+      }
       await capture(page, info, `${viewport.width}-waiting-first`, { layer: 'COMPONENT-ONLY', fixture: before, scope: 'Constructed stress carrier, not a configured maximum or live operation' });
       await selectWithKeys(page, 'carry-over', 'piety');
       await tabTo(page, page.getByTestId('customize')); await page.keyboard.press('Enter');
       await selectWithKeys(page, 'customization-trait', 'greed');
       await selectWithKeys(page, 'customization-value', '-3');
+      const base = view.base_traits.find(entry => entry.carry_over === 'piety')!.traits;
+      const rebuiltPrice = view.slots.find(slot => slot.slot === 'rebuilt_body')!.price;
+      await verifyTraitPreview(page, base, { greed: -3 }, rebuiltPrice);
       await tabTo(page, page.getByTestId('claim-rebuilt_body'));
       await noOverflow(page);
       await capture(page, info, `${viewport.width}-set-focus`, { layer: 'COMPONENT-ONLY', fixture: await componentRead(page), interaction: 'Real Tab/keyboard selection; Set confirmation focused, visible and unobscured' });
@@ -126,7 +252,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 640
       await selectWithKeys(page, 'customization-first-delta', '1');
       await selectWithKeys(page, 'customization-second', 'loyalty');
       await selectWithKeys(page, 'customization-second-delta', '-1');
-      await expect(page.getByTestId('customization-preview').locator('tbody tr')).toHaveCount(2);
+      await verifyTraitPreview(page, base, { greed: Math.min(3, base.greed + 1), loyalty: Math.max(-3, base.loyalty - 1) }, rebuiltPrice);
       await tabTo(page, page.getByTestId('claim-rebuilt_body'));
       await noOverflow(page);
       await capture(page, info, `${viewport.width}-adjust-focus`, { layer: 'COMPONENT-ONLY', fixture: await componentRead(page), interaction: 'Keyboard-only two-row Adjust form and confirmation focus' });
@@ -149,9 +275,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 640
     test('COMPONENT-ONLY complete large choices and consequences preserve keyboard identity', async ({ page }, info) => {
       const before = await openComponent(page, 'choice-large'); const node = before.ui.world!.player_node!;
       for (const option of node.options) {
-        const preview = option.preview;
-        await expect(page.getByTestId(`option-preview-${option.id}`).locator('li')).toHaveCount(preview.length);
-        for (const part of preview) await expect(page.getByTestId(`option-preview-${option.id}`)).toContainText(part.delta);
+        await verifyPreview(page.getByTestId(`option-preview-${option.id}`), option.preview, before.ui.world!);
         await tabTo(page, page.getByTestId(`option-${option.id}`));
         await noOverflow(page);
         await capture(page, info, `${viewport.width}-choice-${option.id}`, { layer: 'COMPONENT-ONLY', fixture: await componentRead(page), option, interaction: 'Complete original previews; current option reached through actual keyboard Tab' });
@@ -166,9 +290,11 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 640
       if (!nodeScenario) throw Error('Prepared real node scenario is missing');
       const choice = await restoreScenario(page, nodeScenario); const node = choice.player_node!;
       const beforeSkip = await replayRead(page); const probeBefore = await probeRead(page);
-      await tabTo(page, page.getByRole('button', { name: 'Skip animation', exact: true }));
+      await tabTo(page, page.getByTestId('scene-skip'));
       await page.keyboard.press('Enter'); await page.keyboard.press('Space');
       expect((await replayRead(page)).bytes).toBe(beforeSkip.bytes);
+      expect(await worldRead(page)).toEqual(choice);
+      await expect(page.getByTestId('checksum')).toHaveText(beforeSkip.replay.checksums.at(-1)!);
       const probeAfter = await probeRead(page);
       expect(probeAfter.sent.filter(message => !['world-snapshot', 'export-replay'].includes(message.type)))
         .toEqual(probeBefore.sent.filter(message => !['world-snapshot', 'export-replay'].includes(message.type)));
@@ -184,11 +310,30 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1024, height: 640
       if (!waitingScenario) throw Error('Prepared real Waiting scenario is missing');
       const waiting = await restoreScenario(page, waitingScenario);
       const beforeBribe = await replayRead(page);
+      await disclosureWithKeys(page, 'bribe-section', true);
+      expect((await replayRead(page)).bytes).toBe(beforeBribe.bytes);
       await tabTo(page, page.getByTestId('bribe-amount')); await page.keyboard.press('Control+A'); await page.keyboard.type('0');
       await tabTo(page, page.getByTestId('bribe-send')); await page.keyboard.press('Enter');
-      await expect(page.getByText(/bad_amount/).first()).toBeVisible();
+      await expect(page.getByTestId('error')).toHaveAttribute('data-error-kind', 'rejected');
+      await disclosureWithKeys(page, 'technical-details', true);
+      await expect(page.getByTestId('technical-details')).toContainText('bad_amount');
+      const bribeProbe = await probeRead(page);
+      const request = bribeProbe.sent.filter(message => message.type === 'bribe').at(-1);
+      expect(request).toMatchObject({ type: 'bribe', amount: '0' });
+      const reply = bribeProbe.received.find(message => message.type === 'reply' && message.id === request!.id);
+      expect(reply).toMatchObject({ type: 'reply', ok: false, kind: 'rejected', error: 'bad_amount' });
+      if (reply?.type !== 'reply') throw Error('The rejected Bribe reply is missing');
+      expect(reply.snapshot.tick).toBe(waiting.tick);
+      expect(reply.snapshot.checksum).toBe(beforeBribe.replay.checksums.at(-1));
+      const receipt = page.getByTestId('operation-receipt').and(page.locator(`[data-kind="bribe"][data-request="${request!.id}"]`));
+      await expect(receipt).toBeVisible();
+      await expect(receipt).toHaveAttribute('data-phase', 'refused');
+      await expect(receipt).toHaveAttribute('data-world', String(reply.snapshot.worldId));
+      await expect(receipt).toHaveAttribute('data-inputs', '');
       expect((await replayRead(page)).bytes).toBe(beforeBribe.bytes);
       expect((await worldRead(page)).tick).toBe(waiting.tick);
+      await expect(page.getByTestId('checksum')).toHaveText(beforeBribe.replay.checksums.at(-1)!);
+      await noOverflow(page);
       await capture(page, info, `${viewport.width}-live-bribe-rejection`, { layer: 'ACTUAL-WORKER-WASM-UI', world: await worldRead(page), scenario: waitingScenario, probe: await probeRead(page), interaction: 'Real keyboard canonical zero submission reaches core bad_amount; no sequence, Run or Step' });
       finish();
     });

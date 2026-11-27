@@ -10,6 +10,7 @@ import type { PlayerFamily, PlayerLifecycleFact, WorldSnapshot } from '../../src
 import type { DreamFact, StoryActor, StoryEvent } from '../../src/shared/story.ts';
 import { pendingSnapshot, uiFor, waitingSnapshot } from './helpers/view.ts';
 import { PERSON_TILES } from '../../src/art/life-view-atlas.ts';
+import { portraitId } from '../../src/art/portraits.ts';
 
 const families: PlayerFamily[] = ['family_death', 'inheritance', 'debt_due', 'feud', 'life_stage'];
 const facts: PlayerLifecycleFact[] = [
@@ -223,3 +224,60 @@ test('Arrival price requires exact event, actual arrival kind and matching perso
   }
 });
 
+
+test('Lifecycle portrait sex and age stay captured from the exact retained actor, never a later body', () => {
+  const fact = facts[1]!;
+  const original = waitingSnapshot();
+  const world = { ...original, tick: '40000', residents: [...original.residents,
+    { ...original.residents[0]!, id: fact.body, name: 'Later resident', age: 90, sex: 'male' as const }] };
+  const actor: StoryActor = { person: fact.body, soulId: world.player_soul, name: fact.name,
+    sex: 'female', origin: fact.origin, ageAtDeath: '60' };
+  const actors = new Map([[actor.person, actor]]);
+  const scene = lifecycleKeyScene(7, world, fact, actors);
+  assert.deepEqual([scene.people[0]!.sex, scene.people[0]!.age], ['female', 60]);
+  assert.equal(portraitId({ person: scene.people[0]!.id, sex: scene.people[0]!.sex, age: scene.people[0]!.age }),
+    portraitId({ person: fact.body, sex: 'female', age: 60 }));
+  actors.set(actor.person, { ...actor, sex: 'male', ageAtDeath: '90' });
+  assert.deepEqual([scene.people[0]!.sex, scene.people[0]!.age], ['female', 60]);
+  const unknown = lifecycleKeyScene(7, world, fact);
+  assert.equal(unknown.people[0]!.sex, undefined);
+  assert.equal(unknown.people[0]!.age, null);
+  assert.equal(portraitId({ person: fact.body, sex: unknown.people[0]!.sex, age: unknown.people[0]!.age }),
+    portraitId({ person: fact.body, age: null }));
+});
+
+test('Current and retained picture people use only recorded sex, with a distinct unknown-sex pool', () => {
+  const world = pendingSnapshot('feud');
+  const resident = world.residents[0]!;
+  const actor: StoryActor = { person: 101, soulId: world.player_soul, name: 'Retained person',
+    sex: 'female', origin: 'native', ageAtDeath: '60' };
+  const people = picturePeople(world, [resident.id, actor.person, 999999], null, new Map([[actor.person, actor]]));
+  assert.equal(people[0]!.sex, resident.sex);
+  assert.equal(people[0]!.age, resident.age);
+  assert.deepEqual([people[1]!.sex, people[1]!.age], ['female', 60]);
+  assert.equal(people[2]!.sex, undefined);
+  assert.equal(people[2]!.age, null);
+});
+
+test('Choice scene portraits use the retained actor birth day at the fired date', () => {
+  const world = pendingSnapshot('life_stage');
+  const id = world.player.body!;
+  const actor: StoryActor = { person: id, soulId: world.player_soul, name: 'Recorded chooser', sex: 'male',
+    origin: 'native', birthDay: String(BigInt(world.player_node!.fired) - 17n * 365n) };
+  const later = { ...world, tick: '40000', residents: world.residents.map(person => person.id === id ? { ...person, age: 60 } : person) };
+  const scene = nodeKeyScene(7, later, world.player_node!, new Map([[id, actor]]));
+  assert.equal(scene.people.find(person => person.id === id)!.age, 17);
+});
+
+test('Dream portraits retain both subjects sex and age when the current World and actor root change', () => {
+  const world = waitingSnapshot();
+  const fact: DreamFact = { eventId: '71', inputSeq: '72', tick: '498', ghost: 101, dreamer: 1, intent: 'warn', price: '20' };
+  const actors = new Map<number, StoryActor>([
+    [101, { person: 101, soulId: world.player_soul, name: 'Recorded ghost', sex: 'female', origin: 'native', ageAtDeath: '60' }],
+    [1, { person: 1, soulId: 'recipient-soul', name: 'Recorded recipient', sex: 'male', origin: 'native', birthDay: '-15927' }],
+  ]);
+  const scene = dreamKeyScene(7, { ...world, tick: '40000', residents: world.residents.map(person => ({ ...person, age: 90 })) }, fact, actors);
+  assert.deepEqual(scene.people.map(person => [person.sex, person.age]), [['female', 60], ['male', 45]]);
+  actors.clear();
+  assert.deepEqual(scene.people.map(person => [person.sex, person.age]), [['female', 60], ['male', 45]]);
+});

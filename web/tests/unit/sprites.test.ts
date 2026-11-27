@@ -1,9 +1,14 @@
 import { test } from 'node:test';
 import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { LIFE_ATLASES } from '../../src/art/life-view-atlas.ts';
-import { resolveVisualKey } from '../../src/art/sprites.ts';
+import { loadPortraits, PORTRAIT_ATLAS } from '../../src/art/portraits.ts';
+import { loadLifeSprites, resolveVisualKey } from '../../src/art/sprites.ts';
 import type * as SpriteRuntime from '../../src/art/sprites.ts';
+
+const LOCAL_ATLASES = [...Object.values(LIFE_ATLASES), PORTRAIT_ATLAS];
 
 function browserGlobals(t: TestContext, image: unknown) {
   for (const [key, value] of [['Image', image], ['document', { baseURI: 'http://localhost/game/' }]] as const) {
@@ -17,11 +22,29 @@ function browserGlobals(t: TestContext, image: unknown) {
 }
 
 function dimensions(src: string) {
-  return Object.values(LIFE_ATLASES).find(atlas => src.endsWith(atlas.path))!;
+  const atlas = LOCAL_ATLASES.find(atlas => src.endsWith(atlas.path));
+  assert.ok(atlas, `Unexpected local image resource: ${src}`);
+  return atlas;
 }
 
 async function freshRuntime(key: string): Promise<typeof SpriteRuntime> {
+  // Separate sprite-module lifetimes must share the real portrait module; a static import cannot create both.
   return import(new URL(`../../src/art/sprites.ts?${key}`, import.meta.url).href);
+}
+
+function runInFreshRealm(t: TestContext): boolean {
+  if (process.env.LIFE_SPRITE_FAILURE_CASE === t.name) return false;
+  // Replacing a document stub does not replace the ESM realm or its retained asset promises.
+  const result = spawnSync(process.execPath, [
+    '--test', '--test-name-pattern', `^${t.name}$`, fileURLToPath(import.meta.url),
+  ], {
+    encoding: 'utf8',
+    // Keep offline settings, but let the child start its own test runner rather than inherit ours.
+    env: { ...process.env, NODE_TEST_CONTEXT: undefined, LIFE_SPRITE_FAILURE_CASE: t.name },
+  });
+  assert.ifError(result.error);
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`);
+  return true;
 }
 
 test('Unknown age is distinct from a known newborn; selection is stable within whole-year age bands', () => {
@@ -40,15 +63,15 @@ test('Unknown age is distinct from a known newborn; selection is stable within w
   assert.equal(resolveVisualKey(41, 30), resolveVisualKey(41 + 6, 30));
 });
 
-test('Concurrent loads decode each local atlas once; all drawing uses native integer atlas pixels', async t => {
+test('Concurrent loads retain decoded resources; drawing uses native integer atlas pixels', async t => {
   const images: ImageBoundary[] = [];
-  let decodes = 0;
   class ImageBoundary {
     src = '';
+    decodes = 0;
     constructor() { images.push(this); }
     get naturalWidth() { return dimensions(this.src).width; }
     get naturalHeight() { return dimensions(this.src).height; }
-    async decode() { decodes++; }
+    async decode() { this.decodes++; }
   }
   browserGlobals(t, ImageBoundary);
   const runtime = await freshRuntime('decoded-art');
@@ -56,13 +79,24 @@ test('Concurrent loads decode each local atlas once; all drawing uses native int
   assert.equal(runtime.loadLifeSprites(), first);
   const sprites = await first;
   assert.equal(await runtime.loadLifeSprites(), sprites);
-  assert.equal(images.length, 3);
-  assert.equal(decodes, 3);
-  assert.deepEqual(images.map(image => image.src).sort(), [
-    'http://localhost/game/assets/life-view-original.png',
-    'http://localhost/game/assets/life-view-roguelike.png',
-    'http://localhost/game/assets/life-view-urban.png',
-  ]);
+  assert.deepEqual(new Set(images.map(image => image.src)), new Set(LOCAL_ATLASES.map(atlas =>
+    new URL(atlas.path, document.baseURI).href)));
+  for (const atlas of LOCAL_ATLASES) {
+    const loaded = images.filter(image => image.src.endsWith(atlas.path));
+    assert.equal(loaded.length, 1, atlas.path);
+    assert.equal(loaded[0]!.decodes, 1, atlas.path);
+  }
+  const sharedRuntime = await freshRuntime('shared-portrait-art');
+  const sharedSprites = await sharedRuntime.loadLifeSprites();
+  assert.equal(sharedSprites.portraits, sprites.portraits);
+  const portraitLoad = loadPortraits();
+  assert.equal(loadPortraits(), portraitLoad);
+  assert.equal(await portraitLoad, sprites.portraits);
+  for (const atlas of LOCAL_ATLASES) {
+    const loaded = images.filter(image => image.src.endsWith(atlas.path));
+    assert.equal(loaded.length, atlas === PORTRAIT_ATLAS ? 1 : 2, atlas.path);
+    assert.ok(loaded.every(image => image.decodes === 1), atlas.path);
+  }
 
   const calls: unknown[][] = [];
   const ctx = {
@@ -96,33 +130,76 @@ test('Concurrent loads decode each local atlas once; all drawing uses native int
 });
 
 test('A failed atlas decode is an explicit retained rejection, with no reload or fallback', async t => {
-  let created = 0;
+  if (runInFreshRealm(t)) return;
+  const atlas = LIFE_ATLASES.urban;
+  const images: ImageBoundary[] = [];
   class ImageBoundary {
     src = '';
-    constructor() { created++; }
+    decodes = 0;
+    constructor() { images.push(this); }
     get naturalWidth() { return dimensions(this.src).width; }
     get naturalHeight() { return dimensions(this.src).height; }
     async decode() {
-      if (this.src.endsWith('life-view-urban.png')) throw new Error('404 image');
+      this.decodes++;
+      if (this.src.endsWith(atlas.path)) throw new Error('404 image');
     }
   }
   browserGlobals(t, ImageBoundary);
-  const runtime = await freshRuntime('rejected-art');
-  const first = runtime.loadLifeSprites();
-  await assert.rejects(first, /Could not decode visual atlas assets\/life-view-urban\.png: 404 image/);
-  assert.equal(runtime.loadLifeSprites(), first);
-  await assert.rejects(runtime.loadLifeSprites(), /404 image/);
-  assert.equal(created, 3);
+  const first = loadLifeSprites();
+  let failure: Error | undefined;
+  await assert.rejects(first, (error: unknown) => {
+    assert.ok(error instanceof Error);
+    assert.ok(error.message.includes(atlas.path));
+    assert.ok(error.message.includes('404 image'));
+    failure = error;
+    return true;
+  });
+  assert.equal(loadLifeSprites(), first);
+  await assert.rejects(loadLifeSprites(), (error: unknown) => {
+    assert.equal(error, failure);
+    return true;
+  });
+  const attempted = images.filter(image => image.src.endsWith(atlas.path));
+  assert.equal(attempted.length, 1);
+  assert.equal(attempted[0]!.decodes, 1);
+  await loadPortraits();
+  const portrait = images.filter(image => image.src.endsWith(PORTRAIT_ATLAS.path));
+  assert.equal(portrait.length, 1);
+  assert.equal(portrait[0]!.decodes, 1);
 });
 
 test('Decoded bytes with wrong dimensions are rejected before a SpriteSet is exposed', async t => {
+  if (runInFreshRealm(t)) return;
+  const atlas = LIFE_ATLASES.urban;
+  const images: ImageBoundary[] = [];
   class ImageBoundary {
     src = '';
-    get naturalWidth() { return dimensions(this.src).width + 1; }
+    decodes = 0;
+    constructor() { images.push(this); }
+    get naturalWidth() { return dimensions(this.src).width + (this.src.endsWith(atlas.path) ? 1 : 0); }
     get naturalHeight() { return dimensions(this.src).height; }
-    async decode() {}
+    async decode() { this.decodes++; }
   }
   browserGlobals(t, ImageBoundary);
-  const runtime = await freshRuntime('wrong-dimensions');
-  await assert.rejects(runtime.loadLifeSprites(), /Visual atlas assets\/life-view-urban\.png has unexpected dimensions/);
+  const first = loadLifeSprites();
+  let failure: Error | undefined;
+  await assert.rejects(first, (error: unknown) => {
+    assert.ok(error instanceof Error);
+    assert.ok(error.message.includes(atlas.path));
+    assert.ok(error.message.includes('dimensions'));
+    failure = error;
+    return true;
+  });
+  assert.equal(loadLifeSprites(), first);
+  await assert.rejects(loadLifeSprites(), (error: unknown) => {
+    assert.equal(error, failure);
+    return true;
+  });
+  const attempted = images.filter(image => image.src.endsWith(atlas.path));
+  assert.equal(attempted.length, 1);
+  assert.equal(attempted[0]!.decodes, 1);
+  await loadPortraits();
+  const portrait = images.filter(image => image.src.endsWith(PORTRAIT_ATLAS.path));
+  assert.equal(portrait.length, 1);
+  assert.equal(portrait[0]!.decodes, 1);
 });

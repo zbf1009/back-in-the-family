@@ -5,9 +5,12 @@
   import { reduce, type UiState } from '../../src/main/ui-state.ts';
   import { feedbackView } from '../../src/main/view-model.ts';
   import { claimRequest, dreamRequest, type UnderworldForm } from '../../src/main/customization.ts';
-  import type { PlayerOption, Slot } from '../../src/shared/world-snapshot.ts';
+  import type { PlayerOption, Slot, WorldSnapshot } from '../../src/shared/world-snapshot.ts';
   import type { Request, Snapshot } from '../../src/shared/protocol.ts';
   import type { SceneClose } from '../../src/main/scene-queue.ts';
+  import { appendStory, createNotebook, currentLifePhase, exportNotebook } from '../../src/main/life-journal.ts';
+  import { choiceResult } from '../../src/main/choice-result.ts';
+  import { operationStates } from '../../src/main/operation-state.ts';
 
   const { initialUi, scenario, source }: {
     initialUi: UiState; scenario: string;
@@ -18,6 +21,7 @@
   let assetError = $state<string | null>(null);
   let callbacks = $state<Record<string, unknown>[]>([]);
   const draws: { method: 'resident' | 'grave'; canvas: string | undefined; visual: string | null }[] = [];
+  const portraitDraws: { canvas: string | undefined; id: Parameters<SpriteSet['portraits']['draw']>[1]; x: number; y: number; scale: number }[] = [];
   const feedback = $derived(feedbackView(ui));
   const motion = scenario.startsWith('motion-');
   let pendingChoice = $state<{ worldId: number; request: Extract<Request, { type: 'choose' }> } | null>(null);
@@ -67,10 +71,24 @@
     capturedClose = expected;
     ui = reduce(ui, { type: 'scene-close', expected });
   }
+  function onSettled(expected: SceneClose): void {
+    ui = reduce(ui, { type: 'scene-settled', expected });
+  }
   function repeatClose(): void {
     if (capturedClose === null) return;
     record({ kind: 'fixture-late-close', identity: capturedClose.entry.identity });
     ui = reduce(ui, { type: 'scene-close', expected: capturedClose });
+  }
+  function boundNotebook(worldId: number, world: WorldSnapshot) {
+    if (worldId === ui.notebook.worldId) return appendStory(ui.notebook, [], { world, lifecycle: ui.playerLifecycle });
+    // A generation control supplies a new explicitly constructed copy of the
+    // initial carrier. Re-ingest its source records, never retag old indexes.
+    const facts = exportNotebook(initialUi.notebook);
+    return appendStory(createNotebook(worldId), [{ worldId, batch: {
+      version: 1, opening: true, actors: Object.values(facts.actors), events: Object.values(facts.events),
+      chronicle: Object.values(facts.chronicle), dreams: Object.values(facts.dreams),
+      cursors: facts.cursors!,
+    } }], { world, lifecycle: initialUi.playerLifecycle });
   }
   function replacePresentation(change: 'duplicate' | 'tick' | 'node' | 'world'): void {
     const world = structuredClone($state.snapshot(ui.world!));
@@ -78,7 +96,7 @@
     if (change === 'tick') world.tick = String(BigInt(world.tick) + 1n);
     if (change === 'node' && world.player_node !== null) world.player_node.id = String(BigInt(world.player_node.id) + 1n);
     record({ kind: 'fixture-presentation-props', change, worldId, tick: world.tick });
-    const next = change === 'world' ? { ...initialUi, worldId, world, tick: world.tick, scene: null, sceneEpisode: null, actions: [] }
+    const next = change === 'world' ? { ...initialUi, worldId, world, notebook: boundNotebook(worldId, world), tick: world.tick, scene: null, sceneEpisode: null, actions: [] }
       : { ...ui, world, tick: world.tick, playerNode: world.player_node === null ? { pending: false as const } : { pending: true as const, node: world.player_node.id, answered: false } };
     ui = reduce(next, { type: 'status', snapshot: { ...status(), worldId, tick: world.tick, playerNode: next.playerNode,
       playerLifecycle: initialUi.playerLifecycle,
@@ -95,16 +113,53 @@
     if (change === 'restore') haunt.targets = initialUi.world!.underworld_view!.actions.haunt.targets.map(target => ({ ...target, availability: { ...target.availability } }));
     const worldId = change === 'generation' ? ui.worldId + 1 : ui.worldId;
     record({ kind: 'fixture-carrier-change', change, oldWorldId: ui.worldId, worldId, tick: world.tick });
-    ui = { ...ui, worldId, tick: world.tick, world };
+    ui = { ...ui, worldId, tick: world.tick, world, notebook: boundNotebook(worldId, world) };
+  }
+  function exportFacts(): void {
+    const url = URL.createObjectURL(new Blob([`${JSON.stringify(exportNotebook(ui.notebook), null, 2)}\n`], { type: 'application/json' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'component-only-life-facts.json';
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   onMount(() => {
     // Read-only fixture evidence. There is no state setter or fake admission.
     const evidenceWindow = window as Window & { __lifeViewFixture?: { read(): unknown } };
-    evidenceWindow.__lifeViewFixture = { read: () => structuredClone($state.snapshot({ mode: 'COMPONENT-ONLY', scenario, source, ui, callbacks, draws, assetState: assetError !== null ? 'error' : sprites === null ? 'loading' : 'ready' })) };
+    // Runtime observation/context indexes are not DTOs. Export every raw fact
+    // and project observable carriers, captures and receipts explicitly.
+    evidenceWindow.__lifeViewFixture = { read: () => structuredClone($state.snapshot({ mode: 'COMPONENT-ONLY', scenario, source,
+      ui: {
+        worldId: ui.worldId, runState: ui.runState, tick: ui.tick, checksum: ui.checksum, tps: ui.tps, speed: ui.speed,
+        playerNode: ui.playerNode, world: ui.world, notebook: exportNotebook(ui.notebook),
+        scene: ui.scene, settledScene: ui.settledScene, memorial: ui.memorial, settledMemorial: ui.settledMemorial,
+        sceneEpisode: ui.sceneEpisode, playerLifecycle: ui.playerLifecycle, underworldForm: ui.underworldForm,
+        actions: ui.actions.map(action => ({
+          worldId: action.worldId, requestId: action.requestId, inputSeq: action.inputSeq, request: action.request,
+          phase: action.phase, submission: action.submission, result: action.result, error: action.error,
+          dream: action.dream, lifePhaseKey: action.lifePhaseKey,
+          choice: action.choice === undefined ? undefined : {
+            node: action.choice.node, phase: action.choice.phase, playerSoul: action.choice.playerSoul,
+            focus: action.choice.focus, actorContext: action.choice.actorContext,
+          },
+        })),
+        settledOmitted: ui.settledOmitted, phase: currentLifePhase(ui.notebook, ui.world),
+        result: choiceResult(ui), slips: operationStates(ui), decision: ui.decision,
+        error: ui.error, errorKind: ui.errorKind, errorOperation: ui.errorOperation, seedMessage: ui.seedMessage,
+        createPending: ui.createPending, stepPending: ui.stepPending,
+      }, callbacks, draws, portraitDraws,
+      assetState: assetError !== null ? 'error' : sprites === null ? 'loading' : 'ready' })) };
     void loadLifeSprites().then(value => {
-      sprites = scenario.startsWith('event-') || motion ? {
+      sprites = {
         ...value,
+        portraits: {
+          draw(...args: Parameters<SpriteSet['portraits']['draw']>) {
+            const transform = args[0].getTransform();
+            portraitDraws.push({ canvas: args[0].canvas.dataset.testid, id: args[1], x: args[2] + transform.e, y: args[3] + transform.f, scale: args[4] ?? 1 });
+            value.portraits.draw(...args);
+          },
+        },
         resident(...args: Parameters<SpriteSet['resident']>) {
           draws.push({ method: 'resident', canvas: args[0].canvas.dataset.testid, visual: args[4] });
           value.resident(...args);
@@ -113,7 +168,7 @@
           draws.push({ method: 'grave', canvas: args[0].canvas.dataset.testid, visual: null });
           value.grave(...args);
         },
-      } : value;
+      };
     }).catch(error => {
       assetError = error instanceof Error ? error.message : String(error);
     });
@@ -129,7 +184,7 @@
   </header>
   {#if assetError !== null}<p role="alert" data-testid="fixture-art-error">Visual assets unavailable: {assetError}. Factual text and callback controls remain available.</p>
   {:else if sprites === null}<p role="status" data-testid="fixture-art-loading">Loading visual assets.</p>{/if}
-  <LifeSurface {ui} {sprites} {feedback} {onChoose} {onForm} {onDream} {onClaim} {onBribe} {onHaunt} {onClose} />
+  <LifeSurface {ui} {sprites} {feedback} {onChoose} {onForm} {onDream} {onClaim} {onBribe} {onHaunt} {onClose} {onSettled} />
   {#if motion}
     <details class="fixture-records" data-testid="fixture-motion-controls">
       <summary>COMPONENT-ONLY presentation reducer controls</summary>
@@ -159,6 +214,7 @@
     <p>Forms and labeled presentation controls fold through the actual reducer. No Worker, native World or input sequence is written by callbacks.</p>
     <pre data-testid="fixture-callbacks">{JSON.stringify(callbacks, null, 2)}</pre>
     <pre data-testid="fixture-source">{JSON.stringify(source, null, 2)}</pre>
+    <button type="button" data-testid="fixture-export-facts" onclick={exportFacts}>Download constructed full life facts</button>
   </details>
 </main>
 
