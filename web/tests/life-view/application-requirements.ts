@@ -10,6 +10,9 @@ export async function verifyApplicationRequirements(rows: Locator, expected: rea
     await expect(row).toHaveAttribute('data-needed-kind', requirement.kind);
     if (requirement.kind === 'named') {
       await expect(row).toHaveAttribute('data-needed-name', requirement.name);
+      const text = (await row.innerText()).trim();
+      expect(text, 'A named requirement must have a visible explanation').not.toBe('');
+      expect(text, 'A named requirement must not expose its raw key or diagnostic').not.toContain(requirement.name);
     } else if (requirement.kind === 'wait_until') {
       await expect(row).toHaveAttribute('data-tick', requirement.tick);
       const date = /Year (-?\d+), Day (\d+)/.exec(await row.innerText());

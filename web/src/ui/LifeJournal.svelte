@@ -26,7 +26,9 @@
     worldKey; renderRevision;
     return untrack(() => notebook);
   });
-  const context = $derived({ playerSoul, currentBody });
+  const soul = $derived(playerSoul);
+  const body = $derived(currentBody);
+  const context = $derived({ playerSoul: soul, currentBody: body });
   const historyCount = $derived(journalGroupCount(historicalNotebook, section));
   const end = $derived(Math.min(rangeEnd ?? historyCount, historyCount));
   const visible = $derived([...journalRange(historicalNotebook, context, section, end)].reverse());
