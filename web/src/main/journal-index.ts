@@ -1,5 +1,6 @@
 import type { StoryChronicle, StoryEvent, StoryIdentity } from '../shared/story.ts';
 import { keyedStore, PersistentTree, type IndexedSequence, type TreeConfig } from './persistent-store.ts';
+import type { EntryContext, LifePhase } from './life-context.ts';
 
 export function compareDecimal(a: string, b: string): number {
   const left = BigInt(a), right = BigInt(b);
@@ -49,6 +50,7 @@ export interface GroupMetadata {
   readonly primary: boolean;
   readonly milestone: boolean;
   readonly opening: boolean;
+  readonly phase: LifePhase | null;
   readonly totals: Totals;
   readonly references: References;
   readonly constituents: Candidates | null;
@@ -83,13 +85,13 @@ export function createJournalIndex(): JournalIndex {
 function eventReference(event: StoryEvent): EventReference {
   return { identity: `e:${event.id}`, id: event.id, tick: event.tick, repeat: repeatedKey(event), amount: event.kind.type === 'repayment' ? BigInt(event.kind.amount) : 0n };
 }
-function eventGroup(event: StoryEvent, opening: boolean): GroupMetadata {
+function eventGroup(event: StoryEvent, opening: boolean, phase: LifePhase | null): GroupMetadata {
   const reference = eventReference(event);
   const references = new PersistentTree(refConfig).set(reference, reference);
   const milestone = ['birth', 'death', 'marriage', 'inheritance', 'possession', 'rebuild'].includes(event.kind.type);
   const primary = event.relevance !== 'background';
-  const repeatBucket = !milestone && reference.repeat ? `${primary}:${opening}:${event.kind.type === 'repayment' ? 'loan-span' : BigInt(event.tick) / 7n}:${reference.repeat}:${JSON.stringify(event.actorContext)}` : undefined;
-  return { identity: reference.identity, from: event.tick, to: event.tick, primary, milestone, opening, references, totals: references.aggregate, constituents: null, missing: 0, repeatBucket };
+  const repeatBucket = !milestone && reference.repeat ? `${phase?.key ?? 'unbound'}:${primary}:${opening}:${event.kind.type === 'repayment' ? 'loan-span' : BigInt(event.tick) / 7n}:${reference.repeat}:${JSON.stringify(event.actorContext)}` : undefined;
+  return { identity: reference.identity, from: event.tick, to: event.tick, primary, milestone, opening, phase, references, totals: references.aggregate, constituents: null, missing: 0, repeatBucket };
 }
 function repeatedGroup(references: References, template: GroupMetadata): GroupMetadata {
   const totals = references.aggregate;
@@ -97,7 +99,7 @@ function repeatedGroup(references: References, template: GroupMetadata): GroupMe
 }
 function weekKey(group: GroupMetadata): string | undefined {
   if (group.milestone || BigInt(group.from) / 7n !== BigInt(group.to) / 7n) return undefined;
-  return `${group.primary}:${group.opening}:${BigInt(group.from) / 7n}`;
+  return `${group.phase?.key ?? 'unbound'}:${group.primary}:${group.opening}:${BigInt(group.from) / 7n}`;
 }
 function weekOutput(candidates: Candidates): GroupMetadata | null {
   const first = candidates.at(0);
@@ -131,8 +133,8 @@ export class JournalIndexWriter {
     }
     this.index = { ...this.index, weeks: after.size ? this.index.weeks.set(key, after) : this.index.weeks.delete(key) };
   }
-  private unclaimed(event: StoryEvent, opening: boolean, add: boolean): void {
-    const group = eventGroup(event, opening);
+  private unclaimed(event: StoryEvent, opening: boolean, add: boolean, phase: LifePhase | null): void {
+    const group = eventGroup(event, opening, phase);
     const key = group.repeatBucket;
     if (key === undefined) this.candidate(group, add);
     else {
@@ -160,7 +162,7 @@ export class JournalIndexWriter {
     const recordTick = group.identityTick!;
     return { ...group, references, totals, from: totals.from === null || compareDecimal(recordTick, totals.from) < 0 ? recordTick : totals.from, to: totals.to === null || compareDecimal(recordTick, totals.to) > 0 ? recordTick : totals.to };
   }
-  event(event: StoryEvent, opening: boolean): void {
+  event(event: StoryEvent, opening: boolean, phase: LifePhase | null = null): void {
     if (event.relevance !== 'background') this.index = { ...this.index, latestPrimary: `e:${event.id}` };
     const interested = this.index.links.get(event.id);
     if (interested) {
@@ -169,11 +171,11 @@ export class JournalIndexWriter {
     }
     const owner = this.index.claims.get(event.id);
     if (owner !== undefined) this.updateChronicle(owner, group => this.chronicleEvent(group, event, true));
-    else this.unclaimed(event, opening, true);
+    else this.unclaimed(event, opening, true, phase);
   }
-  chronicle(record: StoryChronicle, opening: boolean, events: Pick<ReadonlyMap<string, StoryEvent>, 'get'>, qualifications: Pick<ReadonlyMap<StoryIdentity, boolean>, 'get'>): void {
+  chronicle(record: StoryChronicle, opening: boolean, events: Pick<ReadonlyMap<string, StoryEvent>, 'get'>, qualifications: Pick<ReadonlyMap<StoryIdentity, boolean>, 'get'>, phase: LifePhase | null = null, contexts?: Pick<ReadonlyMap<StoryIdentity, EntryContext>, 'get'>): void {
     const references = new PersistentTree(chronicleRefConfig);
-    let group: GroupMetadata = { identity: `c:${record.index}`, identityTick: record.tick, from: record.tick, to: record.tick, primary: true, milestone: true, opening, totals: references.aggregate, references, constituents: null, missing: 0 };
+    let group: GroupMetadata = { identity: `c:${record.index}`, identityTick: record.tick, from: record.tick, to: record.tick, primary: true, milestone: true, opening, phase, totals: references.aggregate, references, constituents: null, missing: 0 };
     for (const id of new Set(record.appended)) {
       const event = events.get(id);
       if (!event) {
@@ -185,7 +187,7 @@ export class JournalIndexWriter {
       if (owner !== undefined && compareDecimal(owner, record.index) <= 0) continue;
       if (event) {
         if (owner !== undefined) this.updateChronicle(owner, prior => this.chronicleEvent(prior, event, false));
-        else this.unclaimed(event, qualifications.get(`e:${id}`) === true, false);
+        else this.unclaimed(event, qualifications.get(`e:${id}`) === true, false, contexts?.get(`e:${id}`)?.phase ?? null);
         group = this.chronicleEvent(group, event, true);
       }
       this.index = { ...this.index, claims: this.index.claims.set(id, record.index) };

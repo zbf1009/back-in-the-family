@@ -1,6 +1,8 @@
 import type { Customization, DreamIntent, RequestWithoutId } from '../shared/protocol.ts';
 import { DREAM_INTENTS } from '../shared/protocol.ts';
 import type { Slot, TraitName, WorldSnapshot } from '../shared/world-snapshot.ts';
+import { traitLabel } from './player-copy.ts';
+import { TECHNICAL_TEXT } from './technical-text.ts';
 
 export const TRAITS: readonly TraitName[] = ['greed', 'loyalty', 'pride', 'warmth', 'temper', 'vindictiveness', 'piety'];
 export type CustomizationForm =
@@ -14,7 +16,10 @@ export interface UnderworldForm {
 }
 
 export function parseBribeAmount(value: string): { ok: true; value: string } | { ok: false; error: string } {
-  if (value.length === 0 || (value.length > 1 && value[0] === '0') || /[^0-9]/.test(value)) {
+  if (value.length === 0 || /[^0-9]/.test(value)) {
+    return { ok: false, error: TECHNICAL_TEXT.contributionBadInput };
+  }
+  if (value.length > 1 && value[0] === '0') {
     return { ok: false, error: 'Use a canonical decimal amount: digits only, without spaces, signs or leading zeros.' };
   }
   if (value.length > 20 || BigInt(value) > 18446744073709551615n) {
@@ -59,7 +64,7 @@ export function customizationPreview(world: WorldSnapshot, form: UnderworldForm)
   return {
     values,
     price: world.underworld_view.slots.find(slot => slot.slot === 'rebuilt_body')!.price,
-    override: overrides ? `Customization overrides the carried value on ${form.carryOver}.` : null,
+    override: overrides ? TECHNICAL_TEXT.adjustmentOverride.replace('{trait}', traitLabel(form.carryOver!)) : null,
   };
 }
 

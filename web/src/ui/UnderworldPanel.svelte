@@ -7,11 +7,14 @@
   import { TRAITS, blankCustomization, customizationPreview, parseBribeAmount, type CustomizationForm, type UnderworldForm } from '../main/customization.ts';
   import type { OperationState } from '../shared/operation-state.ts';
   import { dateLabel, formatAmount } from '../main/calendar.ts';
-  import { CUSTOMIZATION_LABELS, dreamIntentLabel, dreamResponseLabel, nameLabel, neededText, originLabel, refusalText, traitLabel } from '../main/player-copy.ts';
+  import { CUSTOMIZATION_LABELS, dreamIntentLabel, dreamResponseLabel, nameLabel, neededText, originLabel, refusalText, rulingLabel, traitLabel } from '../main/player-copy.ts';
+  import { TECHNICAL_TEXT, supportedText } from '../main/technical-text.ts';
   import PeopleCard from './PeopleCard.svelte';
-  import OperationDocument from './OperationDocument.svelte';
-  const { ui, onForm, onDream, onClaim, onBribe, onHaunt, operationStates = [] }: {
-    ui: UiState; onForm: (form: UnderworldForm) => void; onDream: () => Promise<void>; onClaim: (slot: Slot) => Promise<void>;
+  import TargetCard from './TargetCard.svelte';
+  import ActionFeedback from './ActionFeedback.svelte';
+  import type { SpriteSet } from '../art/sprites.ts';
+  const { ui, sprites = null, onForm, onDream, onClaim, onBribe, onHaunt, operationStates = [] }: {
+    ui: UiState; sprites?: SpriteSet | null; onForm: (form: UnderworldForm) => void; onDream: () => Promise<void>; onClaim: (slot: Slot) => Promise<void>;
     onBribe: (worldId: number, amount: string) => void; onHaunt: (worldId: number, target: number) => void;
     operationStates?: readonly OperationState[];
   } = $props();
@@ -42,6 +45,10 @@
     if (view === null || hauntTarget === null || !hauntTarget.enabled || decisionBusy(ui)) return;
     onHaunt(view.worldId, hauntTarget.id);
   }
+  function dream(): void {
+    if (view === null || !view.dreamEnabled || decisionBusy(ui) || !view.connected.some(person => person.id === ui.underworldForm.dreamer)) return;
+    void onDream();
+  }
   function selected(event: Event): string { return (event.currentTarget as HTMLSelectElement).value; }
   function patch(patch: Partial<UnderworldForm>): void { onForm({ ...ui.underworldForm, ...patch }); }
   function setPatch(patch: Partial<Extract<CustomizationForm, { kind: 'Set' }>>): void {
@@ -58,13 +65,26 @@
   const deceased = $derived(ui.world?.player.earlier_bodies.find(body => body.id === ghost));
   const actor = $derived(ghost === undefined ? undefined : ui.notebook?.actors.get(ghost));
   const names = $derived(ui.world === null ? null : namesById(ui.world));
+  const residents = $derived.by(() => {
+    const result = new Map<number, NonNullable<UiState['world']>['residents'][number]>();
+    if (ui.world !== null) for (const person of ui.world.residents) result.set(person.id, person);
+    return result;
+  });
+  function actualName(person: number): string | undefined { return names?.get(person) ?? ui.notebook?.actors.get(person)?.name ?? undefined; }
   function name(person: number): string { return nameLabel(names?.get(person) ?? ui.notebook?.actors.get(person)?.name); }
-  function age(person: number): number | null { return ui.world?.residents.find(resident => resident.id === person)?.age ?? null; }
-  function receipts(kind: OperationState['kind']): readonly OperationState[] { return operationStates.filter(state => state.worldId === ui.worldId && state.kind === kind); }
+  function age(person: number): number | null {
+    const resident = residents.get(person);
+    if (resident !== undefined) return resident.age;
+    const recorded = ui.notebook.actors.get(person)?.ageAtDeath;
+    return recorded !== undefined && BigInt(recorded) <= BigInt(Number.MAX_SAFE_INTEGER) ? Number(recorded) : null;
+  }
+  function sex(person: number): 'female' | 'male' | undefined {
+    return residents.get(person)?.sex ?? ui.notebook.actors.get(person)?.sex;
+  }
   function family(slot: Slot): string {
     const birth = ui.world?.birth_slots.find(birth => `birth:${birth.id}` === slot);
     const household = ui.world?.households.find(home => home.id === birth?.household);
-    return household === undefined ? 'Family names unavailable' : household.members.map(name).join(', ') || 'Family names unavailable';
+    return household?.members.map(name).join(', ') ?? '';
   }
   const baseTraits = $derived(ui.world?.underworld_view?.base_traits.find(entry => entry.carry_over === ui.underworldForm.carryOver)?.traits);
   function proposed(traitName: TraitName): number | undefined { return preview?.values.find(row => row.trait === traitName)?.customized ?? baseTraits?.[traitName]; }
@@ -74,169 +94,178 @@
   <li class="slot-row" data-testid={`slot-${slot.slot}`}>
     <div class="slot-header">
       <div>
-        <strong>{slot.kind === 'birth_slot' ? family(slot.slot) : originLabel(slot.slot)}</strong>
-        <p>{formatAmount(slot.price)} joss paper{slot.birth !== null ? ` · Birth ${dateLabel(slot.birth)}` : ''}</p>
+        <strong id={`slot-name-${slot.slot}`}>{slot.kind === 'birth_slot' ? family(slot.slot) : originLabel(slot.slot)}</strong>
+        <p data-price={slot.price}>{formatAmount(slot.price)} joss paper{slot.birth !== null ? ` · ${dateLabel(slot.birth)}` : ''}</p>
       </div>
       {#if slot.slot === 'rebuilt_body'}
-        <button type="button" data-testid="customize" onclick={() => patch({ customization: form === null ? blankCustomization('Set') : null })}>{form === null ? 'Open personality amendments' : 'Close amendments'}</button>
+        <button type="button" data-testid="customize" onclick={() => patch({ customization: form === null ? blankCustomization('Set') : null })}>{form === null ? TECHNICAL_TEXT.adjustPersonality : TECHNICAL_TEXT.cancelAdjustment}</button>
       {/if}
       {#if slot.slot !== 'rebuilt_body' || form === null}
-        <button type="button" data-testid={`claim-${slot.slot}`} aria-label={slot.kind === 'birth_slot' ? `Apply for birth with ${family(slot.slot)}${slot.birth !== null ? ` on ${dateLabel(slot.birth)}` : ''}` : `Apply to ${originLabel(slot.slot).toLowerCase()}`} disabled={!slot.claimEnabled || decisionBusy(ui)} onclick={() => onClaim(slot.slot)}>Apply</button>
+        <button type="button" id={`apply-${slot.slot}`} data-testid={`claim-${slot.slot}`} aria-labelledby={`apply-${slot.slot} slot-name-${slot.slot}`} aria-describedby={`slot-details-${slot.slot}`} disabled={!slot.claimEnabled || decisionBusy(ui)} onclick={() => onClaim(slot.slot)}>{TECHNICAL_TEXT.apply}</button>
       {/if}
     </div>
-    <p class="path">{slot.status.announced ? 'Announced' : 'Not announced'} · {slot.status.claimable ? 'Open to applications' : 'Not open to applications'} · {slot.status.affordable ? 'Payment available' : 'Payment unavailable'}</p>
-    {#if slot.status.needed.length > 0}<ul class="needed" aria-label="Application requirements">{#each slot.status.needed as needed, index (index)}<li>{neededText(needed)}</li>{/each}</ul>{/if}
+    <div id={`slot-details-${slot.slot}`}>
+      {#if !slot.status.announced}<p class="path">{TECHNICAL_TEXT.pathUnannounced}</p>{/if}
+      {#if !slot.status.claimable}<p class="path">{TECHNICAL_TEXT.pathNotClaimable}</p>{/if}
+      {#if slot.status.needed.length > 0}<ul class="needed" aria-label="Application requirements">{#each slot.status.needed as needed, index (index)}<li>{neededText(needed)}</li>{/each}</ul>{/if}
+    </div>
   </li>
 {/snippet}
 
 {#if view !== null}
   {@const worldId = view.worldId}
   <section class="underworld" aria-labelledby="underworld-heading" data-testid="underworld-panel">
-    <header class="desk-heading"><h2 id="underworld-heading">The Underworld desk</h2><p>Current · {dateLabel(view.observedTick)}</p></header>
+    <header class="desk-heading"><h2 id="underworld-heading">{TECHNICAL_TEXT.desk}</h2><p>{TECHNICAL_TEXT.deskServing}</p></header>
     <div class="desk-records">
       <article class="certificate" aria-labelledby="certificate-heading">
-        <h3 id="certificate-heading">Death certificate</h3>
-        {#if ghost !== undefined}<PeopleCard person={ghost} name={name(ghost)} detail="Former life" current />{:else}<p>Name unavailable</p>{/if}
+        <h3 id="certificate-heading">{TECHNICAL_TEXT.certificate}</h3>
+        {#if ghost !== undefined}<PeopleCard person={ghost} name={name(ghost)} age={age(ghost)} sex={actor?.sex} {sprites} current />{/if}
         <dl>
-          {#if deceased !== undefined}<div><dt>Date of death</dt><dd>{dateLabel(deceased.death)}</dd></div>{/if}
-          {#if actor?.ageAtDeath !== undefined}<div><dt>Age at death</dt><dd>{formatAmount(actor.ageAtDeath)}</dd></div>{/if}
-          <div><dt>Current status</dt><dd>Waiting between lives</dd></div>
+          {#if ghost !== undefined}<div><dt>{TECHNICAL_TEXT.certificateName}</dt><dd>{name(ghost)}</dd></div>{/if}
+          {#if deceased !== undefined}<div><dt>{TECHNICAL_TEXT.dateOfDeath}</dt><dd>{dateLabel(deceased.death)}</dd></div>{/if}
+          {#if actor?.ageAtDeath !== undefined}<div><dt>{TECHNICAL_TEXT.certificateAge}</dt><dd>{formatAmount(actor.ageAtDeath)}</dd></div>{/if}
         </dl>
-        <p class="clerk-note">A change of address. The paperwork continues.</p>
+        <p class="clerk-note">{TECHNICAL_TEXT.certificateFooter}</p>
       </article>
       <div class="accounts">
-        <h3>Your current account</h3>
-        <dl><div><dt>Joss paper</dt><dd data-testid="joss-balance">{formatAmount(view.balance)}</dd></div>
-          <div><dt>This year's allowance remaining</dt><dd>{formatAmount(view.cappedSpend.remaining)}</dd></div>
-          <div><dt>Spent from this year's allowance</dt><dd>{formatAmount(view.cappedSpend.spent)} of {formatAmount(view.cappedSpend.yearly_cap)}</dd></div>
-        </dl>
-        <p class="note">Haunting and rebuilt bodies use this allowance. These are current amounts, not deductions from a received request.</p>
+        <h3>{TECHNICAL_TEXT.account}</h3>
+        <p data-testid="joss-balance" data-amount={view.balance}>{supportedText(TECHNICAL_TEXT.accountBalance, { n: formatAmount(view.balance) })}</p>
+        <p data-testid="capped-spend" data-remaining={view.cappedSpend.remaining} data-cap={view.cappedSpend.yearly_cap}>{supportedText(TECHNICAL_TEXT.accountAllowance, { left: formatAmount(view.cappedSpend.remaining), cap: formatAmount(view.cappedSpend.yearly_cap) })}</p>
+        <p class="note">{TECHNICAL_TEXT.accountAllowanceNote}</p>
         {#if view.register !== null}
-          <p>Birth-register access from {dateLabel(view.register.accessFrom)}.</p>
-          <p>Current reservation: {view.register.claim === null ? 'None' : family(`birth:${view.register.claim}`)}.</p>
-          <p>Personality carry on file: {view.register.carryOver === null ? 'None' : traitLabel(view.register.carryOver)}.</p>
+          <p>{supportedText(TECHNICAL_TEXT.accountRegister, { date: dateLabel(view.register.accessFrom) })}</p>
+          <p>{view.register.claim === null ? TECHNICAL_TEXT.accountHoldingNothing : supportedText(TECHNICAL_TEXT.accountHolding, { slot: family(`birth:${view.register.claim}`) || undefined })}</p>
+          <p>{view.register.carryOver === null ? TECHNICAL_TEXT.accountCarryingNothing : supportedText(TECHNICAL_TEXT.accountCarrying, { trait: traitLabel(view.register.carryOver) })}</p>
         {/if}
       </div>
     </div>
 
-    <div class="correspondence">
-      <section class="dream-message" aria-labelledby="dream-heading" data-testid="dream-controls">
-        <h3 id="dream-heading">A message in a dream</h3>
-        <p class="gloss">Choose a living connection and what you want to convey. Their response is their own record.</p>
-        <label>Recipient <select data-testid="dreamer" value={ui.underworldForm.dreamer ?? ''} onchange={event => patch({ dreamer: selected(event) === '' ? null : Number(selected(event)) })}>
-          <option value="">Choose a recipient</option>{#each view.connected as person (person.id)}<option value={person.id}>{name(person.id)}</option>{/each}
-        </select></label>
-        {#if ui.underworldForm.dreamer !== null && view.connected.some(person => person.id === ui.underworldForm.dreamer)}
-          <PeopleCard person={ui.underworldForm.dreamer} name={name(ui.underworldForm.dreamer)} age={age(ui.underworldForm.dreamer)} detail="Dream recipient" />
-        {/if}
-        <div class="intents" role="group" aria-label="Message intent">
-          {#each DREAM_INTENTS as intent (intent)}<button type="button" data-testid={`dream-intent-${intent}`} aria-pressed={ui.underworldForm.intent === intent} onclick={() => patch({ intent })}>{dreamIntentLabel(intent)}</button>{/each}
+    <div class="desk-actions">
+      <details class="dream-message" data-testid="dream-section">
+        <summary><h3>{TECHNICAL_TEXT.dream}</h3></summary>
+        <div class="section-body" data-testid="dream-controls">
+          <p class="gloss">{TECHNICAL_TEXT.dreamHelp}</p>
+          <fieldset><legend>{TECHNICAL_TEXT.dreamTo}</legend>
+            <ul class="target-files" data-testid="dream-targets">
+              {#each view.connected as person (person.id)}
+                <li><TargetCard person={person.id} name={name(person.id)} age={age(person.id)} sex={sex(person.id)} {sprites} group="dream"
+                  selected={ui.underworldForm.dreamer === person.id} disabled={!view.controlsAvailable || decisionBusy(ui)} onSelect={() => patch({ dreamer: person.id })} /></li>
+              {:else}<li class="note">{TECHNICAL_TEXT.dreamNobody}</li>{/each}
+            </ul>
+          </fieldset>
+          <fieldset><legend>{TECHNICAL_TEXT.dreamIntent}</legend><div class="intents">
+            {#each DREAM_INTENTS as intent (intent)}<button type="button" data-testid={`dream-intent-${intent}`} aria-pressed={ui.underworldForm.intent === intent} onclick={() => patch({ intent })}>{dreamIntentLabel(intent)}</button>{/each}
+          </div></fieldset>
+          <p data-testid="dream-price" data-amount={view.dreamPrice}>{supportedText(TECHNICAL_TEXT.dreamPostage, { n: formatAmount(view.dreamPrice) })}</p>
+          {#if BigInt(view.balance) < BigInt(view.dreamPrice)}<p class="note">{refusalText('insufficient_joss')}</p>{/if}
+          <button class="primary" type="button" data-testid="dream-send" disabled={!view.dreamEnabled || decisionBusy(ui) || !view.connected.some(person => person.id === ui.underworldForm.dreamer)} onclick={dream}>{TECHNICAL_TEXT.dreamSend}</button>
+          {#if ui.world?.last_dream !== undefined}
+            {@const response = supportedText(dreamResponseLabel(ui.world.last_dream.applied), { B: actualName(ui.world.last_dream.dreamer) })}
+            {#if response !== null}<div class="recorded-response"><p>{response}</p></div>{/if}
+          {/if}
         </div>
-        <p>Price: <strong data-testid="dream-price">{formatAmount(view.dreamPrice)}</strong> joss paper.</p>
-        {#each view.dreamReasons as reason (reason)}<p class="note">{reason}</p>{/each}
-        <button class="primary" type="button" data-testid="dream-send" disabled={!view.dreamEnabled || decisionBusy(ui) || ui.underworldForm.dreamer === null} onclick={onDream}>Send dream message</button>
-        {#each receipts('dream') as state (state.requestId)}<OperationDocument {state} actors={ui.notebook?.actors} />{/each}
-        {#if ui.world?.last_dream !== undefined}
-          <div class="recorded-response"><h4>Latest recorded response</h4><p>{name(ui.world.last_dream.dreamer)} · {dateLabel(ui.world.last_dream.tick)}</p>
-            <p>{dreamResponseLabel(ui.world.last_dream.applied)}</p><p class="note">This response does not confirm effects or the completion of an individual request.</p>
-          </div>
-        {/if}
-      </section>
+      </details>
 
-      <form class="bribe-receipt" aria-labelledby="bribe-heading" data-testid="bribe-controls" onsubmit={bribe}>
-        <h3 id="bribe-heading">Bribe receipt</h3>
-        <p class="gloss">Request a ruling on birth-register access. Access is not a reservation.</p>
-        <label for="bribe-amount">Payment in joss paper</label>
-        <input id="bribe-amount" data-testid="bribe-amount" type="text" inputmode="numeric" autocomplete="off" bind:value={bribeAmount} aria-describedby="bribe-context bribe-syntax" aria-invalid={bribeAmount !== '' && !parsedAmount.ok} />
-        <p id="bribe-context">Minimum {formatAmount(view.bribe.minAmount)} · maximum {formatAmount(view.bribe.maxAmount)}.</p>
-        <p id="bribe-syntax" class="note">Use whole digits without spaces, signs or leading zeros. Payment must be above zero.</p>
-        {#if bribeAmount !== '' && !parsedAmount.ok}<p class="error" data-testid="bribe-syntax-error" role="alert">Enter a whole amount within the supported range, using digits only and no leading zeros.</p>{/if}
-        <p data-testid="bribe-availability">{view.bribe.availability.eligible ? 'Available to file.' : refusalText(view.bribe.availability.reason)}</p>
-        {#if !view.controlsAvailable}<p class="note">These actions are unavailable right now.</p>{/if}
-        <button class="primary" type="submit" data-testid="bribe-send" disabled={!view.bribe.enabled || decisionBusy(ui) || !parsedAmount.ok || inputWorldId !== view.worldId}>Submit bribe</button>
-        {#each receipts('bribe') as state (state.requestId)}<OperationDocument {state} actors={ui.notebook?.actors} />{:else}<p class="unruled">No ruling recorded.</p>{/each}
-      </form>
-    </div>
+      <details class="bribe-receipt" data-testid="bribe-section">
+        <summary><h3>{TECHNICAL_TEXT.magistrate}</h3></summary>
+        <form class="section-body" data-testid="bribe-controls" onsubmit={bribe}>
+          <p class="gloss">{TECHNICAL_TEXT.magistrateHelp}</p>
+          <label for="bribe-amount">{TECHNICAL_TEXT.contribution}</label>
+          <input id="bribe-amount" data-testid="bribe-amount" type="text" inputmode="numeric" autocomplete="off" bind:value={bribeAmount} aria-describedby="bribe-context bribe-syntax" aria-invalid={bribeAmount !== '' && !parsedAmount.ok} />
+          <p id="bribe-context">{supportedText(TECHNICAL_TEXT.contributionHint, { min: formatAmount(view.bribe.minAmount), max: formatAmount(view.bribe.maxAmount) })}</p>
+          <p id="bribe-syntax" class="note" class:error={bribeAmount !== '' && !parsedAmount.ok}>{bribeAmount !== '' && !parsedAmount.ok ? parsedAmount.error : TECHNICAL_TEXT.contributionBadInput}</p>
+          {#if !view.bribe.availability.eligible}<p data-testid="bribe-availability">{refusalText(view.bribe.availability.reason)}</p>{/if}
+          <button class="primary" type="submit" data-testid="bribe-send" disabled={!view.bribe.enabled || decisionBusy(ui) || !parsedAmount.ok || inputWorldId !== view.worldId}>Contribute</button>
+          {#each operationStates.filter(state => state.kind === 'bribe') as state (state.requestId)}
+            {#if state.result?.kind === 'bribe' && state.result.state === 'applied' && state.result.ruling !== null}<p>{rulingLabel(state.result.ruling.applied)}</p>{/if}
+          {/each}
+          {#if !operationStates.some(state => state.result?.kind === 'bribe' && state.result.state === 'applied' && state.result.ruling !== null)}<p class="unruled">{TECHNICAL_TEXT.noRuling}</p>{/if}
+        </form>
+      </details>
 
-    <section class="haunt-petition" aria-labelledby="haunt-heading" data-testid="haunt-controls">
-      <div class="petition-heading"><h3 id="haunt-heading">Haunt petition</h3><p>Price: <strong data-testid="haunt-price">{formatAmount(view.haunt.price)}</strong> joss paper</p></div>
-      <p class="gloss">A connection to your former life is required—not necessarily a friendly one. The yearly allowance applies.</p>
-      <fieldset><legend>Choose a connected person</legend>
-        <ul class="target-files" data-testid="haunt-targets">
-          {#each view.haunt.targets as target (target.id)}
-            <li><label class="target"><input type="radio" name="haunt-target" data-testid={`haunt-target-${target.id}`} value={target.id} checked={hauntTarget?.id === target.id} disabled={!target.enabled || decisionBusy(ui)} onchange={() => { hauntSelection = { worldId, target: target.id }; }} />
-              <div><PeopleCard person={target.id} name={name(target.id)} age={age(target.id)} relationship={target.affinity} />
-                <span class="target-reason">{target.availability.eligible ? 'Available to file.' : refusalText(target.availability.reason)}</span>
-              </div></label></li>
-          {:else}<li class="note">No connected people are available.</li>{/each}
-        </ul>
-      </fieldset>
-      {#if !view.controlsAvailable}<p class="note">These actions are unavailable right now.</p>{/if}
-      <button class="primary" type="button" data-testid="haunt-send" disabled={hauntTarget === null || !hauntTarget.enabled || decisionBusy(ui)} onclick={haunt}>File haunt petition</button>
-      {#each receipts('haunt') as state (state.requestId)}<OperationDocument {state} actors={ui.notebook?.actors} />{/each}
-    </section>
+      <details class="haunt-petition" data-testid="haunt-section">
+        <summary><h3>{TECHNICAL_TEXT.haunt}</h3></summary>
+        <div class="section-body" data-testid="haunt-controls">
+          <p class="gloss">{TECHNICAL_TEXT.hauntHelp}</p>
+          <p data-testid="haunt-price" data-amount={view.haunt.price}>{supportedText(TECHNICAL_TEXT.hauntFee, { n: formatAmount(view.haunt.price) })}</p>
+          <fieldset><legend>{TECHNICAL_TEXT.hauntTarget}</legend>
+            <ul class="target-files" data-testid="haunt-targets">
+              {#each view.haunt.targets as target (target.id)}
+                <li><TargetCard person={target.id} name={name(target.id)} age={age(target.id)} sex={sex(target.id)} {sprites} group="haunt"
+                  selected={hauntTarget?.id === target.id} disabled={!target.enabled || decisionBusy(ui)}
+                  reason={target.availability.eligible ? null : refusalText(target.availability.reason)}
+                  onSelect={() => { hauntSelection = { worldId, target: target.id }; }} /></li>
+              {:else}<li class="note">{TECHNICAL_TEXT.hauntNobody}</li>{/each}
+            </ul>
+          </fieldset>
+          <button class="primary" type="button" data-testid="haunt-send" disabled={hauntTarget === null || !hauntTarget.enabled || decisionBusy(ui)} onclick={haunt}>Haunt</button>
+        </div>
+      </details>
 
-    <section class="personality-file" aria-labelledby="personality-heading">
-      <h3 id="personality-heading">Your personality file</h3>
-      <p class="gloss">Carry one trait into your next life, or leave them all behind. These are selections, not a completed rebirth.</p>
-      <label class="carry">Trait to carry
-        <select data-testid="carry-over" value={ui.underworldForm.carryOver ?? ''} onchange={event => patch({ carryOver: trait(event) })}>
-          <option value="">None — carry no trait</option>{#each TRAITS as name (name)}<option value={name}>{traitLabel(name)}: {view.ghostTraits[name]}</option>{/each}
-        </select>
-      </label>
-      <dl class="trait-file">{#each TRAITS as name (name)}<div><dt>{traitLabel(name)}</dt><dd>{view.ghostTraits[name]}</dd></div>{/each}</dl>
-      {#each receipts('carry-over') as state (state.requestId)}<OperationDocument {state} actors={ui.notebook?.actors} />{/each}
-    </section>
+      <details class="personality-file" data-testid="carry-section">
+        <summary><h3>{TECHNICAL_TEXT.carry}</h3></summary>
+        <div class="section-body">
+          <p class="gloss">{TECHNICAL_TEXT.carryHelp}</p>
+          <label class="carry">{TECHNICAL_TEXT.adjustmentTrait}
+            <select data-testid="carry-over" value={ui.underworldForm.carryOver ?? ''} onchange={event => patch({ carryOver: trait(event) })}>
+              <option value="">{TECHNICAL_TEXT.carryNone}</option>{#each TRAITS as name (name)}<option value={name}>{traitLabel(name)}: {view.ghostTraits[name]}</option>{/each}
+            </select>
+          </label>
+          <dl class="trait-file">{#each TRAITS as name (name)}<div><dt>{traitLabel(name)}</dt><dd>{view.ghostTraits[name]}</dd></div>{/each}</dl>
+        </div>
+      </details>
 
-    <section class="applications" aria-labelledby="applications-heading">
-      <h3 id="applications-heading">Applications for another life</h3>
-      <p class="gloss">Three ways back into this town. An application is not an arrival.</p>
-      <section class="birth-application" aria-labelledby="birth-heading"><h4 id="birth-heading">Be born into a family</h4>
-        <p data-testid="birth-slot-count">{view.slots.filter(slot => slot.kind === 'birth_slot').length} birth openings on the register.</p>
-        <ul class="birth-slots" data-testid="birth-slots" aria-label="Birth openings">{#each view.slots.filter(slot => slot.kind === 'birth_slot') as slot (slot.slot)}{@render slotRow(slot)}{:else}<li class="note">No birth openings are listed.</li>{/each}</ul>
-      </section>
-      <div class="standing-applications">
-        {#each view.slots.filter(slot => slot.kind !== 'birth_slot') as slot (slot.slot)}
-          <section class="standing-application" class:rebuilt={slot.slot === 'rebuilt_body'} aria-label={originLabel(slot.slot)}>
-            <h4>{originLabel(slot.slot)}</h4><p class="gloss">{slot.slot === 'rebuilt_body' ? 'A new body, with a paid personality amendment.' : 'Return in an available borrowed body. This is not a birth.'}</p>
-            <ul>{@render slotRow(slot)}</ul>
+      <details class="applications" data-testid="rebirth-section">
+        <summary><h3>{TECHNICAL_TEXT.rebirth}</h3></summary>
+        <div class="section-body">
+          <p class="gloss">{TECHNICAL_TEXT.rebirthHelp}</p>
+          <section class="birth-application" aria-labelledby="birth-heading"><h4 id="birth-heading">{TECHNICAL_TEXT.beBorn}</h4>
+            <p>{TECHNICAL_TEXT.beBornHelp}</p>
+            <ul class="birth-slots" data-testid="birth-slots" aria-label="Birth openings">{#each view.slots.filter(slot => slot.kind === 'birth_slot') as slot (slot.slot)}{@render slotRow(slot)}{:else}<li class="note">{TECHNICAL_TEXT.noBirthFamilies}</li>{/each}</ul>
           </section>
-        {/each}
-      </div>
-      {#each receipts('claim') as state (state.requestId)}<OperationDocument {state} actors={ui.notebook?.actors} />{/each}
-    </section>
+          <div class="standing-applications">
+            {#each view.slots.filter(slot => slot.kind !== 'birth_slot') as slot (slot.slot)}
+              <section class="standing-application" class:rebuilt={slot.slot === 'rebuilt_body'} aria-label={originLabel(slot.slot)}>
+                <h4>{originLabel(slot.slot)}</h4><p class="gloss">{slot.slot === 'rebuilt_body' ? TECHNICAL_TEXT.buildBodyHelp : TECHNICAL_TEXT.borrowBodyHelp}</p>
+                <ul>{@render slotRow(slot)}</ul>
+              </section>
+            {/each}
+          </div>
+        </div>
+      </details>
+    </div>
 
     {#if form !== null}
       {@const rebuilt = view.slots.find(slot => slot.slot === 'rebuilt_body')!}
       <section class="customization" aria-labelledby="customization-heading" data-testid="customization-panel">
-        <h3 id="customization-heading">Rebuilt-body personality amendments</h3>
+        <h3 id="customization-heading">{TECHNICAL_TEXT.buildBody}</h3>
         <div class="form-heading">
-          <label>Amendment <select data-testid="customization-kind" value={form.kind} onchange={event => patch({ customization: blankCustomization(selected(event) as 'Set' | 'Adjust') })}><option value="Set">{CUSTOMIZATION_LABELS.Set}</option><option value="Adjust">{CUSTOMIZATION_LABELS.Adjust}</option></select></label>
-          <button type="button" data-testid="customization-cancel" onclick={() => patch({ customization: null })}>Cancel amendment</button>
+          <label>Kind of adjustment <select data-testid="customization-kind" value={form.kind} onchange={event => patch({ customization: blankCustomization(selected(event) as 'Set' | 'Adjust') })}><option value="Set">{CUSTOMIZATION_LABELS.Set}</option><option value="Adjust">{CUSTOMIZATION_LABELS.Adjust}</option></select></label>
+          <button type="button" data-testid="customization-cancel" onclick={() => patch({ customization: null })}>Never mind</button>
         </div>
         {#if form.kind === 'Set'}
           <div class="form-fields">
-            <label>Trait <select data-testid="customization-trait" value={form.trait ?? ''} onchange={event => setPatch({ trait: trait(event) })}><option value="">Choose a trait</option>{#each TRAITS as name (name)}<option value={name}>{traitLabel(name)}</option>{/each}</select></label>
-            <label>Proposed value <select data-testid="customization-value" value={form.value ?? ''} onchange={event => setPatch({ value: selected(event) === '' ? null : Number(selected(event)) })}><option value="">Choose a value</option>{#each [-3, -2, -1, 0, 1, 2, 3] as value (value)}<option value={value}>{value}</option>{/each}</select></label>
+            <label>Trait <select data-testid="customization-trait" value={form.trait ?? ''} onchange={event => setPatch({ trait: trait(event) })}><option value="">Pick a trait</option>{#each TRAITS as name (name)}<option value={name}>{traitLabel(name)}</option>{/each}</select></label>
+            <label>Set to <select data-testid="customization-value" value={form.value ?? ''} onchange={event => setPatch({ value: selected(event) === '' ? null : Number(selected(event)) })}><option value="">Pick a value</option>{#each [-3, -2, -1, 0, 1, 2, 3] as value (value)}<option value={value}>{value}</option>{/each}</select></label>
           </div>
         {:else}
           <div class="form-fields adjust">
-            <label>First trait <select data-testid="customization-first" value={form.first ?? ''} onchange={event => adjustPatch({ first: trait(event) })}><option value="">Choose a trait</option>{#each TRAITS as name (name)}<option value={name}>{traitLabel(name)}</option>{/each}</select></label>
-            <label>First change <select data-testid="customization-first-delta" value={form.firstDelta ?? ''} onchange={event => adjustPatch({ firstDelta: delta(event) })}><option value="">Choose</option><option value={1}>+1</option><option value={-1}>-1</option></select></label>
-            <label>Second trait <select data-testid="customization-second" value={form.second ?? ''} onchange={event => adjustPatch({ second: trait(event) })}><option value="">Choose a different trait</option>{#each TRAITS as name (name)}<option value={name}>{traitLabel(name)}</option>{/each}</select></label>
-            <label>Second change <select data-testid="customization-second-delta" value={form.secondDelta ?? ''} onchange={event => adjustPatch({ secondDelta: delta(event) })}><option value="">Choose</option><option value={1}>+1</option><option value={-1}>-1</option></select></label>
+            <label>First trait <select data-testid="customization-first" value={form.first ?? ''} onchange={event => adjustPatch({ first: trait(event) })}><option value="">Pick a trait</option>{#each TRAITS as name (name)}<option value={name}>{traitLabel(name)}</option>{/each}</select></label>
+            <label>Up or down <select data-testid="customization-first-delta" value={form.firstDelta ?? ''} onchange={event => adjustPatch({ firstDelta: delta(event) })}><option value="">Pick</option><option value={1}>+1</option><option value={-1}>-1</option></select></label>
+            <label>Second trait <select data-testid="customization-second" value={form.second ?? ''} onchange={event => adjustPatch({ second: trait(event) })}><option value="">Pick a different trait</option>{#each TRAITS as name (name)}<option value={name}>{traitLabel(name)}</option>{/each}</select></label>
+            <label>Up or down <select data-testid="customization-second-delta" value={form.secondDelta ?? ''} onchange={event => adjustPatch({ secondDelta: delta(event) })}><option value="">Pick</option><option value={1}>+1</option><option value={-1}>-1</option></select></label>
           </div>
         {/if}
-        <p class="note">{form.kind === 'Set' ? 'Set one trait to a value from −3 to +3.' : 'Choose two different traits, each with a change of +1 or −1. Values stay within −3 to +3.'}</p>
-        <table data-testid="customization-preview"><caption>Proposed personality — not applied</caption><thead><tr><th>Trait</th><th>Base</th><th>Proposed</th></tr></thead>
-          <tbody>{#each TRAITS as name (name)}<tr><th>{traitLabel(name)}</th><td>{baseTraits?.[name] ?? 'Unavailable'}</td><td>{proposed(name) ?? 'Unavailable'}</td></tr>{/each}</tbody>
+        <table data-testid="customization-preview"><thead><tr><th>Trait</th><th>Now</th><th>As ordered</th></tr></thead>
+          <tbody>{#each TRAITS as name (name)}<tr data-trait={name}><th>{traitLabel(name)}</th><td>{baseTraits?.[name] ?? ''}</td><td>{proposed(name) ?? ''}</td></tr>{/each}</tbody>
         </table>
-        <p>Path price: <strong>{formatAmount(rebuilt.price)}</strong> joss paper.</p>
-        {#if preview?.override !== null && preview?.override !== undefined && ui.underworldForm.carryOver !== null}<p data-testid="customization-override">This amendment replaces the carried {traitLabel(ui.underworldForm.carryOver)} value.</p>{/if}
-        {#if preview === null}<p class="note">Complete the amendment before applying.</p>{/if}
-        <button class="primary" type="button" data-testid="claim-rebuilt_body" aria-label="Confirm rebuilt-body application" disabled={!rebuilt.claimEnabled || decisionBusy(ui)} onclick={() => onClaim('rebuilt_body')}>Confirm rebuilt-body application</button>
+        <p data-testid="customization-price" data-amount={rebuilt.price}><strong>{formatAmount(rebuilt.price)}</strong> joss paper</p>
+        {#if preview?.override !== null && preview?.override !== undefined && ui.underworldForm.carryOver !== null}<p data-testid="customization-override">{supportedText(TECHNICAL_TEXT.adjustmentOverride, { trait: traitLabel(ui.underworldForm.carryOver) })}</p>{/if}
+        {#if preview === null}<p class="note">{TECHNICAL_TEXT.adjustmentIncomplete}</p>{/if}
+        <button class="primary" type="button" data-testid="claim-rebuilt_body" disabled={!rebuilt.claimEnabled || decisionBusy(ui)} onclick={() => onClaim('rebuilt_body')}>{TECHNICAL_TEXT.confirmOrder}</button>
       </section>
     {/if}
+    <ActionFeedback operationStates={operationStates.filter(state => state.kind !== 'choose')} actors={ui.notebook?.actors} />
     {#if ui.error !== null}<p class="error" data-testid="underworld-error" role="alert">{refusalText(ui.error)}</p>{/if}
   </section>
 {/if}
@@ -258,17 +287,14 @@
   dt, dd { margin: 0; overflow-wrap: anywhere; }
   dd { font-weight: 600; text-align: right; }
   .clerk-note { font: italic 15px/1.5 Georgia, serif; }
-  .correspondence { display: grid; gap: 24px; margin-top: 30px; align-items: start; }
-  .dream-message { background: var(--life-paper); padding: 24px; border-top: 2px solid var(--life-accent); }
-  .bribe-receipt { padding: 24px; background: var(--life-paper); border-top: 1px dashed var(--life-ink); border-bottom: 1px dashed var(--life-ink); }
+  .desk-actions { margin-top: 24px; }
+  .desk-actions > details { border-top: 1px solid var(--life-border); }
+  summary { padding: 14px 0; cursor: pointer; }
+  summary h3 { display: inline; margin: 0; font-size: 20px; }
+  summary:focus-visible { outline: 3px solid var(--life-focus); outline-offset: 3px; }
+  .section-body { padding: 0 0 20px; }
   .unruled { margin-top: 20px; padding-top: 12px; border-top: 1px dashed var(--life-border); }
-  .haunt-petition { margin-top: 32px; padding-top: 22px; border-top: 2px solid var(--life-ink); }
-  .petition-heading { display: flex; gap: 12px; justify-content: space-between; flex-wrap: wrap; align-items: baseline; }
-  .target-files { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); column-gap: 24px; }
-  .target { display: flex; flex-direction: row; align-items: center; gap: 10px; padding: 8px 0 14px; cursor: pointer; }
-  .target > div { min-width: 0; }
-  .target input { flex: none; accent-color: var(--life-accent); width: 18px; height: 18px; }
-  .target-reason { display: block; color: var(--life-muted); font-size: 13px; }
+  .target-files { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 8px; }
   label { display: flex; flex-direction: column; gap: 7px; overflow-wrap: anywhere; }
   input[type="text"], select { min-width: 0; width: 100%; box-sizing: border-box; font: inherit; padding: 10px; color: var(--life-ink); background: var(--life-paper); border: 1px solid var(--life-muted); caret-color: var(--life-accent); }
   button { font: 600 14px/1.4 system-ui, sans-serif; color: var(--life-ink); background: var(--life-paper); border: 1px solid var(--life-muted); padding: 10px 14px; max-width: 100%; overflow-wrap: anywhere; cursor: pointer; }
@@ -280,11 +306,8 @@
   legend { font-weight: 600; margin-bottom: 10px; }
   .intents { display: flex; flex-wrap: wrap; gap: 8px; margin: 18px 0; }
   .recorded-response { margin-top: 24px; border-top: 1px solid var(--life-border); padding-top: 16px; }
-  .recorded-response h4 { font-size: 15px; }
-  .personality-file { margin-top: 34px; padding-top: 22px; border-top: 1px solid var(--life-ink); }
   .carry { max-width: 420px; }
   .trait-file { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 0 28px; }
-  .applications { margin-top: 34px; padding-top: 22px; border-top: 2px solid var(--life-ink); }
   .birth-application { margin-top: 22px; background: var(--life-paper); padding: 24px; }
   .standing-applications { display: grid; gap: 22px; margin-top: 22px; }
   .standing-application { padding: 22px; border: 1px solid var(--life-muted); }
@@ -301,14 +324,12 @@
   .form-heading label { flex: 1 1 220px; }
   .form-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 16px; margin: 20px 0; }
   table { width: 100%; table-layout: fixed; border-collapse: collapse; margin: 20px 0; font-variant-numeric: tabular-nums; }
-  caption { text-align: left; margin-bottom: 10px; font-weight: 600; }
   th, td { text-align: left; padding: 9px 4px; overflow-wrap: anywhere; border-bottom: 1px solid var(--life-border); }
   .gloss, .note { color: var(--life-muted); }
   .error { color: var(--life-event); }
   ::selection { background: var(--life-accent); color: var(--life-on-accent); }
   @container (min-width: 640px) {
     .desk-records { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); }
-    .correspondence { grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); }
     .standing-applications { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   }
 </style>

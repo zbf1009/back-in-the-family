@@ -2,7 +2,48 @@
   "version": 1,
   "evidence_root": "/home/kaiki/.cache/back-in-the-family/first-playable/c4-direction",
   "selected_count": 48,
-  "scope": "Only these selected native crops and bounded original gaps are shipped. No full source sheets, labeled contact sheets, fonts, unselected packs, walking frames or expression matrix.",
+  "scope": "The 48 existing native tile crops and bounded original gaps remain unchanged. The separately registered 360-cell portrait pool contains 96 CC-BY-4.0 source adaptations and 264 Apache-2.0 original cells. No full source sheets, labeled contact sheets, fonts, unselected packs, walking frames or expression matrix are shipped.",
+  "portrait_assets": {
+    "portraits": {
+      "path": "assets/life-portraits.png",
+      "source_path": "web/public/assets/life-portraits.png",
+      "source": "Character portrait kit",
+      "creator": "Dezra's Dragons",
+      "creator_profile": "https://opengameart.org/users/dezrasdragons",
+      "source_url": "https://opengameart.org/content/character-portrait-kit",
+      "original_url": "https://opengameart.org/sites/default/files/dezras_dragons_portrait_kit.png",
+      "original_sha256": "6680b9144d9c2c7a60c123585064fab77715e5850f57b5e803a1c6faa7d9fd02",
+      "original_bytes": 57993,
+      "original_dimensions": [616, 904],
+      "width": 1024,
+      "height": 1472,
+      "bytes": 101651,
+      "sha256": "767f3baf7237370403f5f5b18338bc0cde24200beb766fc0ff78ad7009935ef1",
+      "cells": 360,
+      "cell_size": 64,
+      "pools": 15,
+      "shape_variants_per_pool": 2,
+      "palettes_per_variant": 12,
+      "source_derived_cells": 96,
+      "project_original_cells": 264,
+      "license": "CC-BY-4.0 AND Apache-2.0",
+      "original_license_path": "LICENSE",
+      "license_path": "web/assets/licenses/CC-BY-4.0.txt",
+      "license_sha256": "9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411",
+      "license_bytes": 18657,
+      "source_notice_path": "web/assets/licenses/character-portrait-kit-NOTICE.txt",
+      "source_html_sha256": "83861c8021c60f5d700a4ff0e4529c2c56aec2747391f426e1743a5f8e78876b",
+      "source_html_bytes": 43627,
+      "modification_record": "web/assets/portrait-pool-provenance.json",
+      "recipe": "web/assets/compose-portrait-pool.py",
+      "recipe_sha256": "17eb6615e7200b5a4ec5d0b81fcf9d2c1fb1870b7bab101b4cc68e92883182a5",
+      "modifications": "Female/male adult and elder source torso/head components cropped and assembled; exact opaque gray ground removed; modern clothes painted; skin/hair and iris palettes recolored; elder facial contours, creases and modern spectacles added. Baby/child/neutral/unknown-age cells are original manual pixel commands, never resized adult source heads. Original square rails cover every torso's bottom edge. Exact templates and per-cell hashes are retained in the modification record.",
+      "credits_url": "/credits.html",
+      "fixture_url": "/art-sample.html",
+      "fact_source": "web/tests/fixtures/art-sample-seed1205.json",
+      "scope": "Author-approved local rollout. Recorded sex and age choose female/male/neutral and baby0-2/child3-17/adult18-59/elder60+/unknown pools. Skin/hair palette and variant remain person-ID bound across pools. No RNG, generated imagery, appearance fact or publication approval is asserted."
+    }
+  },
   "packing": {
     "width": 128,
     "algorithm": "Stable-order shelf packing per lineage; left to right, wrap before width overflow, row height=max selected crop height, transparent RGBA canvas.",
@@ -176,8 +217,32 @@
       "license": "Apache-2.0",
       "license_path": "LICENSE",
       "creation": "Original integer-pixel notebook spreads, memorial portrait frame, Underworld archive shelves/desk/lamp, mourning cloth, inheritance ledger, debt desk, divided quarrel backdrop, childhood toy blocks, school-age chalkboard, adult-life satchel, newborn cradle and Dream message setting. Rectangular fills are authored directly in the renderer; no external imagery, font, new pack or generated image is added.",
-      "materials": "Existing selected person tiles are nearest-neighbor enlarged to 48 logical pixels inside original portrait frames or staging panels. Existing house, candle, cloud and seal crops retain their original Urban/Roguelike/project lineage and are enlarged without modifying their pixels. Ambient breathing/lamp/cloth use CSS transform/opacity over cached compositions, not new sprite images.",
-      "modifications": "No PNG atlas bytes, crop coordinates or original pack license records changed. These original compositional gaps ship as application source, not an additional media input."
+      "materials": "All scene people use SpriteSet.portraits and portraitId with captured actual person/sex/age at native 64px scale1. Canonical stage-geometry.ts defines416x192 source pixels; the discrete CSS scale1/2 applies equally to portraits and scenery, giving832x384 within the observed848px content column. Below416px, only the accessible stage viewport scrolls. Existing Kenney house/candle and original cloud/seal props retain native pixels and their original lineage; no independent source or portrait enlargement.",
+      "modifications": "Original memorial frame outer[44,77,80,74], inner[48,79,72,70], portrait[52,81,64,64], lower rail[48,143,72,6]; regular72x72 frame around64x64 cell and6px lower rail; original cradle frame[30,76,112,88], portrait[52,82,64,64], lower rail[36,146,100,8]. Full-width fills use the canonical416px width; notebook pages are186px wide with spine x206, archive shelving has20 files per row, right desk/lamp props move32px left and native house destination[250,26,140,120] fits completely. Split counterpart center x352 and Dream recipient center x344 remain uncropped; split paper[132,20,152,156] and Dream paper[132,16,172,164] leave both portrait cells unobscured. Source PNG tile bytes, licenses, recipe timing, state and inputs are unchanged; atlas cells retain separate source-derived/original lineage.",
+      "source_sha256": "f106dc85ff4fd6a02b2620cc727efa40c34a1a2740eb504c390ec04e90ab438d",
+      "canonical_geometry": {
+        "source": "web/src/art/stage-geometry.ts",
+        "source_sha256": "57a7388c29950a4a04d0d05fe5aee71d8e6d0687398af9f01897977194c5076f",
+        "native_size": [416, 192],
+        "css_reference_size": [832, 384],
+        "source_pixel_scales": [1, 2],
+        "dependency": "Office and stage painters import this geometry-only module; neither geometry nor office imports stage-paint."
+      },
+      "presentation_sources": [
+        { "source": "web/src/ui/ScenePicture.svelte", "source_sha256": "46349beb566576c1d61dff12ff76178fad74375b33fa7b8366fd8175e35c5b63" },
+        { "source": "web/src/ui/PortraitCertificate.svelte", "source_sha256": "f8f945e21b7233100e18224da6efede0074b4218fd7f43fc2e1d1f0aa1971439" },
+        { "source": "web/src/ui/KeyScene.svelte", "source_sha256": "97dc0982f2cdf11a98d4a423ee5d766dd47ddf28bd22708e97f84d8c9195a80f" }
+      ]
+    },
+    {
+      "source": "web/src/art/office-interior.ts",
+      "lineage": "project",
+      "license": "Apache-2.0",
+      "license_path": "LICENSE",
+      "creation": "Original typed Canvas fillRect bureau: two-tone walls, indoor straight-grout32x16 linoleum, unobscured window/wall pictures/service hatch, counter, ticket dispenser and queue rails. No downloaded/generated image or new package; exact colors/loops and rectangle commands remain in the linked source.",
+      "materials": "Roguelike house_wall atlas[0,0,16,16] repeated over416x144 and existing attributed Roguelike candle atlas[96,0,16,16] at[284,42] retain CC0-1.0. Original seal atlas[80,16,16,16] at[362,42] retains Apache-2.0. Portrait adaptations retain Character portrait kit CC-BY-4.0; original portrait gaps retain Apache-2.0.",
+      "modifications": "Canonical416x192 room fills; authored floor[0,146,416,46]; unchanged window[24,14,68,48], wall portrait[114,16,34,42], notice[170,18,64,36]; complete hatch moved32px left to[272,10,124,56], opening[284,22,100,32], ledge[268,58,132,10]; unchanged dispenser[124,80,24,38], roll[129,90,14,10], tear slot[128,104,16,4], ticket[130,108,12,22], stand[132,130,8,20], foot[122,150,28,4], posts x18/100/148 top y150 feet y184 and rails[22,158,126,4]/[22,170,126,3]. No lower-left unknown square or grass/paving floor. Document[160,78,232,108] remains below every upper-wall object and hatch; its width derives from canonical width minus184, keeping24px right margin. Hover/focus controls explicitly retain dark ink on light paper. The former sample-interior module remains removed; no source tile pixels change.",
+      "source_sha256": "5b7342b9b504ac43d25bc43bf02f5600148bc14b3607a8f75b66ee800ea41f66"
     }
   ],
   "tiles": [

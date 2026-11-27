@@ -2,7 +2,9 @@
   import { onMount, untrack } from 'svelte';
   import type { KeySceneView } from '../main/key-scene.ts';
   import type { SpriteSet } from '../art/sprites.ts';
+  import { STAGE_WIDTH } from '../art/stage-geometry.ts';
   import { dateLabel } from '../main/calendar.ts';
+  import { TECHNICAL_TEXT } from '../main/technical-text.ts';
   import ScenePicture from './ScenePicture.svelte';
 
   const { view, sprites, onClose, presentationVersion = 0, onSettled, next = false, preSettled = false }: {
@@ -47,7 +49,7 @@
     }
   }
 
-  function showAll(): void {
+  function revealText(): void {
     visibleCharacters = Infinity;
     if (textTimer !== undefined) clearInterval(textTimer);
     textTimer = undefined;
@@ -59,7 +61,15 @@
     settled();
   }
 
-  function receiveLayers(value: Layers | null): void { layers = value; }
+  function showAll(): void {
+    if (view.memorial) skip();
+    else revealText();
+  }
+
+  function receiveLayers(value: Layers | null): void {
+    if (value === null) untrack(() => release(layers));
+    layers = value;
+  }
   function preventRepeatedActivation(event: KeyboardEvent): void {
     if (event.repeat && (event.key === ' ' || event.key === 'Enter')) event.preventDefault();
   }
@@ -96,17 +106,19 @@
     const quiet = reduced || hidden || preSettled;
     if (current === null) return;
     release(current);
-    if (!artReady || quiet || playedIdentity === id) {
+    if (quiet || playedIdentity === id) {
       if (quiet) playedIdentity = id;
       untrack(settled);
       return;
     }
+    // Loading artwork is not a completed presentation.
+    if (!artReady) return;
     playedIdentity = id;
     settledIdentity = null;
     const generation = run;
     const category = untrack(() => view.category);
     const duration = category === 'death' || category === 'rebirth' ? 7000 : category === 'dream' ? 6500 : 5000;
-    const scale = current.base.getBoundingClientRect().width / 448;
+    const scale = Math.max(1, Math.round(current.base.getBoundingClientRect().width / STAGE_WIDTH));
     const ease = 'cubic-bezier(0.77, 0, 0.175, 1)';
     const movement = (x: number, y = 0) => `translate(${x * scale}px, ${y * scale}px)`;
     beat = 'establish';
@@ -115,7 +127,7 @@
     textTimer = setInterval(() => {
       if (generation !== run) return;
       visibleCharacters = Math.floor((performance.now() - started) * 35 / 1000);
-      if (visibleCharacters >= untrack(() => characters.length)) showAll();
+      if (visibleCharacters >= untrack(() => characters.length)) revealText();
     }, 100);
 
     function animate(layer: HTMLElement, frames: Keyframe[]): void {
@@ -174,10 +186,10 @@
   data-identity={identity} data-beat={beat}>
   <div class="scene-heading"><h2>{view.title}</h2><p>{dateLabel(view.date)}</p></div>
   <div class="scene-controls">
-    <button type="button" onclick={showAll} onkeydown={preventRepeatedActivation}>Show all text</button>
-    <button type="button" data-testid="scene-skip" onclick={skip} onkeydown={preventRepeatedActivation}>Skip scene</button>
+    <button type="button" onclick={showAll} onkeydown={preventRepeatedActivation}>{TECHNICAL_TEXT.showAll}</button>
+    <button type="button" data-testid="scene-skip" onclick={skip} onkeydown={preventRepeatedActivation}>{TECHNICAL_TEXT.skip}</button>
     {#if view.node === null && onClose !== undefined}
-      <button type="button" data-testid="scene-close" onclick={close} onkeydown={preventRepeatedActivation}>{next ? 'Continue' : 'Close scene'}</button>
+      <button type="button" data-testid="scene-close" onclick={close} onkeydown={preventRepeatedActivation}>{next && !view.memorial ? TECHNICAL_TEXT.next : TECHNICAL_TEXT.close}</button>
     {/if}
   </div>
   <ScenePicture world={view.world} {sprites} kind={view.category} node={view.node} keyScene={view} worldKey={view.identity[0]} onLayers={receiveLayers} />
@@ -186,9 +198,10 @@
   </div>
   <div class="accessible-facts">
     {#each view.lines as line}<p>{line}</p>{/each}
+    {#if view.document.name !== undefined}<p>{view.document.name}</p>{/if}
     <dl>{#each view.document.fields as field}<div><dt>{field.label}</dt><dd>{field.value}</dd></div>{/each}</dl>
+    {#if view.document.note !== undefined}<p>{view.document.note}</p>{/if}
   </div>
-  <p class="picture-status" data-testid="scene-playback-status">{beat === 'settled' ? 'The picture has settled. Your next action is available.' : 'Your actions are available now; the picture can wait.'}</p>
 </section>
 
 <style>
@@ -198,12 +211,11 @@
   .scene-heading p { margin: 0; color: var(--life-muted); }
   .scene-controls { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
   .scene-controls button { min-height: 40px; padding: 8px 14px; border: 1px solid #647166; background: #f4efd9; color: #263b3c; font: inherit; cursor: pointer; }
-  .scene-controls button:focus-visible { outline: 2px solid #005fcc; outline-offset: 3px; }
+  .scene-controls button:focus-visible { outline: 2px solid #005fcc; outline-offset: 3px; background: #f4efd9; color: #263b3c; }
   .scene-controls button:disabled { cursor: default; opacity: 0.6; }
-  .scene-controls button:hover:not(:disabled) { background: #e5dec3; }
+  .scene-controls button:hover:not(:disabled) { background: #e5dec3; color: #263b3c; }
   .scene-paragraphs { max-width: 72ch; min-height: 5.5em; font-size: 18px; line-height: 1.55; }
   .scene-paragraphs p { margin: 12px 0; white-space: pre-line; overflow-wrap: anywhere; }
   .accessible-facts { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-  .picture-status { margin: 8px 0 0; color: var(--life-muted); font-size: 14px; }
   ::selection { background: #c6d4b9; color: #172d2e; }
 </style>

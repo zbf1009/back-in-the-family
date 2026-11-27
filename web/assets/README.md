@@ -1,12 +1,15 @@
 # Life-view art assets
 
-Only the three selected PNG atlases below are public media inputs. Vite copies
+The four registered native PNG atlases below are public media inputs. Vite copies
 `web/public/assets/` to the exact `assets/` paths; there is no art downloader,
 inline image import, full source sheet or labeled evidence contact sheet.
 `ASSETS.json` uses the exact **RPG Urban Pack** and **Roguelike RPG Pack** Names
 in the root README's `## Third-party libraries and assets` tables. The original
 atlas alone is registered as `project`; editing a pack crop does not change its
 lineage. Existing release/media/asset-inventory policies are unchanged.
+The portrait pool atlas is registered under the exact **Character portrait kit**
+Name in that same README table; its source-derived cells retain CC-BY-4.0 and
+its independently authored original cells retain Apache-2.0.
 
 ## Emitted native PNGs
 
@@ -15,6 +18,7 @@ lineage. Existing release/media/asset-inventory policies are unchanged.
 | `assets/life-view-urban.png` | 128×48 | 19 | 3424 | `0bd6b1bbe15a6f639fa371cbb850402c66798508ba3c8b1b7a52212e0662abca` |
 | `assets/life-view-roguelike.png` | 128×16 | 7 | 577 | `772a585e0450e479675a886405589d421c61cff7c1e8cca7a7adbace5d5399df` |
 | `assets/life-view-original.png` | 128×56 | 22 | 2167 | `6f4275bb052ca84ae29e860691de925399ea1f6eb628eb43cda1ac9fb885baa2` |
+| `assets/life-portraits.png` | 1024×1472 | 360 portrait cells | 101651 | `767f3baf7237370403f5f5b18338bc0cde24200beb766fc0ff78ad7009935ef1` |
 
 The 48 selected tiles comprise six real modern adult bases, four original
 children, three Urban-derived elder variants, one original swaddled infant,
@@ -141,17 +145,21 @@ are separate shape-distinct markers, never body identity inferred from color.
 
 ## Life Unfolds stage composition
 
-All eight scene families use existing person material at 48 logical pixels
-(96 CSS pixels at the reference size) with original notebook, memorial,
-inheritance, debt, quarrel, life-stage, rebirth and Dream compositions.
-`src/art/stage-paint.ts` authors the missing large scenery and prop gaps as
-integer pixel fills, including three distinct rebirth settings: only actual
-Birth has a cradle/infant; Possession and Rebuild use adult/unknown-age portrait
-files and their own permit/receipt. Apache-2.0 project lineage and retained
-tile lineage are recorded in `runtime_art`. No new pack, external font,
-generated image or PNG atlas is introduced or modified.
+All eight scene families use native 64px portrait cells with recorded sex and age,
+with original notebook, memorial, inheritance, debt, quarrel, life-stage, rebirth
+and Dream compositions. `src/art/stage-paint.ts` authors missing scenery and
+prop gaps as integer pixel fills, including three distinct rebirth settings:
+only actual Birth has a cradle/baby; Possession and Rebuild use the captured
+adult/unknown-age subject and their own permit/receipt. Apache-2.0 project
+geometry and the separate source-derived/original portrait lineage are recorded
+in `runtime_art` and the pool manifest. No new pack, font or generated image is used.
 
-Pictures are 448×192 logical pixels, referenced at 896×384 CSS pixels. Node
+Pictures use the canonical416×192 native pixel geometry in
+`src/art/stage-geometry.ts`, shared by the office and stage painters without an
+import cycle. The discrete source-pixel scale1/2 yields832×384 CSS pixels at2×,
+fitting the actual848px content column. Native64 portrait cells, scenery and
+props all share that scale. Views below416px retain1× pixels and an accessible
+stage-local scroll viewport instead of fractional portrait/background scaling. Node
 scenes perform for five seconds, Dream for 6.5 seconds, death/rebirth for seven.
 Actors/documents move 40–80 logical pixels with transform/opacity and document
 unfolding through clip-path. Paragraphs reveal at 35 characters per second;
@@ -194,3 +202,90 @@ system fonts, not a bundled or downloaded font pack. Local LV-C3 material,
 native-page and isolated-component evidence is recorded at the checkpoint in
 `.kiro/specs/life-in-view/tasks.md`; final selected art/recipe review and later
 motion acceptance remain separate checkpoints.
+
+## Primary portrait pools and office composition
+
+The Author approved local expansion after the first real rendered samples,
+with the sex/age, stable-palette, flat-edge, integer-scale and office corrections.
+This is not publication approval or a second sample checkpoint. The historical
+sample screenshots/native facts remain unchanged; `/art-sample.html` now uses
+the same production pool and office modules for the parent's integrated review.
+`/credits.html` is the accessible onsite attribution page.
+
+The 360-cell atlas uses 15 pools: female/male/neutral for baby0–2, child3–17,
+adult18–59, elder60+ and unknown age. These are illustration thresholds, not game
+rules. Unknown sex selects neutral; unknown age selects a distinct faceless,
+age-indeterminate original illustration, never an asserted adult. Each pool has
+two shape variants and12 palettes: four skin families and three natural dark-hair
+families. `person % 12` fixes the palette and `floor(person / 12) % 2` fixes the
+variant across all age/sex pools. Elder contours/creases/spectacles change the
+shape, not the base skin/hair family. Nadine10 uses female adult at45 and female
+elder at60; Marvin39 at22 uses male adult and natural dark hair.
+
+The 96 female/male adult/elder cells adapt
+[Character portrait kit](https://opengameart.org/content/character-portrait-kit)
+by [Dezra's Dragons](https://opengameart.org/users/dezrasdragons), under selected
+[CC-BY4.0](https://creativecommons.org/licenses/by/4.0/). CC-BY3.0 and OGA-BY3.0
+are offered by the source but not selected. The required creator/profile notice
+is preserved in [character-portrait-kit-NOTICE.txt](licenses/character-portrait-kit-NOTICE.txt),
+with the [complete selected license/disclaimer](licenses/CC-BY-4.0.txt); the same
+notice and full legal text remain in the distribution NOTICE. Attribution implies
+no endorsement, and the code license imposes no additional artwork restriction.
+
+The independently inspected original is616×904 RGBA8,57,993 bytes, SHA-256
+`6680b9144d9c2c7a60c123585064fab77715e5850f57b5e803a1c6faa7d9fd02`.
+Exact gray ground is removed, female/male torso/head crops assembled, modern
+cardigan/blouse/collared shirt/polo pixels painted, skin/hair and irises recolored,
+and elder contours/creases/modern spectacles added. Original frame lower rails
+cover ragged torso edges. The source supplies no embedded creator/license text;
+its source-page notice is retained independently. Armor, hoods, fantasy accessories,
+preview images and comment attachments are excluded.
+
+The other264 baby/child/neutral/unknown-age cells and frame rails are hand-authored
+original pixel work under Apache-2.0, not source-derived or CC0. Baby cells have
+large heads and short swaddled bodies; child cells use independently drawn child
+proportions, not shrunken adult source heads. A mixed atlas preserves each lineage.
+No model, generated image, paid/fallback pack, new download or core RNG is used.
+
+[`portrait-pool-provenance.json`](portrait-pool-provenance.json) retains exact
+crops/source hashes, palette replacements, masked/unmasked manual drawing commands,
+per-template lineage and every cell's destination/RGBA hash. The reproducible
+[`compose-portrait-pool.py`](compose-portrait-pool.py) requires Pillow and the
+existing cached exact original. Only the compressed selected atlas is public;
+source sheets and the detailed manifest are not deployment media.
+
+`src/art/portraits.ts` exposes `PortraitSubject`, `portraitId`, `PortraitSet.draw`
+and native `PORTRAIT_CELL=64`. Selection/draw allocate no repeated arrays/records
+and use no RNG. `SpriteSet.portraits` joins the existing cached loader with the
+three original atlases; failures remain failures. `ui/Portrait.svelte` consumes
+`portraits`, `person`, recorded `sex`, `age`, `label`, `pixelScale=2`; its canvas
+is intrinsically64×scale, with one accessible label and no fractional CSS stretch.
+Null resources have no drawable canvas or fabricated replacement. Actual selected
+subject/cell/pool/scale metadata is exposed for factual render diagnostics.
+`PeopleCard` reserves the full128×128 portrait content separately from its2px lower frame (`box-sizing: content-box`); the source cell is not cropped by a border-box height. Full-cell diagnostics use actual device-aligned screenshots rather than enclosing fractional DOM bounds.
+
+
+The preserved fixture uses Death2368/day5372/Nadine/native age60. Its completed
+Waiting World is day5373, never the death date. Exported actors and Death are
+copied from `target/life-unfolds/default-play-facts.json` with its source hash,
+and the immutable actor root is bound to the fixture notebook. Legal controls
+record real callback/request shapes locally without sending simulation inputs
+or claiming admission, spending, dreams or arrivals.
+
+`src/art/office-interior.ts` replaces the preparation-only sample interior.
+Original two-tone walls, indoor linoleum, unobscured wall objects, service hatch,
+counter, ticket dispenser and queue rails are typed integer-pixel commands.
+Its embedded native Roguelike wall/candle and original seal retain their existing
+lineage. The complete hatch/ledge and its native props sit32px left of their
+original positions to fit the416px room without clipping upper-wall pictures;
+the document is232px wide and stays below them. Native64 portraits and scenery
+remain under the same integer scale1/2, with original square memorial/cradle
+rails giving flat lower edges. Scene controls explicitly retain legible ink on
+light paper for hover and keyboard focus. Exact geometry and current source
+hashes are retained in `life-view-provenance.json`.
+No optional Roguelike Indoor or UI Pixel Adventure pack is acquired or used.
+
+Cached original/source HTML/full-license evidence remains at
+`/home/kaiki/.cache/back-in-the-family/life-unfolds/portrait-sample/`.
+Preparation records are not current-browser proof or replay-gate results.
+

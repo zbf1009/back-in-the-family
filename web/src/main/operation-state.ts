@@ -1,6 +1,8 @@
 import type { OperationState } from '../shared/operation-state.ts';
 import type { Request } from '../shared/protocol.ts';
 import type { UiState } from './ui-state.ts';
+import { currentLifePhase } from './life-journal.ts';
+import { choiceResult } from './choice-result.ts';
 
 function operationKind(type: Request['type']): OperationState['kind'] | null {
   switch (type) {
@@ -13,8 +15,11 @@ function operationKind(type: Request['type']): OperationState['kind'] | null {
 /** Only exact same-world result/sequence joins upgrade an admission receipt. */
 export function operationStates(ui: UiState): OperationState[] {
   const states: OperationState[] = [];
+  const phaseKey = currentLifePhase(ui.notebook, ui.world)?.key;
+  const choice = choiceResult(ui);
   for (const action of ui.actions) {
     if (action.worldId !== ui.worldId || action.requestId === null || action.request === null) continue;
+    if (action.lifePhaseKey !== phaseKey || choice?.kind === 'result' && action.requestId === choice.requestId) continue;
     const kind = operationKind(action.request.type);
     if (kind === null) continue;
     const inputSeqs = action.submission?.seqs ?? (action.inputSeq === null ? [] : [action.inputSeq]);

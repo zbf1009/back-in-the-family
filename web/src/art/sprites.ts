@@ -1,5 +1,6 @@
 import type { Tint } from '../main/town-layout.ts';
 import { LIFE_ATLASES, LIFE_TILES, PERSON_TILES } from './life-view-atlas.ts';
+import { loadPortraits, type PortraitSet } from './portraits.ts';
 
 export type { Tint } from '../main/town-layout.ts';
 export type LifeTile = keyof typeof LIFE_TILES;
@@ -9,6 +10,7 @@ export const SOUL_GLYPH = '○';
 export const SOUL_COLOR = '#8a620b';
 
 export interface SpriteSet {
+  portraits: PortraitSet;
   resident(ctx: CanvasRenderingContext2D, x: number, y: number, tint: Tint, visual: VisualKey): void;
   soulMarker(ctx: CanvasRenderingContext2D, x: number, y: number): void;
   house(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number): void;
@@ -37,7 +39,7 @@ export function loadLifeSprites(): Promise<SpriteSet> {
 
 async function decodeLifeSprites(): Promise<SpriteSet> {
   const atlasNames = Object.keys(LIFE_ATLASES) as (keyof typeof LIFE_ATLASES)[];
-  const decoded = await Promise.all(atlasNames.map(async name => {
+  const [decoded, portraits] = await Promise.all([Promise.all(atlasNames.map(async name => {
     const atlas = LIFE_ATLASES[name];
     const image = new Image();
     image.src = new URL(atlas.path, document.baseURI).href;
@@ -50,7 +52,7 @@ async function decodeLifeSprites(): Promise<SpriteSet> {
       throw new Error(`Visual atlas ${atlas.path} has unexpected dimensions: ${image.naturalWidth}×${image.naturalHeight}; expected ${atlas.width}×${atlas.height}.`);
     }
     return [name, image] as const;
-  }));
+  })), loadPortraits()]);
   const images = Object.fromEntries(decoded) as Record<keyof typeof LIFE_ATLASES, HTMLImageElement>;
 
   function tile(ctx: CanvasRenderingContext2D, kind: LifeTile, x: number, y: number, w?: number, h?: number) {
@@ -71,6 +73,7 @@ async function decodeLifeSprites(): Promise<SpriteSet> {
   }
 
   return {
+    portraits,
     resident(ctx, x, y, tint, visual) {
       const rect = LIFE_TILES[visual];
       tile(ctx, visual, x - Math.floor(rect.w / 2), y - rect.h);

@@ -10,15 +10,20 @@ Baseline: spec 5, `underworld`, is done, audited (`docs/underworld-audit.md`) an
 
 First-playable local status (2026-11-20): spec 6 is **accepted and audited locally**; see the [final audit](docs/first-playable-audit.md) and the gate and smoke evidence in `docs/kiro-log.md`. The rules-only browser loop includes the Narrator and Player_Node choices, Rebuilt_Body Set/Adjust Customization, Snapshot and stop seams, clock pacing, the unanswered-node advancement gate, Town_View, four template scenes, panels and the recorded playthrough. Replay version 5 (Canon version 6) consumes these inputs; versions 2, 3 and 4 are rejected, and native/WASM parity uses regenerated v5 fixtures. The browser Smoke_Test exercises choices, death, a template-text dream, Imported_Vessel rebirth and continued second-life play, comparing every recorded checksum. Spec 6 was pushed to `main` as `223cbf3`; the existing static production path is retained, and the main/static/publisher workflow succeeded for source `cab87be498a12cf4043c3c326b1dbc2ba1ff4991` (run `45321550513`, attempt `1`). At its acceptance, the Spec 6 slice used project-drawn placeholder shapes and included no third-party media, model calls, generated presentation text, haunting or Bribe UI controls, or deploy button.
 
-## Local life-first interface (Spec 8)
+## Local Life Unfolds Delivery (Spec 9)
 
-The local `life-in-view` implementation makes the scene, current choice/actions and recorded results the primary play surface; the town map is optional and initially collapsed. Identity, blood ties and past-life rememberers remain visible separately from historical scenes.
+The local `life-unfolds` branch starts from accepted Spec 8 delivery `b0965db96b2a42609b25b2371822eac42852e5ab`. Start creates a paused town with an actual name, age and family; optional Advanced settings accept a seed and 40–60 residents. Life runs at five days per second, Read at one. Fast-forward temporarily uses the existing Years pace until the next existing stop, then restores the previous pace without answering or resuming.
 
-- Five actual Player_Node families have finite picture scenes: family death, inheritance, debt due, feud and life stage. The player's own death and rebirth have event-bound scenes; Dream remains static template text. Picture performances are optional, support Skip and reduced motion, and do not determine simulation outcomes or gate current actions.
-- The Underworld includes Dream intents, decimal-u64 Bribe submission, eligible connected Haunt targets, local birth-slot/Imported_Vessel/Rebuilt_Body claims, Carry_Over on every path and paid Rebuilt_Body Set/Adjust customization. Recorded results distinguish admission/queueing from application or rejection; displayed resources and eligibility come from the observed World.
-- Current body identity and historical event identity are distinct. Biological Birth supplies known age zero and infant art; Possession, Rebuild and death do not borrow a later current age into history. Unknown age remains explicit. Selected CC0 artwork and original project art are documented [below](#selected-life-view-artwork).
+- Read-only native StoryBatch deliveries retain actual EventLog roles, dates, causes, names and Chronicle records in a world-bound notebook. Deterministic community-paper sentences separate Your life from real Around town news; bounded rendering never evicts facts. Technical details provide complete fact-file download and replay export.
+- All eight large scene families are implemented with the existing atlas and original pixel backdrops/documents. Full text, Show all and Skip are immediately available without changing time or answering a choice. Default-Life Start-to-death-to-rebirth has been played through the actual local Worker/WASM page; its six inputs and all 5,375 checksums pass native replay verification. The complete ordinary/judge local gate group and affected repairs are green; visual/experience acceptance remains the Author's LU-P1 review.
+- All existing choices, six Dream intents, Bribe, Haunt, three rebirth paths, Carry-over and paid rebuilt-body Set/Adjust remain accessible under native eligibility. Receipts do not establish spending or rebirth; current World facts and exact native outcomes remain separate.
+- LU-P1 polish keeps event-local names, kin and body context under stable life/Between lives headings. A matching actual Chronicle replaces the admitted choice transition in the main area; visible slips belong only to the current life/waiting phase, without deleting retained facts or transport state.
+- Skip ahead works while Playing or Paused through the existing advancement loop. A close-kin memorial adds no pause or choice: Show all/Skip/ordinary ticks keep its card until guarded Close or a genuine next scene, with exact same-day Death-caused inherited estate merged without a second performance.
+- Modern portrait pools select recorded sex and event-time age (baby, child, adult, elder; neutral/unknown kept distinct), while ID-bound hair/skin colors stay stable. Portraits and scenery use the same integer pixel scale, with flat lower frames and a complete indoor Bureau. The actual footer opens Credits and licenses.
+- The complete Author copy deck is integrated verbatim with section 13 > 12 > 11 > earlier precedence. Mechanical real-seed text for separate editorial review is `target/life-unfolds/copy-review-lu-p1.txt`; existing first-life non-debt witnesses and their required recorded inputs are in `target/life-unfolds/demo-seed-report.md`.
+- Biological Birth establishes historical age zero and infant imagery. Known historical ages use matching native birth-day/death-age facts, not later World ages; other arrivals do not imply biological birth or infancy. Artwork provenance and redistribution notices are documented [below](#selected-life-view-artwork).
 
-**LV-C1–LV-C4 are independently accepted**; the latest accepted C4 repair source is `bdc8bbd7388eef09d11db307f793a98c2ab791dc`. The explicit local continuation covers tasks 5.1–5.4 through **STOP LV-C5**; final LV-C5 and Author Spec 8 acceptance remain pending. See the [checkpoint plan and evidence](.kiro/specs/life-in-view/tasks.md). This status does not claim a new final gate run, production release or live model call, and grants no source publication, push, deploy, publisher action or model/account changes. Existing public/generic default-off inference, private judge gating/counters and the own-account deployment entry below are unchanged.
+Spec 8 runtime is `bdc8bbd7388eef09d11db307f793a98c2ab791dc`; C5 delivery is `b0965db96b2a42609b25b2371822eac42852e5ab`. The Author's personal playtest gives R15.9/task 5.4 **functional PASS / visual-experience FAIL**: functionally complete, visually unaccepted, superseded by Spec 9. Preserve its original [plan/evidence](.kiro/specs/life-in-view/tasks.md), not a retroactive full PASS or execution fault. Spec 9 [requirements](.kiro/specs/life-unfolds/requirements.md), [design](.kiro/specs/life-unfolds/design.md) and [tasks](.kiro/specs/life-unfolds/tasks.md) authorize local implementation. Tasks 1–8 are locally complete, with full ordinary/judge gates green and LU-P1 ready for personal review. Runtime source is `05c02fc38bab83918147c391bd60cae73a725ea7`; smoke-contract delivery is `b4f21d41fe1fac5a544cf7d227bb8d1904160fd2`. Publication requires separate named LU-P2 approval. Public/generic default-off inference, private judge gating/counters and the own-account entry below remain unchanged.
 
 ## Deploy to Cloudflare
 
@@ -367,6 +372,7 @@ More entries are added here as libraries and assets arrive.
 |---|---|---|---|
 | [RPG Urban Pack](https://kenney.nl/assets/rpg-urban-pack) | 1.0 (package license) | CC0-1.0 | Six modern adult bases, three attributed elder modifications and selected outdoor tiles in `assets/life-view-urban.png` |
 | [Roguelike RPG Pack](https://kenney.nl/assets/roguelike-rpg-pack) | 1.0 (official page; package notice gives no version) | CC0-1.0 | Selected interior/document/grave tiles and an attributed lit-candle modification in `assets/life-view-roguelike.png` |
+| [Character portrait kit](https://opengameart.org/content/character-portrait-kit) | Source posted March 22, 2018; no package version supplied | CC-BY-4.0 | 96 manually adapted modern adult/elder cells within `assets/life-portraits.png`; original baby/child/neutral/unknown-age cells are separately licensed project work |
 
 Kenney's full package notices and the complete CC0 terms are retained in
 [`web/assets/licenses/`](web/assets/licenses/) and the established
@@ -376,6 +382,24 @@ markers in `assets/life-view-original.png` are project work under Apache-2.0.
 The [asset registry](web/assets/README.md) records exact deployed paths,
 selected rectangles, hashes and modification lineage. No font files or
 unselected art packs are distributed; attribution does not imply endorsement.
+
+The portrait atlas adapts **Dezra's Dragons**' [Character portrait kit](https://opengameart.org/content/character-portrait-kit).
+The creator requires credit to **Dezra's Dragons** and a link to the
+[OpenGameArt profile](https://opengameart.org/users/dezrasdragons). This project
+selects [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/), including its
+[full legal terms and disclaimer](web/assets/licenses/CC-BY-4.0.txt); the source's
+other offered licenses are not selected. The adapted cells crop and assemble
+female/male torso/head components, remove opaque gray ground, paint modern
+clothing, map skin/hair to stable ID-bound natural palettes and add elder facial
+lines and modern spectacles. These adaptations remain CC-BY 4.0, not CC0 or
+the project's code license. The 264 hand-drawn baby/child/neutral/unknown-age cells
+and original frame rails are Apache-2.0 project work; no kit pixels are copied into
+those original cells. [Exact crops, drawing commands, palettes and cell hashes](web/assets/portrait-pool-provenance.json),
+[source attribution notice](web/assets/licenses/character-portrait-kit-NOTICE.txt)
+and the existing distribution NOTICE retain provenance. `/credits.html` supplies
+accessible source, creator-profile, license and modification records. Attribution
+implies no endorsement or additional downstream restrictions. Author-approved
+local art expansion does not authorize publication.
 
 ### Web app (`web/`) dependencies
 

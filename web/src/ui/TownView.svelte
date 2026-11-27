@@ -2,8 +2,12 @@
   import type { UiState } from '../main/ui-state.ts';
   import { townDrawList } from '../main/town-layout.ts';
   import { resolveVisualKey, TINTS, type SpriteSet } from '../art/sprites.ts';
+  import { dateLabel } from '../main/calendar.ts';
+  import { nameLabel, originLabel } from '../main/player-copy.ts';
+  import { TECHNICAL_TEXT } from '../main/technical-text.ts';
+  import PeopleCard from './PeopleCard.svelte';
 
-  const { ui, sprites }: { ui: UiState; sprites: SpriteSet | null } = $props();
+  const { ui, sprites = null }: { ui: UiState; sprites?: SpriteSet | null } = $props();
   let canvas: HTMLCanvasElement | undefined = $state();
   const world = $derived(ui.world);
   const drawing = $derived(world === null ? null : townDrawList(world));
@@ -19,6 +23,12 @@
   let renderedKey: string | undefined;
   let renderedSprites: SpriteSet | null | undefined;
   let renderedCanvas: HTMLCanvasElement | undefined;
+  function historicalAge(person: number): number | null {
+    const recorded = ui.notebook?.actors.get(person)?.ageAtDeath;
+    if (recorded === undefined) return null;
+    const value = Number(recorded);
+    return Number.isSafeInteger(value) && value >= 0 ? value : null;
+  }
 
   $effect(() => {
     const ctx = canvas?.getContext('2d');
@@ -39,11 +49,10 @@
   });
 </script>
 
-<section class="town" aria-label="Town view">
+<section class="town" aria-label={TECHNICAL_TEXT.townMap}>
   {#if drawing === null}
-    <p>Create a World to meet the town.</p>
+    <p>{TECHNICAL_TEXT.startGameFirst}</p>
   {:else}
-    <p class="map-note">Living Residents grouped by Household; positions are illustrative, not locations. Scroll to explore the map.</p>
     <a href="#town-map-scroll">Scroll town map with arrow keys</a>
     <div id="town-map-scroll" class="map-scroll" tabindex="-1" role="region" aria-label="Scrollable pixel town map">
       <canvas bind:this={canvas} width="620" {height} data-testid="town-view"
@@ -53,27 +62,30 @@
     </div>
     <div class="legend" aria-label="Town marker legend">
       <span>Unmarked: neutral</span>
-      <span style:color={TINTS.kin}>Blue side marker: blood tie</span>
-      <span style:color={TINTS.rememberer}>Purple side marker: rememberer</span>
+      <span style:color={TINTS.kin}>{TECHNICAL_TEXT.family}</span>
+      <span style:color={TINTS.rememberer}>{TECHNICAL_TEXT.rememberers}</span>
       <span style:color={TINTS.affected}>Red asset marker: affected by choice previews</span>
-      <span>Gold asset marker: your Soul</span>
+      <span>Gold asset marker: {TECHNICAL_TEXT.previewYou}</span>
     </div>
     <div class="town-names" aria-label="Town residents and earlier lives">
       {#each drawing.houses as house (house.id)}
+        {@const householdMarkers = markers.filter(marker => marker.household === house.id)}
+        {#if householdMarkers.length > 0}
         <details>
-          <summary>Household {house.id} · {markers.filter(marker => marker.household === house.id).length} living</summary>
+          <summary>{householdMarkers.map(marker => nameLabel(people.get(marker.person)?.name)).join(', ')}</summary>
           <ul>
-            {#each markers.filter(marker => marker.household === house.id) as marker (marker.person)}
+            {#each householdMarkers as marker (marker.person)}
               {@const person = people.get(marker.person)}
-              <li>{person?.name ?? `Person ${marker.person}`} · {person === undefined ? 'age unknown' : `age ${person.age}`} · {marker.soul ? 'your Soul' : marker.tint === 'kin' ? 'blood tie' : marker.tint === 'rememberer' ? 'rememberer' : marker.tint === 'affected' ? 'affected by choice previews' : 'neutral'}</li>
+              <li><PeopleCard person={marker.person} name={person?.name} age={person?.age ?? null} sex={person?.sex ?? null} {sprites} detail={marker.soul ? TECHNICAL_TEXT.previewYou : marker.tint === 'kin' ? TECHNICAL_TEXT.family : marker.tint === 'rememberer' ? TECHNICAL_TEXT.rememberers : marker.tint === 'affected' ? 'affected by choice previews' : 'neutral'} /></li>
             {/each}
           </ul>
         </details>
+        {/if}
       {/each}
       {#if drawing.graves.length > 0}
         <details>
-          <summary>Earlier lives · {drawing.graves.length} graves</summary>
-          <ul>{#each drawing.graves as body (body.id)}<li>{body.name} · {body.origin} · died at tick {body.death}</li>{/each}</ul>
+          <summary>{TECHNICAL_TEXT.earlierLives} · {drawing.graves.length}</summary>
+          <ul>{#each drawing.graves as body (body.id)}<li><PeopleCard person={body.id} name={body.name} age={historicalAge(body.id)} sex={ui.notebook?.actors.get(body.id)?.sex ?? null} {sprites} showAge={false} detail={`${originLabel(body.origin)} · ${TECHNICAL_TEXT.dateOfDeath}: ${dateLabel(body.death)}`} /></li>{/each}</ul>
         </details>
       {/if}
     </div>
@@ -82,7 +94,7 @@
 
 <style>
   .town { min-width: 0; color: #24383c; }
-  .map-note, .legend { color: #4e6263; font-size: 14px; line-height: 1.45; }
+  .legend { color: #4e6263; font-size: 14px; line-height: 1.45; }
   .map-scroll { overflow: auto; max-height: 360px; background: #f7f6ef; scrollbar-color: #4e6263 #e9eee7; }
   .map-scroll:focus-visible, summary:focus-visible { outline: 2px solid #005fcc; outline-offset: 2px; }
   canvas { display: block; width: 620px; image-rendering: pixelated; }

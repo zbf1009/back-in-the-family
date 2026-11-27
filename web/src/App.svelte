@@ -2,14 +2,15 @@
   import { untrack } from 'svelte';
   import type { SimClient, ReplyMessage } from './main/sim-client.ts';
   import type { EventBridge } from './main/bridge.ts';
-  import type { Request, RequestWithoutId } from './shared/protocol.ts';
+  import type { PauseReason, Request, RequestWithoutId } from './shared/protocol.ts';
   import { initialUiState, reduce, controls, worldSnapshotNeeded, decisionBusy, currentDecision,
-    decisionNotice, formatChecksum, formatTps, type UiEvent, type UiState } from './main/ui-state.ts';
+    formatChecksum, formatTps, type UiEvent, type UiState } from './main/ui-state.ts';
   import { seedForStart, townConfig, DEFAULT_TOWN_SIZE, TOWN_SIZE_MIN, TOWN_SIZE_MAX } from './shared/seed.ts';
   import { isSpeed, SPEEDS, type Speed } from './shared/speeds.ts';
   import { transitionTemporaryPace, type TemporaryPace } from './main/temporary-pace.ts';
-  import { LANDING_PREMISE, FAST_FORWARD_LABEL, FAST_FORWARD_HELP, paceLabel, runStateLabel,
-    originLabel, nameLabel, transportText } from './main/player-copy.ts';
+  import { FAST_FORWARD_LABEL, FAST_FORWARD_HELP, PACE_LABELS, paceLabel, runStateLabel,
+    pauseReasonLabel, nameLabel, transportText } from './main/player-copy.ts';
+  import { TECHNICAL_TEXT, supportedText } from './main/technical-text.ts';
   import { dateLabel } from './main/calendar.ts';
   import type { PlayerOption, Slot } from './shared/world-snapshot.ts';
   import type { SceneClose } from './main/scene-queue.ts';
@@ -39,17 +40,23 @@
   let executedRun: { worldId: number; id: number } | null = null;
   let stoppedRun: { worldId: number; id: number } | null = null;
   let recoveryBlocked: 'hold' | 'failed' | 'manual' | null = $state(null);
+  let stopReasons: PauseReason[] = $state([]);
   let presentationVersion = $state(0);
   const identity = $derived(identitySummary(ui));
   const buttons = $derived(controls(ui));
   const held = $derived(decisionBusy(ui));
-  const notice = $derived(decisionNotice(ui));
+  const bureauThinking = $derived.by(() => held && ui.actions.some(action => action.worldId === ui.worldId
+    && (action.request?.type === 'dream' || action.request?.type === 'bribe')
+    && (action.phase === 'sending' || action.phase === 'deciding')
+    && (action.requestId === ui.decisionSendingRequestId || action.requestId === ui.decision?.pending?.requestId)));
   const pendingRun = $derived.by(() => pendingRunRequest?.worldId === ui.worldId);
   const paceBusy = $derived.by(() => {
     const request = speedRequest;
     const pace = fastForward;
     return request?.pending === true || pace !== null && pace.phase !== 'moving';
   });
+  const skipAheadEnabled = $derived.by(() => (buttons.run || ui.runState === 'running' && buttons.pause)
+    && !ui.createPending && !held && fastForward === null && !paceBusy && !pendingRun && runRequest?.pending !== true);
   const recoveryPending = $derived.by(() => fastForward !== null && fastForward.requestId !== null
     || speedRequest?.pending === true || runRequest?.pending === true);
   const feedback = $derived(feedbackView(ui));
@@ -61,6 +68,7 @@
   function onSettled(expected: SceneClose): void { dispatch({ type: 'scene-settled', expected }); }
   function dispatch(event: UiEvent): void {
     const previousWorld = ui.worldId;
+    const previousTick = ui.tick;
     const obsoleteSpeed = (event.type === 'reply' || event.type === 'request-failed') && event.request.type === 'set-speed'
       && (speedRequest?.worldId !== event.worldId || speedRequest?.id !== event.request.id);
     // Late ACKs still contribute their facts, but cannot undo a newer pace request.
@@ -78,7 +86,7 @@
     }
     ui = reduce(ui, event);
     if (ui.worldId !== previousWorld) {
-      fastForward = null; speedRequest = null; runRequest = null; pendingRunRequest = null; executedRun = null; stoppedRun = null; recoveryBlocked = null;
+      fastForward = null; speedRequest = null; runRequest = null; pendingRunRequest = null; executedRun = null; stoppedRun = null; recoveryBlocked = null; stopReasons = [];
     }
     if (event.type === 'request-sent' && event.worldId === ui.worldId && fastForward?.worldId === ui.worldId
       && (event.request.type === 'set-speed' && ['starting', 'restoring', 'selecting'].includes(fastForward.phase)
@@ -99,6 +107,13 @@
       const id = event.type === 'reply' && event.request.type === 'pause' ? event.request.id
         : executedRun?.worldId === ui.worldId ? executedRun.id : null;
       if (id !== null && (stoppedRun === null || id > stoppedRun.id)) stoppedRun = { worldId: ui.worldId, id };
+    }
+    const currentStopFrame = sameWorld && ui.runState !== 'failed' && !olderSpeed && !olderRunState && !pausedSpeed
+      && (event.type === 'status' || event.type === 'reply' && event.message.ok)
+      && (previousTick === null || snapshot?.tick !== null && snapshot?.tick !== undefined && BigInt(snapshot.tick) >= BigInt(previousTick));
+    if (currentStopFrame) {
+      if (ui.runState === 'running') stopReasons = [];
+      else if (confirmedPause && snapshot?.stop !== undefined) stopReasons = snapshot.stop.reasons;
     }
     const failed = sameWorld && !obsoleteSpeed && (event.type === 'request-failed' && event.request.type !== 'create-world'
       || event.type === 'reply' && !event.message.ok && event.request.type !== 'create-world');
@@ -223,7 +238,8 @@
     if (!result.ok) { dispatch({ type: 'seed-invalid', problem: result.problem }); return; }
     if (!Number.isInteger(townSize) || townSize < TOWN_SIZE_MIN || townSize > TOWN_SIZE_MAX) {
       validationInput = 'town-size';
-      dispatch({ type: 'validation-error', error: `Town size must be a whole number from ${TOWN_SIZE_MIN} to ${TOWN_SIZE_MAX}.` });
+      dispatch({ type: 'validation-error', error: supportedText(TECHNICAL_TEXT.townSizeError,
+        { min: String(TOWN_SIZE_MIN), max: String(TOWN_SIZE_MAX) })! });
       return;
     }
     const requestedSeed = result.value.toString();
@@ -254,8 +270,9 @@
     await sendRequest({ type: 'step' });
   }
   async function onFastForward(): Promise<void> {
-    if (!controls(ui).run || ui.createPending || held || fastForward !== null || paceBusy || pendingRun) return;
+    if (!skipAheadEnabled) return;
     const worldId = ui.worldId;
+    const wasRunning = ui.runState === 'running';
     const transition = transitionTemporaryPace(null, worldId, ui.speed as Speed, { kind: 'begin', worldId });
     fastForward = transition.fastForward;
     recoveryBlocked = null;
@@ -263,7 +280,8 @@
     const changed = await sendRequest({ type: 'set-speed', speed: transition.speed });
     if (!changed?.ok || ui.worldId !== worldId || speedRequest?.id !== changed.id
       || fastForward?.worldId !== worldId || fastForward.phase !== 'moving' || ui.runState === 'failed') return;
-    if (controls(ui).run && !ui.createPending) await sendRequest({ type: 'run' });
+    if (ui.runState === 'running') return;
+    if (!wasRunning && controls(ui).run && !ui.createPending && !pendingRun && runRequest?.pending !== true) await sendRequest({ type: 'run' });
     else {
       fastForward = transitionTemporaryPace(fastForward, worldId, ui.speed as Speed, { kind: 'stop', worldId }).fastForward;
       restorePace();
@@ -313,66 +331,69 @@
 <main data-testid="life-app" data-world-id={ui.worldId} data-assets={assetError !== null ? 'error' : sprites === null ? 'loading' : 'ready'}>
   <header class="life-header" data-testid="life-header">
     <div class="header-identity">
-      <h1>Back in the Family</h1>
+      <h1>{TECHNICAL_TEXT.title}</h1>
       {#if identity !== null}
         <strong class="body-name" data-testid="life-name">{nameLabel(identity.name)}</strong>
-        <p>{identity.status === 'waiting' ? 'Between lives' : 'Your life'}{#if identity.age !== null} · {identity.age} years old{/if}
-          {#if identity.origin !== null} · {originLabel(identity.origin)}{/if}</p>
+        {#if identity.status === 'waiting' || identity.age !== null}
+          <p>{identity.status === 'waiting' ? TECHNICAL_TEXT.waiting : identity.age} · <time data-testid="game-date">{dateLabel(ui.tick ?? ui.world!.tick)}</time></p>
+        {/if}
       {/if}
     </div>
     {#if ui.world !== null}
       <div class="header-actions">
-        <p class="clock"><time data-testid="game-date">{dateLabel(ui.tick ?? ui.world.tick)}</time> · <span data-testid="run-state">{runStateLabel(ui.runState)}</span></p>
-        <section class="controls" aria-label="Life pace">
-          <button type="button" data-testid="run" disabled={!buttons.run || ui.createPending || paceBusy || pendingRun} onclick={onRun}>Play</button>
-          <button type="button" data-testid="pause" disabled={!buttons.pause || ui.createPending || runRequest?.type === 'pause' && runRequest.pending || fastForward?.phase === 'stopping' && fastForward.requestId !== null} onclick={onPause}>Pause</button>
-          <button type="button" data-testid="step" disabled={!buttons.step || ui.createPending || paceBusy} onclick={onStep}>One day</button>
-          <label>Pace <select data-testid="speed" disabled={held || ui.createPending || ui.runState === 'failed' || fastForward !== null && fastForward.phase !== 'moving'} value={ui.speed} onchange={onSpeedChange}>
+        <p class="clock"><span data-testid="run-state">{runStateLabel(ui.runState)}</span>{#each stopReasons as reason (reason)} · {pauseReasonLabel(reason)}{/each}</p>
+        <section class="controls" aria-label={TECHNICAL_TEXT.pace}>
+          <button type="button" data-testid="run" disabled={!buttons.run || ui.createPending || paceBusy || pendingRun} onclick={onRun}>{TECHNICAL_TEXT.play}</button>
+          <button type="button" data-testid="pause" disabled={!buttons.pause || ui.createPending || runRequest?.type === 'pause' && runRequest.pending || fastForward?.phase === 'stopping' && fastForward.requestId !== null} onclick={onPause}>{TECHNICAL_TEXT.pause}</button>
+          <button type="button" data-testid="step" disabled={!buttons.step || ui.createPending || paceBusy} onclick={onStep}>{TECHNICAL_TEXT.oneDay}</button>
+          <label>{TECHNICAL_TEXT.pace} <select data-testid="speed" disabled={held || ui.createPending || ui.runState === 'failed' || fastForward !== null && fastForward.phase !== 'moving'} value={ui.speed} onchange={onSpeedChange}>
             {#each SPEEDS as speed (speed)}<option value={speed}>{paceLabel(speed)}</option>{/each}
           </select></label>
         </section>
-        <button type="button" class="fast-forward" data-testid="fast-forward" title={FAST_FORWARD_HELP} disabled={!buttons.run || ui.createPending || held || fastForward !== null || paceBusy || pendingRun} onclick={onFastForward}>
-          {fastForward !== null ? 'Moving ahead…' : FAST_FORWARD_LABEL}
+        <button type="button" class="fast-forward" data-testid="fast-forward" title={FAST_FORWARD_HELP} disabled={!skipAheadEnabled} onclick={onFastForward}>
+          {fastForward !== null ? TECHNICAL_TEXT.skippingAhead : FAST_FORWARD_LABEL}
         </button>
         {#if fastForward?.worldId === ui.worldId && (recoveryBlocked === 'failed' || recoveryBlocked === 'manual') && ui.runState !== 'failed'}
-          <p role="status" data-testid="pace-recovery-notice">Your pace still needs to return to {paceLabel(fastForward.targetSpeed)}. Restoring only pauses the game and sets its pace; it does not advance the calendar.</p>
-          <button type="button" data-testid="restore-pace" disabled={recoveryPending || held || ui.createPending} onclick={onRestorePace}>Restore pace</button>
+          <p role="status" data-testid="pace-recovery-notice">{supportedText(ui.runState === 'running'
+            ? TECHNICAL_TEXT.paceRecoveryRunningStatus : TECHNICAL_TEXT.paceRecoveryPausedStatus,
+            { pace: PACE_LABELS[fastForward.targetSpeed] })}</p>
+          <button type="button" data-testid="restore-pace" disabled={recoveryPending || held || ui.createPending} onclick={onRestorePace}>{supportedText(TECHNICAL_TEXT.paceRecovery, { pace: PACE_LABELS[fastForward.targetSpeed] })}</button>
         {/if}
       </div>
     {/if}
   </header>
   {#if ui.world === null}
     <section id="current-action" class="landing">
-      <div class="landing-book" aria-hidden="true"><span>One town.<br />More than one lifetime.</span></div>
+      <div class="landing-book"><span>{TECHNICAL_TEXT.tagline}</span></div>
       <div class="landing-copy">
-        <h2>A life is waiting for you.</h2>
-        <p>{LANDING_PREMISE}</p>
-        <button type="button" class="start" data-testid="create" disabled={!buttons.create} onclick={onCreate}>Start</button>
+        <p>{TECHNICAL_TEXT.premise}</p>
+        <button type="button" class="start" data-testid="create" disabled={!buttons.create} onclick={onCreate}>{TECHNICAL_TEXT.start}</button>
         <details data-testid="world-setup"><summary>Advanced</summary>
-          <label>Seed <input data-testid="seed" type="text" inputmode="numeric" bind:value={seed} placeholder="Leave blank for a new town" /></label>
-          <label>Town size <input data-testid="town-size" type="number" min={TOWN_SIZE_MIN} max={TOWN_SIZE_MAX} aria-invalid={ui.errorKind === 'validation' && validationInput === 'town-size'} aria-describedby={ui.errorKind === 'validation' && validationInput === 'town-size' ? 'local-validation-error' : undefined} bind:value={townSize} /></label>
+          <label>{TECHNICAL_TEXT.seed} <input data-testid="seed" type="text" inputmode="numeric" bind:value={seed} placeholder={TECHNICAL_TEXT.seedHint} /></label>
+          <label>{TECHNICAL_TEXT.townSize} <input data-testid="town-size" type="number" min={TOWN_SIZE_MIN} max={TOWN_SIZE_MAX} aria-invalid={ui.errorKind === 'validation' && validationInput === 'town-size'} aria-describedby={ui.errorKind === 'validation' && validationInput === 'town-size' ? 'local-validation-error' : undefined} bind:value={townSize} /></label>
         </details>
       </div>
     </section>
   {:else}
     {#if ui.tick === '0' && ui.runState === 'paused' && openingBody !== undefined}
-      <OpeningIdentity world={ui.world} actors={ui.notebook.actors} />
+      <OpeningIdentity world={ui.world} actors={ui.notebook.actors} {sprites} />
     {/if}
-    <section class="decision-status" aria-label="Processing a request" data-testid="decision-controls">
-      <p role="status" data-testid="decision-notice" data-outcome={held ? 'pending' : ui.decision?.outcome?.kind ?? ''}>{held ? 'Your request is being considered. The calendar is on hold.' : notice ?? ''}</p>
-      {#if ui.decision?.pending?.worldId === ui.worldId}<button type="button" data-testid="use-rules-now" onclick={onUseRules}>Use the default answer now</button>{/if}
-    </section>
+    {#if bureauThinking || ui.decision?.pending?.worldId === ui.worldId}
+      <section class="decision-status" aria-label={TECHNICAL_TEXT.desk} data-testid="decision-controls">
+        {#if bureauThinking}<p role="status" data-testid="decision-notice" data-outcome="pending">{TECHNICAL_TEXT.bureauThinking}</p>{/if}
+        {#if ui.decision?.pending?.worldId === ui.worldId}<button type="button" data-testid="use-rules-now" onclick={onUseRules}>{TECHNICAL_TEXT.usual}</button>{/if}
+      </section>
+    {/if}
     <LifeSurface {ui} {sprites} {feedback} {presentationVersion} {onChoose} {onForm} {onDream} {onClaim} {onBribe} {onHaunt} {onClose} {onSettled} />
-    <details class="restart" data-testid="world-setup"><summary>Start a new game</summary>
-      <p>A new town starts a new game. Rebirth applications continue this one.</p>
-      <label>Seed <input data-testid="seed" type="text" inputmode="numeric" bind:value={seed} placeholder="Leave blank for a new town" /></label>
-      <label>Town size <input data-testid="town-size" type="number" min={TOWN_SIZE_MIN} max={TOWN_SIZE_MAX} aria-invalid={ui.errorKind === 'validation' && validationInput === 'town-size'} aria-describedby={ui.errorKind === 'validation' && validationInput === 'town-size' ? 'local-validation-error' : undefined} bind:value={townSize} /></label>
-      <button type="button" data-testid="create" disabled={!buttons.create} onclick={onCreate}>Start a new game</button>
+    <details class="restart" data-testid="world-setup"><summary>{TECHNICAL_TEXT.restart}</summary>
+      <label>{TECHNICAL_TEXT.seed} <input data-testid="seed" type="text" inputmode="numeric" bind:value={seed} placeholder={TECHNICAL_TEXT.seedHint} /></label>
+      <label>{TECHNICAL_TEXT.townSize} <input data-testid="town-size" type="number" min={TOWN_SIZE_MIN} max={TOWN_SIZE_MAX} aria-invalid={ui.errorKind === 'validation' && validationInput === 'town-size'} aria-describedby={ui.errorKind === 'validation' && validationInput === 'town-size' ? 'local-validation-error' : undefined} bind:value={townSize} /></label>
+      <button type="button" data-testid="create" disabled={!buttons.create} onclick={onCreate}>{TECHNICAL_TEXT.restart}</button>
     </details>
   {/if}
   {#if ui.seedMessage !== null}<p role="alert" class="error" data-testid="seed-message" data-validation-category="seed">{ui.seedMessage}</p>{/if}
-  {#if assetError !== null}<p role="alert" data-testid="art-error">The illustration could not be opened. Your words and actions are still available.</p>
-  {:else if sprites === null}<p role="status" data-testid="art-loading">Opening the picture book…</p>{/if}
+  {#if assetError !== null}<p role="alert" data-testid="art-error">{TECHNICAL_TEXT.picturesFailed}</p>
+  {:else if sprites === null}<p role="status" data-testid="art-loading">{TECHNICAL_TEXT.picturesLoading}</p>{/if}
   {#if playerError !== null}<p role="alert" class="error" data-testid="error" id="local-validation-error" data-error-kind={ui.errorKind} data-validation-category={ui.errorKind === 'validation' ? validationInput ?? 'local' : undefined}>{playerError}</p>{/if}
   <details class="technical" data-testid="technical-details">
     <summary>Technical details</summary>
@@ -384,7 +405,8 @@
     <label>Decision wait (seconds)<select data-testid="decision-wait" value={ui.decision?.waitSeconds ?? DEFAULT_DECISION_WAIT_SECONDS} onchange={onWaitChange}>
       {#each Array.from({ length: 11 }, (_, seconds) => seconds) as seconds (seconds)}<option value={seconds}>{seconds === 0 ? '0 — default immediately' : seconds}</option>{/each}
     </select></label>
-    {#if ui.decision !== null}<p data-testid="decision-diagnostics">Config: {ui.decision.config} · enabled: {ui.decision.enabled} · Requests: {ui.decision.spent}/{ui.decision.sessionCap ?? '—'}</p>{/if}
+    {#if ui.decision !== null}<p data-testid="decision-diagnostics">Config: {ui.decision.config} · enabled: {ui.decision.enabled} · Requests: {ui.decision.spent}/{ui.decision.sessionCap ?? '—'}</p>
+      <pre data-testid="decision-state">{JSON.stringify({ pending: ui.decision.pending, outcome: ui.decision.outcome }, null, 2)}</pre>{/if}
     {#if ui.error !== null}<pre>{ui.error}</pre>{/if}{#if assetError !== null}<pre>{assetError}</pre>{/if}
     <button type="button" onclick={onExport} disabled={ui.world === null}>Export replay</button>
     {#if replay}<pre class="replay">{replay}</pre>{/if}
@@ -393,6 +415,7 @@
       <button type="button" onclick={onExportFacts} disabled={ui.world === null}>Download life facts</button>
     </details>
   </details>
+  <footer><a href="/credits.html">{TECHNICAL_TEXT.credits}</a></footer>
 </main>
 
 <style>
@@ -409,7 +432,6 @@
   .landing { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; align-items: center; min-height: 60vh; }
   .landing-book { display: flex; align-items: end; min-height: 320px; padding: 32px; border: 2px solid var(--life-border); background: var(--life-secondary); }
   .landing-book span { font-size: clamp(30px, 4vw, 52px); line-height: 1.1; font-weight: 700; }
-  .landing-copy h2 { font-size: 32px; }
   .landing-copy p { max-width: 52ch; }
   .start { min-width: 140px; margin: 16px 0; }
   .decision-status { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }

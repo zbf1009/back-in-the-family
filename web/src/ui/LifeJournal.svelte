@@ -1,8 +1,8 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import { dateLabel, formatAmount } from '../main/calendar.ts';
-  import { journalGroupCount, journalMemberLines, journalRange, latestPrimaryIdentity, latestTownEvent, JOURNAL_EXPANSION_SIZE, JOURNAL_RANGE_SIZE, type LifeNotebook } from '../main/life-journal.ts';
-  import { renderTownPromotion } from '../main/journal-templates.ts';
+  import { journalGroupCount, journalMemberLines, journalRange, journalTownPromotion, latestPrimaryIdentity, latestTownEvent, JOURNAL_EXPANSION_SIZE, JOURNAL_RANGE_SIZE, type LifeNotebook } from '../main/life-journal.ts';
+  import { TECHNICAL_TEXT, supportedText } from '../main/technical-text.ts';
   import type { StoryEvent } from '../shared/story.ts';
 
   const { notebook, playerSoul, currentBody, running, speed }: {
@@ -25,7 +25,7 @@
   const end = $derived(Math.min(rangeEnd ?? historyCount, historyCount));
   const visible = $derived([...journalRange(notebook, context, section, end)].reverse());
   const primaryIdentity = $derived(latestPrimaryIdentity(notebook));
-  const promotionText = $derived(promotion ? renderTownPromotion(promotion, notebook.actors, { ...context, dreams: notebook.dreams }) : '');
+  const promotionText = $derived(promotion ? journalTownPromotion(notebook, promotion, { ...context, dreams: notebook.dreams }) : '');
 
   $effect(() => {
     worldKey;
@@ -62,44 +62,47 @@
 
 <section class="notebook" aria-labelledby="life-notebook-heading">
   <header class="notebook-head">
-    <h2 id="life-notebook-heading">Life notebook</h2>
-    <div class="sections" aria-label="Notebook sections">
-      <button type="button" class:chosen={section === 'life'} aria-pressed={section === 'life'} onclick={() => switchSection('life')}>Your life</button>
-      <button type="button" class:chosen={section === 'town'} aria-pressed={section === 'town'} onclick={() => switchSection('town')}>Around town</button>
+    <h2 id="life-notebook-heading">{section === 'life' ? TECHNICAL_TEXT.journalLife : TECHNICAL_TEXT.journalTown}</h2>
+    <div class="sections" role="group" aria-labelledby="life-notebook-heading">
+      <button type="button" class:chosen={section === 'life'} aria-pressed={section === 'life'} onclick={() => switchSection('life')}>{TECHNICAL_TEXT.journalLife}</button>
+      <button type="button" class:chosen={section === 'town'} aria-pressed={section === 'town'} onclick={() => switchSection('town')}>{TECHNICAL_TEXT.journalTown}</button>
     </div>
   </header>
-  <p class="section-note">{section === 'life' ? 'Your life, your circle, and the town’s births, marriages, and deaths.' : 'Other actual town news. Being in the notebook does not make someone a close friend.'}</p>
 
   {#if section === 'life' && promotion}
-    <aside class="town-note" aria-label="A note from around town">
-      <div class="note-heading"><h3>Around town</h3><span>{dateLabel(promotion.tick)}</span></div>
+    <aside class="town-note" aria-label={TECHNICAL_TEXT.journalTown}>
+      <div class="note-heading"><h3>{TECHNICAL_TEXT.journalTown}</h3><span>{dateLabel(promotion.tick)}</span></div>
       <p>{promotionText}</p>
-      <button type="button" onclick={() => switchSection('town')}>Read the town accounts</button>
+      <button type="button" onclick={() => switchSection('town')}>{TECHNICAL_TEXT.journalTown}</button>
     </aside>
   {/if}
 
   {#if historyCount > JOURNAL_RANGE_SIZE}
-    <nav class="history-range" aria-label="Read notebook history">
-      <button type="button" disabled={end <= JOURNAL_RANGE_SIZE} onclick={() => moveRange(-JOURNAL_RANGE_SIZE)}>Read earlier</button>
-      <span>{rangeEnd === null ? 'Latest accounts' : 'Earlier accounts'}</span>
-      <button type="button" disabled={end >= historyCount} onclick={() => moveRange(JOURNAL_RANGE_SIZE)}>Read later</button>
-      {#if rangeEnd !== null}<button type="button" onclick={() => { rangeEnd = null; expanded = null; memberStart = 0; }}>Back to latest</button>{/if}
+    <nav class="history-range" aria-label={TECHNICAL_TEXT.journalLife}>
+      <button type="button" disabled={end <= JOURNAL_RANGE_SIZE} onclick={() => moveRange(-JOURNAL_RANGE_SIZE)}>{TECHNICAL_TEXT.journalEarlier}</button>
+      <span>{rangeEnd === null ? TECHNICAL_TEXT.journalLatest : TECHNICAL_TEXT.journalEarlier}</span>
+      <button type="button" disabled={end >= historyCount} onclick={() => moveRange(JOURNAL_RANGE_SIZE)}>{TECHNICAL_TEXT.journalLater}</button>
+      {#if rangeEnd !== null}<button type="button" onclick={() => { rangeEnd = null; expanded = null; memberStart = 0; }}>{TECHNICAL_TEXT.journalLatest}</button>{/if}
     </nav>
   {/if}
 
-  <a href="#life-journal-accounts">Read the accounts</a>
-  <div id="life-journal-accounts" class="accounts" role="region" aria-label={section === 'life' ? 'Your life accounts' : 'Around town accounts'} tabindex="-1">
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex (溢出区域使用原生键盘滚动。) -->
+  <div id="life-journal-accounts" class="accounts" role="region" aria-labelledby="life-notebook-heading" tabindex="0">
     <ol>
-      {#each visible as group (group.id)}
+      {#each visible as group, index (group.id)}
         <li class:milestone={group.milestone}>
+          {#if group.phase && (index === 0 || visible[index - 1]?.phase?.key !== group.phase.key)}
+            {@const heading = group.phase.kind === 'waiting' ? TECHNICAL_TEXT.waiting : supportedText(TECHNICAL_TEXT.life, { 'Full Name': group.phase.name ?? undefined })}
+            {#if heading}<h3 class="phase-heading">{heading}</h3>{/if}
+          {/if}
           <div class="entry-date">
-            <span>{dateLabel(group.from)}{group.to !== group.from ? ` through ${dateLabel(group.to)}` : ''}</span>
-            {#if group.opening}<span class="opening">Opening history</span>{/if}
+            <span>{dateLabel(group.from)}{group.to !== group.from ? ` – ${dateLabel(group.to)}` : ''}</span>
+            {#if group.opening}<span class="opening">{TECHNICAL_TEXT.journalBefore}</span>{/if}
           </div>
           <p class="account-text">{group.text}</p>
           {#if group.members.length > 1}
             <button class="read-members" type="button" aria-expanded={expanded === group.id} onclick={() => { expanded = expanded === group.id ? null : group.id; memberStart = 0; }}>
-              {expanded === group.id ? 'Close individual accounts' : `Read the ${formatAmount(String(group.members.length))} individual accounts`}
+              {expanded === group.id ? TECHNICAL_TEXT.journalHide : supportedText(TECHNICAL_TEXT.journalShowAll, { n: formatAmount(String(group.members.length)) })}
             </button>
             {#if expanded === group.id}
               <div class="member-accounts">
@@ -109,9 +112,9 @@
                   {/each}
                 </ol>
                 {#if group.members.length > JOURNAL_EXPANSION_SIZE}
-                  <div class="member-navigation" aria-label="Read individual accounts">
-                    <button type="button" disabled={memberStart === 0} onclick={() => { memberStart = Math.max(0, memberStart - JOURNAL_EXPANSION_SIZE); }}>Earlier in this stretch</button>
-                    <button type="button" disabled={memberStart + JOURNAL_EXPANSION_SIZE >= group.members.length} onclick={() => { memberStart += JOURNAL_EXPANSION_SIZE; }}>Later in this stretch</button>
+                  <div class="member-navigation" role="group" aria-label={TECHNICAL_TEXT.journalShowAll.replace('{n}', formatAmount(String(group.members.length)))}>
+                    <button type="button" disabled={memberStart === 0} onclick={() => { memberStart = Math.max(0, memberStart - JOURNAL_EXPANSION_SIZE); }}>{TECHNICAL_TEXT.journalEarlier}</button>
+                    <button type="button" disabled={memberStart + JOURNAL_EXPANSION_SIZE >= group.members.length} onclick={() => { memberStart += JOURNAL_EXPANSION_SIZE; }}>{TECHNICAL_TEXT.journalLater}</button>
                   </div>
                 {/if}
               </div>
@@ -119,7 +122,7 @@
           {/if}
         </li>
       {:else}
-        <li class="empty">Accounts appear here when their facts arrive. You can switch sections to read other town news.</li>
+        <li class="empty">{TECHNICAL_TEXT.journalEmpty}</li>
       {/each}
     </ol>
   </div>
@@ -137,7 +140,6 @@
   button:disabled { color: #766c5b; cursor: default; }
   .sections .chosen { background: var(--life-ink, #302b24); color: var(--life-paper, #f5ecd9); }
   .sections .chosen:hover { background: #514332; }
-  .section-note { color: var(--life-muted, #665844); margin: 12px 0 18px; font-size: 14px; max-width: 72ch; }
   .town-note { padding: 14px 0 16px; border-top: 1px solid var(--life-border, #b9aa91); border-bottom: 1px solid var(--life-border, #b9aa91); margin: 0 0 16px; }
   .note-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 18px; }
   .note-heading span, .entry-date, .member-date { color: var(--life-muted, #665844); font-size: 13px; font-variant-numeric: tabular-nums; }
@@ -150,6 +152,7 @@
   .accounts > ol > li { padding: 17px 0 20px; border-bottom: 1px solid var(--life-border, #b9aa91); overflow-wrap: anywhere; }
   .accounts > ol > li:first-child { padding-top: 0; }
   .entry-date { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+  .phase-heading { margin: 12px 0 16px; font: 700 21px/1.3 Georgia, serif; }
   .opening { font-style: italic; }
   .account-text { max-width: 72ch; margin: 7px 0 0; }
   .milestone .account-text { font-weight: 560; }

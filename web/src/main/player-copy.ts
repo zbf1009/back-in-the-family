@@ -1,28 +1,29 @@
 import type { ErrorKind, PauseReason, Request, RunState, DreamIntent } from '../shared/protocol.ts';
-import { LIFE_SPEED, PLAY_RATE, READ_SPEED, type Speed } from '../shared/speeds.ts';
+import { LIFE_SPEED, READ_SPEED, type Speed } from '../shared/speeds.ts';
 import type { OperationState } from '../shared/operation-state.ts';
 import type {
   BribeBlocked, ChronicleEntry, HauntBlocked, Kinship, Needed, Person, PlayerFamily,
   PlayerOption, Preview, RulingOption, Slot, StakeUnit, SkipReason, TraitName, WorldSnapshot,
 } from '../shared/world-snapshot.ts';
 import { dateLabel, formatAmount } from './calendar.ts';
+import { CHOICE_SOURCE_TEXT, TECHNICAL_TEXT, supportedText } from './technical-text.ts';
 
-export const LANDING_PREMISE = 'Welcome to a small American town, where Halloween starts every year. The Underworld’s paperwork has gone spectacularly wrong. Souls can reincarnate only here—death is a change of address, not an exit.';
+export const LANDING_PREMISE = TECHNICAL_TEXT.premise;
 
 export const PLAYER_OPTIONS = {
-  comfort_mourner: 'Comfort them', send_flowers: 'Send flowers', stay_away: 'Stay away',
-  keep_it: 'Keep the inheritance', thank_family: 'Thank the family', pay_debts: 'Pay debts',
-  repay_now: 'Repay now', ask_for_time: 'Ask for more time', ignore_it: 'Ignore the debt',
-  demand_payment: 'Ask for repayment', forgive_debt: 'Forgive the debt', wait_it_out: 'Wait a little longer',
-  apologize: 'Apologize', retaliate: 'Retaliate', let_it_go: 'Let it go',
+  comfort_mourner: 'Comfort {m}', send_flowers: 'Send {m} flowers', stay_away: 'Stay away',
+  keep_it: 'Keep it', thank_family: 'Thank the family', pay_debts: 'Put it toward your debts',
+  repay_now: 'Pay up', ask_for_time: 'Ask for more time', ignore_it: 'Ignore it',
+  demand_payment: 'Ask for your money', forgive_debt: 'Forgive the debt', wait_it_out: 'Let it ride',
+  apologize: 'Apologize', retaliate: 'Give as good as you got', let_it_go: 'Let it go',
   ask_for_a_toy: 'Ask for a toy', visit_grandparents: 'Visit your grandparents', ask_for_nothing: 'Ask for nothing',
   stand_up_to_bully: 'Stand up to the bully', tell_a_teacher: 'Tell a teacher', keep_quiet: 'Keep quiet',
-  get_a_job: 'Get a job', help_at_home: 'Help at home', tend_the_shrine: 'Tend the shrine',
+  get_a_job: 'Look for work', help_at_home: 'Help out at home', tend_the_shrine: 'Tend the family shrine',
 } as const satisfies Record<PlayerOption, string>;
 
 export const PLAYER_FAMILIES = {
   family_death: 'A death in the family', inheritance: 'An inheritance', debt_due: 'A debt comes due',
-  feud: 'A quarrel', life_stage: 'Growing up',
+  feud: 'A falling-out', life_stage: 'Growing up',
 } as const satisfies Record<PlayerFamily, string>;
 
 export const TRAIT_LABELS = {
@@ -31,45 +32,55 @@ export const TRAIT_LABELS = {
 } as const satisfies Record<TraitName, string>;
 
 export const DREAM_INTENT_LABELS = {
-  warn: 'Warn them', reassure: 'Reassure them', urge: 'Urge them on', reveal: 'Reveal something',
-  request_offering: 'Ask for an offering', forbid: 'Tell them not to',
+  warn: 'Warn them', reassure: 'Reassure them', urge: 'Give them a push', reveal: 'Tell them something',
+  request_offering: 'Ask for an offering', forbid: 'Tell them no',
+} as const satisfies Record<DreamIntent, string>;
+
+export const DREAM_INTENT_TEXT = {
+  warn: 'with a warning', reassure: "to say it's all right", urge: 'with a push',
+  reveal: 'with something they should know', request_offering: 'asking for an offering', forbid: 'with a firm no',
 } as const satisfies Record<DreamIntent, string>;
 
 export type DreamResponse = NonNullable<WorldSnapshot['last_dream']>['applied'];
 export const DREAM_RESPONSE_LABELS = {
-  heed_warning: 'Take the warning seriously', take_comfort: 'Take comfort', follow_urging: 'Follow the urging',
-  believe_revelation: 'Believe the revelation', obey_ban: 'Respect the warning not to act',
-  burn_offering: 'Offer spirit money', burn_small: 'Offer a little spirit money', dismiss_dream: 'Dismiss the dream',
+  heed_warning: '{B} took it as a warning.', take_comfort: '{B} took comfort in it.', follow_urging: '{B} took the hint.',
+  believe_revelation: '{B} believed it.', obey_ban: '{B} took the no seriously.',
+  burn_offering: '{B} resolved to burn an offering.', burn_small: '{B} resolved to burn a small offering.',
+  dismiss_dream: '{B} decided it was something they ate.',
 } as const satisfies Record<DreamResponse, string>;
 
 export type OriginLabelKey = Person['origin'] | Slot | 'birth_slot';
 export const ORIGIN_LABELS = {
-  native: 'Born in town', possessed: 'Arrived in a borrowed body', rebuilt: 'Arrived in a rebuilt body',
-  official: 'Underworld official', birth_slot: 'Be born into a family',
-  imported_vessel: 'Borrow a body', rebuilt_body: 'Build a new body',
+  native: 'Born here, like everybody.', possessed: 'Arrived in a borrowed body.', rebuilt: 'Arrived built to order.',
+  official: 'Underworld staff', birth_slot: 'Be born',
+  imported_vessel: 'Borrow a body', rebuilt_body: 'Build a body',
 } as const satisfies Record<Exclude<OriginLabelKey, `birth:${string}`>, string>;
 
 export const KINSHIP_LABELS = {
-  parent: 'Parent', child: 'Child', sibling: 'Sibling', spouse: 'Spouse', former_spouse: 'Former spouse',
-  grandparent: 'Grandparent', grandchild: 'Grandchild', cousin: 'Cousin', in_law: 'In-law',
+  parent: 'parent', child: 'child', sibling: 'sibling', spouse: 'spouse', former_spouse: 'ex',
+  grandparent: 'grandparent', grandchild: 'grandchild', cousin: 'cousin', in_law: 'in-law',
 } as const satisfies Record<Kinship, string>;
 
-export const RULING_LABELS = {
-  grant_next_slot: 'Birth-register access approved for now',
-  grant_later_slot: 'Birth-register access approved for a later date', deny: 'Access request declined',
-} as const satisfies Record<RulingOption, string>;
-export const RULING_ACCESS_NOTE = 'Approval opens the birth register; it does not reserve or guarantee an opening.';
+const SEXED_KINSHIP_LABELS = {
+  parent: { female: 'mother', male: 'father' }, child: { female: 'daughter', male: 'son' },
+  sibling: { female: 'sister', male: 'brother' }, spouse: { female: 'wife', male: 'husband' },
+  former_spouse: { female: 'ex-wife', male: 'ex-husband' },
+  grandparent: { female: 'grandmother', male: 'grandfather' },
+  grandchild: { female: 'granddaughter', male: 'grandson' },
+} as const satisfies Record<Exclude<Kinship, 'cousin' | 'in_law'>, Record<'female' | 'male', string>>;
 
-export const SOURCE_LABELS = {
-  external: 'Choice on file', rules_default: 'Default answer filed', auto_resolved: 'Answer filed automatically',
-} as const satisfies Record<ChronicleEntry['source'], string>;
+export const RULING_LABELS = {
+  grant_next_slot: 'Granted. The birth register is open to you.',
+  grant_later_slot: 'Granted, eventually. The birth register opens to you later.',
+  deny: 'Denied. Contributions are non-refundable.',
+} as const satisfies Record<RulingOption, string>;
 
 export const SKIP_LABELS = {
-  missing_person: 'No person was available on file', missing_household: 'No household was available on file',
-  missing_debt: 'No debt was available on file', dead_person: 'The person was already listed as deceased',
-  debt_not_open: 'The debt was already closed', wrong_debtor: "The debt was filed under someone else's name",
-  insufficient_money: 'The available funds did not cover this part', already_applied: 'This part was already completed',
-  out_of_bounds: 'This amendment exceeded the allowed range',
+  missing_person: 'that person was gone', missing_household: 'that household was gone',
+  missing_debt: 'the debt no longer existed', dead_person: 'that person had died',
+  debt_not_open: 'the debt was already settled', wrong_debtor: "the debt was someone else's",
+  insufficient_money: "there wasn't enough money", already_applied: 'it had already been done',
+  out_of_bounds: 'it was more than is allowed',
 } as const satisfies Record<SkipReason, string>;
 
 // Native input::RejectReason labels, plus the birth-register's named Needed condition.
@@ -78,59 +89,67 @@ export type RejectionLabel = BribeBlocked | HauntBlocked
   | 'register_wait' | 'unknown_node' | 'option_not_in_set' | 'already_chosen'
   | 'bad_customization' | 'customization_not_allowed' | 'claimed_by_you';
 export const REJECTION_LABELS = {
-  unknown_person: 'No available person on file.', dead_person: 'This person is listed as deceased.',
-  self_target: 'A different recipient is required.', intensity_out_of_range: 'Social-action intensity must be from 1 to 100.',
-  id_exhausted: "The town's record book is full.", official_person: 'Underworld officials are exempt from this action.',
-  no_ghost: 'No ghost is available to file this request.', not_waiting: 'Rebirth-waiting status is required.',
-  not_connected: 'A connection to your former life is required.',
-  rate_limited: "This request's daily allowance is used. Please return tomorrow.",
-  insufficient_joss: 'Not enough joss paper for this payment.', yearly_cap: "This year's spending allowance is exhausted.",
-  bad_amount: 'Payment must be a whole amount above zero.',
-  node_pending: 'Your earlier bribe awaits a ruling. No answer is needed from you.',
-  slot_closed: 'This birth opening has closed.', slot_claimed: "This birth opening is reserved in someone else's name.",
-  claim_held: 'Another birth opening is already reserved in your name.', register_wait: 'Birth-register access is not open yet.',
-  unknown_node: 'This choice is no longer on file.', option_not_in_set: 'An answer from the listed options is required.',
-  already_chosen: 'An answer to this choice is already on file.',
-  bad_customization: 'The personality selection does not meet the requirements.',
-  customization_not_allowed: 'Personality amendments are unavailable on this rebirth path.',
-  claimed_by_you: 'This birth opening is already reserved in your name.',
+  unknown_person: 'Nobody by that description.', dead_person: "They've died. Try the other office.",
+  self_target: "Pick someone who isn't you.", intensity_out_of_range: "That's outside the range.",
+  id_exhausted: "The town's books are full.", official_person: 'Staff are not eligible.',
+  no_ghost: "You'd need to be dead for that.", not_waiting: "That's for souls between lives.",
+  not_connected: "You didn't know them in life.",
+  rate_limited: 'One a day. Come back tomorrow.',
+  insufficient_joss: "You can't afford that.", yearly_cap: "You've used up this year's allowance.",
+  bad_amount: 'A whole amount, more than zero.',
+  node_pending: 'The Magistrate is still considering your last one.',
+  slot_closed: 'That opening has closed.', slot_claimed: 'Someone got there first.',
+  claim_held: "One opening per soul. You're holding one.", register_wait: "The birth register isn't open to you yet.",
+  unknown_node: 'That question has been withdrawn.', option_not_in_set: 'Pick one of the answers offered.',
+  already_chosen: "You've already answered that.",
+  bad_customization: "That isn't a personality we can build.",
+  customization_not_allowed: 'Adjustments are for rebuilt bodies only.',
+  claimed_by_you: 'That one is already yours.',
 } as const satisfies Record<RejectionLabel, string>;
 
 export const UNIT_LABELS = {
-  money: 'Dollars', joss_paper: 'Joss paper', affinity: 'Relationship', trait_points: 'Personality points', debt: 'Debt',
-} as const satisfies Record<StakeUnit | 'debt', string>;
+  money: 'dollars', joss_paper: 'joss paper', affinity: 'relationship', debt: 'debt',
+} as const satisfies Record<Exclude<StakeUnit, 'trait_points'> | 'debt', string>;
 
 export const NEEDED_LABELS = {
-  wait_until: 'Opens on', joss_short: 'Payment needs', cap_room_short: "This year's allowance needs", named: 'Requirement',
+  wait_until: 'Opens {date}.', joss_short: 'You are {n} joss paper short.',
+  cap_room_short: 'Your yearly allowance is {n} short.', named: TECHNICAL_TEXT.genericRefusal,
 } as const satisfies Record<Needed['kind'], string>;
 
 export const TRANSPORT_LABELS = {
-  'sim-error': 'The game could not continue.', 'invalid-seed': 'A valid seed is required.',
-  'invalid-speed': 'Please select an available pace.', 'invalid-tick': 'A valid date range is required.',
-  'no-world': 'A game must be started first.', 'invalid-state': 'Pause is required before taking one day.',
-  'load-failed': 'The game could not be opened.', rejected: 'This request could not be accepted.',
-  node_unanswered: 'The current choice needs an answer first.',
-  decision_pending: 'A decision is still being processed; please wait.',
-  'invalid-wait': 'A valid waiting time is required.', 'preview-error': 'No preview is available for this request.',
-  cancelled: 'Request cancelled.', fatal: 'The game could not continue.',
+  'sim-error': TECHNICAL_TEXT.gameStopped, 'invalid-seed': TECHNICAL_TEXT.seedInvalid,
+  'invalid-speed': TECHNICAL_TEXT.paceInvalid, 'invalid-tick': TECHNICAL_TEXT.dateInvalid,
+  'no-world': TECHNICAL_TEXT.startGameFirst, 'invalid-state': TECHNICAL_TEXT.pauseFirst,
+  'load-failed': TECHNICAL_TEXT.gameStartFailed, rejected: TECHNICAL_TEXT.genericRefusal,
+  node_unanswered: TECHNICAL_TEXT.answerFirst,
+  decision_pending: TECHNICAL_TEXT.requestPending,
+  'invalid-wait': TECHNICAL_TEXT.waitInvalid, 'preview-error': TECHNICAL_TEXT.previewUnavailable,
+  cancelled: TECHNICAL_TEXT.cancelled, fatal: TECHNICAL_TEXT.gameStopped,
 } as const satisfies Record<ErrorKind | 'fatal', string>;
 
 export const RUN_LABELS = {
-  'no-world': 'No game yet', paused: 'Paused', running: 'Playing', failed: 'Unable to continue',
+  'no-world': TECHNICAL_TEXT.startGameFirst, paused: 'Paused', running: 'Playing', failed: 'Stuck',
 } as const satisfies Record<RunState, string>;
 export const PAUSE_LABELS = {
-  player_node: 'Choice waiting', player_died: 'Your life ended', dream_resolved: 'Dream answered',
-  player_reborn: 'A new life began', user: 'Paused by you',
+  player_node: 'A choice is waiting', player_died: 'You died', dream_resolved: 'Your dream was answered',
+  player_reborn: "You're back", user: 'Paused',
 } as const satisfies Record<PauseReason, string>;
-export const CUSTOMIZATION_LABELS = { Set: 'Set one trait', Adjust: 'Adjust two traits' } as const;
+export const CUSTOMIZATION_LABELS = { Set: 'Set one trait', Adjust: 'Nudge two traits' } as const;
 
 export const PACE_LABELS = {
   [READ_SPEED]: 'Read', [LIFE_SPEED]: 'Life', 1: 'Fast', 7: 'Rush', 30: 'Years', 90: 'Generations', 365: 'Long view',
 } as const satisfies Record<Speed, string>;
-export const FAST_FORWARD_LABEL = 'Fast-forward to next choice';
-export const FAST_FORWARD_HELP = 'Run faster to the next choice or any existing life or decision stop.';
+export const PACE_RATE_LABELS = {
+  [READ_SPEED]: '1 day a second', [LIFE_SPEED]: '5 days a second', 1: '30 days a second',
+  7: '7 months a second', 30: '2½ years a second', 90: '7 years a second', 365: '30 years a second',
+} as const satisfies Record<Speed, string>;
+export const FAST_FORWARD_LABEL = TECHNICAL_TEXT.skipAhead;
+export const FAST_FORWARD_HELP = TECHNICAL_TEXT.skipAheadHint;
 
 export function optionLabel(option: PlayerOption): string { return PLAYER_OPTIONS[option]; }
+export function familyDeathOptionLabel(option: 'comfort_mourner' | 'send_flowers' | 'stay_away', mourner: string): string {
+  return PLAYER_OPTIONS[option].replace('{m}', () => mourner);
+}
 export function familyLabel(family: PlayerFamily): string { return PLAYER_FAMILIES[family]; }
 export function traitLabel(trait: TraitName): string { return TRAIT_LABELS[trait]; }
 export function dreamIntentLabel(intent: DreamIntent): string { return DREAM_INTENT_LABELS[intent]; }
@@ -138,12 +157,20 @@ export function dreamResponseLabel(response: DreamResponse): string { return DRE
 export function originLabel(origin: OriginLabelKey): string {
   return origin.startsWith('birth:') ? ORIGIN_LABELS.birth_slot : ORIGIN_LABELS[origin as keyof typeof ORIGIN_LABELS];
 }
-export function kinshipLabel(kinship: Kinship): string { return KINSHIP_LABELS[kinship]; }
+export function kinshipNoun(kinship: Kinship, sex?: 'male' | 'female'): string {
+  if (sex === undefined || kinship === 'cousin' || kinship === 'in_law') return KINSHIP_LABELS[kinship];
+  return SEXED_KINSHIP_LABELS[kinship][sex];
+}
+export function kinshipLabel(kinship: Kinship): string { return kinshipNoun(kinship); }
 export function rulingLabel(ruling: RulingOption): string { return RULING_LABELS[ruling]; }
-export function sourceLabel(source: ChronicleEntry['source']): string { return SOURCE_LABELS[source]; }
-export function unitLabel(unit: StakeUnit | 'debt'): string { return UNIT_LABELS[unit]; }
+/** Choice-Chronicle prefix only; model decisions and rulings do not use source prose. */
+export function sourceLabel(source: ChronicleEntry['source'], index: number | bigint = 0): string {
+  const text = CHOICE_SOURCE_TEXT[source];
+  return typeof text === 'string' ? text : text[Number(BigInt(index) % BigInt(text.length))]!;
+}
+export function unitLabel(unit: Exclude<StakeUnit, 'trait_points'> | 'debt'): string { return UNIT_LABELS[unit]; }
 export function previewLabel(what: Preview['what']): string {
-  return what.startsWith('trait:') ? traitLabel(what.slice(6) as TraitName) : unitLabel(what as StakeUnit | 'debt');
+  return what.startsWith('trait:') ? traitLabel(what.slice(6) as TraitName) : unitLabel(what as Exclude<StakeUnit, 'trait_points'> | 'debt');
 }
 export function nameLabel(name: string | null | undefined): string {
   return name?.trim() ? name : 'Name unavailable';
@@ -154,9 +181,9 @@ export function refusalText(reason: string): string {
 }
 export function neededText(needed: Needed): string {
   switch (needed.kind) {
-    case 'wait_until': return `${NEEDED_LABELS.wait_until} ${dateLabel(needed.tick)}`;
-    case 'joss_short': return `${NEEDED_LABELS.joss_short} ${formatAmount(needed.amount)} more joss paper`;
-    case 'cap_room_short': return `${NEEDED_LABELS.cap_room_short} ${formatAmount(needed.amount)} more room`;
+    case 'wait_until': return supportedText(NEEDED_LABELS.wait_until, { date: dateLabel(needed.tick) })!;
+    case 'joss_short': return supportedText(NEEDED_LABELS.joss_short, { n: formatAmount(needed.amount) })!;
+    case 'cap_room_short': return supportedText(NEEDED_LABELS.cap_room_short, { n: formatAmount(needed.amount) })!;
     case 'named': return refusalText(needed.name);
   }
 }
@@ -167,18 +194,18 @@ export function transportText(kind: ErrorKind | 'fatal', diagnostic?: string, op
   return TRANSPORT_LABELS[kind];
 }
 export function paceLabel(speed: Speed): string {
-  return `${PACE_LABELS[speed]} — ${formatAmount(String(speed * PLAY_RATE))} ${speed * PLAY_RATE === 1 ? 'day' : 'days'}/second`;
+  return `${PACE_LABELS[speed]} — ${PACE_RATE_LABELS[speed]}`;
 }
 
 export function runStateLabel(state: RunState): string { return RUN_LABELS[state]; }
 export function pauseReasonLabel(reason: PauseReason): string { return PAUSE_LABELS[reason]; }
 
 export const OPERATION_LABELS = {
-  choose: 'Choice', dream: 'Dream message', bribe: 'Bribe', haunt: 'Haunt petition',
-  'carry-over': 'Personality carry', claim: 'Rebirth application',
+  choose: 'Your answer', dream: 'Dream', bribe: 'Contribution', haunt: 'Haunting',
+  'carry-over': 'Trait to carry', claim: 'Application',
 } as const satisfies Record<OperationState['kind'], string>;
 export const OPERATION_PHASE_LABELS = {
-  sending: 'Sending', considering: 'Considering', received: 'Received',
-  unknown: 'Completion unknown. No retry was sent', processed: 'Processed',
-  refused: 'Declined', cancelled: 'Decision cancelled',
+  sending: 'On its way', considering: 'Under consideration', received: 'Filed',
+  unknown: "We can't tell if this went through. Nothing was sent twice.", processed: 'Done',
+  refused: 'Refused', cancelled: 'Withdrawn',
 } as const satisfies Record<OperationState['phase'], string>;

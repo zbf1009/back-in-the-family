@@ -1,10 +1,8 @@
 import { currentDecision, type UiAction, type UiState } from './ui-state.ts';
 import type { Preview, Stakes, WorldSnapshot } from '../shared/world-snapshot.ts';
 import { customizationInput } from './customization.ts';
-import { nameLabel, neededText, OPERATION_LABELS, OPERATION_PHASE_LABELS, refusalText, rulingLabel, RULING_ACCESS_NOTE, sourceLabel } from './player-copy.ts';
-import { dateLabel, formatAmount } from './calendar.ts';
-import { operationStates } from './operation-state.ts';
-import type { OperationState } from '../shared/operation-state.ts';
+import { nameLabel, neededText, previewLabel, refusalText } from './player-copy.ts';
+import { TECHNICAL_TEXT } from './technical-text.ts';
 
 export function namesById(world: WorldSnapshot): ReadonlyMap<number, string> {
   return new Map([...world.person_names, ...world.player.earlier_bodies, ...world.residents]
@@ -29,8 +27,7 @@ export function previewView(preview: Preview, world: WorldSnapshot) {
     personId: preview.person,
     delta: preview.delta.startsWith('-') ? preview.delta : `+${preview.delta}`,
     what: preview.what,
-    unit: preview.what.startsWith('trait:') ? 'trait_points'
-      : preview.what === 'debt' ? 'money' : preview.what,
+    unit: previewLabel(preview.what),
   };
 }
 
@@ -87,9 +84,8 @@ export function viewModel(ui: UiState) {
 
 /** Receipt and observation feedback does not depend on a World Snapshot. */
 export function feedbackView(ui: UiState) {
-  const states = new Map(operationStates(ui).map(state => [state.requestId, state]));
   return {
-    actions: ui.actions.map(action => ({ ...action, text: actionText(action, ui, action.requestId === null ? undefined : states.get(action.requestId)) })),
+    actions: ui.actions.map(action => ({ ...action, text: actionText(action) })),
     settledOmitted: ui.settledOmitted,
     playerLifecycle: ui.playerLifecycle,
   };
@@ -140,8 +136,7 @@ export function underworldView(ui: UiState) {
     connected: view.connected.map(id => ({ id, name: names.get(id)! })),
     ghostTraits: view.ghost_traits,
     dreamEnabled: live && !low && !nobody,
-    dreamReasons: [...(!live ? ['World controls are unavailable.'] : []),
-      ...(low ? ['Not enough joss paper for a dream.'] : []), ...(nobody ? ['No connected people.'] : [])],
+    dreamReasons: [...(low ? [refusalText('insufficient_joss')] : []), ...(nobody ? [TECHNICAL_TEXT.dreamNobody] : [])],
     slots: view.slots.map(slot => ({
       ...slot, needed: slot.status.needed.map(neededText),
       claimEnabled: live && slot.status.claimable && slot.status.affordable
@@ -150,21 +145,9 @@ export function underworldView(ui: UiState) {
   };
 }
 
-function actionText(action: UiAction, ui: UiState, state?: OperationState): string {
-  const result = action.result;
-  if (result?.state === 'rejected') return `Processing declined. ${refusalText(result.reason)} ${dateLabel(result.tick)}.`;
-  if (result?.state === 'applied') {
-    if (result.kind === 'haunt') {
-      const person = nameLabel(ui.notebook.actors.get(result.target)?.name ?? ui.world?.residents.find(person => person.id === result.target)?.name);
-      return `Haunt petition processed for ${person}. ${formatAmount(result.price)} joss paper charged. Reported mood effect: ${formatAmount(result.mood_delta)} before its limits. ${dateLabel(result.tick)}.`;
-    }
-    const ruling = result.ruling === null ? 'No ruling recorded.'
-      : `${rulingLabel(result.ruling.applied)}. ${sourceLabel(result.ruling.source)}. ${RULING_ACCESS_NOTE}`;
-    return `Bribe processed. ${formatAmount(result.amount)} joss paper spent. ${ruling} ${dateLabel(result.tick)}.`;
-  }
-  if (state === undefined) return 'Received. The recorded facts appear separately in your life journal.';
-  const phase = state.phase === 'refused' ? 'Filing declined' : OPERATION_PHASE_LABELS[state.phase];
-  const detail = state.phase === 'received' ? 'This receipt confirms delivery, not its outcome.'
-    : state.phase === 'refused' ? refusalText(state.reason ?? '') : '';
-  return `${OPERATION_LABELS[state.kind]}: ${phase}. ${detail}${state.asOf === null ? '' : ` ${dateLabel(state.asOf)}.`}`;
+function actionText(action: UiAction): string {
+  return JSON.stringify(action.result ?? {
+    request: action.request, phase: action.phase, inputSeq: action.inputSeq, submission: action.submission,
+    error: action.error,
+  });
 }

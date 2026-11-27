@@ -41,7 +41,7 @@ export function seedProblemMessage(p: SeedProblem): string {
     case 'empty':
       return 'Seed is required: enter a whole number from 0 to 18446744073709551615.';
     case 'non-digit':
-      return 'Seed must contain only the digits 0-9 (no spaces, sign, decimal point or exponent).';
+      return "That seed won't work. Digits only.";
     case 'too-large':
       return 'Seed is too large: the maximum is 18446744073709551615.';
   }

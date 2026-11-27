@@ -1,5 +1,6 @@
 [
   { "path": "assets/life-view-urban.png", "source": "RPG Urban Pack" },
   { "path": "assets/life-view-roguelike.png", "source": "Roguelike RPG Pack" },
-  { "path": "assets/life-view-original.png", "source": "project" }
+  { "path": "assets/life-view-original.png", "source": "project" },
+  { "path": "assets/life-portraits.png", "source": "Character portrait kit" }
 ]

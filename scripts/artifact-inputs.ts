@@ -157,7 +157,13 @@ export async function validateAssets(projectRoot: string, files: readonly Artifa
   assert.ok(sizeOffenders(entries).length === 0, 'Asset exceeds existing size limit');
   assert.ok(files.some(file => file.path === 'index.html' && file.bytes.byteLength > 0), 'SPA index is required');
   for (const file of files) {
-    assert.ok(file.path === 'index.html' || (file.path.startsWith('assets/') && ['.js', '.css', '.wasm', ...media].includes(extname(file.path))), 'Unexpected public asset type or source path');
+    assert.ok(file.path === 'index.html' || file.path === 'credits.html' ||
+      (file.path.startsWith('assets/') && ['.js', '.css', '.wasm', ...media].includes(extname(file.path))), 'Unexpected public asset type or source path');
+    if (file.path === 'credits.html') {
+      // Vite copies this single public HTML page unchanged; no other root HTML is authorized.
+      assert.ok(digest(file.bytes) === digest(await readRegularFile(join(projectRoot, 'web/public/credits.html'))),
+        'Credits page must match the checked public source');
+    }
   }
   const wasm = files.filter(file => file.path.endsWith('.wasm'));
   assert.ok(wasm.length === 1 && digest(wasm[0]!.bytes) === wasmSHA, 'WASM must be the exact checked build module');
@@ -223,7 +229,8 @@ async function collectArtifactInputs(projectRoot: string, identity: ReleaseIdent
   assert.ok(rustc.endsWith('/bin/rustc') && rustc.includes('/1.99.1-'), 'Use the prepared pinned Rust license sources');
   const rustLicenses = join(dirname(dirname(rustc)), 'share/doc/rust/licenses');
   for (const pinned of LICENSE_CATALOG) {
-    const directory = pinned.source === 'cargo' ? registry : pinned.source === 'rust' ? rustLicenses : dirname(sveltePackage);
+    const directory = pinned.source === 'cargo' ? registry : pinned.source === 'rust' ? rustLicenses :
+      pinned.source === 'asset' ? projectRoot : dirname(sveltePackage);
     const bytes = await readRegularFile(join(directory, pinned.path));
     entries.push({ id: pinned.id, version: pinned.version, sourcePin: pinned.sourcePin, text: losslessUtf8(bytes), sha256: digest(bytes) });
   }

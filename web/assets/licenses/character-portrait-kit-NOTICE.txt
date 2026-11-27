@@ -1,0 +1,39 @@
+Character portrait kit
+Source: https://opengameart.org/content/character-portrait-kit
+Original: https://opengameart.org/sites/default/files/dezras_dragons_portrait_kit.png
+Author account: DezrasDragons
+Required credit: Dezra's Dragons
+Creator profile: https://opengameart.org/users/dezrasdragons
+Selected license: Creative Commons Attribution 4.0 International (CC-BY 4.0)
+License: https://creativecommons.org/licenses/by/4.0/
+Full legal text/disclaimer: https://creativecommons.org/licenses/by/4.0/legalcode.en
+
+Verbatim Copyright/Attribution Notice supplied on the source page:
+You must credit "Dezra's Dragons" and include a link to my OpenGameArt profile (https://opengameart.org/users/dezrasdragons).
+
+The source page offers CC-BY 4.0 alongside CC-BY 3.0 and OGA-BY 3.0.
+This project selects CC-BY 4.0 only. The PNG is the sole main download, not an archive.
+The downloaded original is 57993 bytes, 616x904 RGBA8; SHA-256:
+6680b9144d9c2c7a60c123585064fab77715e5850f57b5e803a1c6faa7d9fd02
+It supplies no embedded creator, copyright or license text chunks. Its opaque
+gray sheet background is not transparency. Source-page notice is retained here.
+
+Modifications by Back in the Family, retained under CC-BY 4.0: 96 adult/elder
+64px cells from female/male source torso/head crops. Opaque gray ground removed;
+crops assembled; modern cardigan, blouse, collared shirt and polo painted;
+skin/hair mapped to fixed natural ID-bound palettes; red source irises recolored;
+elder facial lines and modern spectacles added; original frame rails cover all
+lower edges. Exact crops, masked/unmasked commands, palettes and per-cell RGBA
+hashes are retained in web/assets/portrait-pool-provenance.json.
+The other 264 baby/child/neutral/unknown-age cells are wholly hand-drawn project
+pixel work under Apache-2.0, not kit-derived or CC0. Their source-free creation and
+commands are recorded separately; a mixed atlas does not change either lineage.
+No source armor, hoods, fantasy accessories, previews or comment attachments.
+No AI image generation, core RNG, endorsement or extra downstream restrictions.
+Author-approved local expansion does not authorize publication.
+
+Verification date: 2026-11-27
+Cached original/source-page/full-license evidence:
+/home/kaiki/.cache/back-in-the-family/life-unfolds/portrait-sample/
+Source HTML SHA-256: 83861c8021c60f5d700a4ff0e4529c2c56aec2747391f426e1743a5f8e78876b
+Selected full license SHA-256: 9ba9550ad48438d0836ddab3da480b3b69ffa0aac7b7878b5a0039e7ab429411

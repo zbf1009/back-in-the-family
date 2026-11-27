@@ -21,8 +21,12 @@ import { closeScene, retireNode, sceneQueue, type SceneClose, type SceneQueue } 
 import { initialUnderworldForm, type UnderworldForm } from './customization.ts';
 import { addObservation, emptyObservationIndex, hasObservation, type ObservationIndex } from './observation-index.ts';
 import { DEFAULT_SPEED } from '../shared/speeds.ts';
-import { appendStory, createNotebook, type LifeNotebook } from './life-journal.ts';
-import { sourceLabel } from './player-copy.ts';
+import { appendStory, createNotebook, currentLifePhase, entryContext, type LifeNotebook } from './life-journal.ts';
+import type { ChoiceCapture } from './choice-result.ts';
+import { captureMemorial, enrichMemorial, offeredFamilyDeathNode, memorialSceneEntry, type MemorialCapture } from './memorial.ts';
+import type { SceneEntry } from './scene-queue.ts';
+import { keyedStore, type PersistentTree } from './persistent-store.ts';
+import type { AdmittedChoiceContext } from './life-context.ts';
 
 /**
  * A Worker_Protocol `reply` message, derived from the shared union. This is the
@@ -43,6 +47,8 @@ export interface UiAction {
   result: ActionResult | null;
   error: string | null;
   dream?: DreamFact;
+  lifePhaseKey?: string;
+  choice?: ChoiceCapture;
 }
 
 /**
@@ -79,9 +85,12 @@ export interface UiState {
   worldStatuses: number;
   scene: SceneQueue | null;
   settledScene: SceneClose | null;
+  memorial: { capture: MemorialCapture; entry: SceneEntry } | null;
+  settledMemorial: SceneClose | null;
   sceneEpisode: { worldId: number; tick: string; seen: string[] } | null;
   lastDreamKey: string | null;
   actions: UiAction[];
+  choiceContexts: PersistentTree<string, AdmittedChoiceContext>;
   settledOmitted: number;
   observedActions: ObservationIndex;
   settledRequests: ObservationIndex;
@@ -149,9 +158,12 @@ export function initialUiState(): UiState {
     worldStatuses: 0,
     scene: null,
     settledScene: null,
+    memorial: null,
+    settledMemorial: null,
     sceneEpisode: null,
     lastDreamKey: null,
     actions: [],
+    choiceContexts: keyedStore(),
     settledOmitted: 0,
     observedActions: emptyObservationIndex(),
     settledRequests: emptyObservationIndex(),
@@ -225,11 +237,13 @@ export function reduce(s: UiState, e: UiEvent): UiState {
         worldRead: next.worldRead?.state === 'pending' ? next.worldRead : null, worldStatuses: 0,
         stepPending: false,
         scene: null, settledScene: null, sceneEpisode: null, underworldRecorded: null, underworldForm: initialUnderworldForm(),
+        memorial: null, settledMemorial: null,
         actions: [], settledOmitted: 0, observedActions: emptyObservationIndex(), settledRequests: emptyObservationIndex(),
+        choiceContexts: keyedStore(),
         playerLifecycle: [], observedLifecycle: emptyObservationIndex(), lifecycleEpisode: null,
         decision: null, decisionRequestId: 0, decisionSendingRequestId: null,
       };
-      if (message.snapshot.worldId === next.worldId) next = ingest(next, message.snapshot);
+      if (message.snapshot.worldId === next.worldId) next = ingest(next, message.snapshot, message.world);
       next = recordReply(next, e.request, message);
       const trigger = e.request.type === 'dream' || e.request.type === 'bribe';
       const staleTrigger = trigger && (message.id < next.decisionRequestId
@@ -303,6 +317,7 @@ export function reduce(s: UiState, e: UiEvent): UiState {
     case 'worker-error':
       return { ...s, runState: 'failed', error: e.error, errorKind: 'sim-error', errorOperation: undefined,
         createPending: false, stepPending: false, worldRead: null,
+        memorial: null, settledMemorial: null,
         actions: s.actions.filter(action => terminal(action.phase)), decisionSendingRequestId: null,
         decision: s.decision === null ? null : { ...s.decision, pending: null } };
     case 'seed-invalid': return { ...s, seedMessage: seedProblemMessage(e.problem),
@@ -311,10 +326,12 @@ export function reduce(s: UiState, e: UiEvent): UiState {
       errorOperation: s.errorKind === 'validation' ? undefined : s.errorOperation };
     case 'validation-error': return { ...s, error: e.error, errorKind: 'validation', errorOperation: undefined, seedMessage: null };
     case 'scene-close': {
+      if (memorialMatches(s, e.expected) && s.world?.player_node === null) return { ...s, memorial: null, settledMemorial: null };
       const scene = closeScene(s.scene, e.expected);
       return scene === s.scene ? s : { ...s, scene, settledScene: null };
     }
     case 'scene-settled':
+      if (memorialMatches(s, e.expected)) return { ...s, settledMemorial: e.expected };
       return s.scene?.worldId === e.expected.worldId && s.scene.tick === e.expected.tick
         && s.scene.entries[0] === e.expected.entry && e.expected.entry.node === null
         ? { ...s, settledScene: e.expected } : s;
@@ -346,6 +363,8 @@ function withWorld(s: UiState, world: WorldSnapshot): UiState {
 
 function expirePresentation(s: UiState): UiState {
   let scene = s.scene !== null && (s.scene.worldId !== s.worldId || s.runState === 'failed') ? null : s.scene;
+  const memorial = s.memorial !== null && (s.memorial.capture.worldId !== s.worldId || s.runState === 'failed'
+    || currentDecision(s) !== null || currentLifePhase(s.notebook, s.world)?.key !== s.memorial.capture.phaseKey) ? null : s.memorial;
   if (scene !== null) {
     for (const entry of scene.entries) {
       if (entry.node !== null && (!s.playerNode.pending || s.playerNode.node !== entry.node || s.playerNode.answered
@@ -356,8 +375,8 @@ function expirePresentation(s: UiState): UiState {
     && (s.sceneEpisode.worldId !== s.worldId || s.scene === null && s.sceneEpisode.tick !== s.tick) ? null : s.sceneEpisode;
   const recorded = s.underworldRecorded !== null
     && (s.underworldRecorded.worldId !== s.worldId || s.underworldRecorded.tick !== s.tick) ? null : s.underworldRecorded;
-  return scene === s.scene && recorded === s.underworldRecorded && sceneEpisode === s.sceneEpisode ? s
-    : { ...s, scene, sceneEpisode, underworldRecorded: recorded };
+  return scene === s.scene && recorded === s.underworldRecorded && sceneEpisode === s.sceneEpisode && memorial === s.memorial ? s
+    : { ...s, scene, sceneEpisode, underworldRecorded: recorded, memorial, settledMemorial: memorial === null ? null : s.settledMemorial };
 }
 
 /** One stop-local FIFO retains history until Close; closed/retired identities stay excluded in this episode. */
@@ -448,14 +467,6 @@ export function decisionBusy(s: UiState): boolean {
   return s.decisionSendingRequestId !== null || s.decision?.pending?.worldId === s.worldId;
 }
 
-/** Fixed UI copy never includes provider text, options, usage, or quality claims. */
-export function decisionNotice(s: UiState): string | null {
-  if (decisionBusy(s)) return null;
-  const outcome = s.decision?.outcome;
-  if (outcome == null || outcome.worldId !== s.worldId || outcome.requestId !== s.decisionRequestId) return null;
-  return outcome.kind === 'model' ? sourceLabel('external')
-    : outcome.kind === 'fallback' ? sourceLabel('rules_default') : 'Decision cancelled.';
-}
 
 function staleDecision(s: UiState, snapshot: Snapshot): boolean {
   if (snapshot.worldId !== s.worldId) return false;
@@ -494,10 +505,16 @@ function recordSent(s: UiState, request: Request, worldId: number): UiState {
   if (!gameplay(request)) return s;
   const prior = s.actions.find(action => action.requestId === request.id);
   if (prior === undefined && hasObservation(s.settledRequests, String(request.id))) return s;
-  return { ...s, actions: prior === undefined ? [...s.actions, {
+  const phase = currentLifePhase(s.notebook, s.world);
+  const node = (request.type === 'choose' || request.type === 'choose-and-run') && s.world?.player_node?.id === request.node ? s.world.player_node : null;
+  const choice: ChoiceCapture | undefined = prior === undefined && node !== null && phase !== null
+    && s.world?.player.body !== null && s.world?.player.body !== undefined
+    ? { node, phase, playerSoul: s.world.player_soul, focus: s.world.player.body, actors: s.notebook.actors, formerBodies: s.notebook.phases.lives } : undefined;
+  return { ...s, choiceContexts: choice === undefined ? s.choiceContexts : s.choiceContexts.set(choice.node.id, choice), actions: prior === undefined ? [...s.actions, {
     worldId, requestId: request.id, inputSeq: null, request,
     phase: request.type === 'dream' || request.type === 'bribe' ? 'deciding' : 'sending',
     submission: null, result: null, error: null,
+    ...(phase === null ? {} : { lifePhaseKey: phase.key }), ...(choice === undefined ? {} : { choice }),
   }] : s.actions.map(action => action === prior ? { ...action, request } : action) };
 }
 
@@ -547,11 +564,49 @@ function settleDreams(s: UiState): UiState {
 }
 
 /** Observations are merged before either decision or live-frame freshness gates. */
-function ingest(s: UiState, snapshot: Snapshot): UiState {
+function memorialMatches(s: UiState, expected: SceneClose): boolean {
+  return s.memorial !== null && expected.worldId === s.worldId && expected.worldId === s.memorial.capture.worldId
+    && expected.entry === s.memorial.entry && expected.tick === s.memorial.entry.world.tick;
+}
+
+/** Only newly admitted facts open a card; settlement and ordinary status never retire it. */
+function bindMemorial(s: UiState, notebook: LifeNotebook, snapshot: Snapshot, carriedWorld: WorldSnapshot | null): Pick<UiState, 'memorial' | 'settledMemorial'> {
+  const world = s.world !== null && (carriedWorld === null || BigInt(s.world.tick) > BigInt(carriedWorld.tick)) ? s.world : carriedWorld;
+  if (world === null || s.runState === 'failed') return { memorial: null, settledMemorial: null };
+  const phase = currentLifePhase(notebook, world);
+  const deliveries = snapshot.story?.filter(delivery => delivery.worldId === s.worldId) ?? [];
+  const events = deliveries.flatMap(delivery => delivery.batch.events);
+  const nextScene = !olderFrame(s, snapshot) && (snapshot.playerNode.pending && !snapshot.playerNode.answered
+    || snapshot.playerLifecycle.some(fact => !hasObservation(s.observedLifecycle, fact.event))
+    || deliveries.some(delivery => delivery.batch.dreams.some(fact => s.notebook.dreams.get(fact.eventId) === undefined)));
+  let memorial = s.memorial !== null && s.memorial.capture.phaseKey === phase?.key && !nextScene ? s.memorial : null;
+  if (!nextScene) {
+    for (const delivery of deliveries) {
+      for (const event of delivery.batch.events) {
+        if (event.kind.type !== 'death' || s.notebook.events.get(event.id) !== undefined) continue;
+        const capture = captureMemorial({ worldId: s.worldId, world, event, context: entryContext(notebook, `e:${event.id}`),
+          currentPhase: phase, opening: delivery.batch.opening });
+        if (capture === null || offeredFamilyDeathNode(capture, s.worldId, world.player_node) !== null) continue;
+        if (memorial !== null && BigInt(memorial.capture.eventId) > BigInt(capture.eventId)) continue;
+        memorial = { capture, entry: memorialSceneEntry(capture) };
+      }
+    }
+  }
+  if (memorial !== null) {
+    const capture = enrichMemorial(memorial.capture, s.worldId, events);
+    if (capture !== memorial.capture) memorial = { ...memorial, capture };
+  }
+  return { memorial, settledMemorial: memorial !== null && memorial.entry === s.memorial?.entry ? s.settledMemorial : null };
+}
+
+function ingest(s: UiState, snapshot: Snapshot, explicitWorld?: WorldSnapshot): UiState {
   if (snapshot.worldId !== s.worldId) return s;
-  const notebook = appendStory(s.notebook, snapshot.story ?? []);
+  const world = explicitWorld ?? snapshot.stop?.world ?? s.world;
+  const notebook = appendStory(s.notebook, snapshot.story ?? [], { ...(world === null ? {} : { world }), lifecycle: snapshot.playerLifecycle, choices: s.choiceContexts });
+  const memorial = bindMemorial(s, notebook, snapshot, world);
   if (snapshot.actions.length === 0 && snapshot.playerLifecycle.length === 0) {
-    const next = notebook === s.notebook ? s : { ...s, notebook };
+    const next = notebook === s.notebook && memorial.memorial === s.memorial && memorial.settledMemorial === s.settledMemorial
+      ? s : { ...s, notebook, ...memorial };
     return notebook.dreamsByInputSeq === s.notebook.dreamsByInputSeq ? next : settleDreams(next);
   }
   let actions = s.actions;
@@ -610,6 +665,8 @@ function ingest(s: UiState, snapshot: Snapshot): UiState {
     const settled: UiAction = { worldId: result.worldId, requestId: result.requestId, inputSeq: result.input_seq,
       request: prior?.request ?? null, phase: result.state, submission: prior?.submission ?? null, result,
       ...(prior?.dream === undefined ? {} : { dream: prior.dream }),
+      ...(prior?.lifePhaseKey === undefined ? {} : { lifePhaseKey: prior.lifePhaseKey }),
+      ...(prior?.choice === undefined ? {} : { choice: prior.choice }),
       error: result.state === 'rejected' ? result.reason : null };
     indexRow(settled, buffer.length);
     buffer.push(settled);
@@ -641,8 +698,9 @@ function ingest(s: UiState, snapshot: Snapshot): UiState {
   const playerLifecycle = fresh.length === 0 ? s.playerLifecycle : [...(newEpisode ? [] : s.playerLifecycle), ...fresh]
     .sort((a, b) => BigInt(a.event) < BigInt(b.event) ? -1 : BigInt(a.event) > BigInt(b.event) ? 1 : 0);
   const sendingSettled = s.decisionSendingRequestId !== null && hasObservation(settledRequests, String(s.decisionSendingRequestId));
-  if (actions === s.actions && observedLifecycle === s.observedLifecycle && !sendingSettled && notebook === s.notebook) return s;
-  const next = { ...s, notebook, actions, settledOmitted, observedActions, settledRequests, playerLifecycle, observedLifecycle,
+  if (actions === s.actions && observedLifecycle === s.observedLifecycle && !sendingSettled && notebook === s.notebook
+    && memorial.memorial === s.memorial && memorial.settledMemorial === s.settledMemorial) return s;
+  const next = { ...s, notebook, ...memorial, actions, settledOmitted, observedActions, settledRequests, playerLifecycle, observedLifecycle,
     lifecycleEpisode: newEpisode ? snapshot.tick : s.lifecycleEpisode,
     decisionSendingRequestId: sendingSettled ? null : s.decisionSendingRequestId };
   return notebook.dreamsByInputSeq === s.notebook.dreamsByInputSeq ? next : settleDreams(next);
