@@ -50,7 +50,9 @@
   let obituaryRun: ObituaryRun | null = $state.raw(null);
   let obituaryRevision = $state(0);
   let obituaryError: string | null = $state(null);
-  let obituaryCapability: ObituaryCapabilityState = { capability: null, reason: 'capability_unavailable' };
+  let obituaryExportError: string | null = $state(null);
+  let obituaryCapability: ObituaryCapabilityState | null = null;
+  let obituaryCapabilityRead: Promise<ObituaryCapabilityState> | null = null;
   const obituaries = $derived.by(() => { obituaryRevision; return obituaryRun?.visible() ?? []; });
   const obituaryEntries = $derived.by(() => { obituaryRevision; return obituaryRun?.entries() ?? []; });
   const obituaryPending = $derived(obituaryEntries.some(entry => entry.attempt === 'pending'));
@@ -100,7 +102,7 @@
     ui = reduce(ui, event);
     if (ui.worldId !== previousWorld) {
       fastForward = null; speedRequest = null; runRequest = null; pendingRunRequest = null; executedRun = null; stoppedRun = null; recoveryBlocked = null; stopReasons = [];
-      obituaryRun = new ObituaryRun(ui.worldId); obituaryRevision++; obituaryError = null;
+      obituaryRun = new ObituaryRun(ui.worldId); obituaryRevision++; obituaryError = null; obituaryExportError = null;
     }
     if (event.type === 'request-sent' && event.worldId === ui.worldId && fastForward?.worldId === ui.worldId
       && (event.request.type === 'set-speed' && ['starting', 'restoring', 'selecting'].includes(fastForward.phase)
@@ -186,7 +188,7 @@
           const entry = run.admit({ eventId: death.event, personId: death.body, tick: death.tick, lifeKey: context.phase.key }, facts);
           if (entry !== null) {
             obituaryError = null; changed();
-            void startObituaryAttempt(run, entry, obituaryCapability, changed).catch(error => {
+            void startObituaryAttempt(run, entry, obituaryCapabilityForDeath(), changed).catch(error => {
               if (obituaryRun === run) obituaryError = String(error);
             });
           }
@@ -203,6 +205,14 @@
         if (death?.kind === 'death' && !ui.scene?.entries.includes(entry) && run.markReady(death.event)) changed();
       }
     }
+  }
+  function obituaryCapabilityForDeath(): Promise<ObituaryCapabilityState> {
+    const capability = obituaryCapability?.capability;
+    if (obituaryCapabilityRead === null || capability && Date.now() >= capability.quota.reset_at_ms) {
+      obituaryCapability = null;
+      obituaryCapabilityRead = fetchObituaryCapability().then(snapshot => { obituaryCapability = snapshot; return snapshot; });
+    }
+    return obituaryCapabilityRead;
   }
   function restorePace(): void {
     if (fastForward?.worldId !== ui.worldId || fastForward.requestId !== null || ui.createPending
@@ -371,9 +381,10 @@
     try {
       const sidecar = await exportObituarySidecar(run, message.replay);
       if (obituaryRun !== run) return;
+      downloadJsonBytes(`world-${run.worldId}.replay.json`, message.replay);
       downloadJsonBytes(`world-${run.worldId}.obituaries.json`, JSON.stringify(sidecar, null, 2));
-      obituaryError = null;
-    } catch (error) { if (obituaryRun === run) obituaryError = String(error); }
+      obituaryExportError = null;
+    } catch (error) { if (obituaryRun === run) obituaryExportError = String(error); }
   }
   function onExportFacts(): void {
     downloadJsonBytes(`life-facts-world-${ui.worldId}.json`, JSON.stringify(exportNotebook(ui.notebook), null, 2));
@@ -385,10 +396,9 @@
   });
   $effect(() => {
     bridge.dispatch = dispatch;
-    let mounted = true;
-    void fetchObituaryCapability().then(capability => { if (mounted) obituaryCapability = capability; });
+    void obituaryCapabilityForDeath();
     void untrack(() => sendRequest({ type: 'decision-status' }));
-    return () => { mounted = false; bridge.dispatch = null; };
+    return () => { bridge.dispatch = null; };
   });
 </script>
 
@@ -476,6 +486,7 @@
     <button type="button" onclick={onExportObituaries} disabled={ui.world === null || ui.runState === 'failed' || obituaryRun === null || obituaryPending || obituaryError !== null}>{TECHNICAL_TEXT.obituaryExport}</button>
     {#if obituaryEntries.length > 0}<pre data-testid="obituary-records">{JSON.stringify(obituaryEntries.map(entry => ({ runId: entry.runId, death: entry.death, operationKey: entry.operationKey, facts: entry.facts, attempt: entry.attempt, result: entry.result, ready: entry.ready })), null, 2)}</pre>{/if}
     {#if obituaryError !== null}<pre data-testid="obituary-error">{obituaryError}</pre>{/if}
+    {#if obituaryExportError !== null}<pre data-testid="obituary-export-error">{obituaryExportError}</pre>{/if}
     {#if replay}<pre class="replay">{replay}</pre>{/if}
     <details><summary>Unmerged life facts</summary>
       <p>{ui.notebook.identities.length} records; all current-world actors and records retained.</p>

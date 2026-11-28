@@ -73,6 +73,12 @@ export interface RuntimeFixtureOptions {
   externalFault?: boolean;
 }
 
+export interface JudgeSqlTrace {
+  query: string;
+  bindings: (string | number | null)[];
+  plan: { detail: string }[];
+}
+
 export interface JudgeFixtureControls {
   workerName: string;
   persistencePath: string;
@@ -80,6 +86,7 @@ export interface JudgeFixtureControls {
   setTime(ms: number): Promise<void>;
   storage(): Promise<DurableObjectStorageHandle>;
   evict(): Promise<void>;
+  sqlTrace(): Promise<JudgeSqlTrace[]>;
 }
 
 export async function runtimeFixture(options: RuntimeFixtureOptions = {}): Promise<RuntimeFixture> {
@@ -90,7 +97,7 @@ export async function profileRuntimeFixture(
   config: SourceConfig | JudgeSourceConfig,
   profile: WorkerProfile,
   projectRoot: string,
-  options: RuntimeFixtureOptions & { persistencePath?: string; nowMs?: number; reserveFault?: 'reject-after-commit' } = {},
+  options: RuntimeFixtureOptions & { persistencePath?: string; nowMs?: number; reserveFault?: 'reject-after-commit'; traceSql?: boolean } = {},
 ): Promise<RuntimeFixture & JudgeFixtureControls> {
   process.env.WRANGLER_SEND_METRICS = 'false';
   process.env.CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV = 'false';
@@ -227,8 +234,8 @@ export async function profileRuntimeFixture(
         modules: [
           { type: 'ESModule' as const, path: join(temp, 'fixture.js'), contents: options.reserveFault ? `
 import './fixture-clock.js';
-import worker, { JudgeGate } from './checked-worker.js';
-export { JudgeGate };
+import worker from './checked-worker.js';
+export { JudgeGate } from '${options.traceSql ? './fixture-sql.js' : './checked-worker.js'}';
 export default {
   fetch(request, env, ctx) {
     const gate = {
@@ -263,9 +270,30 @@ export default {
     return worker.fetch(request, { ...env, JUDGE_GATE: gate }, ctx);
   },
 };
-` : "import './fixture-clock.js'; export { default, JudgeGate } from './checked-worker.js';" },
+` : options.traceSql
+            ? "import './fixture-clock.js'; export { default } from './checked-worker.js'; export { JudgeGate } from './fixture-sql.js';"
+            : "import './fixture-clock.js'; export { default, JudgeGate } from './checked-worker.js';" },
           { type: 'ESModule' as const, path: join(temp, 'fixture-clock.js'), contents: nowMs === undefined ? 'export {};' : `Date.now = () => ${nowMs};` },
           { type: 'ESModule' as const, path: join(temp, 'checked-worker.js'), contents: script },
+          ...(options.traceSql ? [{ type: 'ESModule' as const, path: join(temp, 'fixture-sql.js'), contents: `
+import { JudgeGate as CheckedJudgeGate } from './checked-worker.js';
+// Test-only interception keeps the checked production implementation and real
+// SQLite actor. No query/binding is written to logs or persistent storage.
+export class JudgeGate extends CheckedJudgeGate {
+  #trace = [];
+  constructor(ctx, env) {
+    super(ctx, env);
+    const sql = ctx.storage.sql;
+    const exec = sql.exec.bind(sql);
+    Object.defineProperty(sql, 'exec', { value: (query, ...bindings) => {
+      const plan = exec('EXPLAIN QUERY PLAN ' + query, ...bindings).toArray().map(({ detail }) => ({ detail }));
+      this.#trace.push({ query, bindings, plan });
+      return exec(query, ...bindings);
+    } });
+  }
+  sqlTrace() { return this.#trace.splice(0); }
+}
+` }] : []),
         ],
       } : user;
       const converted: MiniflareOptions = tools.convertV4MiniflareOptions({
@@ -313,6 +341,13 @@ export default {
       async storage() {
         assert.equal(profile, 'judge', 'SQLite controls are judge-fixture-only');
         return fixtureRuntime.unsafeGetDurableObjectStorage(workerName, 'JudgeGate', { name: 'review-pool-v1' });
+      },
+      async sqlTrace() {
+        assert.ok(profile === 'judge' && options.traceSql, 'SQL tracing is explicitly enabled only in judge fixtures');
+        const bindings = await fixtureRuntime.getBindings<{
+          JUDGE_GATE: { getByName(name: string): { sqlTrace(): Promise<JudgeSqlTrace[]> } };
+        }>(workerName);
+        return bindings.JUDGE_GATE.getByName('review-pool-v1').sqlTrace();
       },
       async evict() {
         assert.equal(profile, 'judge', 'DO controls are judge-fixture-only');

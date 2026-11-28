@@ -2,8 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { buildObituaryFacts } from '../../src/main/obituary-facts.ts';
+import { renderObituaryTemplate } from '../../src/main/obituary-template.ts';
 import { appendStory, createNotebook, type LifeNotebook } from '../../src/main/life-journal.ts';
-import type { OwnDeathKinSummaryV1 } from '../../src/shared/obituary.ts';
+import { parseObituaryFacts, parseObituaryRequest, parseOwnDeathKinSummary, validateObituaryText, type OwnDeathKinSummaryV1 } from '../../src/shared/obituary.ts';
 import type { StoryActor, StoryBatch, StoryChronicle, StoryEvent } from '../../src/shared/story.ts';
 import type { PlayerLifecycleFact } from '../../src/shared/world-snapshot.ts';
 
@@ -173,6 +174,49 @@ test('consumer kin-sex variants preserve native identity strings and reject unkn
   assert.equal(femaleFacts.survivors[0]!.fullName, spouse.name);
   assert.throws(() => buildObituaryFacts(base, death, { ...nativeSummary, spouse: [{ ...spouse, sex: undefined }] } as unknown as OwnDeathKinSummaryV1));
   assert.throws(() => buildObituaryFacts(base, death, { ...nativeSummary, spouse: [spouse, spouse] }));
+});
+
+test('consumer same-name deceased daughters retain both people through facts, template and model guards', () => {
+  // Constructed consumer collision, not another native genealogy witness.
+  const sameNames: OwnDeathKinSummaryV1 = { ...emptySummary, deceasedChildren: [
+    { person: 1002, name: 'Clara Bradley', sex: 'female', relation: 'child' },
+    { person: 1000, name: 'Clara Bradley', sex: 'female', relation: 'child' },
+  ] };
+  assert.equal(parseOwnDeathKinSummary(sameNames), sameNames);
+  const facts = buildObituaryFacts(base, death, sameNames);
+  const daughter = { fullName: 'Clara Bradley', firstName: 'Clara', sex: 'female', relation: 'daughter' };
+  assert.deepEqual(facts.precededInDeath, [daughter, daughter]);
+  assert.equal(parseObituaryFacts(facts), facts);
+  assert.equal(parseObituaryRequest({ version: 1, operationKey: 'a'.repeat(64), facts })?.facts, facts);
+  const template = renderObituaryTemplate(facts);
+  assert.ok(template.split('\n').includes('Preceded in death by daughters Clara and Clara.'));
+  const paragraph = template.replaceAll('\n', ' ');
+  assert.deepEqual(validateObituaryText(paragraph, facts), { ok: true, text: paragraph });
+  assert.deepEqual(validateObituaryText(paragraph.replace('Clara and Clara', 'Clara and Zara'), facts), { ok: false, reason: 'unknown_name' });
+  assert.throws(() => buildObituaryFacts(base, death, { ...sameNames,
+    deceasedChildren: [sameNames.deceasedChildren[0]!, sameNames.deceasedChildren[0]!] }), /complete native kin summary/u);
+  const interleaved = buildObituaryFacts(base, death, { ...sameNames, deceasedChildren: [...sameNames.deceasedChildren,
+    { person: 1001, name: 'Olive Bradley', sex: 'female', relation: 'child' }] });
+  assert.deepEqual(interleaved.precededInDeath.map(person => person.fullName), ['Clara Bradley', 'Olive Bradley', 'Clara Bradley']);
+  assert.ok(renderObituaryTemplate(interleaved).includes('Preceded in death by daughters Clara, Olive, and Clara.'));
+});
+
+test('consumer same-name estate beneficiaries retain distinct native IDs only in source joins', () => {
+  // Constructed name collision; the retained native Inheritance amounts and IDs are unchanged.
+  let notebook = { ...base, contexts: base.contexts.set(`e:${death.event}`, { ...context, actorContext: [] }) };
+  for (const action of base.events.values()) {
+    if (action.kind.type !== 'inheritance' || !action.causedBy.includes(death.event)) continue;
+    const heirId = action.kind.heir;
+    const sourceContext = notebook.contexts.get(`e:${action.id}`)!;
+    const actor = sourceContext.actors.get(action.kind.heir)!;
+    notebook = { ...notebook, contexts: notebook.contexts.set(`e:${action.id}`, { ...sourceContext,
+      actors: { get: id => id === heirId ? { ...actor, name: 'Marcus Bradley' } : sourceContext.actors.get(id) } }) };
+  }
+  const facts = buildObituaryFacts(notebook, death, emptySummary);
+  assert.deepEqual(facts.estate, { valueDollars: '229012', heirs: [
+    { fullName: 'Marcus Bradley', relation: null }, { fullName: 'Marcus Bradley', relation: null },
+  ] });
+  assert.equal(parseObituaryFacts(facts), facts);
 });
 
 test('missing aggregate entry ownership stays unavailable rather than inventing zero', () => {

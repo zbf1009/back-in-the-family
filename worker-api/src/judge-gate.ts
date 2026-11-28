@@ -49,8 +49,10 @@ export class JudgeGate extends DurableObject<JudgeEnv> implements JudgeRPC {
   }
 
   #session(token: string | null, epoch: string, now: number): SessionRow | null {
-    this.ctx.storage.sql.exec(`DELETE FROM obituary_claims WHERE token_sha256 IN
-      (SELECT token_sha256 FROM sessions WHERE expires_at_ms <= ?)`, now).toArray();
+    // Probe the session primary key per bounded claim, not the retained session history.
+    this.ctx.storage.sql.exec(`DELETE FROM obituary_claims WHERE EXISTS
+      (SELECT 1 FROM sessions WHERE sessions.token_sha256 = obituary_claims.token_sha256
+        AND expires_at_ms <= ?)`, now).toArray();
     if (token === null) return null;
     const row = this.ctx.storage.sql.exec<SessionRow>(
       'SELECT expires_at_ms, admitted, code_epoch FROM sessions WHERE token_sha256 = ?', token,

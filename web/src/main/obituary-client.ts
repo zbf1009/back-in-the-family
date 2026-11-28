@@ -49,8 +49,9 @@ export async function fetchObituaryCapability(transport: ObituaryTransport = bro
 }
 
 /** 调用者先同步 admit；此处不持有模拟票据、时钟或场景选择权。 */
-export async function startObituaryAttempt(run: ObituaryRun, entry: ObituaryEntry, capability: ObituaryCapabilityState,
+export async function startObituaryAttempt(run: ObituaryRun, entry: ObituaryEntry, capability: ObituaryCapabilityState | Promise<ObituaryCapabilityState>,
   changed: () => void, transport: ObituaryTransport = browserTransport): Promise<void> {
+  const started = transport.now();
   const bytes = encoder.encode(`${run.runId}\0${entry.death.eventId}`);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   const operationKey = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
@@ -58,18 +59,28 @@ export async function startObituaryAttempt(run: ObituaryRun, entry: ObituaryEntr
   const fallback = (reason: FallbackReason, attempted = false): void => {
     if (run.terminal(entry, obituaryTemplateResult(entry, reason, attempted ? OBITUARY_MODEL : null))) changed();
   };
-  if (capability.capability === null) { fallback(capability.reason ?? 'capability_unavailable'); return; }
-  if (!capability.capability.enabled) {
-    fallback(capability.capability.disabledReason === 'quota_exhausted' ? 'quota_exhausted' : 'disabled');
-    return;
-  }
-  const body = JSON.stringify({ version: 1, operationKey, facts: entry.facts });
-  if (encoder.encode(body).byteLength > OBITUARY_REQUEST_BYTE_CAP) { fallback('request_too_large'); return; }
-  const started = transport.now();
   const expired = (): boolean => transport.now() - started >= OBITUARY_CLIENT_TIMEOUT_MS;
   const terminal = (): boolean => entry.attempt === 'terminal';
-  const timer = transport.setTimeout(() => fallback('timeout', true), OBITUARY_CLIENT_TIMEOUT_MS);
+  const remaining = OBITUARY_CLIENT_TIMEOUT_MS - (transport.now() - started);
+  if (remaining <= 0) { fallback('timeout'); return; }
+  let attempted = false;
+  let resolveDeadline!: (value: null) => void;
+  const deadline = new Promise<null>(resolve => { resolveDeadline = resolve; });
+  const timer = transport.setTimeout(() => { fallback('timeout', attempted); resolveDeadline(null); }, remaining);
   try {
+    let eligibility: ObituaryCapabilityState | null;
+    try { eligibility = await Promise.race([capability, deadline]); }
+    catch { fallback(expired() ? 'timeout' : 'capability_unavailable'); return; }
+    if (eligibility === null || expired() || terminal()) { fallback('timeout'); return; }
+    const current = eligibility.capability;
+    if (current === null) { fallback(eligibility.reason ?? 'capability_unavailable'); return; }
+    if (!current.enabled) {
+      fallback(current.disabledReason === 'quota_exhausted' ? 'quota_exhausted' : 'disabled');
+      return;
+    }
+    const body = JSON.stringify({ version: 1, operationKey, facts: entry.facts });
+    if (encoder.encode(body).byteLength > OBITUARY_REQUEST_BYTE_CAP) { fallback('request_too_large'); return; }
+    attempted = true;
     let response: Response;
     try {
       response = await transport.fetch('/api/obituary', { method: 'POST', credentials: 'same-origin', cache: 'no-store',

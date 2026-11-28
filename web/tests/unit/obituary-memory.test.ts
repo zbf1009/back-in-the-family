@@ -24,6 +24,7 @@ interface FetchCall { url: string; init: RequestInit }
 class MemoryTransport implements ObituaryTransport {
   readonly calls: FetchCall[] = [];
   readonly requested = Promise.withResolvers<void>();
+  readonly timerStarted = Promise.withResolvers<void>();
   #time = 0;
   #nextHandle = 1;
   #timers = new Map<number, { due: number; callback: () => void }>();
@@ -41,6 +42,7 @@ class MemoryTransport implements ObituaryTransport {
   setTimeout(callback: () => void, milliseconds: number): number {
     const handle = this.#nextHandle++;
     this.#timers.set(handle, { due: this.#time + milliseconds, callback });
+    this.timerStarted.resolve();
     return handle;
   }
   clearTimeout(handle: number): void { this.#timers.delete(handle); }
@@ -542,4 +544,75 @@ test('export rejects terminal facts whose frozen death date does not match the r
   assert.ok(entry);
   finish(run, entry, generated());
   await assert.rejects(exportObituarySidecar(run, replayBytes), /Invalid terminal obituary archive/u);
+});
+
+for (const providerTiming of ['in budget', 'after budget'] as const) {
+  test(`pending initialization is consumed once and its wait shares the 10s budget: provider ${providerTiming}`, async () => {
+    const { run, entry } = admitted();
+    const headers = Promise.withResolvers<Response>();
+    const provider = Promise.withResolvers<Response>();
+    const posted = Promise.withResolvers<void>();
+    const transport = new MemoryTransport(call => {
+      if (call.init.method === 'GET') return headers.promise;
+      posted.resolve(); return provider.promise;
+    });
+    const capability = fetchObituaryCapability(transport);
+    let changes = 0;
+    const attempt = startObituaryAttempt(run, entry, capability, () => { changes++; }, transport);
+    await transport.timerStarted.promise;
+    transport.advance(8000);
+    assert.equal(entry.attempt, 'pending');
+    assert.equal(changes, 0);
+    assert.equal(transport.calls.filter(call => call.init.method === 'POST').length, 0);
+    headers.resolve(json(enabled.capability));
+    await posted.promise;
+    assert.equal(transport.calls.filter(call => call.init.method === 'GET').length, 1);
+    assert.equal(transport.calls.filter(call => call.init.method === 'POST').length, 1);
+    if (providerTiming === 'after budget') {
+      transport.advance(2000);
+      expectTerminal(entry, template('timeout', model));
+    }
+    provider.resolve(json(reply(run, entry)));
+    await attempt;
+    expectTerminal(entry, providerTiming === 'in budget' ? generated() : template('timeout', model));
+    assert.equal(changes, 1);
+    assert.equal(transport.timerCount, 0);
+  });
+}
+
+test('pending capability reaches a null-model terminal deadline and a later GET never posts for that Death', async () => {
+  const { run, entry } = admitted();
+  const headers = Promise.withResolvers<Response>();
+  const transport = new MemoryTransport(call => {
+    assert.equal(call.init.method, 'GET', 'The expired Death must never POST.');
+    return headers.promise;
+  });
+  const capability = fetchObituaryCapability(transport);
+  let changes = 0;
+  const attempt = startObituaryAttempt(run, entry, capability, () => { changes++; }, transport);
+  await transport.timerStarted.promise;
+  transport.advance(10000);
+  await attempt;
+  expectTerminal(entry, template('timeout'));
+  const first = entry.result;
+  headers.resolve(json(enabled.capability));
+  await capability;
+  assert.equal(entry.result, first);
+  assert.equal(changes, 1);
+  assert.equal(transport.calls.length, 1);
+  assert.equal(transport.timerCount, 0);
+});
+
+test('an actually failed initialization is distinct from pending and terminates without POST', async () => {
+  const { run, entry } = admitted();
+  const headers = Promise.withResolvers<Response>();
+  const transport = new MemoryTransport(() => headers.promise);
+  const capability = fetchObituaryCapability(transport);
+  const attempt = startObituaryAttempt(run, entry, capability, () => {}, transport);
+  await transport.timerStarted.promise;
+  headers.reject(new Error('Controlled capability network failure.'));
+  await attempt;
+  expectTerminal(entry, template('capability_unavailable'));
+  assert.equal(transport.calls.length, 1);
+  assert.equal(transport.timerCount, 0);
 });

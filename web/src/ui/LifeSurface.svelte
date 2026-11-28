@@ -37,9 +37,10 @@
   const head = $derived(memorial?.entry ?? scene?.entries[0] ?? null);
   const headView = $derived(memorial === null ? head?.keyScene : memorialKeyScene(memorial.capture));
   const result = $derived(choiceResult(ui));
-  const place = $derived(ui.world?.player.place);
-  const waitingGhost = $derived(ui.world?.player_wait?.ghost);
-  const currentObituary = $derived(place === 'waiting' ? obituaries.find(entry => entry.death.personId === waitingGhost) : undefined);
+  const sceneDeath = $derived(headView?.lifecycle);
+  const currentObituary = $derived(sceneDeath?.kind === 'death'
+    ? obituaries.find(entry => entry.death.eventId === sceneDeath.event && entry.death.personId === sceneDeath.body)
+    : undefined);
   const historicalObituaries = $derived(obituaries.filter(entry => entry !== currentObituary));
   const paperwork = $derived(operationStates(ui));
   const otherPaperwork = $derived(paperwork.filter(state => state.kind === 'choose'

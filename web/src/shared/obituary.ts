@@ -156,12 +156,8 @@ function relative(value: unknown, allowed: Readonly<Partial<Record<Relation, tru
 }
 function relatives(value: unknown, allowed: Readonly<Partial<Record<Relation, true>>>): boolean {
   if (!Array.isArray(value)) return false;
-  const seen = new Set<string>();
   for (const person of value) {
     if (!relative(person, allowed)) return false;
-    const key = person.relation + '/' + person.fullName;
-    if (seen.has(key)) return false;
-    seen.add(key);
   }
   return true;
 }
@@ -169,18 +165,14 @@ function estate(value: unknown): boolean {
   if (value === null) return true;
   if (!exact(value, ['valueDollars', 'heirs']) || !u64(value.valueDollars)
     || !Array.isArray(value.heirs) || value.heirs.length === 0) return false;
-  const seen = new Set<string>();
   for (const heir of value.heirs) {
     if (!exact(heir, ['fullName', 'relation']) || !name(heir.fullName)
       || !(heir.relation === null || relation(heir.relation))) return false;
-    const key = `${heir.relation}/${heir.fullName}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
   }
   return true;
 }
 
-/** Closed model facts; callers keep native correlation outside this object. */
+/** Closed model facts retain name multiplicity; callers keep native identity/correlation outside this object. */
 export function parseObituaryFacts(value: unknown): ObituaryFactsV1 | null {
   if (!exact(value, ['version', 'deceased', 'survivors', 'precededInDeath', 'debtActions', 'collections', 'estate', 'jossBurnersOnDeathDay'])
     || value.version !== 1 || !exact(value.deceased, ['fullName', 'sex', 'ageYears', 'deathDate', 'origin'])

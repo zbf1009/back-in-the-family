@@ -902,6 +902,67 @@ test('narration claims survive actor eviction but expire and revoke with their o
   });
 });
 
+test('anonymous native status cleans only expired claims with primary-key probes despite retained claimless session history', async () => {
+  const cleanupNow = Math.floor(now / 1000) * 1000;
+  await fixtureCase(async fixture => {
+    const authenticated = await login(fixture);
+    await seedCounts(fixture, authenticated.cookie, 2, 6);
+    const sql = await fixture.storage();
+    const activeToken = hash(authenticated.cookie.slice(cookieName.length + 1));
+    const expiredToken = hash('expired-claims');
+    const boundaryToken = hash('boundary-claims');
+    const futureToken = hash('future-claims');
+    const orphanToken = hash('no-session-row');
+    const claimlessSessions = 2048;
+    // Historical sessions remain stored after expiry. None of these needs a claim.
+    await sql.exec(`WITH RECURSIVE history(n) AS (
+      VALUES(1) UNION ALL SELECT n + 1 FROM history WHERE n < ?
+    ) INSERT INTO sessions (token_sha256, expires_at_ms, admitted, code_epoch)
+      SELECT printf('%064x', n), ?, 0, ? FROM history`, claimlessSessions, cleanupNow - 2000, hash(code));
+    for (const [token, expiry, admitted, epoch] of [
+      [expiredToken, cleanupNow - 1000, 2, hash(code)],
+      [boundaryToken, cleanupNow, 1, hash(code)],
+      [futureToken, cleanupNow + 1000, 1, hash(otherCode)],
+    ] as const) await sql.exec('INSERT INTO sessions (token_sha256, expires_at_ms, admitted, code_epoch) VALUES (?, ?, ?, ?)',
+      token, expiry, admitted, epoch);
+    for (const [token, operation] of [
+      [activeToken, 'a'], [activeToken, 'b'], [expiredToken, 'a'], [expiredToken, 'b'],
+      [boundaryToken, 'a'], [futureToken, 'a'], [orphanToken, 'a'],
+    ] as const) await sql.exec('INSERT INTO obituary_claims (token_sha256, operation_key) VALUES (?, ?)', token, operation.repeat(64));
+    const storedSessions = await sql.exec<{ total: number; admitted: number }>('SELECT COUNT(*) AS total, SUM(admitted) AS admitted FROM sessions');
+    assert.deepEqual(storedSessions, [{ total: claimlessSessions + 4, admitted: 6 }]);
+    await fixture.sqlTrace(); // Discard login and fixture seeding statements.
+    const anonymous = await sessionBody(await fixture.runtime.dispatchFetch(origin + '/api/judge/session'));
+    assert.equal(anonymous.state, 'anonymous');
+    const trace = await fixture.sqlTrace();
+    assert.equal(trace.length, 1, 'Anonymous status executes only the production claim cleanup');
+    const cleanup = trace[0]!;
+    assert.ok(/^DELETE\s+FROM\s+obituary_claims\b/i.test(cleanup.query), 'Captured the native cleanup statement');
+    assert.ok(cleanup.bindings.length === 1 && cleanup.bindings[0] === cleanupNow, 'Native expiry cutoff is unchanged');
+    // The fixture EXPLAINs the exact SQL/bindings intercepted from the checked
+    // production bundle, not a copied alternative query or a source assertion.
+    const details = cleanup.plan.map(row => row.detail);
+    assert.ok(details.some(detail => /^SCAN (?:TABLE )?obituary_claims\b/i.test(detail)), 'Claims drive cleanup');
+    assert.ok(details.some(detail => /CORRELATED.*SUBQUERY/i.test(detail)), 'Expiry lookup is correlated to each claim');
+    assert.ok(details.some(detail => /^SEARCH (?:TABLE )?sessions USING (?:COVERING )?INDEX \S+ \(token_sha256=\?\)/i.test(detail)),
+      'Each session lookup uses its existing token primary key');
+    assert.ok(!details.some(detail => /^SCAN (?:TABLE )?sessions\b/i.test(detail)), 'Anonymous cleanup never scans historical sessions');
+    const retained = await sql.exec<{ token_sha256: string; operation_key: string }>('SELECT token_sha256, operation_key FROM obituary_claims');
+    assert.equal(retained.length, 4);
+    assert.ok(retained.filter(row => row.token_sha256 === activeToken).length === 2, 'Active-session claims survive');
+    assert.ok(retained.some(row => row.token_sha256 === futureToken), 'Unexpired claims survive even with another code epoch');
+    assert.ok(retained.some(row => row.token_sha256 === orphanToken), 'A missing session is not an expired session');
+    assert.ok(retained.every(row => row.token_sha256 !== expiredToken && row.token_sha256 !== boundaryToken),
+      'Earlier-expired and exact-boundary claims are deleted');
+    assert.deepEqual(await sql.exec('SELECT COUNT(*) AS total, SUM(admitted) AS admitted FROM sessions'), storedSessions,
+      'Cleanup preserves every session row and lifetime admission');
+    assert.deepEqual(await counts(fixture, authenticated.cookie), { session: 2, daily: 6 }, 'Cleanup refunds neither counter');
+    const current = await active(await fixture.runtime.dispatchFetch(origin + '/api/judge/session', { headers: { Cookie: authenticated.cookie } }));
+    assert.equal(current.quota.session_remaining, 8); assert.equal(current.quota.daily_remaining, 34);
+    assert.equal(fixture.calls.length, 0, 'Status and cleanup dispatch no AI');
+  }, { nowMs: cleanupNow, traceSql: true });
+});
+
 test('authenticated disabled narration capability survives unchanged session storage while POST remains zero-AI', async () => {
   const owned = await mkdtemp(join(tmpdir(), 'obituary-disabled-session-'));
   const persistencePath = join(owned, 'sqlite');

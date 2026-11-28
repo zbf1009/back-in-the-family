@@ -10,6 +10,7 @@ export interface JudgeRuntimeFixtureOptions extends Pick<RuntimeFixtureOptions, 
   persistencePath?: string;
   nowMs?: number;
   reserveFault?: 'reject-after-commit';
+  traceSql?: boolean;
 }
 
 export async function judgeRuntimeFixture(options: JudgeRuntimeFixtureOptions = {}): Promise<JudgeRuntimeFixture> {
