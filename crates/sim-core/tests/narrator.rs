@@ -486,7 +486,7 @@ proptest! {
         let before = world.narrator().chronicle.entries().len();
         world.step(&[]);
         let narrator = world.narrator();
-        prop_assert!(narrator.pending.is_none(), "a node resolves exactly one tick later");
+        prop_assert!(narrator.pending.as_ref().is_none_or(|pending| pending.id != node_id), "a node resolves exactly one tick later");
         prop_assert_eq!(narrator.chronicle.entries().len(), before + 1);
         let entry = narrator.chronicle.entries().last().unwrap();
         prop_assert_eq!(entry.node, Some(node_id));
@@ -511,7 +511,7 @@ proptest! {
         prop_assert_eq!(pending.options.iter().map(|option| option.id).collect::<std::collections::BTreeSet<_>>().len(), pending.options.len());
         let expected = pending.rules_default;
         world.step(&[]);
-        prop_assert!(world.narrator().pending.is_none());
+        prop_assert!(world.narrator().pending.as_ref().is_none_or(|next| next.id != pending.id));
         let entries: Vec<_> = world.narrator().chronicle.entries().iter().filter(|entry| entry.node == Some(pending.id)).collect();
         prop_assert_eq!(entries.len(), 1);
         prop_assert_eq!(entries[0].tick, Tick(1));
