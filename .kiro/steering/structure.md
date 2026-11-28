@@ -112,7 +112,7 @@ eval runner ──> sim-core (context rendering + validation) and the LLM adapte
 
 `sim-core` has no dependency on rendering, networking, threads, clocks, or the browser.
 
-## Specs (historical order and current local continuation)
+## Historical Spec planning order (before Spec 8)
 
 1. `sim-core-skeleton`: workspace, tick loop, `TickInput`, checksum, replay check, native-vs-WASM checksum test, tick granularity measurement.
 2. `web-shell`: minimal page that loads the WASM and shows tick and checksum; deploy target.
@@ -122,6 +122,14 @@ eval runner ──> sim-core (context rendering + validation) and the LLM adapte
 6. First playable version: **accepted and audited locally** (2026-11-20; [final audit](../../docs/first-playable-audit.md)), within the Author's window extended through 2026-11-22 (2026-11-19 ruling). Production remains deployed through spec 5; spec 6 has not been pushed or deployed. The slice provides the rules-only Narrator and Player_Node loop, paid Rebuilt_Body Set/Adjust Customization, clock pacing and the interactive advancement gate, Town_View, four template scenes and panels, batch reporting, and the recorded playthrough and its browser Smoke_Test. Spec 6 makes no model calls and adds no UI controls for haunting or Bribes. The C4 decision is `change` (2026-11-19): keep the placeholder `SpriteSet`, no third-party media, and an empty `web/assets/ASSETS.json`. Rebuilt_Body's unique benefit is control over named Traits, not a claim of overall superiority; Carry_Over is shared by all paths.
 7. After spec 6: the rest of `slow-think` (validating rule priors plus a decision model with in-simulation metrics), and one spec for the Cloudflare Worker script (AI binding), the request budget (per-session rate limit, daily cap), wiring clef into the decision-node interface, and a one-click deploy button. No S (rule-computed).
 8. Pending: a presentation-text layer (dialogue, dreams, obituaries, with caching); the first slice uses template text.
+
+## Current Spec 9 + Spec 10 delivery and release
+
+- Spec 7 functionality/public delivery and the separate Judge release are accepted. Spec 8 (`life-in-view`) is functionally complete, visually/experientially unaccepted and superseded; keep its original C1–C5 evidence and split acceptance.
+- Spec 9 (`life-unfolds`) delivers human copy/Start/calendar/pace, a complete factual notebook with bounded rendering, eight large scene families and usable people/Underworld files. LU-P1 and the confirmed modern-portrait expansion are accepted at reviewed repair `6b692f5`.
+- Spec 10 (`obituary`) adds an observation-only complete death-time kin summary, frozen life-owned facts, exact public/failure templates, one-shot Judge narration, memory-only historical cards and a sidecar bound to unchanged replay bytes. Native per-category PersonID uniqueness retains distinct people with identical model-visible names/relations. Narration never owns tick/scene/input control or alters World/RNG/checksum/replay v5.
+- Runtime baseline `582932444c1632880b0cd2480aad21778d33b6c3` passes independent review. Named LU-P2 authorization covers both existing sites through green-main static and dependent checked-Judge CI, with the existing publisher, stable namespace/Secret/counters and disabled→check→enabled policy. Real validation is serial, cumulatively at most ten authorized calls within the existing 40/UTC-day and 10/session-lifetime pool; exhaustion with missing proof requires an Author decision, not skipped verification or unauthorized calls. Prompt changes require confirmation for later deaths only.
+- Spec 9/10 v4 is published and technically verified at source `05794477dab0504fbfd207d0ffa346761512b507`: full main46128864365/1 and checked Judge46130496953/1 both succeed. Public template/zero-model export and real Judge paragraph/native replay-sidecar proof pass; late words remain under the original life after legal rebirth and Skip does not advance ticks. Cumulative real calls3/10, daily/session allowance37/7 at2026-11-28T09:34:52Z; earlier v2/v3 quality failures and the failed Native gate run stay historical. Final Author wording experience is pending, not self-declared acceptance. Exact versions, artifact identities, original words and factual summary are in [the release audit](../../docs/life-unfolds-lu-p2.md), with approved [Life Unfolds tasks](../specs/life-unfolds/tasks.md) and [Obituary tasks](../specs/obituary/tasks.md).
 
 ## Historical next steps (2026-11-20; spec 6 accepted and production deployed)
 
@@ -142,7 +150,7 @@ This records the earlier local C5 review stop, before the separate permanent pub
 - `scripts/prepare-gates.sh` prepares the complete fixed public SDK cache separately from offline gates. The existing artifact source/metadata pins and private thirteen-entry license closure bind the checked prebuilt tree; no publisher rebuild or Rust dependency is needed by the independent Node consumer.
 - Source inference and the independent hosted candidate remain disabled with the explicit 16,384-byte policy. Both permanent publisher guards remain false, no permanent ref/button is authorized, and C5 grants no push, deploy, hosted switch or release activation.
 
-## Spec 8 delivered local boundaries (LV-C1–LV-C4)
+## Historical Spec 8 delivered local boundaries (LV-C1–LV-C4)
 
 - `ui/LifeSurface.svelte` keeps scene context, current choices/Underworld actions and recorded results in the primary reading lane; identity/relationships and an initially collapsed town map are secondary. Historical scenes do not hide or delay current actions.
 - `main/key-scene.ts`, `ui/KeyScene.svelte` and `ui/ScenePicture.svelte` present the five actual Player_Node families (family death, inheritance, debt due, feud, life stage) and the player's own death/rebirth with finite optional performances, Skip and reduced motion. Dream remains static template text.

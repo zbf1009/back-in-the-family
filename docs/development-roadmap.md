@@ -1,19 +1,30 @@
 # Development roadmap
 
-**Planning reference · 2026-11-24 · Not implementation tasks or new execution authority.**
+**Navigation reference · Spec 9 LU-P1 accepted · Spec 9 + Spec 10 LU-P2 published and technically verified · Real v4 sample facts pass; final Author wording experience pending.**
 
 This note preserves the settled Author/Spec discussion and its initial follow-on plan. **Decided** means an existing choice; **proposed** means planning advice, not approval; **deferred** means outside completed scope, with ownership or a trigger still to decide. Future implementation Specs retain the existing Kiro `requirements.md` / `design.md` / `tasks.md` format; this note is not another Spec template.
 
 ## Status and active release authority
 
-- **Completed:** Specs 1–6; the formal Spec 6 close-out is accepted. Spec 7 (`slow-think`) functionality and C5 review are also complete. Checked C5 code: `49d61f2e6cadb58dd9f494c03d506b30a831182c`; audit-document commit: `0f0bbd1eddb89c5eb31e24e231b603012c754231`. See [completed Spec history](../.kiro/steering/structure.md#L127-L132), [Spec 6 acceptance](first-playable-audit.md#scope-and-release-status) and [C5 acceptance](slow-think-audit.md#slow-think-independent-requirement-audit).
+- **Completed:** Specs1–6; formal Spec6 close-out is accepted. Spec7 functionality/C5 review are complete at checked49d61f2e6cadb58dd9f494c03d506b30a831182c and audit0f0bbd1eddb89c5eb31e24e231b603012c754231. See [completed Spec history](../.kiro/steering/structure.md#historical-next-steps-2026-11-20-spec-6-accepted-and-production-deployed), [Spec6 acceptance](first-playable-audit.md#scope-and-release-status) and [C5 acceptance](slow-think-audit.md#slow-think-independent-requirement-audit).
 - **Judge release completed and accepted:** execution published `judge-demo-release`, and final Spec review is **PASS** for source `1701d2df26ede28c2a5ed422a6dbff0fcd7845dd`. Actual login, one native decision and exported replay v5 passed the existing game/native audit; the reviewer service is retained. See the [final acceptance record](kiro-log.md#judge-demo-release-final-spec-acceptance). Current configuration, deployed identity and remaining budgets must still come from the active release's latest results, not historical planning or acceptance snapshots.
-- **Authority precedence and current public delivery:** C5 did not authorize permanent artifact/button publication or hosted activation. The later explicit [judge release grant](../.kiro/specs/judge-demo-release/requirements.md#author-grant) authorized its named rollout, now accepted. The separate [permanent public deployment grant](../.kiro/specs/slow-think/requirements.md#permanent-public-deployment-author-grant) has completed **10.1–10.4**: approved publisher/workflow compatibility, actual permanent ref/button and successful main/static/publisher/judge CI, fresh default-off import/build/UI/byte/native AI/ASSETS proof and owned cleanup, plus published delivery documentation and observed successful CI. **0 new models / 0 judge calls**. Execution is **ready for final Spec review, acceptance still pending**; public delivery is not finally accepted yet. Neither grant selects the generic hosted candidate or changes the public/reviewer model policies.
-- **Separate scopes:** `judge-demo-release` is a standalone publication Spec, not an advance assignment of Spec 8/9. Spec 8 (`life-in-view`) has approved requirements/design/tasks and independently accepted LV-C1–LV-C4 implementation; its explicit local LV-C5 continuation is active. The presentation-text successor remains separate and unimplemented. Accepted audits and the active Spec/results govern current status; no UI checkpoint changes the published Spec 7 resources or delivery policies.
+- **Final public delivery accepted:** Spec 7 tasks10.1–10.4 and permanent default-off delivery have final Spec PASS at source `cb264943170bf9fbe315f9704d15e1e6dc03cb71`, main/static/publisher45361194843/1 and Judge45364401590/1. Its earlier C5 stops and import identities below remain historical, not new execution authority. Own-account generic inference stays off by default; the private reviewer policies remain separate.
+- **Separate scopes:** Spec 8 is functionally complete, visually/experientially unaccepted and superseded; original C1–C5 records are frozen. Spec 9 LU-P1 is accepted at6b692f5. Spec 10's reviewed implementation and named combined LU-P2 authorize the existing dual-site chain plus the finite narration verification below, not new gameplay, P3 refactoring or budget/resource changes.
+
+### Current Spec 9 + Spec 10 LU-P2
+
+Spec 8 remains functionally complete, visually/experientially unaccepted and superseded; its original C1–C5 records are not reclassified. Spec 9's four goals and portrait expansion are delivered, and the Author accepts LU-P1 at reviewed repair `6b692f5`. Spec 10's local own-obituary implementation and successive P2 repairs pass independent review at `582932444c1632880b0cd2480aad21778d33b6c3`; the Author's local trial found no major problem. Nonblocking P3 work remains outside this release.
+
+The reviewed runtime baseline `582932444c1632880b0cd2480aad21778d33b6c3`, Author-confirmed v3/v4 prompt revisions and a test-only Native Narrator gate repair are published through the existing green-main static/dependent-Judge workflows and normal artifact publisher. Verified v4 source is `05794477dab0504fbfd207d0ffa346761512b507`, with [main46128864365/1](https://github.com/zbf1009/back-in-the-family/actions/runs/46128864365/attempts/1) and [Judge46130496953/1](https://github.com/zbf1009/back-in-the-family/actions/runs/46130496953/attempts/1) both SUCCESS. Actual public template, same-session capability, native replay/sidecar pairs, late-after-rebirth ownership and unchanged Skip ticks pass. Three real calls are recorded: v2/v3 factual failures retained; v4's86-word original sample facts pass. Remaining UTC-day/session allowance is37/7 at2026-11-28T09:34:52Z, release authorization7/10 remaining; no more calls are needed for the delivered sample. Final Author wording experience is pending. See the [actual release audit](life-unfolds-lu-p2.md); its status-only publication receives its own complete dual CI before final delivery.
+
+Only IntegrationOwner executes real narration serially. This release has a cumulative authorization of ten real calls across validation/calibration/repairs, within the unchanged 40/UTC-day and 10/session-lifetime pool; login/page-load/CI/export checks are zero-model. If authorization or existing quota is exhausted before verification is complete, ask the Author for additional authorization or the next direction, without resetting/churning sessions, silently dropping proof or dispatching an unauthorized call. Prompt changes still require Author confirmation and a new version/digest for later actual deaths only. Preserve model/options, all game rules/RNG/checksums/replay v5, JUDGE_CODE, namespace, counters and inference policy.
+
+Active Specs: [Life Unfolds requirements](../.kiro/specs/life-unfolds/requirements.md), [design](../.kiro/specs/life-unfolds/design.md), [tasks](../.kiro/specs/life-unfolds/tasks.md); [Obituary requirements](../.kiro/specs/obituary/requirements.md), [design](../.kiro/specs/obituary/design.md), [tasks](../.kiro/specs/obituary/tasks.md).
+
 
 Actual import identity: source `32100ed224595d0ec4d0645a0ae4e9cde640c7bf`; successful [main/static/publisher `45326300030/1`](https://github.com/zbf1009/back-in-the-family/actions/runs/45326300030/attempts/1) and [judge `45328839414/1`](https://github.com/zbf1009/back-in-the-family/actions/runs/45328839414/attempts/1); permanent import artifact commit `83dd1ae56f46f2f18c60619f1d9121b79b1408a8`. The [public delivery audit](slow-think-audit.md#permanent-public-delivery) links the terminal local/ignored import and cleanup proofs and discloses GitHub's actual anonymous 403/reset, blank initial manual-Build commit metadata and seven uploaded multipart modules/four SDK auxiliaries. The six Spec documents and roadmap were already published in initial source `cab87be498a12cf4043c3c326b1dbc2ba1ff4991`; their 10.4 delivery updates are now published as `b152d6fc81d26731c84ab759aea007cdcabb72e8`, with successful [main/static/publisher `45354247253/1`](https://github.com/zbf1009/back-in-the-family/actions/runs/45354247253/attempts/1) and [judge `45357996605/1`](https://github.com/zbf1009/back-in-the-family/actions/runs/45357996605/attempts/1), actual newer permanent ref `899ad65f6c454311271d8f6e2d4b3f1e528ac5cf` and unchanged deployment payload excluding only provenance. Original C5 and accepted judge `1701d2…` identities are historical, not replaced by either source. The public copy's 16384 actual UTF-8-byte policy / 40-attempt page default and the judge's 40/UTC-day / 10/session-lifetime / TTL 86400 / retained counters remain separate; no new balance equality is claimed. Main's final handoff will provide the next status-only closure's observed source/CI tuple.
 
-### Settled judge release boundaries
+### Historical original Judge release grant boundaries
 
 The Author selected **private reviewer code**, `implement_and_publish`, and `private_channel_confirmed`:
 
@@ -25,7 +36,7 @@ The Author selected **private reviewer code**, `implement_and_publish`, and `pri
 
 The [release requirements](../.kiro/specs/judge-demo-release/requirements.md), [design](../.kiro/specs/judge-demo-release/design.md) and [tasks](../.kiro/specs/judge-demo-release/tasks.md) hold the full contract; do not duplicate wire schemas, source pins or approval history here.
 
-## Decided direction and ordering
+## Historical decided direction and ordering (2026-11-24)
 
 **B, life-in-view, is selected:** scenes and the current life lead the interface; a town map is optional, not the main surface. The chosen exploratory art process is CC0 trial sources plus self-drawn gaps. **No trial package was formally adopted.** A/B/C renders at **1280×720** were static direction samples, not implemented UI or viewport/capacity evidence. Exact decision: [2026-11-20 direction trial, log lines 2871–2876](kiro-log.md#L2871-L2876).
 
@@ -33,7 +44,7 @@ The [release requirements](../.kiro/specs/judge-demo-release/requirements.md), [
 
 **Presentation architecture already chosen:** dialogue, dreams and obituaries are an independent presentation layer expressing rule-computed facts, not changing rules, legal options or checksums. Record the text as a presentation payload so replay shows the same words without another model request; use templates on failure. This is not one intelligent agent/model call per NPC and not an in-browser model. Model choice, triggers, context, budget, quality criteria and storage are still unspecified. See [LLM boundary and recording](../.kiro/steering/tech.md#llm-boundary) and [runtime/presentation decision](../.kiro/steering/tech.md#L17).
 
-## Thin-slice backlog: delivered versus missing
+## Historical thin-slice backlog (2026-11-24)
 
 | Item | Current fact / source | Proposed ownership or trigger — not approval |
 |---|---|---|
@@ -45,7 +56,7 @@ The [release requirements](../.kiro/specs/judge-demo-release/requirements.md), [
 | Generated presentation text | Architecture selected above; current scenes/Chronicle use templates. [R10.6](../.kiro/specs/first-playable/requirements.md#L247); [build strategy](../.kiro/steering/product.md#L68-L70). | Separate text Spec after B, with an explicit fact/trigger/budget/recording/quality contract. Not part of the judge release. |
 | Settings page, replay gallery, sound, additional scripted scenes | These named additions remain excluded, **not every existing setting/control**. Existing controls, replay export/audit and static Dream are retained; Spec 8 adds exactly seven finite player-key categories, not a performance for every event/result. | Prioritize later additions individually by actual value and explicit Spec ownership; do not confuse a missing gallery with missing replay export/audit. |
 
-## Proposed next plan and Spec questions
+## Historical proposed next plan and Spec questions (2026-11-24)
 
 **Current plan:** Spec 7 functionality/public delivery and the separate judge release have final acceptance. Spec 8's [requirements](../.kiro/specs/life-in-view/requirements.md), [design](../.kiro/specs/life-in-view/design.md) and [tasks](../.kiro/specs/life-in-view/tasks.md) are approved; local implementation is independently accepted through LV-C4. B is life-first, retains complete existing operations and necessary explanations, and completes Bribe/Haunt/rebirth/customization surfaces with optional finite pictures for five Player_Node families plus own death/rebirth. Ordinary results and Dream remain static. The approved desktop/material/motion boundaries and proper native/component/live evidence layers remain binding. The single Integration Owner now executes explicitly authorized final local tasks5.1–5.4 through STOP LV-C5; green checks do not replace the Author's final decision. New conflict, economy, broader customization and generated text remain separate scopes. No installation, live model, cloud/judge resource or publication authority follows.
 
@@ -56,7 +67,7 @@ Before drafting the next real Spec, decide:
 3. **Text:** exact rule-fact contract and evidence references, request triggers/context bounds, model/service choice, allowance/failure behavior, payload identity/storage/replay, and measurable factual/tone quality. No rules/checksum changes or replay re-requests.
 4. **Gameplay thickening:** choose a small, specific gain in meaningful choices, pace or consequences before expanding mechanics; do not infer a fixed expansion queue from this archive.
 
-## Source index and resumption
+## Historical source index (2026-11-24)
 
 Start future sessions with **this file**, then read only the **active Spec's three files and latest result**. Follow targeted source links only when a decision needs evidence; do not reload the large log or historical C1–C5 approval/failure sequences.
 
