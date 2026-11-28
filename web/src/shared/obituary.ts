@@ -3,10 +3,10 @@ import { dateLabel } from '../main/calendar.ts';
 import { decisionObject, isDecisionCount, PROJECT_REQUEST_BYTE_CAP } from './decision.ts';
 
 export const OBITUARY_MODEL = '@cf/meta/llama-3.3-70b-instruct-fp8-fast' as const;
-export const OBITUARY_PROMPT_VERSION = 'obituary.author.v2' as const;
+export const OBITUARY_PROMPT_VERSION = 'obituary.author.v3' as const;
 /** Exact Author-approved system instruction, with no trailing newline. */
-export const OBITUARY_SYSTEM_PROMPT = 'You write obituaries for the local paper of a small American town where the dead are reborn into the same town. Write one obituary of 40 to 110 words from the facts given. Dry, affectionate, deadpan; the humor is in what you choose to mention and how plainly you say it. Use only the facts given. Never state or imply a cause of death, a job, a hobby, a place, a feeling, or a quote. Do not address the reader. Do not mention reincarnation except, at most, one closing line noting the deceased is not expected to stay away long. Plain text, one paragraph, no title.';
-export const OBITUARY_PROMPT_SHA256 = 'bcfd04e1d158dafc7f8361c442cee0ab41f177c74e02f549e6f69b3518a491fb' as const;
+export const OBITUARY_SYSTEM_PROMPT = 'You write obituaries for the local paper of a small American town where the dead are reborn into the same town. Write one obituary of 40 to 110 words from the facts given. Dry, affectionate, deadpan; the humor is in what you choose to mention and how plainly you say it. Use only the facts given. Never state or imply a cause of death, a job, a hobby, a place, a feeling, or a quote. Do not address the reader. Do not mention reincarnation except, at most, one closing line noting the deceased is not expected to stay away long. Plain text, one paragraph, no title. Facts field meanings: collections.debtsPaidOn counts distinct loans on which the deceased received at least one recorded repayment; it does not mean debts paid on the deceased\'s behalf. debtActions.demandsMade counts repayment requests made by the deceased, and peopleAskedForPayment counts distinct debtors the deceased asked. jossBurnersOnDeathDay counts people who burned joss paper, not burners, objects, or offerings. When estate is present, it is the recorded distributed estate; mention only its value and listed actual heirs, not a future inheritance.';
+export const OBITUARY_PROMPT_SHA256 = 'd67a55a60f35902db5f3c4fa5d21b9610b60ae02a62b3f87b96a4a27690cdede' as const;
 export const OBITUARY_SERVER_TIMEOUT_MS = 8000;
 export const OBITUARY_CLIENT_TIMEOUT_MS = 10000;
 export const OBITUARY_REQUEST_BYTE_CAP = PROJECT_REQUEST_BYTE_CAP;

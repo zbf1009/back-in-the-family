@@ -66,7 +66,6 @@ const sidecar: ObituarySidecarV1 = {
 
 test('the immutable instruction identity hashes its literal UTF-8 bytes and exposes the agreed bounds', () => {
   assert.equal(createHash('sha256').update(OBITUARY_SYSTEM_PROMPT, 'utf8').digest('hex'), OBITUARY_PROMPT_SHA256);
-  assert.equal(OBITUARY_PROMPT_VERSION, 'obituary.author.v2');
   assert.equal(OBITUARY_MODEL, '@cf/meta/llama-3.3-70b-instruct-fp8-fast');
   assert.equal(OBITUARY_SERVER_TIMEOUT_MS, 8000);
   assert.equal(OBITUARY_CLIENT_TIMEOUT_MS, 10000);

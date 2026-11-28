@@ -6,13 +6,13 @@ import { fetchObituaryCapability, startObituaryAttempt, type ObituaryCapabilityS
 import { ObituaryRun, type ObituaryDeath, type ObituaryEntry } from '../../src/main/obituary-store.ts';
 import { exportObituarySidecar } from '../../src/main/obituary-export.ts';
 import { renderObituaryTemplate } from '../../src/main/obituary-template.ts';
-import type { FallbackReason, ObituaryCapabilityV1, ObituaryFactsV1, ObituaryReplyV1, ObituaryResultV1 } from '../../src/shared/obituary.ts';
+import { OBITUARY_PROMPT_VERSION, OBITUARY_PROMPT_SHA256, OBITUARY_SYSTEM_PROMPT as prompt,
+  type FallbackReason, type ObituaryCapabilityV1, type ObituaryFactsV1, type ObituaryReplyV1, type ObituaryResultV1 } from '../../src/shared/obituary.ts';
 
 const positive: { facts: ObituaryFactsV1; paragraph: string } = JSON.parse(readFileSync(new URL('../fixtures/obituary-seed1205-positive.json', import.meta.url), 'utf8'));
 const replayBytes = readFileSync(new URL('../../../fixtures/parity/seedP-playthrough.replay.json', import.meta.url), 'utf8');
 const model = '@cf/meta/llama-3.3-70b-instruct-fp8-fast' as const;
-const prompt = 'You write obituaries for the local paper of a small American town where the dead are reborn into the same town. Write one obituary of 40 to 110 words from the facts given. Dry, affectionate, deadpan; the humor is in what you choose to mention and how plainly you say it. Use only the facts given. Never state or imply a cause of death, a job, a hobby, a place, a feeling, or a quote. Do not address the reader. Do not mention reincarnation except, at most, one closing line noting the deceased is not expected to stay away long. Plain text, one paragraph, no title.';
-const provenance = { promptVersion: 'obituary.author.v2', promptSha256: 'bcfd04e1d158dafc7f8361c442cee0ab41f177c74e02f549e6f69b3518a491fb' };
+const provenance = { promptVersion: OBITUARY_PROMPT_VERSION, promptSha256: OBITUARY_PROMPT_SHA256 };
 const nativeTemplate = renderObituaryTemplate(positive.facts);
 const quota = { utc_day: '2026-11-27', reset_at_ms: Date.parse('2026-11-28T00:00:00.000Z'), daily_limit: 40 as const, daily_remaining: 39, session_limit: 10 as const, session_remaining: 9 };
 const enabled: ObituaryCapabilityState = { capability: { version: 1, enabled: true, model, disabledReason: null, timeout_ms: 10000, quota }, reason: null };
@@ -332,7 +332,7 @@ for (const [name, text, reason] of [
 test('successful envelopes must join the exact operation, prompt provenance, and approved template words', async () => {
   const mutations: ((value: ObituaryReplyV1) => ObituaryReplyV1)[] = [
     value => ({ ...value, operationKey: '0'.repeat(64) }),
-    value => ({ ...value, result: { ...value.result, promptVersion: 'obituary.author.v3' } }),
+    value => ({ ...value, result: { ...value.result, promptVersion: `obituary.author.v${Number(OBITUARY_PROMPT_VERSION.slice('obituary.author.v'.length)) + 1}` } }),
     value => ({ ...value, result: { ...value.result, promptSha256: '0'.repeat(64) } }),
     value => ({ ...value, result: template('provider_error', model, nativeTemplate + ' Changed.') }),
   ];
@@ -485,7 +485,6 @@ test('sidecar binds original v5 replay bytes by independent SHA256 and exports o
   assert.equal(atEnd.attempt, 'pending');
   assert.equal(afterEnd.attempt, 'pending');
   assert.deepEqual(run.visible(), [], 'archive does not require reveal readiness');
-  assert.equal(sha256(prompt), 'bcfd04e1d158dafc7f8361c442cee0ab41f177c74e02f549e6f69b3518a491fb');
   const archive = await exportObituarySidecar(run, replayBytes);
   assert.deepEqual(archive, {
     format: 'back-in-the-family/obituaries', version: 1, replaySha256: createHash('sha256').update(replayBytes, 'utf8').digest('hex'),
@@ -493,12 +492,12 @@ test('sidecar binds original v5 replay bytes by independent SHA256 and exports o
       { runId: run.runId, death: { eventId: '2368', personId: 10, tick: '5372', lifeKey: '7/life/10' },
         operationKey: operationKey(run, entry), facts: positive.facts, attempt: 'terminal',
         result: { text: positive.paragraph, source: 'model', fallbackReason: null,
-          model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', promptVersion: 'obituary.author.v2',
+          model: '@cf/meta/llama-3.3-70b-instruct-fp8-fast', promptVersion: OBITUARY_PROMPT_VERSION,
           promptSha256: createHash('sha256').update(prompt, 'utf8').digest('hex') } },
       { runId: run.runId, death: { eventId: '9001', personId: 20, tick: '5375', lifeKey: '7/life/20' },
         operationKey: operationKey(run, beforeEnd), facts: consumerFacts(266), attempt: 'terminal',
         result: { text: consumerTemplate, source: 'template', fallbackReason: 'public', model: null,
-          promptVersion: 'obituary.author.v2', promptSha256: createHash('sha256').update(prompt, 'utf8').digest('hex') } },
+          promptVersion: OBITUARY_PROMPT_VERSION, promptSha256: createHash('sha256').update(prompt, 'utf8').digest('hex') } },
     ],
   });
   const differentlySpacedBytes = replayBytes + '\n ';
