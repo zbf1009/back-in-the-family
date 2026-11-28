@@ -89,7 +89,7 @@ const quota = (dailyRemaining = 40): Quota => {
 const nativeFetch = window.fetch.bind(window);
 const http: { method: string; path: string; body: ObituaryRequestV1 | null }[] = [];
 const responses: { resolve(response: Response): void; request: ObituaryRequestV1 }[] = [];
-const capabilityResponses: { resolve(response: Response): void }[] = [];
+const capabilityResponses: { resolve(response: Response): void; preparedResponse?: Response }[] = [];
 const capabilityReplies: { status: number; quota: Quota | null }[] = [];
 function capabilityResponse(kind = 'enabled', dailyRemaining = 40): Response {
   const value = kind === 'enabled' ? quota(dailyRemaining) : null;
@@ -207,10 +207,17 @@ const harness = {
       playerLifecycle: witness.continuation.afterDeath.flatMap(value => value.player_lifecycle),
       story: witness.continuation.afterDeath.map(value => ({ worldId: snapshot.worldId, batch: batch(value.story) })) } });
   },
+  prepareCapability(kind = 'enabled', dailyRemaining = 0, index = 0) {
+    const response = capabilityResponses[index];
+    if (!response) throw Error('Missing deferred initial capability GET');
+    response.preparedResponse = capabilityResponse(kind, dailyRemaining);
+  },
   resolveCapability(kind = 'enabled', index = 0) {
     const response = capabilityResponses[index];
     if (!response) throw Error('Missing deferred initial capability GET');
-    response.resolve(capabilityResponse(kind));
+    const prepared = response.preparedResponse;
+    delete response.preparedResponse;
+    response.resolve(prepared ?? capabilityResponse(kind));
   },
   async waitForOperationDigest() {
     const digest = operationDigests.at(-1);

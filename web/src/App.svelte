@@ -27,6 +27,7 @@
   import { fetchObituaryCapability, startObituaryAttempt, type ObituaryCapabilityState } from './main/obituary-client.ts';
   import { exportObituarySidecar } from './main/obituary-export.ts';
   import { downloadJsonBytes } from './main/download-json.ts';
+  import { OBITUARY_CLIENT_TIMEOUT_MS } from './shared/obituary.ts';
 
   const { client, bridge }: { client: SimClient; bridge: EventBridge } = $props();
   let ui: UiState = $state(initialUiState());
@@ -51,7 +52,6 @@
   let obituaryRevision = $state(0);
   let obituaryError: string | null = $state(null);
   let obituaryExportError: string | null = $state(null);
-  let obituaryCapability: ObituaryCapabilityState | null = null;
   let obituaryCapabilityRead: Promise<ObituaryCapabilityState> | null = null;
   const obituaries = $derived.by(() => { obituaryRevision; return obituaryRun?.visible() ?? []; });
   const obituaryEntries = $derived.by(() => { obituaryRevision; return obituaryRun?.entries() ?? []; });
@@ -206,13 +206,17 @@
       }
     }
   }
-  function obituaryCapabilityForDeath(): Promise<ObituaryCapabilityState> {
-    const capability = obituaryCapability?.capability;
-    if (obituaryCapabilityRead === null || capability && Date.now() >= capability.quota.reset_at_ms) {
-      obituaryCapability = null;
-      obituaryCapabilityRead = fetchObituaryCapability().then(snapshot => { obituaryCapability = snapshot; return snapshot; });
+  async function obituaryCapabilityForDeath(): Promise<ObituaryCapabilityState> {
+    const started = performance.now();
+    const read = obituaryCapabilityRead ??= fetchObituaryCapability();
+    const snapshot = await read;
+    const capability = snapshot.capability;
+    if (capability && Date.now() >= capability.quota.reset_at_ms
+      && performance.now() - started < OBITUARY_CLIENT_TIMEOUT_MS) {
+      if (obituaryCapabilityRead === read) obituaryCapabilityRead = fetchObituaryCapability();
+      return obituaryCapabilityRead;
     }
-    return obituaryCapabilityRead;
+    return snapshot;
   }
   function restorePace(): void {
     if (fastForward?.worldId !== ui.worldId || fastForward.requestId !== null || ui.createPending
@@ -396,7 +400,7 @@
   });
   $effect(() => {
     bridge.dispatch = dispatch;
-    void obituaryCapabilityForDeath();
+    obituaryCapabilityRead ??= fetchObituaryCapability();
     void untrack(() => sendRequest({ type: 'decision-status' }));
     return () => { bridge.dispatch = null; };
   });

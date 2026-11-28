@@ -15,6 +15,7 @@ const nativeFacts: { openingBatch: StoryBatch; observedBatches: { story: StoryBa
   continuation: { afterDeath: { story: StoryBatch }[] } } = JSON.parse(readFileSync(new URL('../fixtures/obituary-native.json', import.meta.url), 'utf8'));
 
 declare const window: Window & { __obituaryFixture: { reply(id: number): void; oldStatus(worldId: number): void } };
+interface PreparedCapabilityHarness { prepareCapability(kind?: string, dailyRemaining?: number, index?: number): void }
 test.use({ viewport: { width: 1280, height: 800 }, reducedMotion: 'no-preference' });
 const errors = new WeakMap<object, string[]>();
 test.beforeEach(({ page }) => {
@@ -395,6 +396,90 @@ for (const outcome of ['eligible before deadline', 'POST exceeds shared deadline
     const evidence = await readFixture(page);
     expect(evidence.http.filter(value => value.path === '/api/judge/obituary/config')).toHaveLength(1);
     expect(evidence.capabilityReplies).toHaveLength(1);
+  });
+}
+
+for (const outcome of ['fresh refresh within original deadline', 'refresh stalls past original deadline', 'initial reply arrives after original deadline'] as const) {
+  test(`in-flight old-day exhausted quota is refreshed in the same Death attempt: ${outcome}`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openApp(page, 'capability=deferred', new Date('2026-11-27T23:59:58Z'));
+    await page.clock.setSystemTime(new Date('2026-11-27T23:59:58Z'));
+    await create(page);
+    // Generate the actual Response before midnight, but leave its GET pending.
+    // Delivery below must not regenerate quota using the later arrival clock.
+    await page.evaluate(() => (window.__obituaryFixture as unknown as PreparedCapabilityHarness).prepareCapability());
+    const oldDay = await readFixture(page);
+    expect(await page.evaluate(() => Date.now())).toBe(Date.parse('2026-11-27T23:59:58Z'));
+    expect(oldDay.capabilityReplies).toHaveLength(1);
+    expect(oldDay.capabilityReplies[0]).toMatchObject({ status: 200, quota: {
+      utc_day: '2026-11-27', reset_at_ms: Date.parse('2026-11-28T00:00:00Z'), daily_remaining: 0, session_remaining: 10,
+    } });
+    expect(await records(page)).toEqual([]);
+    await page.clock.setSystemTime(new Date('2026-11-28T00:00:01Z'));
+    expect((await readFixture(page)).http).toEqual(oldDay.http);
+    expect((await readFixture(page)).snapshot).toEqual(oldDay.snapshot);
+    await act(page, 'death');
+    await expect.poll(async () => (await records(page))[0]?.attempt).toBe('pending');
+    // Native crypto resolves before the continuation installs the original 10s
+    // timer. Do not wait for the technical DOM's non-reactive pending key.
+    await waitForOperationDigest(page);
+    await page.evaluate(() => Promise.resolve());
+    const pending = (await records(page))[0]!;
+    expect(await records(page)).toHaveLength(1);
+    expect(pending).toMatchObject({ attempt: 'pending', result: null, death: {
+      eventId: oldDay.death.event, personId: oldDay.death.body, tick: oldDay.death.tick,
+    } });
+    const expectedKey = createHash('sha256').update(`${pending.runId}\0${pending.death.eventId}`, 'utf8').digest('hex');
+    expect(await posts(page)).toEqual([]);
+    expect((await readFixture(page)).http.map(value => [value.method, value.path])).toEqual([['GET', '/api/judge/obituary/config']]);
+
+    if (outcome === 'initial reply arrives after original deadline') {
+      await page.clock.runFor(9999);
+      expect((await records(page))[0]?.attempt).toBe('pending');
+      await page.clock.runFor(2);
+    } else {
+      await page.clock.runFor(8000);
+      expect((await records(page))[0]).toMatchObject({ runId: pending.runId, death: pending.death, facts: pending.facts, attempt: 'pending', result: null });
+      expect(await posts(page)).toEqual([]);
+      await resolveCapability(page);
+      await expect.poll(async () => (await readFixture(page)).http.filter(value => value.path === '/api/judge/obituary/config').length).toBe(2);
+      // The exhausted old body must not terminalize or replace the original entry.
+      expect(await records(page)).toHaveLength(1);
+      expect((await records(page))[0]).toMatchObject({ runId: pending.runId, death: pending.death, facts: pending.facts, attempt: 'pending', result: null });
+      expect((await readFixture(page)).capabilityReplies).toEqual(oldDay.capabilityReplies);
+      expect(await posts(page)).toEqual([]);
+      if (outcome === 'fresh refresh within original deadline') {
+        await resolveCapability(page, 'enabled', 1);
+        await expect.poll(async () => (await posts(page)).length).toBe(1);
+        expect((await posts(page))[0]).toMatchObject({ operationKey: expectedKey, facts: pending.facts });
+        await resolve(page);
+      } else {
+        await page.clock.runFor(1999);
+        expect((await records(page))[0]?.attempt).toBe('pending');
+        await page.clock.runFor(2);
+      }
+    }
+    const successful = outcome === 'fresh refresh within original deadline';
+    const record = await terminal(page, successful ? 'model' : 'template');
+    expect(record).toMatchObject({ runId: pending.runId, death: pending.death, facts: pending.facts, operationKey: expectedKey });
+    expect(record.result).toMatchObject({ model: successful ? OBITUARY_MODEL : null, fallbackReason: successful ? null : 'timeout',
+      text: successful ? oldDay.acceptedText : renderObituaryTemplate(pending.facts) });
+    if (!successful) await resolveCapability(page, 'enabled', outcome === 'initial reply arrives after original deadline' ? 0 : 1);
+    await act(page, 'redeliver'); await page.clock.runFor(10001);
+    expect(await records(page)).toEqual([record]);
+    expect(await posts(page)).toHaveLength(successful ? 1 : 0);
+    const settled = await readFixture(page);
+    expect(settled.sent.filter(value => value.type === 'create-world')).toHaveLength(1);
+    expect(settled.http.map(value => [value.method, value.path])).toEqual(outcome === 'initial reply arrives after original deadline'
+      ? [['GET', '/api/judge/obituary/config']]
+      : [['GET', '/api/judge/obituary/config'], ['GET', '/api/judge/obituary/config'], ...(successful ? [['POST', '/api/obituary']] : [])]);
+    expect(settled.capabilityReplies[0]).toEqual(oldDay.capabilityReplies[0]);
+    expect(settled.capabilityReplies).toHaveLength(outcome === 'initial reply arrives after original deadline' ? 1 : 2);
+    if (outcome !== 'initial reply arrives after original deadline') expect(settled.capabilityReplies[1]).toMatchObject({ status: 200, quota: {
+      utc_day: '2026-11-28', reset_at_ms: Date.parse('2026-11-29T00:00:00Z'), daily_remaining: 40,
+      session_remaining: oldDay.capabilityReplies[0]!.quota!.session_remaining,
+    } });
+    await expect(page.getByTestId('obituary').locator('p')).toHaveText(record.result!.text);
   });
 }
 
